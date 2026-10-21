@@ -1057,6 +1057,11 @@ UPDATE sections
 SET primary_teacher_id = '00000000-0000-4000-8000-00000000a592'
 WHERE id = '00000000-0000-4000-8000-00000000a572';
 
+-- PRC-M396: '8a' day=1 previously shared teacher a592's 'mv-3' slot with '9b'
+-- day=1 -- same (tenant_id, teacher_staff_id, day_of_week, bell_period_id),
+-- which db/sql/232's new unique index now correctly rejects. Moved '8a' to
+-- 'mv-2' (teacher a592 has no other day=1 meeting at that period) instead of
+-- double-booking across sections.
 INSERT INTO section_meetings (
   id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
 )
@@ -1064,18 +1069,18 @@ SELECT
   uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-' || spec.section_key || '-' || spec.day::text),
   '00000000-0000-4000-8000-00000000a501',
   spec.section_id,
-  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-3'),
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-' || spec.period::text),
   spec.day,
   NULL,
   '00000000-0000-4000-8000-00000000a592',
   'active'
 FROM (
   VALUES
-    ('9b'::text, '00000000-0000-4000-8000-00000000a572'::uuid, 1),
-    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 2),
-    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 3),
-    ('8a', '00000000-0000-4000-8000-00000000a571'::uuid, 1)
-) AS spec(section_key, section_id, day)
+    ('9b'::text, '00000000-0000-4000-8000-00000000a572'::uuid, 1, 3),
+    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 2, 3),
+    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 3),
+    ('8a', '00000000-0000-4000-8000-00000000a571'::uuid, 1, 2)
+) AS spec(section_key, section_id, day, period)
 ON CONFLICT (section_id, bell_period_id, day_of_week) DO NOTHING;
 
 INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status, enrolled_at)
