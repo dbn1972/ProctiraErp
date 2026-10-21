@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: institution-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.institutionService.autoscaling.enabled }}
   replicas: {{ .Values.institutionService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

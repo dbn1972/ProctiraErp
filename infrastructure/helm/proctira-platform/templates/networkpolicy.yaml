@@ -1,0 +1,69 @@
+{{- if .Values.networkPolicy.enabled }}
+# PRC-M523: the platform chart previously shipped zero NetworkPolicy
+# resources (unlike infrastructure/helm/proctira-service, which has had one
+# since W1-SEC-07 / check-platform-deploy-render). Modeled on that chart's
+# pattern but scoped to every pod this release owns
+# (app.kubernetes.io/part-of: proctira-platform), since the platform chart
+# renders many Deployments/CronJobs from one release.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "proctira.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: proctira-platform
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Same-namespace peers (gateway -> workers, in-process domains).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: proctira-platform
+    {{- range .Values.networkPolicy.ingressNamespaces }}
+    # Ingress controller / other explicitly named namespaces.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Same-namespace peers (Postgres, Redis, sibling services when in-cluster).
+    - to:
+        - podSelector: {}
+    {{- range .Values.networkPolicy.egressCIDRs }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr }}
+            {{- with .except }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+      {{- with .ports }}
+      ports:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: api-gateway
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.apiGateway.autoscaling.enabled }}
   replicas: {{ .Values.apiGateway.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:
