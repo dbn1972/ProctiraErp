@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
-import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/errors/user_error_message.dart';
 import '../../../core/storage/cache_crypto.dart';
@@ -13,6 +12,7 @@ import '../../../core/sync/conflict_resolver.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_status_banner.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../institutions/data/institution_repository.dart';
 import '../data/attendance_repository.dart';
 import 'attendance_academic_period_picker.dart';
 import 'attendance_class_picker.dart';
@@ -69,6 +69,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   );
   late final GeofenceLocator _locator = buildAppGeofenceLocator();
   late final InstitutionApi _institutionApi = getIt<InstitutionApi>();
+  late final InstitutionRepository _institutionRepository =
+      getIt<InstitutionRepository>();
+
+  /// Cached institutions (PRC-L011): drives the picker below the free-text
+  /// fallback. Empty only when this device has never cached any institution
+  /// (e.g. a teacher who has not opened Institutions yet), in which case the
+  /// screen must not dead-end offline and keeps the manual entry field.
+  List<CachedInstitution> _institutions = const <CachedInstitution>[];
   late final SyncStatusController _syncStatus = EngineSyncStatusController(
     engine: getIt<SyncEngine>(),
     resolver: ConflictResolver(database: getIt<AppDatabase>()),
@@ -85,6 +93,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     // PRC-H060: load the institution's academic periods so the teacher picks a
     // real period instead of typing a UUID.
     unawaited(_loadPeriods());
+    // PRC-L011: load the cached institutions list for the picker.
+    unawaited(_loadInstitutions());
+  }
+
+  Future<void> _loadInstitutions() async {
+    final List<CachedInstitution> institutions = await _institutionRepository
+        .list();
+    if (!mounted) return;
+    setState(() => _institutions = institutions);
+  }
+
+  void _onInstitutionSelected(String? institutionId) {
+    if (institutionId == null) return;
+    setState(() => _institutionCtrl.text = institutionId);
+    unawaited(_loadPeriods());
+    unawaited(_loadRoster());
   }
 
   /// Load academic periods for the picker (PRC-H060). Periods are tenant-scoped
@@ -268,9 +292,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
       return;
     }
-    final AuthState auth = getIt<AuthBloc>().state;
-    final String recordedBy = auth.userId ?? 'mobile-user';
-
     try {
       final AttendanceRosterEntry saved = await _repository.markAttendance(
         entry: entry,
@@ -279,7 +300,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         academicPeriodId: _selectedPeriodId,
         date: _dateString,
         status: status,
-        recordedBy: recordedBy,
         comment: comment,
         latitude: _lastCheck?.userPosition?.latitude,
         longitude: _lastCheck?.userPosition?.longitude,
@@ -365,6 +385,39 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
+  /// PRC-L011: confirm before bulk-marking the whole roster present, so an
+  /// accidental tap cannot silently overwrite every unmarked row.
+  Future<void> _confirmMarkAllPresent() async {
+    final int count = _roster
+        .where(
+          (AttendanceRosterEntry e) => e.status != AttendanceStatus.present,
+        )
+        .length;
+    if (count == 0) return;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Mark all present?'),
+        content: Text(
+          'Mark all $count student${count == 1 ? '' : 's'} present?',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _markAllPresent();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -395,13 +448,44 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              TextField(
-                controller: _institutionCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Institution ID',
-                  prefixIcon: Icon(Icons.school_outlined),
-                ),
-              ),
+              // PRC-L011: pick a cached institution by name instead of
+              // typing a raw id; when the cache is empty (nothing synced
+              // yet on this device) keep a manual-entry fallback so the
+              // screen never dead-ends offline.
+              _institutions.isEmpty
+                  ? TextField(
+                      controller: _institutionCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Institution ID',
+                        prefixIcon: Icon(Icons.school_outlined),
+                      ),
+                    )
+                  : DropdownButtonFormField<String?>(
+                      key: ValueKey<String?>(
+                        'institution-${_institutionCtrl.text}-${_institutions.length}',
+                      ),
+                      initialValue:
+                          _institutions.any(
+                            (CachedInstitution i) =>
+                                i.id == _institutionCtrl.text,
+                          )
+                          ? _institutionCtrl.text
+                          : null,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Institution',
+                        prefixIcon: Icon(Icons.school_outlined),
+                      ),
+                      items: <DropdownMenuItem<String?>>[
+                        for (final CachedInstitution institution
+                            in _institutions)
+                          DropdownMenuItem<String?>(
+                            value: institution.id,
+                            child: Text(institution.name),
+                          ),
+                      ],
+                      onChanged: _onInstitutionSelected,
+                    ),
               const SizedBox(height: 12),
               AttendanceAcademicPeriodPicker(
                 periods: _periods,
@@ -493,7 +577,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   late: late,
                   left: left,
                   total: total,
-                  onMarkAllPresent: _markAllPresent,
+                  onMarkAllPresent: _confirmMarkAllPresent,
                 ),
                 const SizedBox(height: 12),
               ],
@@ -758,7 +842,7 @@ class _RosterRow extends StatelessWidget {
             const SizedBox(width: 8),
             _SegmentedAttendance(status: entry.status, onMark: onMark),
             IconButton(
-              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
               icon: const Icon(Icons.comment_outlined, size: 18),
               tooltip: 'Add comment',
               onPressed: onComment,
@@ -813,23 +897,32 @@ class _SegmentedAttendance extends StatelessWidget {
 
   Widget _segment(String label, AttendanceStatus value, Color color) {
     final bool selected = status == value;
+    // PRC-L011: the tappable area is 48x48 (a11y minimum touch target); the
+    // visual glyph stays 30x30, centered inside via padding rather than
+    // stretched to fill the larger box.
     return GestureDetector(
       onTap: () => onMark(value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        width: 30,
-        height: 30,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? color : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: selected ? Colors.white : color,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? color : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: selected ? Colors.white : color,
+              ),
+            ),
           ),
         ),
       ),
