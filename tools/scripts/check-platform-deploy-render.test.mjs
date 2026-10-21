@@ -92,10 +92,10 @@ test('worker envFrom of the platform Secret is rejected (BYPASSRLS backup URL)',
 });
 
 test('kinds outside the workers-only allowlist are rejected', () => {
-  const docs = [...workersOnly(), { kind: 'NetworkPolicy', metadata: { name: 'deny-all' } }];
+  const docs = [...workersOnly(), { kind: 'Role', metadata: { name: 'deny-all' } }];
   assert.match(
     platformRenderViolations(docs, coords).join('\n'),
-    /NetworkPolicy.*not in the workers-only allowlist/,
+    /Role.*not in the workers-only allowlist/,
   );
 });
 

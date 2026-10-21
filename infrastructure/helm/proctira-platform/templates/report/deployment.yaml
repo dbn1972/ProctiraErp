@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: report-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.reportService.autoscaling.enabled }}
   replicas: {{ .Values.reportService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

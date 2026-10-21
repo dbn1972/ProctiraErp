@@ -43,6 +43,15 @@ data:
   {{- end }}
   S3_REGION: {{ .Values.config.s3Region | quote }}
   S3_FORCE_PATH_STYLE: {{ .Values.config.s3ForcePathStyle | quote }}
+  {{- with .Values.config.corsOrigins }}
+  # PRC-M524 (PARTIAL): wires the real origin list when operators set it.
+  # The gateway does not yet refuse to boot without it — see the ledger
+  # residual in docs/audits/remediation/CANONICAL_LEDGER.csv.
+  CORS_ORIGINS: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.trustedProxyCidrs }}
+  TRUSTED_PROXY_CIDRS: {{ . | quote }}
+  {{- end }}
   {{- if .Values.config.tracing }}
   {{- if .Values.config.tracing.otlpEndpoint }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.tracing.otlpEndpoint | quote }}

@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: student-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.studentService.autoscaling.enabled }}
   replicas: {{ .Values.studentService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

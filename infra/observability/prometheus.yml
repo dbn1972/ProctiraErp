@@ -111,3 +111,27 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_namespace]
         action: replace
         target_label: namespace
+
+  # ─── kube-state-metrics (PRC-L473: DrCronJobFailed alert input) ───────────
+  # Scrapes the cluster's kube-state-metrics Deployment so kube_job_failed is
+  # available for the DR CronJob failure alert. Requires an operator-installed
+  # kube-state-metrics (e.g. the kube-state-metrics Helm chart) exposing the
+  # standard app.kubernetes.io/name=kube-state-metrics label.
+  - job_name: kube-state-metrics
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [kube-state-metrics, monitoring, kube-system]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        action: keep
+        regex: kube-state-metrics
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        action: keep
+        regex: '8080'
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+      - action: replace
+        target_label: service
+        replacement: kube-state-metrics

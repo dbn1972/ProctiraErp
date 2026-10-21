@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: public-website
     app.kubernetes.io/component: frontend
 spec:
+  {{- if not .Values.publicWebsite.autoscaling.enabled }}
   replicas: {{ .Values.publicWebsite.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

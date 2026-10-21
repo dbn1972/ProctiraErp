@@ -36,8 +36,42 @@ ingress:
     enabled: true
     secretName: proctira-prod-tls
 
+# PRC-M523/M522: production NetworkPolicy. The datastore egress rule stays
+# the public-443 ipBlock below because production's actual datastore network
+# location (in-cluster vs. managed/VPC-peered RDS/ElastiCache per
+# docs/PRODUCTION_READINESS.md rows 1.2/1.3) is operator-owned and not
+# determinable from this repo; see PRC-M522's ledger residual.
+networkPolicy:
+  enabled: true
+  ingressNamespaces:
+    - ingress-nginx
+  egressCIDRs:
+    - cidr: 0.0.0.0/0
+      except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 443
+
+# PRC-M599: every enabled service below pins a real image.tag instead of
+# silently falling back to the mutable Chart appVersion (1.0.0). This file's
+# own header documents direct `helm install -f values-production.yaml`
+# usage — deploy-platform-helm.sh additionally overrides etlWorker /
+# examDocumentWorker / dr tags with the CI-built sha at deploy time (and
+# disables these edge apps via values-workers-only.yaml, since they deploy
+# through the thin proctira-service chart instead), but a direct install
+# against this file alone must not float onto whatever appVersion the chart
+# happens to be at. `sha-pending` matches the Kustomize image-tag
+# component's own placeholder convention (infrastructure/k8s/components/
+# image-tag/kustomization.yaml) — CI/CD rewrites it to sha-<gitsha> or a
+# digest; it is accepted (not flagged mutable) by check-no-latest-image-tags.sh.
 apiGateway:
   replicaCount: 3
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 3
@@ -57,6 +91,8 @@ apiGateway:
 
 web:
   replicaCount: 3
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 3
@@ -76,6 +112,8 @@ web:
 # W1-OPS-17 — HA floors aligned with infrastructure/ops/production-replica-policy.yaml
 etlWorker:
   replicaCount: 2
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -94,6 +132,8 @@ etlWorker:
 
 examDocumentWorker:
   replicaCount: 2
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -112,6 +152,8 @@ examDocumentWorker:
 
 registrationPortal:
   replicaCount: 2
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -130,6 +172,8 @@ registrationPortal:
 
 publicWebsite:
   replicaCount: 2
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -141,6 +185,8 @@ publicWebsite:
 
 adminConsole:
   replicaCount: 2
+  image:
+    tag: sha-pending
   resources:
     requests:
       cpu: 200m
@@ -154,6 +200,8 @@ adminConsole:
 
 developerPortal:
   replicaCount: 2
+  image:
+    tag: sha-pending
   resources:
     requests:
       cpu: 100m
@@ -391,6 +439,11 @@ secrets:
 # W1-OPS-19 — production PHI retention enforces deletion (not dry-run).
 dr:
   enabled: true
+  # PRC-M599: deploy-platform-helm.sh overrides this with the CI-built sha at
+  # deploy time; pin a non-mutable placeholder for a direct install against
+  # this file alone.
+  image:
+    tag: sha-pending
   backup:
     encrypt:
       enabled: true

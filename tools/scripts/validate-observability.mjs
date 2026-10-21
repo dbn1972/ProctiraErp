@@ -40,6 +40,7 @@ const expectedAlertGroups = {
     'ServiceErrorRateHigh',
     'ServiceDown',
     'GatewayScrapeAbsent',
+    'DrCronJobFailed',
   ],
   'infra/observability/alerts/latency.yml': ['ServiceP95LatencyHigh'],
   'infra/observability/alerts/error_rate.yml': ['ErrorBudgetBurnFast'],

@@ -45,6 +45,9 @@ spec:
         spec:
           restartPolicy: Never
           serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+          # PRC-L473: matches every Deployment template's baseline; this
+          # CronJob's retention code never calls the Kubernetes API.
+          automountServiceAccountToken: false
           {{- with .Values.global.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
