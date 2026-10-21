@@ -1738,7 +1738,13 @@ SET room_id = EXCLUDED.room_id,
     deleted_at = NULL,
     updated_at = now();
 
--- Keep the schedule-page teacher clash: Neha on G9A-MATH and G8C-HIN, Mon · P3.
+-- PRC-M396: the deliberate schedule-page teacher clash (Neha on G9A-MATH and
+-- G8C-HIN, Mon P3) is no longer seedable: db/sql/232 added a DB-level
+-- (tenant_id, teacher_staff_id, day_of_week, bell_period_id) unique index that
+-- now correctly rejects double-booking the same teacher at the same slot, so
+-- this demo row would fail to apply. Give G8C-HIN its own non-conflicting
+-- teacher/period instead of double-booking Neha; the clash-detection UI is
+-- exercised by its own component/unit tests, not by this seed row.
 INSERT INTO section_meetings (
   id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
 )
@@ -1746,7 +1752,7 @@ VALUES (
   uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-clash-g8c'),
   '00000000-0000-4000-8000-00000000a501',
   '00000000-0000-4000-8000-00000000a571',
-  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-3'),
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-4'),
   1,
   NULL,
   '00000000-0000-4000-8000-00000000a593',
