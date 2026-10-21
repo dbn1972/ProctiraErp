@@ -47,11 +47,13 @@ export function isCampaignAudienceBroadcast(audienceJson: unknown): boolean {
   return String(raw).toLowerCase() === 'all';
 }
 
-export type AcademicSource = 'postgres' | 'none';
+export type AcademicSource = 'postgres' | 'none' | 'degraded';
 
 export interface AcademicMeta {
   source: AcademicSource;
   studentId: string;
+  /** Set when `source === 'degraded'` — why the read could not be served at full fidelity. */
+  degradedReason?: string;
 }
 
 export interface AcademicList<T> {
@@ -224,6 +226,39 @@ export function emptyAcademicList<T>(studentId: string): AcademicList<T> {
   return { data: [], meta: { source: 'none', studentId } };
 }
 
+/**
+ * PRC-M534: the attendance-percentage formula, defined exactly once so both the app-side
+ * (in-memory/no-db) path and the Postgres `COUNT FILTER` path compute an identical result from
+ * equivalent inputs. `total` is the full "marked" denominator (present + absent + late + excused
+ * + any other recorded status) — present/late count fully toward the numerator,
+ * EARLY_DEPARTURE counts as 0.5 (G-919); absent and excused do not count toward the numerator but
+ * do count toward the denominator (an excused day still reduces the percentage, same treatment
+ * as an unexcused absence — see the investigation note on `summariseAttendance`).
+ */
+export function attendancePercentageFromCounts(counts: {
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  earlyDeparture: number;
+  total: number;
+}): number | null {
+  if (counts.total === 0) return null;
+  const attended = counts.present + counts.late + 0.5 * counts.earlyDeparture;
+  return Math.round((attended / counts.total) * 10000) / 100;
+}
+
+/**
+ * PRC-M534 investigation finding: this formula counts an EXCUSED day toward the denominator but
+ * not the numerator, i.e. an excused absence reduces the percentage exactly like an unexcused
+ * absence would. That matches the remediation ledger's description ("counts excused as
+ * non-attended") rather than the FEAT brief's framing ("counts excused absences as if attended"),
+ * which does not describe this code — excused is never added to the attended/numerator side.
+ * This FEAT's brief explicitly directs preserving this existing numerator-exclusion behavior
+ * unchanged, so the formula itself is not altered here; it is only factored out into
+ * {@link attendancePercentageFromCounts} so the Postgres full-period path uses the identical
+ * rule instead of re-deriving it.
+ */
 export function summariseAttendance(days: AttendanceDay[]): AttendanceSummary {
   const summary: AttendanceSummary = {
     ...EMPTY_ATTENDANCE_SUMMARY,
@@ -242,13 +277,15 @@ export function summariseAttendance(days: AttendanceDay[]): AttendanceSummary {
     else summary.other += 1;
   }
   const marked = summary.present + summary.absent + summary.late + summary.excused + summary.other;
-  if (marked === 0) {
-    summary.percentage = null;
-    return summary;
-  }
-  const early = days.filter((d) => d.status.toLowerCase() === 'early_departure').length;
-  const attended = summary.present + summary.late + 0.5 * early;
-  summary.percentage = Math.round((attended / marked) * 10000) / 100;
+  const earlyDeparture = days.filter((d) => d.status.toLowerCase() === 'early_departure').length;
+  summary.percentage = attendancePercentageFromCounts({
+    present: summary.present,
+    absent: summary.absent,
+    late: summary.late,
+    excused: summary.excused,
+    earlyDeparture,
+    total: marked,
+  });
   return summary;
 }
 

@@ -6,6 +6,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { isAcademicColumnMissingError } from './academic-visibility-errors.js';
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import { isConsentStaff } from './parent-portal-consent-access.js';
 import { isFeesStaff } from './parent-portal-fees-access.js';
@@ -1179,6 +1180,12 @@ export async function registerParentPortalRoutes(
       const payload = await run();
       return reply.status(200).send(payload);
     } catch (error: unknown) {
+      // PRC-M316: a 42703 academic-read error must surface as its own 503, not swallowed or
+      // routed through the generic AppError branch, mirroring gradebook/src/routes.ts's
+      // sendDomainError -> isGradebookSchemaMissingError precedent.
+      if (isAcademicColumnMissingError(error)) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
       if (error instanceof AppError) {
         return reply.status(error.statusCode).send(error.toJSON());
       }

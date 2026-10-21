@@ -1,19 +1,25 @@
 /**
  * Postgres academic visibility — queries existing domain tables when present.
- * Missing relations return empty `{ data: [], meta: { source: 'none' } }`.
+ *
+ * PRC-M316: a genuinely-absent optional relation (42P01, undefined_table) still returns an
+ * empty-but-200 payload, but `meta.source` is now `'degraded'` (not an indistinguishable
+ * `'none'`) and the degraded read is observably logged via `recordDegradedRead`. A 42703
+ * (undefined_column) means the query assumed a schema shape this database does not have —
+ * that is never swallowed as empty; it throws `AcademicColumnMissingError` instead.
  */
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import type pg from 'pg';
 
+import { AcademicColumnMissingError } from './academic-visibility-errors.js';
 import {
   isCampaignAudienceBroadcast,
   isParentVisibleGrade,
   selectBoundStudentId,
 } from './academic-visibility.js';
 import {
+  attendancePercentageFromCounts,
   EMPTY_ATTENDANCE_SUMMARY,
   emptyAcademicList,
-  summariseAttendance,
   type AcademicList,
   type AcademicVisibilityStore,
   type AttendanceDay,
@@ -33,10 +39,21 @@ import {
 
 export type PgPoolLike = Pick<pg.Pool, 'query'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-function isMissingRelation(error: unknown): boolean {
+/** Structured, injectable hook so tests can assert a degraded read fired without stdout coupling. */
+export type DegradedReadRecorder = (table: string, pgCode: string) => void;
+
+function defaultRecordDegradedRead(table: string, pgCode: string): void {
+  console.warn({ code: 'ACADEMIC_READ_DEGRADED', table, pgCode });
+}
+
+function isUndefinedTable(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
-  const code = (error as { code?: string }).code;
-  return code === '42P01' || code === '42703';
+  return (error as { code?: string }).code === '42P01';
+}
+
+function isUndefinedColumn(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  return (error as { code?: string }).code === '42703';
 }
 
 function asRecord(row: unknown): Record<string, unknown> {
@@ -69,16 +86,29 @@ function isoOrNull(value: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/** Per-call degraded flag threaded up from `queryRows` to the public method that sets `meta`. */
+interface DegradedFlag {
+  degraded: boolean;
+}
+
 async function queryRows(
   client: PgQueryable,
   sql: string,
   values: unknown[],
+  table: string,
+  recordDegradedRead: DegradedReadRecorder,
+  flag?: DegradedFlag,
 ): Promise<Record<string, unknown>[]> {
   try {
     const result = await client.query(sql, values);
     return result.rows.map(asRecord);
   } catch (error) {
-    if (isMissingRelation(error)) return [];
+    if (isUndefinedColumn(error)) throw new AcademicColumnMissingError();
+    if (isUndefinedTable(error)) {
+      recordDegradedRead(table, '42P01');
+      if (flag) flag.degraded = true;
+      return [];
+    }
     throw error;
   }
 }
@@ -100,10 +130,33 @@ function publishedWorkflow(metadata: unknown): string | null {
 }
 
 export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
-  constructor(private readonly pool: PgPoolLike) {}
+  private readonly recordDegradedRead: DegradedReadRecorder;
+
+  constructor(
+    private readonly pool: PgPoolLike,
+    recordDegradedRead: DegradedReadRecorder = defaultRecordDegradedRead,
+  ) {
+    this.recordDegradedRead = recordDegradedRead;
+  }
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
     return withPgTenant(this.pool as never, tenantId, fn);
+  }
+
+  /**
+   * `meta` honouring a per-call degraded flag over the plain postgres/none choice. When a
+   * 42P01 occurred anywhere in this call's queries, `source` is `'degraded'` with
+   * `degradedReason: 'relation_missing'`, distinguishing it from a genuinely-empty result.
+   */
+  private metaFor(
+    studentId: string,
+    hasData: boolean,
+    flag: DegradedFlag,
+  ): { source: 'postgres' | 'none' | 'degraded'; studentId: string; degradedReason?: string } {
+    if (flag.degraded) {
+      return { source: 'degraded', studentId, degradedReason: 'relation_missing' };
+    }
+    return { source: hasData ? 'postgres' : 'none', studentId };
   }
 
   /**
@@ -128,6 +181,8 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
             )
           ORDER BY id`,
         [tenantId, userId],
+        'students',
+        this.recordDegradedRead,
       );
       return selectBoundStudentId(
         rows.map((row) => strOrNull(row.id)).filter((id): id is string => id !== null),
@@ -135,9 +190,39 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     });
   }
 
+  /**
+   * PRC-M534: percentage is computed in SQL (`COUNT FILTER`) over the student's full active
+   * academic period, not an app-side slice of the last 30 rows. The display list (`data`) keeps
+   * its own separate `ORDER BY date DESC LIMIT 30` — that cap is a UI concern the finding is not
+   * about and is preserved unchanged.
+   *
+   * `student_attendance.status` is stored upper-case in this table: the Prisma schema maps a
+   * plain VARCHAR(20) column, but db/sql/042_attendance_ops_schema.sql enforces
+   * `CHECK (status IN ('PRESENT','ABSENT','LATE','EXCUSED','EARLY_DEPARTURE'))` and every writer
+   * (attendance-service.ts's `AttendanceStatus` enum) only ever writes those upper-case literals.
+   * The aggregate below compares against upper-case to match.
+   */
   async getAttendance(tenantId: string, studentId: string): Promise<AttendancePayload> {
     return this.withTenant(tenantId, async (client) => {
-      const rows = await queryRows(
+      const flag: DegradedFlag = { degraded: false };
+
+      const periodRows = await queryRows(
+        client,
+        `SELECT ap.start_date, ap.end_date
+           FROM enrollments en
+           JOIN academic_periods ap ON ap.id = en.academic_period_id
+          WHERE en.tenant_id = $1::uuid
+            AND en.student_id = $2::uuid
+            AND en.status::text IN ('ENROLLED', 'enrolled')
+          ORDER BY en.enrolled_at DESC
+          LIMIT 1`,
+        [tenantId, studentId],
+        'enrollments',
+        this.recordDegradedRead,
+        flag,
+      );
+
+      const dayRows = await queryRows(
         client,
         `SELECT date, status, class_id, comment
            FROM student_attendance
@@ -145,30 +230,84 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY date DESC
           LIMIT 30`,
         [tenantId, studentId],
+        'student_attendance',
+        this.recordDegradedRead,
+        flag,
       );
-      if (rows.length === 0) {
-        return {
-          data: [],
-          summary: { ...EMPTY_ATTENDANCE_SUMMARY },
-          meta: { source: 'none', studentId },
-        };
-      }
-      const data: AttendanceDay[] = rows.map((row) => ({
+      const data: AttendanceDay[] = dayRows.map((row) => ({
         date: dateStr(row.date),
         status: str(row.status),
         classId: strOrNull(row.class_id),
         comment: strOrNull(row.comment),
       }));
+
+      const period = periodRows[0];
+      if (!period) {
+        // No resolvable active-period bound to aggregate over — report the display list (if
+        // any) without a full-period percentage, rather than silently falling back to the
+        // display-list slice the finding was about.
+        return {
+          data,
+          summary: { ...EMPTY_ATTENDANCE_SUMMARY },
+          meta: this.metaFor(studentId, data.length > 0, flag),
+        };
+      }
+
+      const countRows = await queryRows(
+        client,
+        `SELECT
+            COUNT(*) FILTER (WHERE status = 'PRESENT') AS present_count,
+            COUNT(*) FILTER (WHERE status = 'ABSENT') AS absent_count,
+            COUNT(*) FILTER (WHERE status = 'LATE') AS late_count,
+            COUNT(*) FILTER (WHERE status = 'EXCUSED') AS excused_count,
+            COUNT(*) FILTER (WHERE status = 'EARLY_DEPARTURE') AS early_departure_count,
+            COUNT(*) AS total_count
+           FROM student_attendance
+          WHERE tenant_id = $1::uuid
+            AND student_id = $2::uuid
+            AND date >= $3::date
+            AND date <= $4::date`,
+        [tenantId, studentId, dateStr(period.start_date), dateStr(period.end_date)],
+        'student_attendance',
+        this.recordDegradedRead,
+        flag,
+      );
+      const counts = countRows[0];
+      const present = Number(counts?.present_count ?? 0);
+      const absent = Number(counts?.absent_count ?? 0);
+      const late = Number(counts?.late_count ?? 0);
+      const excused = Number(counts?.excused_count ?? 0);
+      const earlyDeparture = Number(counts?.early_departure_count ?? 0);
+      const total = Number(counts?.total_count ?? 0);
+      const other = Math.max(0, total - present - absent - late - excused - earlyDeparture);
+
+      const summary = {
+        present,
+        absent,
+        late,
+        excused,
+        other,
+        percentage: attendancePercentageFromCounts({
+          present,
+          absent,
+          late,
+          excused,
+          earlyDeparture,
+          total,
+        }),
+      };
+
       return {
         data,
-        summary: summariseAttendance(data),
-        meta: { source: 'postgres', studentId },
+        summary,
+        meta: this.metaFor(studentId, total > 0 || data.length > 0, flag),
       };
     });
   }
 
   async getGrades(tenantId: string, studentId: string): Promise<GradesPayload> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const gradeRows = await queryRows(
         client,
         `SELECT id, section_id, assessment_code, numeric_score, letter_grade,
@@ -178,6 +317,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY entered_at DESC
           LIMIT 100`,
         [tenantId, studentId],
+        'grade_entries',
+        this.recordDegradedRead,
+        flag,
       );
       const data: PublishedGrade[] = [];
       for (const row of gradeRows) {
@@ -204,6 +346,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY created_at DESC
           LIMIT 20`,
         [tenantId, studentId],
+        'report_card_jobs',
+        this.recordDegradedRead,
+        flag,
       );
       const reportCards: ReportCardSummary[] = reportRows.map((row) => ({
         id: str(row.id),
@@ -212,13 +357,17 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
         outputUrl: strOrNull(row.output_url),
         completedAt: isoOrNull(row.completed_at),
       }));
-      const source = data.length > 0 || reportCards.length > 0 ? 'postgres' : 'none';
-      return { data, reportCards, meta: { source, studentId } };
+      return {
+        data,
+        reportCards,
+        meta: this.metaFor(studentId, data.length > 0 || reportCards.length > 0, flag),
+      };
     });
   }
 
   async getTimetable(tenantId: string, studentId: string): Promise<AcademicList<TimetableSlot>> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const rows = await queryRows(
         client,
         `SELECT m.id,
@@ -242,6 +391,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
             AND s.deleted_at IS NULL
           ORDER BY m.day_of_week, bp.period_order NULLS LAST`,
         [tenantId, studentId],
+        'section_meetings',
+        this.recordDegradedRead,
+        flag,
       );
       const data: TimetableSlot[] = rows.map((row) => ({
         id: str(row.id),
@@ -255,13 +407,14 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       }));
       return {
         data,
-        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+        meta: this.metaFor(studentId, data.length > 0, flag),
       };
     });
   }
 
   async getHomework(tenantId: string, studentId: string): Promise<AcademicList<HomeworkItem>> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const rows = await queryRows(
         client,
         `SELECT a.id, a.title, a.kind, a.subject, a.due_at, a.status
@@ -278,6 +431,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY a.due_at NULLS LAST
           LIMIT 50`,
         [tenantId, studentId],
+        'lms_assignments',
+        this.recordDegradedRead,
+        flag,
       );
       const data: HomeworkItem[] = rows.map((row) => ({
         id: str(row.id),
@@ -289,13 +445,14 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       }));
       return {
         data,
-        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+        meta: this.metaFor(studentId, data.length > 0, flag),
       };
     });
   }
 
   async getLms(tenantId: string, studentId: string): Promise<LmsPayload> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const rows = await queryRows(
         client,
         `SELECT a.id, a.title, a.kind, a.subject, a.due_at, a.status, a.max_score,
@@ -317,6 +474,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY a.due_at NULLS LAST
           LIMIT 100`,
         [tenantId, studentId],
+        'lms_assignments',
+        this.recordDegradedRead,
+        flag,
       );
       const data: LmsAssignmentItem[] = rows.map((row) => ({
         id: str(row.id),
@@ -349,7 +509,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       return {
         data,
         summary: { assigned, submitted, graded, missing, averageScorePercent },
-        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+        meta: this.metaFor(studentId, data.length > 0, flag),
       };
     });
   }
@@ -359,6 +519,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     studentId: string,
   ): Promise<AcademicList<ReportCardDetail>> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const cards = await queryRows(
         client,
         `SELECT id, academic_period_id, status, output_url, completed_at
@@ -368,6 +529,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY created_at DESC
           LIMIT 20`,
         [tenantId, studentId],
+        'report_card_jobs',
+        this.recordDegradedRead,
+        flag,
       );
       const data: ReportCardDetail[] = [];
       for (const row of cards) {
@@ -378,6 +542,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
             WHERE tenant_id = $1::uuid AND report_card_job_id = $2::uuid
             ORDER BY position ASC NULLS LAST, subject ASC`,
           [tenantId, str(row.id)],
+          'report_card_subject_lines',
+          this.recordDegradedRead,
+          flag,
         );
         // Fallback: published gradebook rows for the period when subject lines table is absent/empty
         let subjectLines = subjects.map((s) => ({
@@ -404,6 +571,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
               ORDER BY ge.entered_at DESC
               LIMIT 40`,
             [tenantId, studentId, str(row.academic_period_id)],
+            'grade_entries',
+            this.recordDegradedRead,
+            flag,
           );
           subjectLines = grades.map((g) => ({
             subject: str(g.subject),
@@ -423,13 +593,14 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       }
       return {
         data,
-        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+        meta: this.metaFor(studentId, data.length > 0, flag),
       };
     });
   }
 
   async getCalendar(tenantId: string, studentId: string): Promise<AcademicList<CalendarEventItem>> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const periodRows = await queryRows(
         client,
         `SELECT academic_period_id
@@ -439,9 +610,17 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY enrolled_at DESC
           LIMIT 1`,
         [tenantId, studentId],
+        'enrollments',
+        this.recordDegradedRead,
+        flag,
       );
       const periodId = periodRows[0] ? strOrNull(periodRows[0].academic_period_id) : null;
-      if (!periodId) return emptyAcademicList(studentId);
+      if (!periodId) {
+        return {
+          ...emptyAcademicList<CalendarEventItem>(studentId),
+          meta: this.metaFor(studentId, false, flag),
+        };
+      }
 
       const rows = await queryRows(
         client,
@@ -459,6 +638,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
             )
           ORDER BY e.start_date`,
         [tenantId, periodId],
+        'academic_calendar_events',
+        this.recordDegradedRead,
+        flag,
       );
       const data: CalendarEventItem[] = rows.map((row) => ({
         id: str(row.id),
@@ -471,7 +653,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       }));
       return {
         data,
-        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+        meta: this.metaFor(studentId, data.length > 0, flag),
       };
     });
   }
@@ -482,6 +664,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     recipientUserId?: string | null,
   ): Promise<AcademicList<NoticeItem>> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const campaignRows = (
         await queryRows(
           client,
@@ -503,6 +686,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
             ORDER BY sent_at DESC NULLS LAST
             LIMIT 30`,
           [tenantId],
+          'comms_campaigns',
+          this.recordDegradedRead,
+          flag,
         )
       ).filter((row) => isCampaignAudienceBroadcast(row.audience_json));
       const noticeRows =
@@ -515,6 +701,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
                 ORDER BY created_at DESC
                 LIMIT 30`,
               [tenantId, recipientUserId],
+              'notifications',
+              this.recordDegradedRead,
+              flag,
             )
           : [];
       const data: NoticeItem[] = [
@@ -541,13 +730,14 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       ];
       return {
         data,
-        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+        meta: this.metaFor(studentId, data.length > 0, flag),
       };
     });
   }
 
   async getPalPlan(tenantId: string, studentId: string): Promise<AcademicList<PalPlanItem>> {
     return this.withTenant(tenantId, async (client) => {
+      const flag: DegradedFlag = { degraded: false };
       const rows = await queryRows(
         client,
         `SELECT m.skill_id, m.mastery, m.due_at, m.streak,
@@ -558,6 +748,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           ORDER BY m.due_at NULLS LAST
           LIMIT 40`,
         [tenantId, studentId],
+        'lms_skill_mastery',
+        this.recordDegradedRead,
+        flag,
       );
       const now = Date.now();
       const data: PalPlanItem[] = rows.map((row) => {
@@ -578,7 +771,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       });
       return {
         data,
-        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+        meta: this.metaFor(studentId, data.length > 0, flag),
       };
     });
   }
