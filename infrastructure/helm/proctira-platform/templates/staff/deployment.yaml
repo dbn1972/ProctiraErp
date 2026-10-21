@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: staff-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.staffService.autoscaling.enabled }}
   replicas: {{ .Values.staffService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

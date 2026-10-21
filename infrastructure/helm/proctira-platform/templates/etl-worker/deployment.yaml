@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: etl-worker
     app.kubernetes.io/component: worker
 spec:
+  {{- if not .Values.etlWorker.autoscaling.enabled }}
   replicas: {{ .Values.etlWorker.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

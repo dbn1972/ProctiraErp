@@ -36,6 +36,20 @@ spec:
                 name: {{ include "proctira.fullname" . }}-api-gateway
                 port:
                   name: http
+    # PRC-M597: dedicated api.<domain> host is listed in the TLS SAN list
+    # above but previously had no rule, making it unreachable. Additive to
+    # the hosts.web /api rule (kept for existing clients hitting /api on the
+    # tenant subdomain).
+    - host: {{ .Values.ingress.hosts.api | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-api-gateway
+                port:
+                  name: http
     {{- end }}
     {{- if .Values.web.enabled }}
     # Web application — main authenticated app on tenant subdomains
