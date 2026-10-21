@@ -73,8 +73,9 @@ class _SeedingHttpAdapter implements HttpClientAdapter {
 
 Future<({AppDatabase db, TenantProvider tenant})> _bootstrap() async {
   final Directory tempDir = await Directory.systemTemp.createTemp('inst_repo_');
-  final AppDatabase db =
-      AppDatabase(overridePath: '${tempDir.path}/openemis.db');
+  final AppDatabase db = AppDatabase(
+    overridePath: '${tempDir.path}/openemis.db',
+  );
   final SecureStorage secure = SecureStorage(const FlutterSecureStorage());
   await secure.writeTenant(tenantId: 'tenant-a', displayName: 'Tenant A');
   final TenantProvider tenant = TenantProvider(secure);
@@ -153,17 +154,19 @@ void main() {
     );
 
     final List<CachedInstitution> rows = await repo.list();
-    expect(rows.map((CachedInstitution i) => i.name).toList(),
-        <String>['Alpha Academy', 'Beta Academy']);
+    expect(rows.map((CachedInstitution i) => i.name).toList(), <String>[
+      'Alpha Academy',
+      'Beta Academy',
+    ]);
 
     await ctx.db.close();
   });
 
   test(
-      'findById falls back to the api on cache miss and seeds the cache',
-      () async {
-    final ({AppDatabase db, TenantProvider tenant}) ctx = await _bootstrap();
-    const String payload = '''
+    'findById falls back to the api on cache miss and seeds the cache',
+    () async {
+      final ({AppDatabase db, TenantProvider tenant}) ctx = await _bootstrap();
+      const String payload = '''
 {
   "data": {
     "id": "inst-1",
@@ -179,25 +182,96 @@ void main() {
   }
 }
 ''';
-    final ({InstitutionApi api, _SeedingHttpAdapter adapter}) seed =
-        _seedingApi(payload);
+      final ({InstitutionApi api, _SeedingHttpAdapter adapter}) seed =
+          _seedingApi(payload);
 
-    final InstitutionRepository repo = InstitutionRepository(
-      database: ctx.db,
-      tenantProvider: ctx.tenant,
-      api: seed.api,
-    );
+      final InstitutionRepository repo = InstitutionRepository(
+        database: ctx.db,
+        tenantProvider: ctx.tenant,
+        api: seed.api,
+      );
 
-    final CachedInstitution? first = await repo.findById('inst-1');
-    expect(first, isNotNull);
-    expect(first!.name, 'Sunrise High');
-    expect(seed.adapter.calls, 1);
+      final CachedInstitution? first = await repo.findById('inst-1');
+      expect(first, isNotNull);
+      expect(first!.name, 'Sunrise High');
+      expect(seed.adapter.calls, 1);
 
-    // Second call should be served from cache (no extra HTTP traffic).
-    final CachedInstitution? second = await repo.findById('inst-1');
-    expect(second, isNotNull);
-    expect(seed.adapter.calls, 1);
+      // Second call should be served from cache (no extra HTTP traffic).
+      final CachedInstitution? second = await repo.findById('inst-1');
+      expect(second, isNotNull);
+      expect(seed.adapter.calls, 1);
 
-    await ctx.db.close();
-  });
+      await ctx.db.close();
+    },
+  );
+
+  test(
+    'PRC-M468: latitude/longitude round-trip through upsert() -> findById()',
+    () async {
+      final ({AppDatabase db, TenantProvider tenant}) ctx = await _bootstrap();
+      final InstitutionRepository repo = InstitutionRepository(
+        database: ctx.db,
+        tenantProvider: ctx.tenant,
+        api: _explodingApi(),
+      );
+
+      const Institution institution = Institution(
+        id: 'inst-1',
+        name: 'Greenfield Primary',
+        code: 'GP-001',
+        latitude: 12.34,
+        longitude: 56.78,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-02T00:00:00Z',
+      );
+
+      await repo.upsert(institution);
+
+      final CachedInstitution? row = await repo.findById('inst-1');
+      expect(row, isNotNull);
+      expect(row!.latitude, 12.34);
+      expect(row.longitude, 56.78);
+
+      final List<CachedInstitution> listed = await repo.list();
+      expect(listed.single.latitude, 12.34);
+      expect(listed.single.longitude, 56.78);
+
+      await ctx.db.close();
+    },
+  );
+
+  test(
+    'PRC-M468: a cache-miss fetch seeds latitude/longitude from the api response',
+    () async {
+      final ({AppDatabase db, TenantProvider tenant}) ctx = await _bootstrap();
+      const String payload = '''
+{
+  "data": {
+    "id": "inst-2",
+    "name": "Hillview Secondary",
+    "code": "HS-1",
+    "latitude": -1.286389,
+    "longitude": 36.817223,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-02T00:00:00Z"
+  }
+}
+''';
+      final ({InstitutionApi api, _SeedingHttpAdapter adapter}) seed =
+          _seedingApi(payload);
+
+      final InstitutionRepository repo = InstitutionRepository(
+        database: ctx.db,
+        tenantProvider: ctx.tenant,
+        api: seed.api,
+      );
+
+      final CachedInstitution? result = await repo.findById('inst-2');
+      expect(result, isNotNull);
+      expect(result!.latitude, -1.286389);
+      expect(result.longitude, 36.817223);
+
+      await ctx.db.close();
+    },
+  );
 }

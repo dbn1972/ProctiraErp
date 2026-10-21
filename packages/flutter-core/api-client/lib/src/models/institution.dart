@@ -14,6 +14,8 @@ class Institution implements Versioned {
     this.sector,
     this.ownership,
     this.status,
+    this.latitude,
+    this.longitude,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -27,6 +29,11 @@ class Institution implements Versioned {
   final String? sector;
   final String? ownership;
   final String? status;
+
+  /// Geofence coordinates (PRC-M468). Null when the backend has none
+  /// configured for this institution.
+  final double? latitude;
+  final double? longitude;
   final String createdAt;
   final String updatedAt;
 
@@ -43,6 +50,8 @@ class Institution implements Versioned {
       sector: json['sector'] as String?,
       ownership: json['ownership'] as String?,
       status: json['status'] as String?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       createdAt: json['createdAt'] as String,
       updatedAt: json['updatedAt'] as String,
     );

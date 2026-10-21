@@ -124,6 +124,14 @@ class _ApplicationCard extends StatelessWidget {
         app.status == ScholarshipApplicationStatus.approved ||
         app.status == ScholarshipApplicationStatus.rejected;
     final bool rejected = app.status == ScholarshipApplicationStatus.rejected;
+    final bool withdrawn = app.status == ScholarshipApplicationStatus.withdrawn;
+    // PRC-L215: the "Under Review" step only carries a date once the
+    // application has actually progressed past submission -- draft/submitted
+    // applications show no date there, so the screen never implies a review
+    // started before it did.
+    final bool pastSubmission =
+        app.status != ScholarshipApplicationStatus.draft &&
+        app.status != ScholarshipApplicationStatus.submitted;
 
     return Semantics(
       label: '${app.displayProgramName}, status: ${app.status.displayName}',
@@ -157,19 +165,35 @@ class _ApplicationCard extends StatelessWidget {
               ),
               _TimelineStep(
                 label: 'Under Review',
+                // The backend has no "review started" timestamp field, so
+                // this step never claims a date it cannot prove (PRC-L215).
                 date: null,
-                isCompleted: decided,
+                isCompleted: decided || withdrawn,
                 isActive:
+                    pastSubmission &&
                     app.status == ScholarshipApplicationStatus.underReview,
               ),
-              _TimelineStep(
-                label: rejected ? 'Rejected' : 'Approved',
-                date: app.reviewedAt,
-                isCompleted: decided,
-                isActive: false,
-                isLast: true,
-                isError: rejected,
-              ),
+              // PRC-L215: withdrawn is a distinct terminal state, not the
+              // same booleans as a still-pending application -- the backend
+              // has no withdrawal timestamp field, so no date is shown here.
+              if (withdrawn)
+                const _TimelineStep(
+                  label: 'Withdrawn',
+                  date: null,
+                  isCompleted: true,
+                  isActive: false,
+                  isLast: true,
+                  isNeutral: true,
+                )
+              else
+                _TimelineStep(
+                  label: rejected ? 'Rejected' : 'Approved',
+                  date: app.reviewedAt,
+                  isCompleted: decided,
+                  isActive: false,
+                  isLast: true,
+                  isError: rejected,
+                ),
               if (app.reviewerNotes != null &&
                   app.reviewerNotes!.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 8),
@@ -270,6 +294,7 @@ class _TimelineStep extends StatelessWidget {
     required this.isActive,
     this.isLast = false,
     this.isError = false,
+    this.isNeutral = false,
   });
 
   final String label;
@@ -279,21 +304,28 @@ class _TimelineStep extends StatelessWidget {
   final bool isLast;
   final bool isError;
 
+  /// Neutral/slate terminal state (PRC-L215: withdrawn), distinct from both
+  /// the success (green) and error (red) styling.
+  final bool isNeutral;
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     const Color green = Color(0xFF10B981);
     const Color red = Color(0xFFEF4444);
+    const Color slate = Color(0xFF64748B);
     final Color brand = theme.colorScheme.primary;
 
-    final Color dotColor = isError
+    final Color dotColor = isNeutral
+        ? slate
+        : isError
         ? red
         : isCompleted
         ? green
         : isActive
         ? brand
         : theme.colorScheme.outlineVariant;
-    final bool filled = isCompleted || isActive || isError;
+    final bool filled = isCompleted || isActive || isError || isNeutral;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,7 +340,13 @@ class _TimelineStep extends StatelessWidget {
                 color: filled ? dotColor : Colors.transparent,
                 border: Border.all(color: dotColor, width: 2),
               ),
-              child: isCompleted
+              child: isNeutral
+                  ? const Icon(
+                      Icons.undo_outlined,
+                      size: 13,
+                      color: Colors.white,
+                    )
+                  : isCompleted
                   ? const Icon(Icons.check, size: 13, color: Colors.white)
                   : isActive
                   ? const Icon(Icons.schedule, size: 13, color: Colors.white)
@@ -336,7 +374,9 @@ class _TimelineStep extends StatelessWidget {
                       fontWeight: isActive || isCompleted
                           ? FontWeight.w700
                           : FontWeight.w500,
-                      color: isError
+                      color: isNeutral
+                          ? slate
+                          : isError
                           ? red
                           : isActive
                           ? brand

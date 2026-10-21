@@ -94,8 +94,17 @@ class ScholarshipProgram {
     'requiredDocuments': requiredDocuments,
   };
 
-  /// Days remaining until deadline. Null if no deadline or it cannot be parsed.
-  int? get daysUntilDeadline {
+  /// Bare `YYYY-MM-DD` dates (no time/zone suffix).
+  static final RegExp _bareDate = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+  /// Parsed deadline instant, or null when there is no deadline or it
+  /// cannot be parsed.
+  ///
+  /// PRC-L214: a bare date (no time/zone suffix) is treated as end-of-day
+  /// UTC (23:59:59Z) rather than local midnight, so a deadline such as
+  /// "2026-05-12" is not treated as having already passed a day early for a
+  /// user ahead of UTC.
+  DateTime? get _deadlineInstant {
     final String? raw = deadline;
     if (raw == null || raw.isEmpty) {
       return null;
@@ -104,19 +113,38 @@ class ScholarshipProgram {
     if (dl == null) {
       return null;
     }
-    return dl.difference(DateTime.now()).inDays;
+    if (_bareDate.hasMatch(raw)) {
+      return DateTime.utc(dl.year, dl.month, dl.day, 23, 59, 59);
+    }
+    return dl;
   }
 
-  /// Closed programs and deadlines that have already passed cannot be applied to.
-  bool get acceptsApplications {
+  /// Days remaining until deadline. Null if no deadline or it cannot be
+  /// parsed. [now] is injectable so tests can simulate a fixed clock/
+  /// timezone instead of depending on the host's real one.
+  int? daysUntilDeadline({DateTime Function() now = DateTime.now}) {
+    final DateTime? dl = _deadlineInstant;
+    if (dl == null) {
+      return null;
+    }
+    return dl.difference(now()).inDays;
+  }
+
+  /// Closed programs and deadlines that have already passed cannot be
+  /// applied to.
+  ///
+  /// Compares the actual instants rather than a truncated day count: a
+  /// deadline that passed an hour ago is still in the past even though the
+  /// truncated day difference would round to zero (PRC-L214).
+  bool acceptsApplications({DateTime Function() now = DateTime.now}) {
     if (!isOpen) {
       return false;
     }
-    final int? days = daysUntilDeadline;
-    if (days == null) {
+    final DateTime? dl = _deadlineInstant;
+    if (dl == null) {
       return true;
     }
-    return days >= 0;
+    return !now().isAfter(dl);
   }
 }
 

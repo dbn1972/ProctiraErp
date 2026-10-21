@@ -218,7 +218,7 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
       final ScholarshipProgram? program = await _repository.findProgram(
         event.programId,
       );
-      if (program == null || !program.acceptsApplications) {
+      if (program == null || !program.acceptsApplications()) {
         emit(
           state.copyWith(
             status: ScholarshipStatus.error,

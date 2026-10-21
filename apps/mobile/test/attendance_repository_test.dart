@@ -23,9 +23,19 @@ class _NoopDispatcher implements SyncDispatcher {
   }
 }
 
-Future<({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto})> _bootstrap() async {
+Future<
+  ({
+    AppDatabase db,
+    TenantProvider tenant,
+    SyncEngine engine,
+    CacheCrypto crypto,
+  })
+>
+_bootstrap() async {
   final Directory tempDir = await Directory.systemTemp.createTemp('att_repo_');
-  final AppDatabase db = AppDatabase(overridePath: '${tempDir.path}/openemis.db');
+  final AppDatabase db = AppDatabase(
+    overridePath: '${tempDir.path}/openemis.db',
+  );
   final SecureStorage secure = SecureStorage(const FlutterSecureStorage());
   await secure.writeTenant(tenantId: 'tenant-a', displayName: 'Tenant A');
   final CacheCrypto crypto = await CacheCrypto.fromSecureStorage(secure);
@@ -56,202 +66,224 @@ void main() {
     FlutterSecureStorage.setMockInitialValues(<String, String>{});
   });
 
-  test('loadRoster returns rows from students_cache filtered by institution',
-      () async {
-    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
-        await _bootstrap();
-    final Database raw = await ctx.db.database;
-    await raw.insert('students_cache', <String, Object?>{
-      'id': 'stu-1',
-      'tenant_id': 'tenant-a',
-      'institution_id': 'inst-1',
-      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
-      'national_id': 'A1',
-      'grade': null,
-      'class_name': null,
-      'payload': await ctx.crypto.encrypt('{}'),
-      'updated_at': 1,
-    });
-    await raw.insert('students_cache', <String, Object?>{
-      'id': 'stu-2',
-      'tenant_id': 'tenant-a',
-      'institution_id': 'inst-2',
-      'full_name': await ctx.crypto.encrypt('Grace Hopper'),
-      'national_id': 'A2',
-      'grade': null,
-      'class_name': null,
-      'payload': await ctx.crypto.encrypt('{}'),
-      'updated_at': 1,
-    });
+  test(
+    'loadRoster returns rows from students_cache filtered by institution',
+    () async {
+      final ({
+        AppDatabase db,
+        TenantProvider tenant,
+        SyncEngine engine,
+        CacheCrypto crypto,
+      })
+      ctx = await _bootstrap();
+      final Database raw = await ctx.db.database;
+      await raw.insert('students_cache', <String, Object?>{
+        'id': 'stu-1',
+        'tenant_id': 'tenant-a',
+        'institution_id': 'inst-1',
+        'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
+        'national_id': 'A1',
+        'grade': null,
+        'class_name': null,
+        'payload': await ctx.crypto.encrypt('{}'),
+        'updated_at': 1,
+      });
+      await raw.insert('students_cache', <String, Object?>{
+        'id': 'stu-2',
+        'tenant_id': 'tenant-a',
+        'institution_id': 'inst-2',
+        'full_name': await ctx.crypto.encrypt('Grace Hopper'),
+        'national_id': 'A2',
+        'grade': null,
+        'class_name': null,
+        'payload': await ctx.crypto.encrypt('{}'),
+        'updated_at': 1,
+      });
 
-    final AttendanceRepository repo = AttendanceRepository(
-      database: ctx.db,
-      tenantProvider: ctx.tenant,
-      syncEngine: ctx.engine,
-      cacheCrypto: ctx.crypto,
-    );
+      final AttendanceRepository repo = AttendanceRepository(
+        database: ctx.db,
+        tenantProvider: ctx.tenant,
+        syncEngine: ctx.engine,
+        cacheCrypto: ctx.crypto,
+      );
 
-    final List<AttendanceRosterEntry> roster = await repo.loadRoster(
-      institutionId: 'inst-1',
-      date: '2026-05-12',
-    );
-    expect(roster, hasLength(1));
-    expect(roster.first.studentId, 'stu-1');
-    expect(roster.first.studentName, 'Ada Lovelace');
-    expect(roster.first.status, isNull);
+      final List<AttendanceRosterEntry> roster = await repo.loadRoster(
+        institutionId: 'inst-1',
+        date: '2026-05-12',
+      );
+      expect(roster, hasLength(1));
+      expect(roster.first.studentId, 'stu-1');
+      expect(roster.first.studentName, 'Ada Lovelace');
+      expect(roster.first.status, isNull);
 
-    await ctx.db.close();
-  });
+      await ctx.db.close();
+    },
+  );
 
-  test('markAttendance saves to attendance_offline and queues a sync op',
-      () async {
-    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
-        await _bootstrap();
-    final Database raw = await ctx.db.database;
-    await raw.insert('students_cache', <String, Object?>{
-      'id': 'stu-1',
-      'tenant_id': 'tenant-a',
-      'institution_id': 'inst-1',
-      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
-      'national_id': 'A1',
-      'grade': null,
-      'class_name': null,
-      'payload': await ctx.crypto.encrypt('{}'),
-      'updated_at': 1,
-    });
+  test(
+    'markAttendance saves to attendance_offline and queues a sync op',
+    () async {
+      final ({
+        AppDatabase db,
+        TenantProvider tenant,
+        SyncEngine engine,
+        CacheCrypto crypto,
+      })
+      ctx = await _bootstrap();
+      final Database raw = await ctx.db.database;
+      await raw.insert('students_cache', <String, Object?>{
+        'id': 'stu-1',
+        'tenant_id': 'tenant-a',
+        'institution_id': 'inst-1',
+        'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
+        'national_id': 'A1',
+        'grade': null,
+        'class_name': null,
+        'payload': await ctx.crypto.encrypt('{}'),
+        'updated_at': 1,
+      });
 
-    final AttendanceRepository repo = AttendanceRepository(
-      database: ctx.db,
-      tenantProvider: ctx.tenant,
-      syncEngine: ctx.engine,
-      cacheCrypto: ctx.crypto,
-    );
+      final AttendanceRepository repo = AttendanceRepository(
+        database: ctx.db,
+        tenantProvider: ctx.tenant,
+        syncEngine: ctx.engine,
+        cacheCrypto: ctx.crypto,
+      );
 
-    final List<AttendanceRosterEntry> roster = await repo.loadRoster(
-      institutionId: 'inst-1',
-      date: '2026-05-12',
-    );
+      final List<AttendanceRosterEntry> roster = await repo.loadRoster(
+        institutionId: 'inst-1',
+        date: '2026-05-12',
+      );
 
-    await repo.markAttendance(
-      entry: roster.first,
-      institutionId: 'inst-1',
-      classId: 'class-1',
-      academicPeriodId: 'period-1',
-      date: '2026-05-12',
-      status: AttendanceStatus.present,
-      recordedBy: 'admin',
-    );
+      await repo.markAttendance(
+        entry: roster.first,
+        institutionId: 'inst-1',
+        classId: 'class-1',
+        academicPeriodId: 'period-1',
+        date: '2026-05-12',
+        status: AttendanceStatus.present,
+      );
 
-    // The offline cache row exists.
-    final List<Map<String, Object?>> attendance = await raw.query(
-      'attendance_offline',
-      where: 'student_id = ?',
-      whereArgs: <Object>['stu-1'],
-    );
-    expect(attendance, hasLength(1));
-    expect(attendance.first['status'], 'PRESENT');
+      // The offline cache row exists.
+      final List<Map<String, Object?>> attendance = await raw.query(
+        'attendance_offline',
+        where: 'student_id = ?',
+        whereArgs: <Object>['stu-1'],
+      );
+      expect(attendance, hasLength(1));
+      expect(attendance.first['status'], 'PRESENT');
 
-    // A sync op was queued.
-    final List<PendingSyncRow> queue = await ctx.engine.getPending();
-    expect(queue, hasLength(1));
-    expect(queue.first.entityType, SyncEntityType.attendance);
-    expect(queue.first.operation, SyncOperation.create);
-    expect(queue.first.payload['status'], 'PRESENT');
-    expect(queue.first.payload['studentId'], 'stu-1');
+      // A sync op was queued.
+      final List<PendingSyncRow> queue = await ctx.engine.getPending();
+      expect(queue, hasLength(1));
+      expect(queue.first.entityType, SyncEntityType.attendance);
+      expect(queue.first.operation, SyncOperation.create);
+      expect(queue.first.payload['status'], 'PRESENT');
+      expect(queue.first.payload['studentId'], 'stu-1');
 
-    // Reloading the roster reflects the new status.
-    final List<AttendanceRosterEntry> after = await repo.loadRoster(
-      institutionId: 'inst-1',
-      date: '2026-05-12',
-    );
-    expect(after.first.status, AttendanceStatus.present);
-    expect(after.first.recordId, isNotNull);
-    // PRC-H011: the roster knows the mark is still queued.
-    expect(after.first.queueStatus, SyncStatus.pending);
+      // Reloading the roster reflects the new status.
+      final List<AttendanceRosterEntry> after = await repo.loadRoster(
+        institutionId: 'inst-1',
+        date: '2026-05-12',
+      );
+      expect(after.first.status, AttendanceStatus.present);
+      expect(after.first.recordId, isNotNull);
+      // PRC-H011: the roster knows the mark is still queued.
+      expect(after.first.queueStatus, SyncStatus.pending);
 
-    await ctx.db.close();
-  });
+      await ctx.db.close();
+    },
+  );
 
-  test('markAttendance update path queues an update op with base version',
-      () async {
-    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
-        await _bootstrap();
-    final Database raw = await ctx.db.database;
-    await raw.insert('students_cache', <String, Object?>{
-      'id': 'stu-1',
-      'tenant_id': 'tenant-a',
-      'institution_id': 'inst-1',
-      'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
-      'national_id': 'A1',
-      'grade': null,
-      'class_name': null,
-      'payload': await ctx.crypto.encrypt('{}'),
-      'updated_at': 1,
-    });
+  test(
+    'markAttendance update path queues an update op with base version',
+    () async {
+      final ({
+        AppDatabase db,
+        TenantProvider tenant,
+        SyncEngine engine,
+        CacheCrypto crypto,
+      })
+      ctx = await _bootstrap();
+      final Database raw = await ctx.db.database;
+      await raw.insert('students_cache', <String, Object?>{
+        'id': 'stu-1',
+        'tenant_id': 'tenant-a',
+        'institution_id': 'inst-1',
+        'full_name': await ctx.crypto.encrypt('Ada Lovelace'),
+        'national_id': 'A1',
+        'grade': null,
+        'class_name': null,
+        'payload': await ctx.crypto.encrypt('{}'),
+        'updated_at': 1,
+      });
 
-    final AttendanceRepository repo = AttendanceRepository(
-      database: ctx.db,
-      tenantProvider: ctx.tenant,
-      syncEngine: ctx.engine,
-      cacheCrypto: ctx.crypto,
-    );
+      final AttendanceRepository repo = AttendanceRepository(
+        database: ctx.db,
+        tenantProvider: ctx.tenant,
+        syncEngine: ctx.engine,
+        cacheCrypto: ctx.crypto,
+      );
 
-    AttendanceRosterEntry entry = (await repo.loadRoster(
-      institutionId: 'inst-1',
-      date: '2026-05-12',
-    ))
-        .first;
+      AttendanceRosterEntry entry = (await repo.loadRoster(
+        institutionId: 'inst-1',
+        date: '2026-05-12',
+      )).first;
 
-    final AttendanceRosterEntry afterCreate = await repo.markAttendance(
-      entry: entry,
-      institutionId: 'inst-1',
-      classId: 'class-1',
-      academicPeriodId: 'period-1',
-      date: '2026-05-12',
-      status: AttendanceStatus.present,
-      recordedBy: 'admin',
-    );
+      final AttendanceRosterEntry afterCreate = await repo.markAttendance(
+        entry: entry,
+        institutionId: 'inst-1',
+        classId: 'class-1',
+        academicPeriodId: 'period-1',
+        date: '2026-05-12',
+        status: AttendanceStatus.present,
+      );
 
-    // Simulate a server confirmation (sets version + clears synced=0).
-    await raw.update(
-      'attendance_offline',
-      <String, Object?>{'version': 'v-1', 'synced': 1},
-      where: 'id = ?',
-      whereArgs: <Object?>[afterCreate.recordId],
-    );
+      // Simulate a server confirmation (sets version + clears synced=0).
+      await raw.update(
+        'attendance_offline',
+        <String, Object?>{'version': 'v-1', 'synced': 1},
+        where: 'id = ?',
+        whereArgs: <Object?>[afterCreate.recordId],
+      );
 
-    entry = (await repo.loadRoster(
-      institutionId: 'inst-1',
-      date: '2026-05-12',
-    ))
-        .first;
-    expect(entry.version, 'v-1');
+      entry = (await repo.loadRoster(
+        institutionId: 'inst-1',
+        date: '2026-05-12',
+      )).first;
+      expect(entry.version, 'v-1');
 
-    await repo.markAttendance(
-      entry: entry,
-      institutionId: 'inst-1',
-      classId: 'class-1',
-      academicPeriodId: 'period-1',
-      date: '2026-05-12',
-      status: AttendanceStatus.late,
-      recordedBy: 'admin',
-    );
+      await repo.markAttendance(
+        entry: entry,
+        institutionId: 'inst-1',
+        classId: 'class-1',
+        academicPeriodId: 'period-1',
+        date: '2026-05-12',
+        status: AttendanceStatus.late,
+      );
 
-    final List<PendingSyncRow> queue = await ctx.engine.getPending();
-    expect(queue, hasLength(2));
-    final PendingSyncRow updateRow =
-        queue.firstWhere((PendingSyncRow r) => r.operation == SyncOperation.update);
-    expect(updateRow.baseVersion, 'v-1');
-    expect(updateRow.payload['status'], 'LATE');
+      final List<PendingSyncRow> queue = await ctx.engine.getPending();
+      expect(queue, hasLength(2));
+      final PendingSyncRow updateRow = queue.firstWhere(
+        (PendingSyncRow r) => r.operation == SyncOperation.update,
+      );
+      expect(updateRow.baseVersion, 'v-1');
+      expect(updateRow.payload['status'], 'LATE');
 
-    await ctx.db.close();
-  });
+      await ctx.db.close();
+    },
+  );
 
   test(
     'PRC-H060: marks missing classId/academicPeriodId are refused, never queued',
     () async {
-      final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
-          await _bootstrap();
+      final ({
+        AppDatabase db,
+        TenantProvider tenant,
+        SyncEngine engine,
+        CacheCrypto crypto,
+      })
+      ctx = await _bootstrap();
       final AttendanceRepository repo = AttendanceRepository(
         database: ctx.db,
         tenantProvider: ctx.tenant,
@@ -272,7 +304,6 @@ void main() {
           classId: 'class-1',
           date: '2026-05-12',
           status: AttendanceStatus.present,
-          recordedBy: 'admin',
         ),
         throwsArgumentError,
       );
@@ -284,7 +315,6 @@ void main() {
           academicPeriodId: 'period-1',
           date: '2026-05-12',
           status: AttendanceStatus.present,
-          recordedBy: 'admin',
         ),
         throwsArgumentError,
       );
@@ -298,7 +328,6 @@ void main() {
         academicPeriodId: 'period-1',
         date: '2026-05-12',
         status: AttendanceStatus.present,
-        recordedBy: 'admin',
       );
       final List<PendingSyncRow> queue = await ctx.engine.getPending();
       expect(queue, hasLength(1));
