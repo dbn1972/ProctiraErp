@@ -1572,8 +1572,13 @@ FROM (
     ('g9b-wed', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 4, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9b-thu', '00000000-0000-4000-8000-00000000a572'::uuid, 4, 2, NULL::int, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9b-fri', '00000000-0000-4000-8000-00000000a572'::uuid, 5, 6, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
-    ('g9a-mon', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 1, 3, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
-    ('g9a-wed', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 3, 5, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
+    -- PRC-M172 (teacher-slot clash): shifted off (day=1,period=3) and
+    -- (day=3,period=5), which collide with teacher a593's g9b-mon and
+    -- g10-wed bookings in this same demo roster, under the
+    -- section_meetings_teacher_slot_uidx (tenant_id, teacher_staff_id,
+    -- day_of_week, bell_period_id) added by db/sql/232.
+    ('g9a-mon', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 1, 2, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9a-wed', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 3, 3, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g10-wed', '00000000-0000-4000-8000-00000000a573'::uuid, 3, 5, 1, '00000000-0000-4000-8000-00000000a595'::uuid)
 ) AS spec(key, section_id, day, period, room_n, teacher)
 ON CONFLICT (section_id, bell_period_id, day_of_week) DO NOTHING;
