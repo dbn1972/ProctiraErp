@@ -182,4 +182,83 @@ describe('PgInstitutionRepository', () => {
       expect(customData?.boardCode).toBe('ICSE');
     },
   );
+
+  // PRC-L127: once a row is soft-deleted (deleted_at set), its (tenant_id,
+  // code) slot must free up for re-use — a plain unique constraint on
+  // (tenant_id, code) blocks a legitimate re-create with the same code even
+  // though the old row is no longer "live". No app path sets deleted_at on
+  // institutions today, so this simulates a future soft-delete directly via
+  // raw SQL to prove the DB-level guard.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'allows re-using a code after the prior row is soft-deleted (PRC-L127)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantId = randomUUID();
+      const areaId = randomUUID();
+      await seedTenantAndArea(tenantId, areaId);
+      const code = `SOFT-DEL-${randomUUID().slice(0, 8)}`;
+
+      const firstId = randomUUID();
+      await repo.create({
+        id: firstId,
+        tenantId,
+        name: 'First Institution',
+        code,
+        areaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: firstId, tenantId, areaId });
+
+      const pool = getSharedPgPool();
+      expect(pool).not.toBeNull();
+      // Simulate a future soft-delete directly (no app path does this yet).
+      await withPgTenant(pool!, tenantId, async (client) => {
+        await client.query(
+          `UPDATE institutions SET deleted_at = now() WHERE id = $1 AND tenant_id = $2`,
+          [firstId, tenantId],
+        );
+      });
+
+      // A separate area so this row's cleanup (which deletes its own
+      // geographic_areas row) cannot race the still-physically-present
+      // (soft-deleted, not hard-deleted) first row's FK to the shared area.
+      const secondAreaId = randomUUID();
+      await seedTenantAndArea(tenantId, secondAreaId);
+      const secondId = randomUUID();
+      // Before the migration: this throws P2002/23505 (blocked — the plain
+      // unique constraint still occupies the (tenant_id, code) slot). After
+      // the migration: it succeeds (the partial unique index excludes the
+      // soft-deleted row).
+      await repo.create({
+        id: secondId,
+        tenantId,
+        name: 'Second Institution (same code, reused after soft-delete)',
+        code,
+        areaId: secondAreaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: secondId, tenantId, areaId: secondAreaId });
+
+      const found = await repo.findById(secondId, tenantId);
+      expect(found?.code).toBe(code);
+    },
+  );
 });

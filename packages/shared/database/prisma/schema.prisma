@@ -280,7 +280,13 @@ model Institution {
   enrollments Enrollment[]
   classes     Class[]
 
-  @@unique([tenantId, code])
+  // PRC-L127: the authoritative uniqueness guard is the partial unique index
+  // `idx_institutions_tenant_code_active` (db/sql/251_...sql), which excludes
+  // soft-deleted rows — Prisma cannot express a `WHERE deleted_at IS NULL`
+  // partial filter, so this stays a plain non-unique index for query-planner
+  // use only (mirrors the documented pattern for 065_enrollment_active_
+  // uniqueness.sql's Enrollment model).
+  @@index([tenantId, code])
   @@index([tenantId, areaId])
   @@index([tenantId, boardId])
   @@index([tenantId, status])
