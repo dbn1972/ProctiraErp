@@ -9,6 +9,7 @@ import {
   NotFoundError,
   BusinessRuleError,
   ForbiddenError,
+  UnauthenticatedError,
 } from './index.js';
 
 describe('AppError', () => {
@@ -139,5 +140,22 @@ describe('ForbiddenError', () => {
     const err = new ForbiddenError('nope');
     expect(err.statusCode).toBe(403);
     expect(err.code).toBe(ErrorCode.FORBIDDEN);
+  });
+});
+
+describe('UnauthenticatedError', () => {
+  it('uses HTTP 401 and UNAUTHENTICATED code', () => {
+    const err = new UnauthenticatedError();
+    expect(err).toBeInstanceOf(AppError);
+    expect(err).toBeInstanceOf(UnauthenticatedError);
+    expect(err.statusCode).toBe(401);
+    expect(err.code).toBe('UNAUTHENTICATED');
+    expect(err.message).toBe('Authentication is required');
+    expect(err.name).toBe('UnauthenticatedError');
+  });
+
+  it('accepts a custom message', () => {
+    const err = new UnauthenticatedError('No verified identity on this request');
+    expect(err.message).toBe('No verified identity on this request');
   });
 });
