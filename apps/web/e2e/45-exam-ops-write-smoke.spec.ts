@@ -125,6 +125,73 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
     201,
   );
 
+  const gradingScheme = {
+    name: 'Standard',
+    minScore: 0,
+    maxScore: 100,
+    passThreshold: 40,
+    thresholds: [
+      { grade: 'A', minScore: 80, maxScore: 100 },
+      { grade: 'B', minScore: 40, maxScore: 79 },
+      { grade: 'F', minScore: 0, maxScore: 39 },
+    ],
+  };
+  const subjectSpecs = [{ name: 'Mathematics', code: 'MATH', maxScore: 100 }];
+
+  // PRC-M234: registration now enforces the pre-existing (previously fail-open)
+  // eligibility rule that every exam subject must already be a *completed*
+  // (passed, published) prerequisite for the student — sourced from
+  // `examination_academic_records`. Run one small, prior exam cycle for the
+  // same subject (register -> mark -> publish) so this fixture's student has
+  // a genuine passed record before registering for the real test exam below.
+  // Mirrors the sibling fixture fix in 34-examinations-write-smoke.spec.ts.
+  const priorExam = await postOk(
+    request,
+    '/examinations',
+    {
+      name: `E2E Ops Prior Exam ${stamp}`,
+      code: `E2O-PRIOR-${stamp.toUpperCase()}`,
+      academicPeriodId: period.id,
+      startDate: isoDate(-20),
+      endDate: isoDate(-18),
+      subjects: subjectSpecs,
+      centers: [{ name: 'Main Hall', code: 'HALL', institutionId: INSTITUTION_A, capacity: 200 }],
+      gradingSchemes: [gradingScheme],
+    },
+    201,
+  );
+  const priorScheduled = await request.put(`${GATEWAY_URL}/api/v1/examinations/${priorExam.id}`, {
+    headers: headers(),
+    data: { status: 'SCHEDULED' },
+  });
+  expect(priorScheduled.status(), await priorScheduled.text()).toBe(200);
+  const priorSubjectId = (priorExam.subjects as Array<{ id: string }>)[0]!.id;
+  const priorCenterId = (priorExam.centers as Array<{ id: string }>)[0]!.id;
+  await postOk(
+    request,
+    `/examinations/${priorExam.id}/candidates`,
+    { studentId: student.id, centerId: priorCenterId, subjectIds: [priorSubjectId] },
+    201,
+  );
+  await postOk(
+    request,
+    `/examinations/${priorExam.id}/results/marks`,
+    {
+      entries: [{ studentId: student.id, marks: [{ subjectId: priorSubjectId, score: 85 }] }],
+    },
+    200,
+  );
+  const priorMoved = await request.put(`${GATEWAY_URL}/api/v1/examinations/${priorExam.id}`, {
+    headers: headers(),
+    data: { status: 'IN_PROGRESS' },
+  });
+  expect(priorMoved.status(), await priorMoved.text()).toBe(200);
+  const priorPublished = await request.post(
+    `${GATEWAY_URL}/api/v1/examinations/${priorExam.id}/results/publish`,
+    { headers: headers() },
+  );
+  expect(priorPublished.status(), await priorPublished.text()).toBe(200);
+
   const exam = await postOk(
     request,
     '/examinations',
@@ -134,24 +201,17 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
       academicPeriodId: period.id,
       startDate: isoDate(10),
       endDate: isoDate(12),
-      subjects: [{ name: 'Mathematics', code: 'MATH', maxScore: 100 }],
+      subjects: subjectSpecs,
       centers: [{ name: 'Main Hall', code: 'HALL', institutionId: INSTITUTION_A, capacity: 200 }],
-      gradingSchemes: [
-        {
-          name: 'Standard',
-          minScore: 0,
-          maxScore: 100,
-          passThreshold: 40,
-          thresholds: [
-            { grade: 'A', minScore: 80, maxScore: 100 },
-            { grade: 'B', minScore: 40, maxScore: 79 },
-            { grade: 'F', minScore: 0, maxScore: 39 },
-          ],
-        },
-      ],
+      gradingSchemes: [gradingScheme],
     },
     201,
   );
+  const scheduled = await request.put(`${GATEWAY_URL}/api/v1/examinations/${exam.id}`, {
+    headers: headers(),
+    data: { status: 'SCHEDULED' },
+  });
+  expect(scheduled.status(), await scheduled.text()).toBe(200);
   const candidate = await postOk(
     request,
     `/examinations/${exam.id}/candidates`,

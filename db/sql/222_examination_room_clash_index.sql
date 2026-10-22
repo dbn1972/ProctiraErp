@@ -18,5 +18,5 @@
 -- check (clash.ts), not by a DB constraint — a true range-overlap guarantee
 -- would need an EXCLUDE USING gist constraint over a computed time range,
 -- which is a materially larger, separate change.
-CREATE INDEX IF NOT EXISTS exam_sessions_room_overlap_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS exam_sessions_room_overlap_idx
   ON exam_sessions (tenant_id, room_id, session_date, start_time);
