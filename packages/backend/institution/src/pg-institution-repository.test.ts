@@ -125,4 +125,61 @@ describe('PgInstitutionRepository', () => {
       expect(otherList.meta.totalItems).toBe(0);
     },
   );
+
+  // PRC-M288: update() must preserve non-profile custom_data keys (e.g. a
+  // tenant-set `boardCode`) instead of clobbering them with only the profile
+  // envelope. Failing-first: the raw-SQL-set key disappears before the fix.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'preserves non-profile custom_data keys across update (PRC-M288)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantId = randomUUID();
+      const areaId = randomUUID();
+      await seedTenantAndArea(tenantId, areaId);
+
+      const institutionId = randomUUID();
+      await repo.create({
+        id: institutionId,
+        tenantId,
+        name: 'M288 School',
+        code: `SCH-${institutionId.slice(0, 8)}`,
+        areaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: institutionId, tenantId, areaId });
+
+      const pool = getSharedPgPool();
+      expect(pool).not.toBeNull();
+      // Simulate a tenant-set custom_data key alongside the existing profile
+      // envelope (as a tenant-specific extension would write it).
+      await withPgTenant(pool!, tenantId, async (client) => {
+        await client.query(
+          `UPDATE institutions
+             SET custom_data = custom_data || '{"boardCode": "ICSE"}'::jsonb
+           WHERE id = $1 AND tenant_id = $2`,
+          [institutionId, tenantId],
+        );
+      });
+
+      await repo.update(institutionId, tenantId, { name: 'M288 School Renamed' });
+
+      const { rows } = await withPgTenant(pool!, tenantId, (client) =>
+        client.query(`SELECT custom_data FROM institutions WHERE id = $1 AND tenant_id = $2`, [
+          institutionId,
+          tenantId,
+        ]),
+      );
+      const customData = rows[0]?.custom_data as Record<string, unknown>;
+      expect(customData?.boardCode).toBe('ICSE');
+    },
+  );
 });

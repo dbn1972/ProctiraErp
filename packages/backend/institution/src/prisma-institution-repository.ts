@@ -84,7 +84,18 @@ function extractProfile(customData: unknown): {
   };
 }
 
-function buildCustomData(entity: Partial<InstitutionEntity>): Record<string, unknown> {
+/**
+ * PRC-M288: `userCustomData` is the non-profile keys already stored on the
+ * row (extracted via {@link extractProfile} from the existing `custom_data`
+ * read), not a field on `InstitutionEntity` itself (it has none). Passing it
+ * explicitly keeps keys a tenant-specific extension wrote directly (e.g.
+ * `boardCode`) intact across update/deactivate/reactivate instead of being
+ * clobbered down to only the profile envelope.
+ */
+function buildCustomData(
+  entity: Partial<InstitutionEntity>,
+  userCustomData: Record<string, unknown>,
+): Record<string, unknown> {
   const profile: ProfileEnvelope = {
     latitude: entity.latitude ?? null,
     longitude: entity.longitude ?? null,
@@ -93,10 +104,7 @@ function buildCustomData(entity: Partial<InstitutionEntity>): Record<string, unk
     contactEmail: entity.contactEmail ?? null,
     deactivationReason: entity.deactivationReason ?? null,
   };
-  // `customData` on the entity is not part of InstitutionEntity, but callers may
-  // pass extra keys; preserve anything already present minus the reserved key.
-  const extra = (entity as { customData?: Record<string, unknown> }).customData ?? {};
-  return { ...extra, [PROFILE_KEY]: profile };
+  return { ...userCustomData, [PROFILE_KEY]: profile };
 }
 
 /** PRC-L125: API sortBy → Prisma column (directory handled separately). */
@@ -147,7 +155,7 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           sector: data.sectorId,
           ownership: data.ownershipId,
           status: data.status,
-          customData: buildCustomData(data) as Prisma.InputJsonValue,
+          customData: buildCustomData(data, {}) as Prisma.InputJsonValue,
         },
       })) as InstitutionRow;
       return toEntity(row);
@@ -165,6 +173,7 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
       })) as InstitutionRow | null;
       if (!existing) return null;
 
+      const { userCustomData } = extractProfile(existing.customData);
       const current = toEntity(existing);
       const merged: InstitutionEntity = { ...current };
       const mergedRecord = merged as unknown as Record<string, unknown>;
@@ -186,7 +195,7 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           sector: merged.sectorId,
           ownership: merged.ownershipId,
           status: merged.status,
-          customData: buildCustomData(merged) as Prisma.InputJsonValue,
+          customData: buildCustomData(merged, userCustomData) as Prisma.InputJsonValue,
         },
       })) as InstitutionRow;
       return toEntity(row);
