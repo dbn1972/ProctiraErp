@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClassService } from './class-service.js';
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { createInMemoryAcademicsPrisma } from './in-memory-prisma-lite.js';
 
 function createMockPrisma() {
   return {
@@ -265,6 +266,43 @@ describe('ClassService', () => {
         service.update(TENANT_ID, 'class-1', { classTeacherStaffId: 'staff-other' }),
       ).rejects.toThrow(NotFoundError);
       expect(prisma.class.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requireStaff crash guard (PRC-L476)', () => {
+    it('resolves with NotFoundError (not a crash) when staff is not seeded', async () => {
+      const institutionId = 'inst-shim-1';
+      const institutionRepository = {
+        findById: vi.fn(async (id: string) =>
+          id === institutionId
+            ? ({ id, tenantId: TENANT_ID, status: 'ACTIVE', deletedAt: null } as any)
+            : null,
+        ),
+      } as any;
+      const shimPrisma = createInMemoryAcademicsPrisma({ institutionRepository });
+      const grade = await shimPrisma.grade.create({
+        data: { tenantId: TENANT_ID, name: 'G1', code: 'G1', order: 1 },
+      });
+      const period = await shimPrisma.academicPeriod.create({
+        data: {
+          tenantId: TENANT_ID,
+          name: 'AY',
+          code: 'AY',
+          startDate: new Date(),
+          endDate: new Date(),
+        },
+      });
+      const shimService = new ClassService({ prisma: shimPrisma });
+
+      await expect(
+        shimService.create(TENANT_ID, {
+          institutionId,
+          gradeId: grade.id,
+          academicPeriodId: period.id,
+          name: 'Class A',
+          classTeacherStaffId: 'staff-not-seeded',
+        }),
+      ).rejects.toThrow(NotFoundError);
     });
   });
 
