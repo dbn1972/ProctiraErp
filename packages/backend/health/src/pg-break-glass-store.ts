@@ -179,6 +179,9 @@ export class PgBreakGlassStore {
     id: string,
     tenantId: string,
     approverUserId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -206,7 +209,12 @@ export class PgBreakGlassStore {
         [id, tenantId, approverUserId, approvedAt.toISOString(), expiresAt.toISOString()],
       );
       if (result.rows.length === 0) return null;
-      return mapRow(result.rows[0] as Record<string, unknown>);
+      const entity = mapRow(result.rows[0] as Record<string, unknown>);
+      // PRC-M519/L115: break-glass approve + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 
@@ -214,6 +222,9 @@ export class PgBreakGlassStore {
     id: string,
     tenantId: string,
     approverUserId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -237,7 +248,12 @@ export class PgBreakGlassStore {
         [id, tenantId, approverUserId],
       );
       if (result.rows.length === 0) return null;
-      return mapRow(result.rows[0] as Record<string, unknown>);
+      const entity = mapRow(result.rows[0] as Record<string, unknown>);
+      // PRC-M519/L115: break-glass deny + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 

@@ -216,18 +216,24 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     approverUserId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant | null> {
-    if (this.breakGlass) return this.breakGlass.approve(id, tenantId, approverUserId);
-    return this.memory.approveBreakGlassGrant(id, tenantId, approverUserId);
+    if (this.breakGlass) return this.breakGlass.approve(id, tenantId, approverUserId, options);
+    return this.memory.approveBreakGlassGrant(id, tenantId, approverUserId, options);
   }
 
   async denyBreakGlassGrant(
     id: string,
     tenantId: string,
     approverUserId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant | null> {
-    if (this.breakGlass) return this.breakGlass.deny(id, tenantId, approverUserId);
-    return this.memory.denyBreakGlassGrant(id, tenantId, approverUserId);
+    if (this.breakGlass) return this.breakGlass.deny(id, tenantId, approverUserId, options);
+    return this.memory.denyBreakGlassGrant(id, tenantId, approverUserId, options);
   }
 
   async listBreakGlassGrants(
@@ -553,11 +559,14 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<CounsellingSessionEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity | null> {
     if (this.counselling) {
-      return this.counselling.update(id, tenantId, data);
+      return this.counselling.update(id, tenantId, data, options);
     }
-    return this.memory.updateCounsellingSession(id, tenantId, data);
+    return this.memory.updateCounsellingSession(id, tenantId, data, options);
   }
 
   async findCounsellingSessionById(

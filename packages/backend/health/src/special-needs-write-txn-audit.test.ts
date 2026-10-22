@@ -16,7 +16,10 @@ vi.mock('@proctira/database', async (importOriginal) => {
     ) => {
       const client = {
         query: vi.fn(async (sql: string) => {
-          if (typeof sql === 'string' && sql.includes('INSERT INTO health_special_needs_assessments')) {
+          if (
+            typeof sql === 'string' &&
+            sql.includes('INSERT INTO health_special_needs_assessments')
+          ) {
             return {
               rows: [
                 {
@@ -55,7 +58,11 @@ vi.mock('@proctira/database', async (importOriginal) => {
               ],
             };
           }
-          if (typeof sql === 'string' && sql.includes('INSERT INTO health_referrals')) {
+          if (
+            typeof sql === 'string' &&
+            sql.includes('health_referrals') &&
+            (sql.includes('INSERT INTO') || sql.includes('SELECT') || sql.includes('UPDATE'))
+          ) {
             return {
               rows: [
                 {
@@ -76,7 +83,11 @@ vi.mock('@proctira/database', async (importOriginal) => {
               ],
             };
           }
-          if (typeof sql === 'string' && sql.includes('INSERT INTO health_accommodation_plans')) {
+          if (
+            typeof sql === 'string' &&
+            sql.includes('health_accommodation_plans') &&
+            (sql.includes('INSERT INTO') || sql.includes('SELECT') || sql.includes('UPDATE'))
+          ) {
             return {
               rows: [
                 {
@@ -209,5 +220,45 @@ describe('W1-SEC-10 special-needs write + audit same txn', () => {
       { appendAuditInTxn },
     );
     expect(appendAuditInTxn).toHaveBeenCalledTimes(1);
+  });
+
+  // ─── PRC-M519/L115: updateReferral/updateAccommodationPlan previously had
+  // NO appendAuditInTxn hook (update() ran outside the create()-shaped
+  // single-COMMIT closure entirely) ──────────────────────────────────────
+
+  it('updateReferral invokes appendAuditInTxn with the same client', async () => {
+    const store = stubStore();
+    const appendAuditInTxn = vi.fn(async () => undefined);
+    const entity = await store.updateReferral(
+      'ref-1',
+      't1',
+      { status: 'completed' },
+      { appendAuditInTxn },
+    );
+    expect(entity?.id).toBe('ref-1');
+    expect(appendAuditInTxn).toHaveBeenCalledTimes(1);
+    expect(appendAuditInTxn.mock.calls[0]?.[1]).toMatchObject({ id: 'ref-1' });
+  });
+
+  it('updateAccommodationPlan invokes appendAuditInTxn with the same client', async () => {
+    const store = stubStore();
+    const appendAuditInTxn = vi.fn(async () => undefined);
+    const entity = await store.updateAccommodationPlan(
+      'plan-1',
+      't1',
+      { status: 'under-review' },
+      { appendAuditInTxn },
+    );
+    expect(entity?.id).toBe('plan-1');
+    expect(appendAuditInTxn).toHaveBeenCalledTimes(1);
+    expect(appendAuditInTxn.mock.calls[0]?.[1]).toMatchObject({ id: 'plan-1' });
+  });
+
+  it('updateReferral/updateAccommodationPlan without appendAuditInTxn still succeed', async () => {
+    const store = stubStore();
+    const ref = await store.updateReferral('ref-1', 't1', { status: 'completed' });
+    expect(ref?.id).toBe('ref-1');
+    const plan = await store.updateAccommodationPlan('plan-1', 't1', { status: 'active' });
+    expect(plan?.id).toBe('plan-1');
   });
 });

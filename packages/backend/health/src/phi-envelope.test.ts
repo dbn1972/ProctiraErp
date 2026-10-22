@@ -1,7 +1,7 @@
 /**
  * W1-SEC-04 COMPLETE — PHI envelope provider fail-closed + rotatable DEKs.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertPhiEnvelopeConfigured,
@@ -114,6 +114,35 @@ describe('W1-SEC-04 COMPLETE PHI envelope provider', () => {
     const a = new EnvHmacPhiEnvelopeProvider('same-master');
     const b = new EnvHmacPhiEnvelopeProvider('same-master');
     expect(a.resolveRootKey().equals(b.resolveRootKey())).toBe(true);
+  });
+
+  // PRC-M517: a loud console.warn must fire on this allowed-but-risky path
+  // every time it is reached. Failing-first: before this fix,
+  // assertPhiEnvelopeConfigured's local-stub-in-production branch returned
+  // without any warning — this spy assertion would have failed (not called).
+  it('PRC-M517: warns on console.warn when local-stub KMS is active in production', async () => {
+    snapshotEnv(
+      'NODE_ENV',
+      'PHI_ENVELOPE_PROVIDER',
+      'PHI_KMS_KEY_ID',
+      'PHI_KMS_WRAPPED_ROOT_KEY',
+      'PHI_ENCRYPTION_KEY',
+      'ALLOW_PHI_KMS_STUB',
+    );
+    process.env.NODE_ENV = 'production';
+    process.env.PHI_ENVELOPE_PROVIDER = 'local-stub';
+    process.env.ALLOW_PHI_KMS_STUB = '1';
+    process.env.PHI_KMS_KEY_ID = 'alias/proctira-phi-test';
+    delete process.env.PHI_ENCRYPTION_KEY;
+    delete process.env.PHI_KMS_WRAPPED_ROOT_KEY;
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      await createPhiEnvelopeProvider();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('PRC-M517'));
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('production without any key still throws PhiKeyMissingError', () => {

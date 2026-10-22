@@ -433,6 +433,9 @@ export class PgSpecialNeedsStore {
     id: string,
     tenantId: string,
     data: Partial<ReferralEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
+    },
   ): Promise<ReferralEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -472,7 +475,12 @@ export class PgSpecialNeedsStore {
           encryptPhi(next.outcome, scope),
         ],
       );
-      return mapReferral((result.rows as Record<string, unknown>[])[0]!);
+      const entity = mapReferral((result.rows as Record<string, unknown>[])[0]!);
+      // PRC-M519/L115: special-needs update + audit share one COMMIT, mirroring create().
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 
@@ -547,6 +555,9 @@ export class PgSpecialNeedsStore {
     id: string,
     tenantId: string,
     data: Partial<AccommodationPlanEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -586,7 +597,12 @@ export class PgSpecialNeedsStore {
           encryptPhi(next.notes, scope),
         ],
       );
-      return mapPlan((result.rows as Record<string, unknown>[])[0]!);
+      const entity = mapPlan((result.rows as Record<string, unknown>[])[0]!);
+      // PRC-M519/L115: special-needs update + audit share one COMMIT, mirroring create().
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 
