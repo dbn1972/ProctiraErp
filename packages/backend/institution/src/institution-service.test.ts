@@ -311,6 +311,31 @@ describe('InstitutionService', () => {
         NotFoundError,
       );
     });
+
+    // PRC-L323: deactivate() must refuse when the institution still has
+    // active enrollments — otherwise students are silently left enrolled at
+    // an inactive school.
+    it('should throw BusinessRuleError when the institution has active enrollments (PRC-L323)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+      repository.setEnrollmentCount(created.id, 3);
+
+      await expect(service.deactivate(TENANT_ID, created.id, 'Closing')).rejects.toThrow(
+        BusinessRuleError,
+      );
+
+      const stillActive = await service.getById(TENANT_ID, created.id);
+      expect(stillActive.status).toBe('ACTIVE');
+    });
+
+    it('should allow deactivation when there are no active enrollments (PRC-L323)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+      repository.setEnrollmentCount(created.id, 0);
+
+      const deactivated = await service.deactivate(TENANT_ID, created.id, 'Closing');
+      expect(deactivated.status).toBe('INACTIVE');
+    });
   });
 
   describe('reactivate', () => {

@@ -145,8 +145,15 @@ export class InstitutionService {
    * Per Requirement 5.1: deactivation sets status to inactive and prevents
    * new enrollments and staff assignments.
    *
+   * PRC-L323: blocks deactivation while active (ENROLLED) enrollments exist,
+   * so students are never left silently enrolled at an inactive institution.
+   * Staff-assignment blocking is NOT implemented — the schema has no
+   * staff-assignment table yet (`countActiveStaffAssignments` always returns
+   * 0), so this half is tracked as a pending owner decision, not a bug.
+   *
    * @throws NotFoundError if institution not found
-   * @throws BusinessRuleError if institution is already inactive
+   * @throws BusinessRuleError if institution is already inactive, or has
+   *   active enrollments
    */
   async deactivate(tenantId: string, id: string, reason: string): Promise<InstitutionEntity> {
     const existing = await this.repository.findById(id, tenantId);
@@ -156,6 +163,13 @@ export class InstitutionService {
 
     if (existing.status === EntityStatus.INACTIVE) {
       throw new BusinessRuleError('Institution is already inactive');
+    }
+
+    const activeEnrollments = await this.repository.countActiveEnrollments(id, tenantId);
+    if (activeEnrollments > 0) {
+      throw new BusinessRuleError(
+        `Cannot deactivate institution with ${activeEnrollments} active enrollment(s)`,
+      );
     }
 
     const updated = await this.repository.update(id, tenantId, {
