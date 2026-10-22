@@ -61,9 +61,9 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
     return entity;
   }
 
-  async findByCode(code: string): Promise<InstitutionEntity | null> {
+  async findByCode(code: string, tenantId: string): Promise<InstitutionEntity | null> {
     for (const entity of this.institutions.values()) {
-      if (entity.code === code) {
+      if (entity.code === code && entity.tenantId === tenantId) {
         return entity;
       }
     }

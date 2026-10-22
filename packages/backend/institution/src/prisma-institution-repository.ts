@@ -212,11 +212,12 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
   }
 
   /**
-   * Not supported under RLS (no tenant context in the signature). The database
-   * `@@unique([tenantId, code])` constraint is the authoritative duplicate guard;
-   * a duplicate create surfaces as a P2002 conflict.
+   * PRC-M287: `tenantId` is accepted (and ignored) for interface parity with
+   * the in-memory double; this still always returns `null` under RLS. The
+   * database `@@unique([tenantId, code])` constraint remains the
+   * authoritative duplicate guard — a duplicate create surfaces as P2002.
    */
-  async findByCode(_code: string): Promise<InstitutionEntity | null> {
+  async findByCode(_code: string, _tenantId: string): Promise<InstitutionEntity | null> {
     return null;
   }
 

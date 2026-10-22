@@ -30,14 +30,16 @@ export class InstitutionService {
    * Create a new institution.
    *
    * Validates:
-   * - Institution code is globally unique
+   * - Institution code is unique per-tenant (DB-enforced in production via
+   *   `@@unique([tenantId, code])`; the in-memory test double now matches —
+   *   PRC-M287)
    * - Institution name is unique within the assigned area
    *
    * @throws ConflictError if code or name+area already exists
    */
   async create(tenantId: string, input: CreateInstitutionInput): Promise<InstitutionEntity> {
-    // Check global uniqueness of institution code
-    const existingByCode = await this.repository.findByCode(input.code);
+    // Check per-tenant uniqueness of institution code
+    const existingByCode = await this.repository.findByCode(input.code, tenantId);
     if (existingByCode) {
       throw new ConflictError(`Institution with code '${input.code}' already exists`);
     }
@@ -97,9 +99,9 @@ export class InstitutionService {
       throw new NotFoundError(`Institution with id '${id}' not found`);
     }
 
-    // Check code uniqueness if code is being changed
+    // Check code uniqueness (per-tenant) if code is being changed
     if (input.code && input.code !== existing.code) {
-      const existingByCode = await this.repository.findByCode(input.code);
+      const existingByCode = await this.repository.findByCode(input.code, tenantId);
       if (existingByCode) {
         throw new ConflictError(`Institution with code '${input.code}' already exists`);
       }

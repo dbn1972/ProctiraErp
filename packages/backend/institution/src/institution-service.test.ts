@@ -110,16 +110,10 @@ describe('InstitutionService', () => {
       );
     });
 
-    it('should enforce unique code across different tenants', async () => {
-      const code = 'GLOBAL-CODE-001';
-      const input1 = validCreateInput({ code });
-      await service.create(TENANT_ID, input1);
-
-      // Same code in a different tenant should also fail (global uniqueness)
-      const otherTenantId = uuid();
-      const input2 = validCreateInput({ code });
-      await expect(service.create(otherTenantId, input2)).rejects.toThrow(ConflictError);
-    });
+    // PRC-M287: code uniqueness is per-tenant, matching the DB's
+    // `@@unique([tenantId, code])` — a different tenant reusing the same
+    // code is not a conflict (see the PRC-M287 case below for the positive
+    // assertion of this behavior).
 
     it('should throw ConflictError when name already exists in the same area', async () => {
       const areaId = uuid();
@@ -149,6 +143,23 @@ describe('InstitutionService', () => {
       expect(result2.name).toBe(name);
       expect(result1.areaId).toBe(areaId1);
       expect(result2.areaId).toBe(areaId2);
+    });
+
+    // PRC-M287: the DB enforces per-tenant uniqueness; the in-memory test
+    // double previously enforced a stricter global uniqueness that
+    // production never had.
+    it('should allow the same code in different tenants (PRC-M287)', async () => {
+      const code = 'PER-TENANT-CODE';
+      const tenantA = uuid();
+      const tenantB = uuid();
+      const inputA = validCreateInput({ code });
+      const inputB = validCreateInput({ code });
+
+      const resultA = await service.create(tenantA, inputA);
+      const resultB = await service.create(tenantB, inputB);
+
+      expect(resultA.code).toBe(code);
+      expect(resultB.code).toBe(code);
     });
 
     it('should allow same name in different tenants within the same area', async () => {

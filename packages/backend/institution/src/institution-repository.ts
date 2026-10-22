@@ -55,8 +55,15 @@ export interface InstitutionRepository {
   /** Find an institution by ID within a tenant */
   findById(id: string, tenantId: string): Promise<InstitutionEntity | null>;
 
-  /** Find an institution by code (globally unique across all tenants) */
-  findByCode(code: string): Promise<InstitutionEntity | null>;
+  /**
+   * Find an institution by code within a tenant.
+   *
+   * PRC-M287: the database enforces per-tenant uniqueness
+   * (`@@unique([tenantId, code])`), so the in-memory test double scopes by
+   * tenant too (it previously enforced a stricter global uniqueness that
+   * production never had).
+   */
+  findByCode(code: string, tenantId: string): Promise<InstitutionEntity | null>;
 
   /** Find an institution by name within a specific area and tenant */
   findByNameInArea(
