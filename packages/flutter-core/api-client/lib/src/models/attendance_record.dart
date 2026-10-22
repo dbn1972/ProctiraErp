@@ -66,7 +66,6 @@ class AttendanceRecord implements Versioned {
     this.subjectId,
     this.periodId,
     this.comment,
-    required this.recordedBy,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -88,7 +87,6 @@ class AttendanceRecord implements Versioned {
   final String date;
   final AttendanceStatus status;
   final String? comment;
-  final String recordedBy;
   final String createdAt;
   final String updatedAt;
 
@@ -124,7 +122,6 @@ class AttendanceRecord implements Versioned {
       date: json['date'] as String,
       status: AttendanceStatus.fromWire(json['status'] as String),
       comment: json['comment'] as String?,
-      recordedBy: json['recordedBy'] as String,
       createdAt: json['createdAt'] as String,
       updatedAt: json['updatedAt'] as String,
     );
