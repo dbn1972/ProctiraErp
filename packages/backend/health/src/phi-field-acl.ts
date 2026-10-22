@@ -24,7 +24,19 @@ export const HEALTH_BREAK_GLASS_MAX_MINUTES = 240;
 
 export const HEALTH_BREAK_GLASS_DEFAULT_MINUTES = 60;
 
-/** Roles allowed to approve a health PHI break-glass request. */
+/**
+ * Roles allowed to approve a health PHI break-glass request.
+ *
+ * PRC-L113 sub-issue 1 (approver-scope invariant): approve()/deny() apply no
+ * institution-scope check of their own — they rely entirely on every role
+ * listed here also being tenant-wide (see TENANT_WIDE_HEALTH_ROLES in
+ * health-service.ts). If a school-bound role is ever added here without an
+ * institution-scope check added to approveBreakGlass/denyBreakGlass, a
+ * school-bound approver could approve/deny a grant for a student outside
+ * their institution. health-write-authz.test.ts / phi-breakglass.test.ts
+ * assert `HEALTH_BREAK_GLASS_APPROVER_ROLES.every(role =>
+ * TENANT_WIDE_HEALTH_ROLES.includes(role))` as a static regression guard.
+ */
 export const HEALTH_BREAK_GLASS_APPROVER_ROLES = ['health_admin', 'system_admin'] as const;
 
 export type HealthBreakGlassStatus = 'pending' | 'approved' | 'denied' | 'expired' | 'revoked';

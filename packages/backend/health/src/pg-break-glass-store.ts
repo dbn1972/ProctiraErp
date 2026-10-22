@@ -22,6 +22,18 @@ import {
   type HealthPhiFieldPath,
 } from './phi-field-acl.js';
 
+/**
+ * PRC-L113 sub-issue 2: approve()/deny() on an already-resolved grant used to
+ * return the unchanged row with a 200, which lets a second approver silently
+ * "re-approve" (or re-deny) a decision that is already final. Throw instead
+ * so the service layer can surface a BusinessRuleError.
+ */
+export class BreakGlassNotPendingError extends Error {
+  constructor(public status: string) {
+    super('BREAK_GLASS_NOT_PENDING');
+  }
+}
+
 const ensureBreakGlassSchemaReady = createDatabaseSchemaReadinessCheck(
   'health break-glass',
   'healthBreakGlass',
@@ -139,13 +151,13 @@ export class PgBreakGlassStore {
     now: Date = new Date(),
   ): Promise<HealthBreakGlassGrant | null> {
     await this.ensureSchema();
+    // PRC-L113 sub-issue 3: this is the hot read path (called from
+    // resolveCaseNotesGrant on every counselling-session read). It used to run
+    // a mutating UPDATE ... SET status='expired' before every SELECT; the
+    // SELECT's own `expires_at > $5` predicate already excludes expired grants
+    // correctly without that sweep. The sweep now runs in list() instead,
+    // which is a write-adjacent/admin path rather than a hot read path.
     return this.withTenant(tenantId, async (client) => {
-      await client.query(
-        `UPDATE health_phi_break_glass
-         SET status='expired', updated_at=NOW()
-         WHERE tenant_id=$1 AND status='approved' AND expires_at IS NOT NULL AND expires_at <= $2`,
-        [tenantId, now.toISOString()],
-      );
       const result = await client.query(
         `SELECT * FROM health_phi_break_glass
          WHERE tenant_id=$1
@@ -176,7 +188,7 @@ export class PgBreakGlassStore {
       );
       if (existing.rows.length === 0) return null;
       const row = mapRow(existing.rows[0] as Record<string, unknown>);
-      if (row.status !== 'pending') return row;
+      if (row.status !== 'pending') throw new BreakGlassNotPendingError(row.status);
       if (row.requesterUserId === approverUserId) {
         throw new Error('DUAL_CONTROL_VIOLATION');
       }
@@ -211,7 +223,7 @@ export class PgBreakGlassStore {
       );
       if (existing.rows.length === 0) return null;
       const row = mapRow(existing.rows[0] as Record<string, unknown>);
-      if (row.status !== 'pending') return row;
+      if (row.status !== 'pending') throw new BreakGlassNotPendingError(row.status);
       if (row.requesterUserId === approverUserId) {
         throw new Error('DUAL_CONTROL_VIOLATION');
       }
@@ -235,6 +247,15 @@ export class PgBreakGlassStore {
   ): Promise<HealthBreakGlassGrant[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
+      // PRC-L113 sub-issue 3: the expiry sweep moved here from findActiveGrant
+      // (a hot read path) — list() is a write-adjacent/admin surface, so
+      // status self-corrects to 'expired' here instead.
+      await client.query(
+        `UPDATE health_phi_break_glass
+         SET status='expired', updated_at=NOW()
+         WHERE tenant_id=$1 AND status='approved' AND expires_at IS NOT NULL AND expires_at <= NOW()`,
+        [tenantId],
+      );
       const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
       const result = options.studentId
         ? await client.query(
