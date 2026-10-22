@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest';
 import { getSharedTimetablePool, PgTimetableRepository } from './pg-timetable-repository.js';
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-timetable-repository.live.test' });
 
-
 const pool = getSharedTimetablePool();
 const live = Boolean(DATABASE_URL) && pool !== null;
 
@@ -380,170 +379,72 @@ describe('PgTimetableRepository (live)', () => {
    * two mutations for tenant A and one for tenant B, a tenant-A caller must see exactly tenant
    * A's 2 rows and never tenant B's.
    */
-  it.skipIf(!live)(
-    'GET /timetable/audits is tenant-scoped against the durable store',
-    async () => {
-      const repo = new PgTimetableRepository(pool!);
-      const a = await seedFixture();
-      const b = await seedFixture();
-      const { TimetableService } = await import('./timetable-service.js');
-      const { timetablePlugin } = await import('./timetable-plugin.js');
-      const Fastify = (await import('fastify')).default;
-      const service = new TimetableService(repo, undefined, { auditPool: pool! });
-      await service.createBellSchedule(
-        a.tenantId,
-        {
-          institutionId: a.institutionId,
-          academicPeriodId: a.academicPeriodId,
-          name: 'A1',
-          code: 'A1',
-          dayPattern: '1,2,3,4,5',
-          status: 'active',
-        },
-        'actor-a',
-      );
-      await service.createBellSchedule(
-        a.tenantId,
-        {
-          institutionId: a.institutionId,
-          academicPeriodId: a.academicPeriodId,
-          name: 'A2',
-          code: 'A2',
-          dayPattern: '1,2,3,4,5',
-          status: 'active',
-        },
-        'actor-a',
-      );
-      await service.createBellSchedule(
-        b.tenantId,
-        {
-          institutionId: b.institutionId,
-          academicPeriodId: b.academicPeriodId,
-          name: 'B1',
-          code: 'B1',
-          dayPattern: '1,2,3,4,5',
-          status: 'active',
-        },
-        'actor-b',
-      );
-      const app = Fastify({ logger: false });
-      app.addHook('onRequest', async (request) => {
-        (request as typeof request & { tenantId?: string }).tenantId = a.tenantId;
-        (request as typeof request & { user: { id: string; roles: string[] } }).user = {
-          id: 'actor-a',
-          roles: ['admin'],
-        };
-      });
-      await app.register(timetablePlugin, { repository: repo, service, prefix: '/timetable' });
-      const res = await app.inject({ method: 'GET', url: '/timetable/audits' });
-      expect(res.statusCode).toBe(200);
-      const body = res.json() as { data: Array<{ tenantId: string }> };
-      expect(body.data).toHaveLength(2);
-      expect(body.data.every((row) => row.tenantId === a.tenantId)).toBe(true);
-      await app.close();
-    },
-  );
+  it.skipIf(!live)('GET /timetable/audits is tenant-scoped against the durable store', async () => {
+    const repo = new PgTimetableRepository(pool!);
+    const a = await seedFixture();
+    const b = await seedFixture();
+    const { TimetableService } = await import('./timetable-service.js');
+    const { timetablePlugin } = await import('./timetable-plugin.js');
+    const Fastify = (await import('fastify')).default;
+    const service = new TimetableService(repo, undefined, { auditPool: pool! });
+    await service.createBellSchedule(
+      a.tenantId,
+      {
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        name: 'A1',
+        code: 'A1',
+        dayPattern: '1,2,3,4,5',
+        status: 'active',
+      },
+      'actor-a',
+    );
+    await service.createBellSchedule(
+      a.tenantId,
+      {
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        name: 'A2',
+        code: 'A2',
+        dayPattern: '1,2,3,4,5',
+        status: 'active',
+      },
+      'actor-a',
+    );
+    await service.createBellSchedule(
+      b.tenantId,
+      {
+        institutionId: b.institutionId,
+        academicPeriodId: b.academicPeriodId,
+        name: 'B1',
+        code: 'B1',
+        dayPattern: '1,2,3,4,5',
+        status: 'active',
+      },
+      'actor-b',
+    );
+    const app = Fastify({ logger: false });
+    app.addHook('onRequest', async (request) => {
+      (request as typeof request & { tenantId?: string }).tenantId = a.tenantId;
+      (request as typeof request & { user: { id: string; roles: string[] } }).user = {
+        id: 'actor-a',
+        roles: ['admin'],
+      };
+    });
+    await app.register(timetablePlugin, { repository: repo, service, prefix: '/timetable' });
+    const res = await app.inject({ method: 'GET', url: '/timetable/audits' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { data: Array<{ tenantId: string }> };
+    expect(body.data).toHaveLength(2);
+    expect(body.data.every((row) => row.tenantId === a.tenantId)).toBe(true);
+    await app.close();
+  });
 
   /**
    * PRC-L503: createSubstitution/listSubstitutions cross-tenant isolation, matching the
    * existing room/bell-schedule cases' style (seed two tenants, assert invisibility).
    */
-  it.skipIf(!live)(
-    'createSubstitution/listSubstitutions hide rows across tenants',
-    async () => {
-      const repo = new PgTimetableRepository(pool!);
-      const a = await seedFixture();
-      const b = await seedFixture();
-      const now = new Date().toISOString();
-      const schedule = await repo.createBellSchedule({
-        id: randomUUID(),
-        tenantId: a.tenantId,
-        institutionId: a.institutionId,
-        academicPeriodId: a.academicPeriodId,
-        code: 'SUB',
-        name: 'Sub day',
-        dayPattern: '1,2,3,4,5',
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      });
-      const period = await repo.createPeriod({
-        id: randomUUID(),
-        tenantId: a.tenantId,
-        bellScheduleId: schedule.id,
-        name: 'P1',
-        periodOrder: 1,
-        startTime: '08:00',
-        endTime: '08:45',
-        createdAt: now,
-        updatedAt: now,
-      });
-      const section = await repo.createSection({
-        id: randomUUID(),
-        tenantId: a.tenantId,
-        institutionId: a.institutionId,
-        academicPeriodId: a.academicPeriodId,
-        gradeId: null,
-        code: 'SUB-A',
-        name: 'Sub A',
-        primaryTeacherId: null,
-        defaultRoomId: null,
-        capacity: 30,
-        status: 'DRAFT',
-        publishedAt: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const originalStaffId = randomUUID();
-      const substituteStaffId = randomUUID();
-      const meeting = await repo.createMeeting({
-        id: randomUUID(),
-        tenantId: a.tenantId,
-        institutionId: a.institutionId,
-        academicPeriodId: a.academicPeriodId,
-        sectionId: section.id,
-        subjectId: null,
-        staffId: originalStaffId,
-        periodId: period.id,
-        roomId: null,
-        dayOfWeek: 1,
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      });
-      const sub = await repo.createSubstitution({
-        id: randomUUID(),
-        tenantId: a.tenantId,
-        institutionId: a.institutionId,
-        sectionMeetingId: meeting.id,
-        originalStaffId,
-        substituteStaffId,
-        substitutionDate: '2026-09-07',
-        reason: null,
-        status: 'SCHEDULED',
-        createdAt: now,
-        updatedAt: now,
-      });
-      expect(sub.originalStaffId).toBe(originalStaffId);
-
-      expect((await repo.getSubstitution(a.tenantId, sub.id))?.id).toBe(sub.id);
-      expect(
-        (await repo.listSubstitutions(a.tenantId, { institutionId: a.institutionId })).map(
-          (s) => s.id,
-        ),
-      ).toEqual([sub.id]);
-
-      // Cross-tenant: tenant B sees none of tenant A's substitutions.
-      expect(await repo.getSubstitution(b.tenantId, sub.id)).toBeNull();
-      expect(await repo.listSubstitutions(b.tenantId)).toEqual([]);
-    },
-  );
-
-  /**
-   * PRC-L503: insertClonedTimetable atomicity against live PG — seed two tenants, clone into
-   * one, assert the other tenant's data is never touched/visible (cross-tenant invisibility).
-   */
-  it.skipIf(!live)('insertClonedTimetable writes are tenant-scoped and all-or-nothing', async () => {
+  it.skipIf(!live)('createSubstitution/listSubstitutions hide rows across tenants', async () => {
     const repo = new PgTimetableRepository(pool!);
     const a = await seedFixture();
     const b = await seedFixture();
@@ -553,8 +454,8 @@ describe('PgTimetableRepository (live)', () => {
       tenantId: a.tenantId,
       institutionId: a.institutionId,
       academicPeriodId: a.academicPeriodId,
-      code: 'CLN',
-      name: 'Clone day',
+      code: 'SUB',
+      name: 'Sub day',
       dayPattern: '1,2,3,4,5',
       status: 'active',
       createdAt: now,
@@ -571,54 +472,147 @@ describe('PgTimetableRepository (live)', () => {
       createdAt: now,
       updatedAt: now,
     });
-    const targetPeriodId = randomUUID();
-    const clonedSection = {
+    const section = await repo.createSection({
       id: randomUUID(),
       tenantId: a.tenantId,
       institutionId: a.institutionId,
-      academicPeriodId: targetPeriodId,
+      academicPeriodId: a.academicPeriodId,
       gradeId: null,
-      code: 'CLN-A',
-      name: 'Clone A',
+      code: 'SUB-A',
+      name: 'Sub A',
       primaryTeacherId: null,
       defaultRoomId: null,
       capacity: 30,
-      status: 'DRAFT' as const,
+      status: 'DRAFT',
       publishedAt: null,
       createdAt: now,
       updatedAt: now,
-    };
-    const clonedMeeting = {
+    });
+    const originalStaffId = randomUUID();
+    const substituteStaffId = randomUUID();
+    const meeting = await repo.createMeeting({
       id: randomUUID(),
       tenantId: a.tenantId,
       institutionId: a.institutionId,
-      academicPeriodId: targetPeriodId,
-      sectionId: clonedSection.id,
+      academicPeriodId: a.academicPeriodId,
+      sectionId: section.id,
       subjectId: null,
-      staffId: randomUUID(),
+      staffId: originalStaffId,
       periodId: period.id,
       roomId: null,
       dayOfWeek: 1,
       status: 'active',
       createdAt: now,
       updatedAt: now,
-    };
-    await repo.insertClonedTimetable(a.tenantId, [clonedSection], [clonedMeeting]);
+    });
+    const sub = await repo.createSubstitution({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      sectionMeetingId: meeting.id,
+      originalStaffId,
+      substituteStaffId,
+      substitutionDate: '2026-09-07',
+      reason: null,
+      status: 'SCHEDULED',
+      createdAt: now,
+      updatedAt: now,
+    });
+    expect(sub.originalStaffId).toBe(originalStaffId);
+
+    expect((await repo.getSubstitution(a.tenantId, sub.id))?.id).toBe(sub.id);
     expect(
-      (await repo.listSections(a.tenantId, { academicPeriodId: targetPeriodId })).map((s) => s.id),
-    ).toEqual([clonedSection.id]);
-
-    // Cross-tenant: tenant B cannot see any of tenant A's cloned rows.
-    expect(await repo.listSections(b.tenantId, { academicPeriodId: targetPeriodId })).toEqual([]);
-    expect(await repo.listMeetings(b.tenantId, { academicPeriodId: targetPeriodId })).toEqual([]);
-
-    // Tenant mismatch guard: insertClonedTimetable rejects a row whose tenantId disagrees.
-    await expect(
-      repo.insertClonedTimetable(
-        b.tenantId,
-        [{ ...clonedSection, id: randomUUID() }],
-        [],
+      (await repo.listSubstitutions(a.tenantId, { institutionId: a.institutionId })).map(
+        (s) => s.id,
       ),
-    ).rejects.toThrow(/clone tenant mismatch/);
+    ).toEqual([sub.id]);
+
+    // Cross-tenant: tenant B sees none of tenant A's substitutions.
+    expect(await repo.getSubstitution(b.tenantId, sub.id)).toBeNull();
+    expect(await repo.listSubstitutions(b.tenantId)).toEqual([]);
   });
+
+  /**
+   * PRC-L503: insertClonedTimetable atomicity against live PG — seed two tenants, clone into
+   * one, assert the other tenant's data is never touched/visible (cross-tenant invisibility).
+   */
+  it.skipIf(!live)(
+    'insertClonedTimetable writes are tenant-scoped and all-or-nothing',
+    async () => {
+      const repo = new PgTimetableRepository(pool!);
+      const a = await seedFixture();
+      const b = await seedFixture();
+      const now = new Date().toISOString();
+      const schedule = await repo.createBellSchedule({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        code: 'CLN',
+        name: 'Clone day',
+        dayPattern: '1,2,3,4,5',
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const period = await repo.createPeriod({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        bellScheduleId: schedule.id,
+        name: 'P1',
+        periodOrder: 1,
+        startTime: '08:00',
+        endTime: '08:45',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const targetPeriodId = randomUUID();
+      const clonedSection = {
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: targetPeriodId,
+        gradeId: null,
+        code: 'CLN-A',
+        name: 'Clone A',
+        primaryTeacherId: null,
+        defaultRoomId: null,
+        capacity: 30,
+        status: 'DRAFT' as const,
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const clonedMeeting = {
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: targetPeriodId,
+        sectionId: clonedSection.id,
+        subjectId: null,
+        staffId: randomUUID(),
+        periodId: period.id,
+        roomId: null,
+        dayOfWeek: 1,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      };
+      await repo.insertClonedTimetable(a.tenantId, [clonedSection], [clonedMeeting]);
+      expect(
+        (await repo.listSections(a.tenantId, { academicPeriodId: targetPeriodId })).map(
+          (s) => s.id,
+        ),
+      ).toEqual([clonedSection.id]);
+
+      // Cross-tenant: tenant B cannot see any of tenant A's cloned rows.
+      expect(await repo.listSections(b.tenantId, { academicPeriodId: targetPeriodId })).toEqual([]);
+      expect(await repo.listMeetings(b.tenantId, { academicPeriodId: targetPeriodId })).toEqual([]);
+
+      // Tenant mismatch guard: insertClonedTimetable rejects a row whose tenantId disagrees.
+      await expect(
+        repo.insertClonedTimetable(b.tenantId, [{ ...clonedSection, id: randomUUID() }], []),
+      ).rejects.toThrow(/clone tenant mismatch/);
+    },
+  );
 });

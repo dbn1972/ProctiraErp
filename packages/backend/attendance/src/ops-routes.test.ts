@@ -201,7 +201,10 @@ describe('PRC-L278: /attendance/leave-requests role x action matrix', () => {
     await parentCtx.app.close();
 
     const teacherCtx = await readyApp(['teacher']);
-    const allowed = await teacherCtx.app.inject({ method: 'GET', url: '/attendance/leave-requests' });
+    const allowed = await teacherCtx.app.inject({
+      method: 'GET',
+      url: '/attendance/leave-requests',
+    });
     expect(allowed.statusCode).toBe(200);
     await teacherCtx.app.close();
   });

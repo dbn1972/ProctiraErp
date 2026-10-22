@@ -19,11 +19,7 @@ const PERIOD_ID = '55555555-5555-4555-8555-555555555555';
 const PARENT = { userId: 'parent-1', roles: ['parent'] };
 const APPROVER = { userId: 'principal-1', roles: ['principal'] };
 
-function seedPeriod(
-  repo: InMemoryAttendanceRepository,
-  startDate: string,
-  endDate: string,
-): void {
+function seedPeriod(repo: InMemoryAttendanceRepository, startDate: string, endDate: string): void {
   repo.addAcademicPeriod({
     id: PERIOD_ID,
     tenantId: TENANT_ID,

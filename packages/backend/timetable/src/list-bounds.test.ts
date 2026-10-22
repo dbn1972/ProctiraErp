@@ -55,8 +55,7 @@ describe('bounded lists (PRC-M407)', () => {
     // (institution + academic period + weekday), not an unbounded fetch.
     const repo = new InMemoryTimetableRepository();
     const service = new TimetableService(repo);
-    const calls: Array<{ institutionId: string; academicPeriodId: string; dayOfWeek: number }> =
-      [];
+    const calls: Array<{ institutionId: string; academicPeriodId: string; dayOfWeek: number }> = [];
     const original = repo.createMeetingAtomic.bind(repo);
     repo.createMeetingAtomic = async (t, candidate, clashCheck) => {
       calls.push({

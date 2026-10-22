@@ -52,9 +52,7 @@ describe('PgAttendanceOpsStore cross-tenant isolation (live)', () => {
 
       expect(await store.getRegularisation(tenantA, created.id)).not.toBeNull();
       expect(await store.getRegularisation(tenantB, created.id)).toBeNull();
-      expect((await store.listRegularisations(tenantB)).map((r) => r.id)).not.toContain(
-        created.id,
-      );
+      expect((await store.listRegularisations(tenantB)).map((r) => r.id)).not.toContain(created.id);
       expect((await store.listRegularisations(tenantA)).map((r) => r.id)).toContain(created.id);
     },
   );

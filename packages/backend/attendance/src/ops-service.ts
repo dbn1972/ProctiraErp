@@ -402,12 +402,12 @@ export class AttendanceOpsService {
 
           const holidays =
             fromDate <= toDate
-              ? (await this.options.holidayLookup?.(
+              ? ((await this.options.holidayLookup?.(
                   tenantId,
                   row.institutionId,
                   fromDate,
                   toDate,
-                )) ?? null
+                )) ?? null)
               : null;
 
           // PRC-M168: every leave day (+ its audit row) commits in ONE transaction.

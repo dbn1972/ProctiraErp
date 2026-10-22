@@ -153,28 +153,31 @@ describe('PrismaAttendanceRepository.getClassRoster (live) — PRC-L275', () => 
     expect(ids).not.toContain(future);
   });
 
-  it.skipIf(!live)('includes a student on and after their exit date (inclusive bound)', async () => {
-    const fx = await seedRosterFixture();
-    const student = randomUUID();
-    await seedEnrollment(fx, student, '2026-04-01', '2026-06-15');
+  it.skipIf(!live)(
+    'includes a student on and after their exit date (inclusive bound)',
+    async () => {
+      const fx = await seedRosterFixture();
+      const student = randomUUID();
+      await seedEnrollment(fx, student, '2026-04-01', '2026-06-15');
 
-    const repo = new PrismaAttendanceRepository(sharedPrisma());
-    const onExitDay = await repo.getClassRoster(
-      fx.tenantId,
-      fx.classId,
-      fx.academicPeriodId,
-      '2026-06-15',
-    );
-    expect(onExitDay.map((r) => r.studentId)).toContain(student);
+      const repo = new PrismaAttendanceRepository(sharedPrisma());
+      const onExitDay = await repo.getClassRoster(
+        fx.tenantId,
+        fx.classId,
+        fx.academicPeriodId,
+        '2026-06-15',
+      );
+      expect(onExitDay.map((r) => r.studentId)).toContain(student);
 
-    const afterExit = await repo.getClassRoster(
-      fx.tenantId,
-      fx.classId,
-      fx.academicPeriodId,
-      '2026-06-16',
-    );
-    expect(afterExit.map((r) => r.studentId)).not.toContain(student);
-  });
+      const afterExit = await repo.getClassRoster(
+        fx.tenantId,
+        fx.classId,
+        fx.academicPeriodId,
+        '2026-06-16',
+      );
+      expect(afterExit.map((r) => r.studentId)).not.toContain(student);
+    },
+  );
 });
 
 describe('PrismaAttendanceRepository config (live) — PRC-M169', () => {
@@ -208,13 +211,16 @@ describe('PrismaAttendanceRepository config (live) — PRC-M169', () => {
     },
   );
 
-  it.skipIf(!live)('getInstitutionAttendanceConfig returns null for an unconfigured institution', async () => {
-    const tenantId = randomUUID();
-    const institutionId = randomUUID();
-    await ensurePgTestTenant(pool!, tenantId);
-    const repo = new PrismaAttendanceRepository(sharedPrisma());
-    expect(await repo.getInstitutionAttendanceConfig(tenantId, institutionId)).toBeNull();
-  });
+  it.skipIf(!live)(
+    'getInstitutionAttendanceConfig returns null for an unconfigured institution',
+    async () => {
+      const tenantId = randomUUID();
+      const institutionId = randomUUID();
+      await ensurePgTestTenant(pool!, tenantId);
+      const repo = new PrismaAttendanceRepository(sharedPrisma());
+      expect(await repo.getInstitutionAttendanceConfig(tenantId, institutionId)).toBeNull();
+    },
+  );
 
   it.skipIf(!live)(
     'getAbsenceThresholdConfig returns the configured threshold instead of null',

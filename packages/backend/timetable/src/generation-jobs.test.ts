@@ -208,8 +208,9 @@ describe('generation jobs (PRC-M401)', () => {
         null,
       );
       expect(job.status).toBe('done');
-      const assignedRoomIds = ((job.result as { assignments?: Array<{ roomId: string | null }> })
-        .assignments ?? []).map((a) => a.roomId);
+      const assignedRoomIds = (
+        (job.result as { assignments?: Array<{ roomId: string | null }> }).assignments ?? []
+      ).map((a) => a.roomId);
       expect(assignedRoomIds.every((id) => id === null || id === activeRoom.id)).toBe(true);
     }
   });

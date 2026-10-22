@@ -288,7 +288,11 @@ export class TimetableService {
     return this.repo.getBellSchedule(tenantId, id);
   }
 
-  async createBellSchedule(tenantId: string, input: BellScheduleInput, actorId: string | null = null) {
+  async createBellSchedule(
+    tenantId: string,
+    input: BellScheduleInput,
+    actorId: string | null = null,
+  ) {
     const now = nowIso();
     const code = input.code?.trim() || slugCode(input.name, 'BELL');
     const row = await this.repo.createBellSchedule({
@@ -958,12 +962,7 @@ export class TimetableService {
       await this.assertStaffAtInstitution(tenantId, candidate.staffId, candidate.institutionId);
     }
     await this.assertNoMeetingClash(tenantId, candidate, id);
-    const row = await this.repo.updateMeeting(
-      tenantId,
-      id,
-      { ...patch, institutionId },
-      opts,
-    );
+    const row = await this.repo.updateMeeting(tenantId, id, { ...patch, institutionId }, opts);
     if (row) {
       await this.recordAudit({
         tenantId,
@@ -1398,7 +1397,9 @@ export class TimetableService {
     });
     const covered = new Set(
       substitutions
-        .filter((s) => s.status.toUpperCase() === 'SCHEDULED' || s.status.toUpperCase() === 'COMPLETED')
+        .filter(
+          (s) => s.status.toUpperCase() === 'SCHEDULED' || s.status.toUpperCase() === 'COMPLETED',
+        )
         .map((s) => s.sectionMeetingId),
     );
     return affected.map((m) => ({ ...m, hasSubstitute: covered.has(m.id) }));
