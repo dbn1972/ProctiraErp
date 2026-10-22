@@ -146,6 +146,21 @@ function isoDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+/** PRC-M525: retries for a serializable rollover-write race. */
+const SERIALIZATION_RETRIES = 3;
+
+/** Prisma P2034 / Postgres 40001: the transaction must be retried. */
+function isSerializationFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: unknown; message?: unknown; meta?: { code?: unknown } };
+  return (
+    e.code === 'P2034' ||
+    e.code === '40001' ||
+    e.meta?.code === '40001' ||
+    (typeof e.message === 'string' && /could not serialize access|40001/.test(e.message))
+  );
+}
+
 export class AcademicCalendarService {
   private readonly rolloverExtras?: RolloverExtras;
 
@@ -162,6 +177,34 @@ export class AcademicCalendarService {
 
   setRolloverExtras(extras: RolloverExtras) {
     (this as unknown as { rolloverExtras?: RolloverExtras }).rolloverExtras = extras;
+  }
+
+  /**
+   * PRC-M525: run `fn` inside a serializable DB transaction when the client
+   * supports one, otherwise run it directly (in-memory shim). Mirrors
+   * `AreaHierarchyService.runInTransaction()`'s retry-on-serialization-
+   * failure logic verbatim. `this.prisma` is already the tenant-bound client
+   * in production (`tenant-bound-prisma.ts`'s `$transaction` proxy routes
+   * through `withTenantTransaction`), so no explicit tenant binding is
+   * needed here.
+   */
+  private async runInTransaction<T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T> {
+    const prisma = this.prisma as unknown as {
+      $transaction?<R>(
+        cb: (tx: PrismaClient) => Promise<R>,
+        options?: { isolationLevel?: 'Serializable' },
+      ): Promise<R>;
+    };
+    if (typeof prisma.$transaction !== 'function') {
+      return fn(this.prisma);
+    }
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await prisma.$transaction<T>((tx) => fn(tx), { isolationLevel: 'Serializable' });
+      } catch (error) {
+        if (attempt >= SERIALIZATION_RETRIES || !isSerializationFailure(error)) throw error;
+      }
+    }
   }
 
   private async requirePeriod(tenantId: string, id: string): Promise<PeriodRow> {
@@ -420,22 +463,65 @@ export class AcademicCalendarService {
       },
     };
 
+    // PRC-M525: new target-period classes are created in their own
+    // serializable transaction before the enrollment plan is built, so
+    // `targetByKey` (used below to match a promoted student into the
+    // correct section) reflects classes created by *this* run before the
+    // section-matching logic reads it, matching the original single-run
+    // ordering (class-create happened before enrollment planning).
+    //
+    // Postgres's SERIALIZABLE detection (SSI) only catches a conflict when
+    // the *read* that justifies a write and the write itself are in the same
+    // transaction — a read taken before the transaction starts (as
+    // `classesToCreate`, computed above, was) creates no predicate lock, so
+    // two concurrent transactions can both decide independently "this class
+    // doesn't exist yet" and both insert it with no conflict detected. Each
+    // create below re-checks for a matching row *inside* this transaction
+    // immediately before inserting, so the existence read and the write
+    // share one transaction and SSI can abort the loser for retry.
     if (!dryRun) {
-      for (const c of classesToCreate) {
-        const created = (await this.prisma.class.create({
-          data: {
-            tenantId,
-            institutionId: c.institutionId,
-            gradeId: c.gradeId,
-            academicPeriodId: target.id,
-            name: c.name,
-            capacity: c.capacity,
-          },
-        })) as ClassRow;
-        targetByKey.set(classKey(created), created);
-        summary.classes.created += 1;
-      }
+      await this.runInTransaction(async (tx) => {
+        for (const c of classesToCreate) {
+          const alreadyCreated = (await tx.class.findFirst({
+            where: {
+              tenantId,
+              institutionId: c.institutionId,
+              gradeId: c.gradeId,
+              academicPeriodId: target.id,
+              name: c.name,
+              deletedAt: null,
+            },
+          })) as ClassRow | null;
+          if (alreadyCreated) {
+            targetByKey.set(classKey(alreadyCreated), alreadyCreated);
+            continue;
+          }
+          const created = (await tx.class.create({
+            data: {
+              tenantId,
+              institutionId: c.institutionId,
+              gradeId: c.gradeId,
+              academicPeriodId: target.id,
+              name: c.name,
+              capacity: c.capacity,
+            },
+          })) as ClassRow;
+          targetByKey.set(classKey(created), created);
+          summary.classes.created += 1;
+        }
+      });
     }
+
+    // PRC-M525: the plan computed below for enrollments is write material
+    // consumed by the second transaction further down — populated here
+    // (reads only), executed there (one atomic write).
+    let enrollmentPlan: Array<{
+      e: EnrollmentRow;
+      nextGradeId: string;
+      nextClassId: string | null;
+      retain: boolean;
+    }> = [];
+    let graduatingEnrollments: EnrollmentRow[] = [];
 
     // ── Enrollments (optional) ──
     if (dto.promoteEnrollments) {
@@ -567,9 +653,32 @@ export class AcademicCalendarService {
       summary.enrollments.toPromote = plan.filter((p) => !p.retain).length;
       summary.enrollments.toRetain = plan.filter((p) => p.retain).length;
 
-      if (!dryRun) {
-        for (const { e, nextGradeId, nextClassId, retain } of plan) {
-          await this.prisma.enrollment.create({
+      // PRC-M525: capture the plan for the single transaction below — no
+      // writes happen in this block.
+      enrollmentPlan = plan;
+      graduatingEnrollments = graduating;
+    }
+
+    // PRC-M525: the enrollment-create loop and the graduating updateMany run
+    // inside one transaction so two concurrent rollover runs cannot
+    // interleave and duplicate enrollment rows. The reads above
+    // (enrollmentPlan, graduatingEnrollments) only need a consistent-enough
+    // snapshot — the fix's purpose is making the *writes* atomic.
+    //
+    // As with the class-create loop above, the `inTarget` membership check
+    // that built `enrollmentPlan` ran before this transaction started, so it
+    // creates no predicate lock SSI can use to detect a concurrent racer.
+    // Re-check for an existing target-period enrollment for this student
+    // *inside* the transaction, immediately before inserting, so the
+    // existence read and the write share one transaction.
+    if (!dryRun) {
+      await this.runInTransaction(async (tx) => {
+        for (const { e, nextGradeId, nextClassId, retain } of enrollmentPlan) {
+          const alreadyEnrolled = await tx.enrollment.findFirst({
+            where: { tenantId, studentId: e.studentId, academicPeriodId: target.id },
+          });
+          if (alreadyEnrolled) continue;
+          await tx.enrollment.create({
             data: {
               tenantId,
               studentId: e.studentId,
@@ -586,13 +695,13 @@ export class AcademicCalendarService {
         }
         // Wave 11 — terminal-grade students are graduated on the source period
         // (not only counted). Idempotent: re-run skips non-ENROLLED rows.
-        for (const e of graduating) {
-          await this.prisma.enrollment.updateMany({
+        for (const e of graduatingEnrollments) {
+          await tx.enrollment.updateMany({
             where: { id: e.id, tenantId, status: 'ENROLLED' },
             data: { status: 'GRADUATED', exitedAt: source.endDate },
           });
         }
-      }
+      });
     }
 
     // ── Fee / timetable / LMS extras (preview counts on dry-run) ──
