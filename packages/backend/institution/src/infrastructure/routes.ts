@@ -149,7 +149,8 @@ export async function registerInfrastructureRoutes(
       });
     }
     try {
-      const row = await infrastructureService.logRepairRequest(result.data);
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      const row = await infrastructureService.logRepairRequest(result.data, tenantId);
       return reply.status(201).send({
         id: row.id,
         institutionId: row.institutionId,
@@ -251,7 +252,8 @@ export async function registerInfrastructureRoutes(
       }
 
       try {
-        const land = await infrastructureService.createLand(result.data);
+        const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+        const land = await infrastructureService.createLand(result.data, tenantId);
         return reply.status(201).send(land);
       } catch (error: unknown) {
         if (error instanceof AppError) {

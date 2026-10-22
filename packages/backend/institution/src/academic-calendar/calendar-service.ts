@@ -13,6 +13,9 @@ import { randomUUID } from 'node:crypto';
 import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import type { PrismaClient } from '@proctira/database';
 
+import { requireInstitution } from '../education/assignable-guards.js';
+import type { InstitutionRepository } from '../institution-repository.js';
+
 import type { CalendarEventRecord, CalendarStore } from './calendar-store.js';
 import type { CreateCalendarEventDto, RolloverRequestDto, RolloverSummary } from './schemas.js';
 
@@ -99,6 +102,13 @@ export interface AcademicCalendarServiceDeps {
   prisma: PrismaClient;
   store: CalendarStore;
   rolloverExtras?: RolloverExtras;
+  /**
+   * PRC-M286: when provided, `addEvent` requires `dto.institutionId` (when
+   * set) to exist and belong to the caller's tenant before it is stored.
+   * Optional so existing tests that construct the service without it are
+   * unaffected.
+   */
+  institutionRepository?: InstitutionRepository;
 }
 
 interface PeriodRow {
@@ -141,11 +151,13 @@ export class AcademicCalendarService {
 
   private readonly prisma: PrismaClient;
   private readonly store: CalendarStore;
+  private readonly institutionRepository?: InstitutionRepository;
 
   constructor(deps: AcademicCalendarServiceDeps) {
     this.prisma = deps.prisma;
     this.store = deps.store;
     this.rolloverExtras = deps.rolloverExtras;
+    this.institutionRepository = deps.institutionRepository;
   }
 
   setRolloverExtras(extras: RolloverExtras) {
@@ -175,6 +187,9 @@ export class AcademicCalendarService {
     const period = await this.requirePeriod(tenantId, periodId);
     if (period.status === 'archived') {
       throw new BusinessRuleError('Cannot add calendar events to an archived period');
+    }
+    if (this.institutionRepository && dto.institutionId) {
+      await requireInstitution(this.institutionRepository, tenantId, dto.institutionId);
     }
     if (dto.endDate < dto.startDate) {
       throw new ValidationError('End date must be on or after start date', [

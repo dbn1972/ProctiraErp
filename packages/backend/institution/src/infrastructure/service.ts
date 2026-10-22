@@ -18,6 +18,9 @@ import {
 } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { requireInstitution } from '../education/assignable-guards.js';
+import type { InstitutionRepository } from '../institution-repository.js';
+
 import {
   FACILITY_CONDITIONS,
   InfrastructureType,
@@ -144,6 +147,13 @@ const CHILD_TYPE_MAP: Record<string, InfrastructureTypeValue | null> = {
 export interface InfrastructureServiceOptions {
   store: InfrastructureStore;
   conditionStore: ConditionOptionStore;
+  /**
+   * PRC-M286: when provided (and a `tenantId` is passed to `createLand` /
+   * `logRepairRequest`), the owning institution is required to exist and
+   * belong to the caller's tenant before its id is stored. Optional so
+   * existing tests that construct the service without it are unaffected.
+   */
+  institutionRepository?: InstitutionRepository;
 }
 
 /**
@@ -155,10 +165,12 @@ export interface InfrastructureServiceOptions {
 export class InfrastructureService {
   private readonly store: InfrastructureStore;
   private readonly conditionStore: ConditionOptionStore;
+  private readonly institutionRepository?: InstitutionRepository;
 
   constructor(options: InfrastructureServiceOptions) {
     this.store = options.store;
     this.conditionStore = options.conditionStore;
+    this.institutionRepository = options.institutionRepository;
   }
 
   /**
@@ -205,7 +217,10 @@ export class InfrastructureService {
 
   // ─── Land CRUD ───────────────────────────────────────────────────────────────
 
-  async createLand(input: CreateLandInput): Promise<InfrastructureResponse> {
+  async createLand(input: CreateLandInput, tenantId?: string): Promise<InfrastructureResponse> {
+    if (this.institutionRepository && tenantId) {
+      await requireInstitution(this.institutionRepository, tenantId, input.institutionId);
+    }
     await this.validateCondition(input.condition);
 
     const now = new Date();
@@ -525,11 +540,17 @@ export class InfrastructureService {
     };
   }
 
-  async logRepairRequest(input: {
-    institutionId: string;
-    infrastructureId: string;
-    summary: string;
-  }): Promise<RepairRequestRecord> {
+  async logRepairRequest(
+    input: {
+      institutionId: string;
+      infrastructureId: string;
+      summary: string;
+    },
+    tenantId?: string,
+  ): Promise<RepairRequestRecord> {
+    if (this.institutionRepository && tenantId) {
+      await requireInstitution(this.institutionRepository, tenantId, input.institutionId);
+    }
     const item = await this.store.findById(input.infrastructureId);
     if (!item || item.institutionId !== input.institutionId) {
       throw new NotFoundError('Facility not found');
