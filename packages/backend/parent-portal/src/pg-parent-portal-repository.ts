@@ -4,6 +4,7 @@
  * When DATABASE_URL is set, data persists via db/sql/010_parent_portal_schema.sql
  * and db/sql/011_fees_finance_schema.sql.
  */
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import { ConflictError, type PaginatedResult, type PaginationOptions } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
@@ -39,6 +40,7 @@ import type {
   MessageEntity,
   MessageThreadEntity,
   ParentChildLinkEntity,
+  ParentPortalAuditFactory,
   ParentPortalRepository,
   PaymentMethod,
   PaymentStatus,
@@ -313,28 +315,38 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async createChildLink(
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
+    auditFactory?: ParentPortalAuditFactory<ParentChildLinkEntity>,
   ): Promise<ParentChildLinkEntity> {
     await this.ensureSchema();
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO parent_child_links (
-         id, tenant_id, parent_user_id, student_id, relationship, status,
-         is_primary, can_consent_medical, can_view_fees, household_id
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.parentUserId,
-        data.studentId,
-        data.relationship,
-        data.status,
-        data.isPrimary,
-        data.canConsentMedical,
-        data.canViewFees,
-        data.householdId,
-      ],
-    );
-    return mapLink(result.rows[0] as Record<string, unknown>);
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO parent_child_links (
+           id, tenant_id, parent_user_id, student_id, relationship, status,
+           is_primary, can_consent_medical, can_view_fees, household_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.parentUserId,
+          data.studentId,
+          data.relationship,
+          data.status,
+          data.isPrimary,
+          data.canConsentMedical,
+          data.canViewFees,
+          data.householdId,
+        ],
+      );
+      const link = mapLink((result.rows as Record<string, unknown>[])[0]!);
+      // PRC-M533: same-transaction domain audit for link creation.
+      if (auditFactory) {
+        await appendAuditEntryOnClient(
+          client,
+          toCreateAuditLogInput({ tenantId: data.tenantId, ...auditFactory(link) }),
+        );
+      }
+      return link;
+    });
   }
 
   async listChildLinksForParent(
@@ -678,6 +690,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
       };
       closedAt: Date;
     },
+    auditFactory?: ParentPortalAuditFactory<ConsentEntity>,
   ): Promise<ConsentEntity> {
     await this.ensureSchema();
     const { currentId, successor, closedAt } = input;
@@ -694,6 +707,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
       }
 
       const validFrom = successor.validFrom ?? closedAt;
+      let successorEntity: ConsentEntity;
       try {
         const insertResult = await client.query(
           `INSERT INTO parent_consents (
@@ -721,7 +735,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
             successor.decidedVia ?? null,
           ],
         );
-        return mapConsent((insertResult.rows as Record<string, unknown>[])[0]!);
+        successorEntity = mapConsent((insertResult.rows as Record<string, unknown>[])[0]!);
       } catch (error) {
         // The parent_consents_chain_open_uidx unique partial index (090) is the real
         // race guard: a concurrent decision that wins the close above but loses the
@@ -733,6 +747,15 @@ export class PgParentPortalRepository implements ParentPortalRepository {
         }
         throw error;
       }
+
+      // PRC-M533: same-transaction domain audit for consent decide/withdraw/supersede.
+      if (auditFactory) {
+        await appendAuditEntryOnClient(
+          client,
+          toCreateAuditLogInput({ tenantId, ...auditFactory(successorEntity) }),
+        );
+      }
+      return successorEntity;
     });
   }
 
@@ -948,42 +971,64 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<FeeInvoiceEntity, 'status'>>,
+    auditFactory?: ParentPortalAuditFactory<FeeInvoiceEntity>,
   ): Promise<FeeInvoiceEntity | null> {
     await this.ensureSchema();
     if (data.status === undefined) {
       return this.findInvoiceById(id, tenantId);
     }
-    const result = await this.query(
-      tenantId,
-      `UPDATE parent_fee_invoices
-       SET status = $1, updated_at = now()
-       WHERE id = $2 AND tenant_id = $3
-       RETURNING *`,
-      [data.status, id, tenantId],
-    );
-    if (!result.rows[0]) return null;
-    return mapInvoice(result.rows[0] as Record<string, unknown>);
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE parent_fee_invoices
+         SET status = $1, updated_at = now()
+         WHERE id = $2 AND tenant_id = $3
+         RETURNING *`,
+        [data.status, id, tenantId],
+      );
+      if (!result.rows[0]) return null;
+      const invoice = mapInvoice(result.rows[0] as Record<string, unknown>);
+      // PRC-M533: same-transaction domain audit for invoice void (non-fees-ledger fallback).
+      if (auditFactory) {
+        await appendAuditEntryOnClient(
+          client,
+          toCreateAuditLogInput({ tenantId, ...auditFactory(invoice) }),
+        );
+      }
+      return invoice;
+    });
   }
 
-  async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {
+  async createPayment(
+    data: Omit<FeePaymentEntity, 'createdAt'>,
+    auditFactory?: ParentPortalAuditFactory<FeePaymentEntity>,
+  ): Promise<FeePaymentEntity> {
     await this.ensureSchema();
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO parent_fee_payments (
-         id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status, paid_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [
-        data.id,
-        data.invoiceId,
-        data.tenantId,
-        data.payerUserId,
-        data.amountCents,
-        data.method,
-        data.status,
-        data.paidAt,
-      ],
-    );
-    return mapPayment(result.rows[0] as Record<string, unknown>);
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO parent_fee_payments (
+           id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status, paid_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [
+          data.id,
+          data.invoiceId,
+          data.tenantId,
+          data.payerUserId,
+          data.amountCents,
+          data.method,
+          data.status,
+          data.paidAt,
+        ],
+      );
+      const payment = mapPayment((result.rows as Record<string, unknown>[])[0]!);
+      // PRC-M533: same-transaction domain audit for payment recording (non-fees-ledger fallback).
+      if (auditFactory) {
+        await appendAuditEntryOnClient(
+          client,
+          toCreateAuditLogInput({ tenantId: data.tenantId, ...auditFactory(payment) }),
+        );
+      }
+      return payment;
+    });
   }
 
   async listPaymentsForTenant(

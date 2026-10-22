@@ -19,7 +19,7 @@ import {
   getSharedParentPortalPool,
   PgParentPortalRepository,
 } from './pg-parent-portal-repository.js';
-import { ParentPortalService } from './parent-portal-service.js';
+import { ParentPortalService, type ParentPortalAuditActor } from './parent-portal-service.js';
 
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-parent-portal-repository.live.test' });
 
@@ -330,6 +330,110 @@ describe('PgParentPortalRepository (live)', () => {
           body: 'Should not send',
         }),
       ).rejects.toThrow(NotFoundError);
+    },
+  );
+
+  /**
+   * PRC-M533: a real Postgres transaction proof that appendConsentVersion's domain write
+   * (the consent successor INSERT) and appendAuditEntryOnClient's audit_log_entries INSERT
+   * commit together. DATABASE_URL is unset in this environment, so this assertion is
+   * SKIPPED here (per it.skipIf(!live), same as every other test in this file) — it will run
+   * for real once a CI/live job sets DATABASE_URL. Do not treat this file's presence as proof
+   * that the live-PG path for PRC-M533 was exercised in this environment.
+   */
+  it.skipIf(!live)(
+    'appendConsentVersion with an auditFactory writes a two-row transactional audit trail (PRC-M533)',
+    async () => {
+      const repo = new PgParentPortalRepository(pool!);
+      const tenantId = randomUUID();
+      await seedTenant(tenantId);
+      const parentUserId = randomUUID();
+      const studentId = randomUUID();
+      await ensurePgTestStudent(pool!, tenantId, studentId);
+
+      const consentId = randomUUID();
+      const pending = await repo.createConsent({
+        id: consentId,
+        tenantId,
+        studentId,
+        parentUserId,
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        description: '',
+        status: 'pending',
+        createdBy: 'staff-admin',
+        consentVersion: 'photo-v1',
+        consentChainId: consentId,
+        version: 1,
+        supersedesId: null,
+        validFrom: new Date(),
+        withdrawalReason: null,
+        decidedVia: null,
+      });
+
+      const actor: ParentPortalAuditActor = {
+        userId: 'staff-1',
+        userName: 'Staff One',
+        ipAddress: '127.0.0.1',
+      };
+      const decidedAt = new Date();
+      const successorId = randomUUID();
+      const successor = await repo.appendConsentVersion(
+        tenantId,
+        {
+          currentId: pending.id,
+          closedAt: decidedAt,
+          successor: {
+            id: successorId,
+            tenantId,
+            studentId,
+            parentUserId,
+            consentType: pending.consentType,
+            title: pending.title,
+            description: pending.description,
+            status: 'approved',
+            consentVersion: pending.consentVersion,
+            consentChainId: pending.consentChainId,
+            version: pending.version + 1,
+            supersedesId: pending.id,
+            validFrom: decidedAt,
+            decidedAt,
+            createdBy: parentUserId,
+            withdrawalReason: null,
+            decidedVia: null,
+          },
+        },
+        (result) => ({
+          entityType: 'parent-portal',
+          entityId: result.id,
+          operation: 'UPDATE',
+          userId: actor.userId,
+          userName: actor.userName,
+          ipAddress: actor.ipAddress,
+          beforeValues: { status: pending.status },
+          afterValues: { status: result.status },
+        }),
+      );
+      expect(successor.status).toBe('approved');
+
+      // The domain write (consent successor row) and the audit write (audit_log_entries +
+      // audit_chain_heads) are both visible post-commit — proving they shared one transaction.
+      const auditRows = await withPgTenant(pool!, tenantId, (client) =>
+        client.query(
+          `SELECT entity_id, entity_type, operation, chain_seq FROM audit_log_entries
+           WHERE tenant_id = $1 AND entity_id = $2`,
+          [tenantId, successorId],
+        ),
+      );
+      expect(auditRows.rows).toHaveLength(1);
+      expect((auditRows.rows[0] as { entity_type: string }).entity_type).toBe('parent-portal');
+
+      const chainHead = await withPgTenant(pool!, tenantId, (client) =>
+        client.query(`SELECT head_seq FROM audit_chain_heads WHERE tenant_id = $1`, [tenantId]),
+      );
+      expect(Number((chainHead.rows[0] as { head_seq: number }).head_seq)).toBeGreaterThanOrEqual(
+        1,
+      );
     },
   );
 });

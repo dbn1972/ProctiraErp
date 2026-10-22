@@ -181,7 +181,7 @@ import {
 import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import { createStorageAdapter } from '@proctira/storage';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import {
   formatAdmissionNumber,
@@ -542,6 +542,31 @@ function gradebookAuditSink() {
         }),
       );
     });
+  };
+}
+
+/**
+ * PRC-M533: resolves the audit actor (userId/userName/ipAddress) for the parent-portal plugin's
+ * same-transaction domain audit from the verified JWT on the request, matching how
+ * fees-plugin.ts's getActorId/getActorDisplayName/request.ip pull the actor at the HTTP layer
+ * (G-102 — never trust a client header). A request with no `sub` claim yields userId '' here;
+ * every one of the 6 call sites this feeds requires an authenticated actor upstream (routes.ts's
+ * requireActorId throws 401 first), so an empty userId is never actually persisted in practice.
+ */
+function parentPortalAuditActor(request: FastifyRequest): {
+  userId: string;
+  userName: string;
+  ipAddress: string;
+} {
+  const user = (
+    request as FastifyRequest & {
+      user?: { sub?: string; displayName?: string; email?: string };
+    }
+  ).user;
+  return {
+    userId: user?.sub ?? '',
+    userName: user?.displayName ?? user?.email ?? user?.sub ?? '',
+    ipAddress: request.ip,
   };
 }
 
@@ -1738,6 +1763,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         },
         prefix: '/parent-portal',
         studentPrefix: '/student-portal',
+        // PRC-M533: same-transaction domain audit actor for the 6 regulated parent-portal
+        // mutation call sites (consent decide/withdraw/supersede, link create, invoice void,
+        // payment record — the non-fees-ledger fallback branches only). Mirrors how
+        // fees-plugin.ts's buildPaymentAuditBinder/buildMoneyAuditSink pull the actor from the
+        // Fastify request, wired here at the gateway registration site per this FEAT's step 6.
+        auditActor: parentPortalAuditActor,
       });
     },
   },

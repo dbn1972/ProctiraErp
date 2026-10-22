@@ -16,6 +16,7 @@ import type {
   MessageEntity,
   MessageThreadEntity,
   ParentChildLinkEntity,
+  ParentPortalAuditFactory,
   ParentPortalRepository,
 } from './parent-portal-repository.js';
 
@@ -53,6 +54,10 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
 
   async createChildLink(
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
+    // PRC-M533: no-op here — the in-memory store has no transaction to append the audit
+    // row inside; only the Pg repository (pg-parent-portal-repository.ts) persists it,
+    // mirroring fees-plugin's FeesMoneyAuditSink no-op-when-unbound convention.
+    _auditFactory?: ParentPortalAuditFactory<ParentChildLinkEntity>,
   ): Promise<ParentChildLinkEntity> {
     const now = new Date();
     const entity: ParentChildLinkEntity = { ...data, createdAt: now, updatedAt: now };
@@ -319,6 +324,8 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
       };
       closedAt: Date;
     },
+    // PRC-M533: no-op here — see createChildLink's comment.
+    _auditFactory?: ParentPortalAuditFactory<ConsentEntity>,
   ): Promise<ConsentEntity> {
     const { currentId, successor, closedAt } = input;
     const index = this.consents.findIndex((c) => c.id === currentId && c.tenantId === tenantId);
@@ -439,6 +446,8 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<FeeInvoiceEntity, 'status'>>,
+    // PRC-M533: no-op here — see createChildLink's comment.
+    _auditFactory?: ParentPortalAuditFactory<FeeInvoiceEntity>,
   ): Promise<FeeInvoiceEntity | null> {
     const index = this.invoices.findIndex(
       (invoice) => invoice.id === id && invoice.tenantId === tenantId,
@@ -453,7 +462,11 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return updated;
   }
 
-  async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {
+  async createPayment(
+    data: Omit<FeePaymentEntity, 'createdAt'>,
+    // PRC-M533: no-op here — see createChildLink's comment.
+    _auditFactory?: ParentPortalAuditFactory<FeePaymentEntity>,
+  ): Promise<FeePaymentEntity> {
     const entity: FeePaymentEntity = { ...data, createdAt: new Date() };
     this.payments.push(entity);
     return entity;

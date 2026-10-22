@@ -11,7 +11,11 @@ import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import { isConsentStaff } from './parent-portal-consent-access.js';
 import { isFeesStaff } from './parent-portal-fees-access.js';
 import { deriveSenderRole } from './parent-portal-messaging-access.js';
-import type { ParentPortalService, StudentActor } from './parent-portal-service.js';
+import type {
+  ParentPortalAuditActor,
+  ParentPortalService,
+  StudentActor,
+} from './parent-portal-service.js';
 import {
   AddHouseholdMemberSchema,
   AddMessageSchema,
@@ -88,6 +92,8 @@ export interface ParentPortalRoutesOptions {
   admissionsOffers?: AdmissionsOffersPort;
   prefix?: string;
   studentPrefix?: string;
+  /** PRC-M533: see ParentPortalPluginOptions.auditActor — forwarded unchanged from the plugin. */
+  auditActor?: (request: FastifyRequest) => ParentPortalAuditActor;
 }
 
 function getTenantId(request: FastifyRequest): string | null {
@@ -378,7 +384,17 @@ export async function registerParentPortalRoutes(
     admissionsOffers,
     prefix = '/parent-portal',
     studentPrefix = '/student-portal',
+    auditActor,
   } = options;
+
+  /**
+   * PRC-M533: resolve the audit actor for a regulated mutation, when the gateway supplied one.
+   * Absent `auditActor` option ⇒ undefined, so the service appends no audit row for that call
+   * (the mutation itself is unaffected — see ParentPortalPluginOptions.auditActor's doc comment).
+   */
+  function resolveAuditActor(request: FastifyRequest): ParentPortalAuditActor | undefined {
+    return auditActor?.(request);
+  }
 
   fastify.get(
     `${prefix}/children`,
@@ -439,6 +455,7 @@ export async function registerParentPortalRoutes(
         const isStaff = isConsentStaff(roles) || isFeesStaff(roles);
         const link = await parentPortalService.linkChild(tenantId, parentUserId, result.data, {
           isStaff,
+          auditActor: resolveAuditActor(request),
         });
         return reply.status(201).send(formatLink(link));
       } catch (error: unknown) {
@@ -1027,6 +1044,7 @@ export async function registerParentPortalRoutes(
           parentUserId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(200).send(formatConsent(consent));
       } catch (error: unknown) {
@@ -1080,6 +1098,7 @@ export async function registerParentPortalRoutes(
           parentUserId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(200).send(formatConsent(consent));
       } catch (error: unknown) {
@@ -1135,6 +1154,7 @@ export async function registerParentPortalRoutes(
           actorId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(201).send(formatConsent(consent));
       } catch (error: unknown) {
@@ -1361,6 +1381,7 @@ export async function registerParentPortalRoutes(
       try {
         const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id, {
           actorId: requireActorId(request),
+          auditActor: resolveAuditActor(request),
         });
         return reply.status(200).send(formatInvoice(invoice));
       } catch (error: unknown) {
@@ -1526,6 +1547,7 @@ export async function registerParentPortalRoutes(
           parentUserId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(200).send({
           invoice: formatInvoice(invoice),

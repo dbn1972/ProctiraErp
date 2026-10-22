@@ -1,6 +1,7 @@
 /**
  * Parent portal service — child links, messaging, consents, fee sandbox, academic reads.
  */
+import type { MutationAuditTxnInput } from '@proctira/backend-audit';
 import {
   BusinessRuleError,
   ForbiddenError,
@@ -17,6 +18,9 @@ import {
   type AcademicVisibilityStore,
 } from './academic-visibility.js';
 import type {
+  ConsentEntity,
+  FeeInvoiceEntity,
+  FeePaymentEntity,
   ParentChildLinkEntity,
   ParentLinkAuthorityFlag,
   ParentPortalRepository,
@@ -32,6 +36,78 @@ import type {
   SupersedeConsentInput,
   WithdrawConsentInput,
 } from './schemas.js';
+
+/**
+ * PRC-M533: actor identity the route/gateway resolved from the verified JWT (and client IP),
+ * supplied so the repository's same-transaction audit write records who made the regulated
+ * mutation. Absent (e.g. a direct service caller with no HTTP request) ⇒ no audit row is
+ * appended — the mutation itself still succeeds (this finding adds proof of audit coverage
+ * for the four named mutation families; it never makes the audit a precondition for the write).
+ */
+export interface ParentPortalAuditActor {
+  userId: string;
+  userName: string;
+  ipAddress: string;
+}
+
+/**
+ * PRC-M533: one of the four mutation families the finding names (decide/withdraw/supersede
+ * consent, link create, invoice void, payment record — 6 call sites total since consent has
+ * three). Shape matches FeesMoneyAuditEvent (packages/backend/fees/src/fees-repository.ts,
+ * consumed by fees-plugin.ts's buildMoneyAuditSink) adapted to this package's entities.
+ */
+export type ParentPortalAuditEvent = {
+  kind:
+    | 'consent_decide'
+    | 'consent_withdraw'
+    | 'consent_supersede'
+    | 'link_create'
+    | 'invoice_void'
+    | 'payment_record';
+  entityId: string;
+  beforeStatus?: string | null;
+  afterStatus?: string | null;
+  details?: Record<string, unknown>;
+};
+
+/**
+ * PRC-M533: maps an actor + audit event to the same-transaction audit entry handed to a
+ * repository method's `auditFactory` parameter. Mirrors FeesMoneyAuditSink's role (a thin
+ * request/actor -> audit-input closure, see fees-plugin.ts's buildMoneyAuditSink) adapted to
+ * this package's auditFactory-based repository contract (appendAuditEntryOnClient is called
+ * inside the repository's own withPgTenant callback, not via a tx-bound callback parameter).
+ */
+export type ParentPortalAuditSink = (
+  actor: ParentPortalAuditActor,
+  event: ParentPortalAuditEvent,
+) => Omit<MutationAuditTxnInput, 'tenantId'>;
+
+const AUDIT_CREATE_KINDS: ReadonlySet<ParentPortalAuditEvent['kind']> = new Set([
+  'link_create',
+  'consent_supersede',
+  'payment_record',
+]);
+
+/** Default {@link ParentPortalAuditSink}: entityType 'parent-portal', one row per event. */
+export function defaultParentPortalAuditSink(
+  actor: ParentPortalAuditActor,
+  event: ParentPortalAuditEvent,
+): Omit<MutationAuditTxnInput, 'tenantId'> {
+  return {
+    entityType: 'parent-portal',
+    entityId: event.entityId,
+    operation: AUDIT_CREATE_KINDS.has(event.kind) ? 'CREATE' : 'UPDATE',
+    userId: actor.userId,
+    userName: actor.userName,
+    ipAddress: actor.ipAddress,
+    beforeValues: event.beforeStatus !== undefined ? { status: event.beforeStatus } : null,
+    afterValues:
+      event.afterStatus !== undefined
+        ? { status: event.afterStatus, ...event.details }
+        : (event.details ?? null),
+    metadata: { regulated: `parent-portal.${event.kind}`, atomic: true },
+  };
+}
 
 export { STUDENT_SELF_BINDING_ASSUMPTION };
 
@@ -125,7 +201,9 @@ export class ParentPortalService {
     tenantId: string,
     parentUserId: string,
     input: LinkChildInput,
-    options: { isStaff?: boolean } = {},
+    // PRC-M533: auditActor is optional — absent (e.g. a non-HTTP caller) means no audit row
+    // is appended, matching this FEAT's own "audit proof, not an audit precondition" scope.
+    options: { isStaff?: boolean; auditActor?: ParentPortalAuditActor } = {},
   ) {
     const existing = await this.repository.hasActiveLink(tenantId, parentUserId, input.studentId);
     if (existing) {
@@ -137,18 +215,30 @@ export class ParentPortalService {
     // flag off; a staff member reviews and elevates them. Only a staff caller may
     // assert isPrimary / canConsentMedical / canViewFees and create an 'active' link.
     const isStaff = options.isStaff === true;
-    return this.repository.createChildLink({
-      id: uuidv4(),
-      tenantId,
-      parentUserId,
-      studentId: input.studentId,
-      relationship: input.relationship ?? 'guardian',
-      status: isStaff ? 'active' : 'pending',
-      isPrimary: isStaff ? (input.isPrimary ?? false) : false,
-      canConsentMedical: isStaff ? (input.canConsentMedical ?? false) : false,
-      canViewFees: isStaff ? (input.canViewFees ?? false) : false,
-      householdId: isStaff ? (input.householdId ?? null) : null,
-    });
+    const auditActor = options.auditActor;
+    return this.repository.createChildLink(
+      {
+        id: uuidv4(),
+        tenantId,
+        parentUserId,
+        studentId: input.studentId,
+        relationship: input.relationship ?? 'guardian',
+        status: isStaff ? 'active' : 'pending',
+        isPrimary: isStaff ? (input.isPrimary ?? false) : false,
+        canConsentMedical: isStaff ? (input.canConsentMedical ?? false) : false,
+        canViewFees: isStaff ? (input.canViewFees ?? false) : false,
+        householdId: isStaff ? (input.householdId ?? null) : null,
+      },
+      auditActor
+        ? (link: ParentChildLinkEntity) =>
+            defaultParentPortalAuditSink(auditActor, {
+              kind: 'link_create',
+              entityId: link.id,
+              afterStatus: link.status,
+              details: { parentUserId: link.parentUserId, studentId: link.studentId },
+            })
+        : undefined,
+    );
   }
 
   /** Staff provisioning — guardian household unit (W1-SEC-03). */
@@ -603,6 +693,7 @@ export class ParentPortalService {
     parentUserId: string,
     consentId: string,
     input: DecideConsentInput,
+    auditActor?: ParentPortalAuditActor,
   ) {
     const consent = await this.repository.findConsentById(consentId, tenantId);
     if (!consent) {
@@ -634,29 +725,43 @@ export class ParentPortalService {
     const decidedAt = new Date();
     // PRC-M315: close+insert run as one atomic call so two concurrent decisions
     // on the same open version cannot both succeed.
-    return this.repository.appendConsentVersion(tenantId, {
-      currentId: consent.id,
-      closedAt: decidedAt,
-      successor: {
-        id: uuidv4(),
-        tenantId,
-        studentId: consent.studentId,
-        parentUserId: consent.parentUserId,
-        consentType: consent.consentType,
-        title: consent.title,
-        description: consent.description,
-        status: input.status,
-        consentVersion: consent.consentVersion,
-        consentChainId: consent.consentChainId,
-        version: consent.version + 1,
-        supersedesId: consent.id,
-        validFrom: decidedAt,
-        decidedAt,
-        createdBy: consent.createdBy,
-        withdrawalReason: null,
-        decidedVia: null,
+    return this.repository.appendConsentVersion(
+      tenantId,
+      {
+        currentId: consent.id,
+        closedAt: decidedAt,
+        successor: {
+          id: uuidv4(),
+          tenantId,
+          studentId: consent.studentId,
+          parentUserId: consent.parentUserId,
+          consentType: consent.consentType,
+          title: consent.title,
+          description: consent.description,
+          status: input.status,
+          consentVersion: consent.consentVersion,
+          consentChainId: consent.consentChainId,
+          version: consent.version + 1,
+          supersedesId: consent.id,
+          validFrom: decidedAt,
+          decidedAt,
+          createdBy: consent.createdBy,
+          withdrawalReason: null,
+          decidedVia: null,
+        },
       },
-    });
+      // PRC-M533: same-transaction audit for the consent decide mutation.
+      auditActor
+        ? (successor: ConsentEntity) =>
+            defaultParentPortalAuditSink(auditActor, {
+              kind: 'consent_decide',
+              entityId: successor.id,
+              beforeStatus: consent.status,
+              afterStatus: successor.status,
+              details: { consentChainId: successor.consentChainId },
+            })
+        : undefined,
+    );
   }
 
   /**
@@ -667,6 +772,7 @@ export class ParentPortalService {
     parentUserId: string,
     consentId: string,
     input: WithdrawConsentInput = {},
+    auditActor?: ParentPortalAuditActor,
   ) {
     const consent = await this.repository.findConsentById(consentId, tenantId);
     if (!consent || consent.parentUserId !== parentUserId) {
@@ -698,29 +804,43 @@ export class ParentPortalService {
     const at = new Date();
     // PRC-M315: atomic close+insert. PRC-M318: persist the withdrawal reason /
     // decision channel instead of dropping them on the floor.
-    return this.repository.appendConsentVersion(tenantId, {
-      currentId: consent.id,
-      closedAt: at,
-      successor: {
-        id: uuidv4(),
-        tenantId,
-        studentId: consent.studentId,
-        parentUserId: consent.parentUserId,
-        consentType: consent.consentType,
-        title: consent.title,
-        description: consent.description,
-        status: 'revoked',
-        consentVersion: consent.consentVersion,
-        consentChainId: consent.consentChainId,
-        version: consent.version + 1,
-        supersedesId: consent.id,
-        validFrom: at,
-        decidedAt: at,
-        createdBy: parentUserId,
-        withdrawalReason: input.reason ?? null,
-        decidedVia: input.decidedVia ?? null,
+    return this.repository.appendConsentVersion(
+      tenantId,
+      {
+        currentId: consent.id,
+        closedAt: at,
+        successor: {
+          id: uuidv4(),
+          tenantId,
+          studentId: consent.studentId,
+          parentUserId: consent.parentUserId,
+          consentType: consent.consentType,
+          title: consent.title,
+          description: consent.description,
+          status: 'revoked',
+          consentVersion: consent.consentVersion,
+          consentChainId: consent.consentChainId,
+          version: consent.version + 1,
+          supersedesId: consent.id,
+          validFrom: at,
+          decidedAt: at,
+          createdBy: parentUserId,
+          withdrawalReason: input.reason ?? null,
+          decidedVia: input.decidedVia ?? null,
+        },
       },
-    });
+      // PRC-M533: same-transaction audit for the consent withdraw mutation.
+      auditActor
+        ? (successor: ConsentEntity) =>
+            defaultParentPortalAuditSink(auditActor, {
+              kind: 'consent_withdraw',
+              entityId: successor.id,
+              beforeStatus: consent.status,
+              afterStatus: successor.status,
+              details: { consentChainId: successor.consentChainId },
+            })
+        : undefined,
+    );
   }
 
   /**
@@ -731,6 +851,7 @@ export class ParentPortalService {
     actorId: string,
     consentId: string,
     input: SupersedeConsentInput,
+    auditActor?: ParentPortalAuditActor,
   ) {
     const consent = await this.repository.findConsentById(consentId, tenantId);
     if (!consent) {
@@ -755,28 +876,42 @@ export class ParentPortalService {
     const at = new Date();
     // PRC-M315: atomic close+insert so two concurrent supersede/decide/withdraw
     // calls on the same open version cannot both succeed.
-    return this.repository.appendConsentVersion(tenantId, {
-      currentId: consent.id,
-      closedAt: at,
-      successor: {
-        id: uuidv4(),
-        tenantId,
-        studentId: consent.studentId,
-        parentUserId: consent.parentUserId,
-        consentType: consent.consentType,
-        title: input.title ?? consent.title,
-        description: input.description ?? consent.description,
-        status: 'pending',
-        consentVersion: input.consentVersion,
-        consentChainId: consent.consentChainId,
-        version: consent.version + 1,
-        supersedesId: consent.id,
-        validFrom: at,
-        createdBy: actorId,
-        withdrawalReason: null,
-        decidedVia: null,
+    return this.repository.appendConsentVersion(
+      tenantId,
+      {
+        currentId: consent.id,
+        closedAt: at,
+        successor: {
+          id: uuidv4(),
+          tenantId,
+          studentId: consent.studentId,
+          parentUserId: consent.parentUserId,
+          consentType: consent.consentType,
+          title: input.title ?? consent.title,
+          description: input.description ?? consent.description,
+          status: 'pending',
+          consentVersion: input.consentVersion,
+          consentChainId: consent.consentChainId,
+          version: consent.version + 1,
+          supersedesId: consent.id,
+          validFrom: at,
+          createdBy: actorId,
+          withdrawalReason: null,
+          decidedVia: null,
+        },
       },
-    });
+      // PRC-M533: same-transaction audit for the consent supersede mutation.
+      auditActor
+        ? (successor: ConsentEntity) =>
+            defaultParentPortalAuditSink(auditActor, {
+              kind: 'consent_supersede',
+              entityId: successor.id,
+              beforeStatus: consent.status,
+              afterStatus: successor.status,
+              details: { consentChainId: successor.consentChainId },
+            })
+        : undefined,
+    );
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
@@ -901,7 +1036,13 @@ export class ParentPortalService {
   async voidInvoice(
     tenantId: string,
     invoiceId: string,
-    options: { actorId?: string | null; reason?: string | null } = {},
+    options: {
+      actorId?: string | null;
+      reason?: string | null;
+      // PRC-M533: audit actor for the non-fees-ledger fallback branch only — the fees ledger
+      // branch already audits itself same-transaction (fees-plugin.ts's buildMoneyAuditSink).
+      auditActor?: ParentPortalAuditActor;
+    } = {},
   ) {
     if (this.fees) {
       // PRC-H058: the shared fees ledger locks the invoice and posts the reversal
@@ -928,7 +1069,24 @@ export class ParentPortalService {
     if (invoice.status === 'void') {
       return invoice;
     }
-    const updated = await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' });
+    const beforeStatus = invoice.status;
+    const auditActor = options.auditActor;
+    const updated = await this.repository.updateInvoice(
+      invoiceId,
+      tenantId,
+      { status: 'void' },
+      // PRC-M533: same-transaction audit for the non-fees-ledger invoice void fallback.
+      auditActor
+        ? (voided: FeeInvoiceEntity) =>
+            defaultParentPortalAuditSink(auditActor, {
+              kind: 'invoice_void',
+              entityId: voided.id,
+              beforeStatus,
+              afterStatus: voided.status,
+              details: { reason: options.reason ?? null },
+            })
+        : undefined,
+    );
     return updated!;
   }
 
@@ -1018,6 +1176,9 @@ export class ParentPortalService {
     parentUserId: string,
     invoiceId: string,
     input: PayInvoiceInput = {},
+    // PRC-M533: audit actor for the non-fees-ledger fallback branch only — the fees ledger
+    // branch already audits itself same-transaction (fees-plugin.ts's buildPaymentAuditBinder).
+    auditActor?: ParentPortalAuditActor,
   ) {
     if (this.fees) {
       const invoice = await this.fees.getInvoice(tenantId, invoiceId);
@@ -1086,16 +1247,28 @@ export class ParentPortalService {
     }
     const paidAt = new Date();
 
-    const payment = await this.repository.createPayment({
-      id: uuidv4(),
-      invoiceId: invoice.id,
-      tenantId,
-      payerUserId: parentUserId,
-      amountCents: invoice.amountCents,
-      method,
-      status: 'succeeded',
-      paidAt,
-    });
+    const payment = await this.repository.createPayment(
+      {
+        id: uuidv4(),
+        invoiceId: invoice.id,
+        tenantId,
+        payerUserId: parentUserId,
+        amountCents: invoice.amountCents,
+        method,
+        status: 'succeeded',
+        paidAt,
+      },
+      // PRC-M533: same-transaction audit for the non-fees-ledger payment-recording fallback.
+      auditActor
+        ? (recorded: FeePaymentEntity) =>
+            defaultParentPortalAuditSink(auditActor, {
+              kind: 'payment_record',
+              entityId: recorded.id,
+              afterStatus: recorded.status,
+              details: { invoiceId: recorded.invoiceId, amountCents: recorded.amountCents },
+            })
+        : undefined,
+    );
 
     const receipt = await this.repository.createReceipt({
       id: uuidv4(),

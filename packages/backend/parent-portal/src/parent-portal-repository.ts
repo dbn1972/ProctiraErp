@@ -1,6 +1,7 @@
 /**
  * Parent portal repository interface (in-memory v1 / Postgres).
  */
+import type { MutationAuditTxnInput } from '@proctira/backend-audit';
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 
 export type LinkStatus = 'active' | 'pending' | 'revoked';
@@ -201,9 +202,20 @@ export interface FeeReceiptEntity {
   createdAt: Date;
 }
 
+/**
+ * PRC-M533: builds the same-transaction audit row for a domain write, given the
+ * write's own result. Returning undefined (or omitting the factory entirely)
+ * skips the audit append — used by callers that have no actor context (e.g.
+ * seed/test paths) rather than failing the whole mutation.
+ */
+export type ParentPortalAuditFactory<TResult> = (
+  result: TResult,
+) => Omit<MutationAuditTxnInput, 'tenantId'>;
+
 export interface ParentPortalRepository {
   createChildLink(
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
+    auditFactory?: ParentPortalAuditFactory<ParentChildLinkEntity>,
   ): Promise<ParentChildLinkEntity>;
   listChildLinksForParent(tenantId: string, parentUserId: string): Promise<ParentChildLinkEntity[]>;
   listChildLinksForStudent(tenantId: string, studentId: string): Promise<ParentChildLinkEntity[]>;
@@ -299,6 +311,7 @@ export interface ParentPortalRepository {
       };
       closedAt: Date;
     },
+    auditFactory?: ParentPortalAuditFactory<ConsentEntity>,
   ): Promise<ConsentEntity>;
 
   createFeePlan(data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>): Promise<FeePlanEntity>;
@@ -322,9 +335,13 @@ export interface ParentPortalRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<FeeInvoiceEntity, 'status'>>,
+    auditFactory?: ParentPortalAuditFactory<FeeInvoiceEntity>,
   ): Promise<FeeInvoiceEntity | null>;
 
-  createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
+  createPayment(
+    data: Omit<FeePaymentEntity, 'createdAt'>,
+    auditFactory?: ParentPortalAuditFactory<FeePaymentEntity>,
+  ): Promise<FeePaymentEntity>;
   /** PRC-M536: paginated — the tenant-wide payment ledger must not dump unbounded. */
   listPaymentsForTenant(
     tenantId: string,
