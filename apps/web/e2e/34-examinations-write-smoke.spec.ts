@@ -160,8 +160,12 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
       name: `E2E Prior Exam ${stamp}`,
       code: `E2E-PRIOR-${stamp.toUpperCase()}`,
       academicPeriodId: period.id,
-      startDate: isoDate(-20),
-      endDate: isoDate(-18),
+      // Creation requires dates >= 7 days out (examination-service.ts
+      // validateExamDates); only create/update enforce this, not marks
+      // entry/publish, so this "prior" cycle can still be fully marked and
+      // published today even though its dates are in the (near) future.
+      startDate: isoDate(8),
+      endDate: isoDate(9),
       subjects: subjectSpecs,
       centers: [{ name: 'Main Hall', code: 'HALL', institutionId: INSTITUTION_A, capacity: 200 }],
       gradingSchemes: [gradingScheme],
