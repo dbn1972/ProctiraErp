@@ -20,7 +20,11 @@ function mockPrisma() {
     staff: { findFirst: vi.fn() },
     subject: { findFirst: vi.fn().mockResolvedValue({ id: 'subj-1', name: 'Math' }) },
     institutionSubject: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
-    class: { create: vi.fn().mockResolvedValue({ id: 'class-1' }) },
+    class: {
+      // PRC-M285: create() now checks for a duplicate name before inserting.
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'class-1' }),
+    },
   } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 

@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClassService } from './class-service.js';
-import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { createInMemoryAcademicsPrisma } from './in-memory-prisma-lite.js';
 
 function createMockPrisma() {
@@ -126,6 +126,32 @@ describe('ClassService', () => {
           name: 'Class A',
         }),
       ).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-M285: duplicate (institution, grade, period, name) must be rejected.
+    it('should throw ConflictError when a class with the same name already exists for the grade/period', async () => {
+      prisma.grade.findFirst.mockResolvedValue({ id: 'grade-1' });
+      prisma.academicPeriod.findFirst.mockResolvedValue({ id: 'period-1' });
+      prisma.institution.findFirst.mockResolvedValue({ id: 'inst-1' });
+      prisma.class.findFirst.mockResolvedValue({
+        id: 'class-existing',
+        tenantId: TENANT_ID,
+        institutionId: 'inst-1',
+        gradeId: 'grade-1',
+        academicPeriodId: 'period-1',
+        name: 'Class A',
+        deletedAt: null,
+      });
+
+      await expect(
+        service.create(TENANT_ID, {
+          institutionId: 'inst-1',
+          gradeId: 'grade-1',
+          academicPeriodId: 'period-1',
+          name: 'Class A',
+        }),
+      ).rejects.toThrow(ConflictError);
+      expect(prisma.class.create).not.toHaveBeenCalled();
     });
 
     it('should set capacity to null when not provided', async () => {
