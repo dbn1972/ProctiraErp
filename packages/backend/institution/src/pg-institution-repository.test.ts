@@ -261,4 +261,119 @@ describe('PgInstitutionRepository', () => {
       expect(found?.code).toBe(code);
     },
   );
+
+  // PRC-L571: add non-skipped-when-DB-available coverage for
+  // findByNameInArea (same-tenant hit, cross-tenant miss) — previously the
+  // only live test exercised create(), not this lookup.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'findByNameInArea finds a same-tenant match and misses across tenants (PRC-L571)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      const areaA = randomUUID();
+      const areaB = randomUUID();
+      await Promise.all([seedTenantAndArea(tenantA, areaA), seedTenantAndArea(tenantB, areaB)]);
+
+      const institutionId = randomUUID();
+      const name = `L571 School ${institutionId.slice(0, 8)}`;
+      await repo.create({
+        id: institutionId,
+        tenantId: tenantA,
+        name,
+        code: `SCH-${institutionId.slice(0, 8)}`,
+        areaId: areaA,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: institutionId, tenantId: tenantA, areaId: areaA });
+
+      const hit = await repo.findByNameInArea(name, areaA, tenantA);
+      expect(hit?.id).toBe(institutionId);
+
+      // Cross-tenant: same name/area values scoped to a different tenant's
+      // transaction must not see tenant A's row.
+      const miss = await repo.findByNameInArea(name, areaA, tenantB);
+      expect(miss).toBeNull();
+    },
+  );
+
+  // PRC-L571: add non-skipped-when-DB-available coverage for
+  // list({ sortBy: 'directory' }) — active-then-inactive ordering by code.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'list sortBy=directory orders active institutions before inactive ones (PRC-L571)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantId = randomUUID();
+      const activeAreaId = randomUUID();
+      const inactiveAreaId = randomUUID();
+      // PRC-L571: separate areas per row — cleanupInstitution() deletes its
+      // own geographic_areas row by areaId, which would violate the FK
+      // against the still-live sibling row if both shared one area.
+      await Promise.all([
+        seedTenantAndArea(tenantId, activeAreaId),
+        seedTenantAndArea(tenantId, inactiveAreaId),
+      ]);
+
+      const activeId = randomUUID();
+      const activeCode = `ZACT-${activeId.slice(0, 8)}`;
+      await repo.create({
+        id: activeId,
+        tenantId,
+        name: 'Active School',
+        code: activeCode,
+        areaId: activeAreaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: activeId, tenantId, areaId: activeAreaId });
+
+      const inactiveId = randomUUID();
+      const inactiveCode = `AINA-${inactiveId.slice(0, 8)}`;
+      await repo.create({
+        id: inactiveId,
+        tenantId,
+        name: 'Inactive School',
+        code: inactiveCode,
+        areaId: inactiveAreaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'INACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: inactiveId, tenantId, areaId: inactiveAreaId });
+
+      const result = await repo.list(
+        tenantId,
+        {},
+        { page: 1, pageSize: 20, sortBy: 'directory' },
+      );
+      const ids = result.data.map((row) => row.id);
+      // Active school sorts before the inactive one despite its code
+      // ('Z...' vs 'A...') sorting later within an unordered-by-status list.
+      expect(ids.indexOf(activeId)).toBeLessThan(ids.indexOf(inactiveId));
+    },
+  );
 });
