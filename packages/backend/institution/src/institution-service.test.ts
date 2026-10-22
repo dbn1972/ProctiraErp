@@ -347,6 +347,65 @@ describe('InstitutionService', () => {
       const deactivated = await service.deactivate(TENANT_ID, created.id, 'Closing');
       expect(deactivated.status).toBe('INACTIVE');
     });
+
+    // PRC-L322: the in-memory repository's compare-and-swap directly proves
+    // two concurrent readers racing a write cannot both land silently — the
+    // stale-version writer loses instead of overwriting the winner's write
+    // with no error.
+    it('rejects a stale-version write once a fresher write has landed (PRC-L322)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+
+      // Two independent readers both capture the row at the same version
+      // before either writes (simulating concurrent reads).
+      const reader1Version = created.version;
+      const reader2Version = created.version;
+      expect(reader1Version).toBe(reader2Version);
+
+      // Reader 1 wins the race: its compare-and-swap matches and lands.
+      const afterFirstWrite = await repository.update(
+        created.id,
+        TENANT_ID,
+        { deactivationReason: 'First writer' },
+        reader1Version,
+      );
+      expect(afterFirstWrite).not.toBeNull();
+      expect(afterFirstWrite?.version).toBe(reader1Version + 1);
+
+      // Reader 2's stale version no longer matches the row's current
+      // version — its write must be rejected (null), not silently applied.
+      const afterSecondWrite = await repository.update(
+        created.id,
+        TENANT_ID,
+        { deactivationReason: 'Second writer (stale)' },
+        reader2Version,
+      );
+      expect(afterSecondWrite).toBeNull();
+
+      const final = await service.getById(TENANT_ID, created.id);
+      expect(final.deactivationReason).toBe('First writer');
+    });
+
+    // PRC-L322: InstitutionService.deactivate() must translate a
+    // version-mismatch (null from repository.update) into ConflictError,
+    // not the misleading NotFoundError the row's own existence check would
+    // otherwise imply.
+    it('should throw ConflictError (not NotFoundError) when deactivate loses an optimistic-lock race (PRC-L322)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+
+      const racingRepository: typeof repository = {
+        ...repository,
+        findById: repository.findById.bind(repository),
+        update: async () => null, // simulates a concurrent writer winning the race
+        countActiveEnrollments: repository.countActiveEnrollments.bind(repository),
+      } as unknown as typeof repository;
+      const racingService = new InstitutionService(racingRepository);
+
+      await expect(racingService.deactivate(TENANT_ID, created.id, 'reason')).rejects.toThrow(
+        ConflictError,
+      );
+    });
   });
 
   describe('reactivate', () => {

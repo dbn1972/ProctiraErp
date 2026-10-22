@@ -72,6 +72,7 @@ export class InstitutionService {
       contactPhone: input.contactPhone ?? null,
       contactEmail: input.contactEmail ?? null,
       deactivationReason: null,
+      version: 1,
     };
 
     return this.repository.create(institution);
@@ -132,9 +133,13 @@ export class InstitutionService {
     if (input.contactPhone !== undefined) updateData.contactPhone = input.contactPhone;
     if (input.contactEmail !== undefined) updateData.contactEmail = input.contactEmail;
 
-    const updated = await this.repository.update(id, tenantId, updateData);
+    // PRC-L322: optimistic lock — a null result here (after the findById
+    // check above already confirmed the row exists) means another writer
+    // updated it concurrently between the read and this write, not that the
+    // row disappeared.
+    const updated = await this.repository.update(id, tenantId, updateData, existing.version);
     if (!updated) {
-      throw new NotFoundError(`Institution with id '${id}' not found`);
+      throw new ConflictError('Institution was modified concurrently; reload and retry');
     }
 
     return updated;
@@ -153,9 +158,14 @@ export class InstitutionService {
    * staff-assignment table yet (`countActiveStaffAssignments` always returns
    * 0), so this half is tracked as a pending owner decision, not a bug.
    *
+   * PRC-L322: writes a compare-and-swap on the entity's `version` so two
+   * concurrent read-check-write races produce a `ConflictError` instead of a
+   * silent lost update.
+   *
    * @throws NotFoundError if institution not found
    * @throws BusinessRuleError if institution is already inactive, or has
    *   active enrollments
+   * @throws ConflictError if the institution was modified concurrently
    */
   async deactivate(tenantId: string, id: string, reason: string): Promise<InstitutionEntity> {
     const existing = await this.repository.findById(id, tenantId);
@@ -174,13 +184,18 @@ export class InstitutionService {
       );
     }
 
-    const updated = await this.repository.update(id, tenantId, {
-      status: EntityStatus.INACTIVE,
-      deactivationReason: reason,
-    });
+    const updated = await this.repository.update(
+      id,
+      tenantId,
+      {
+        status: EntityStatus.INACTIVE,
+        deactivationReason: reason,
+      },
+      existing.version,
+    );
 
     if (!updated) {
-      throw new NotFoundError(`Institution with id '${id}' not found`);
+      throw new ConflictError('Institution was modified concurrently; reload and retry');
     }
 
     return updated;
@@ -209,13 +224,18 @@ export class InstitutionService {
       throw new BusinessRuleError('Institution is already active');
     }
 
-    const updated = await this.repository.update(id, tenantId, {
-      status: EntityStatus.ACTIVE,
-      deactivationReason: null,
-    });
+    const updated = await this.repository.update(
+      id,
+      tenantId,
+      {
+        status: EntityStatus.ACTIVE,
+        deactivationReason: null,
+      },
+      existing.version,
+    );
 
     if (!updated) {
-      throw new NotFoundError(`Institution with id '${id}' not found`);
+      throw new ConflictError('Institution was modified concurrently; reload and retry');
     }
 
     return updated;

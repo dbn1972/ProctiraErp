@@ -53,6 +53,7 @@ interface InstitutionRow {
   ownership: string;
   status: string;
   customData: unknown;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -132,6 +133,7 @@ function toEntity(row: InstitutionRow): InstitutionEntity {
     contactPhone: profile.contactPhone,
     contactEmail: profile.contactEmail,
     deactivationReason: profile.deactivationReason,
+    version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -162,10 +164,21 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
     });
   }
 
+  /**
+   * PRC-L322: when `expectedVersion` is provided, the write is a
+   * compare-and-swap (`updateMany` scoped by `id`, `tenantId`, and
+   * `version = expectedVersion`, incrementing `version` on success) —
+   * returns `null` on no match (version mismatch) instead of throwing, so
+   * the caller can tell "modified concurrently" apart from "not found" by
+   * the earlier existence check already having passed. When
+   * `expectedVersion` is omitted, behavior is unchanged (plain update, no
+   * version check, other call sites unaffected).
+   */
   async update(
     id: string,
     tenantId: string,
     data: Partial<InstitutionEntity>,
+    expectedVersion?: number,
   ): Promise<InstitutionEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const existing = (await tx.institution.findFirst({
@@ -179,14 +192,24 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
       const mergedRecord = merged as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries(data)) {
         if (value === undefined) continue;
-        if (key === 'id' || key === 'tenantId' || key === 'createdAt' || key === 'updatedAt') {
+        if (
+          key === 'id' ||
+          key === 'tenantId' ||
+          key === 'createdAt' ||
+          key === 'updatedAt' ||
+          key === 'version'
+        ) {
           continue;
         }
         mergedRecord[key] = value;
       }
 
-      const row = (await tx.institution.update({
-        where: { id },
+      const updateWhere: Record<string, unknown> = { id };
+      if (expectedVersion !== undefined) {
+        updateWhere['version'] = expectedVersion;
+      }
+      const result = await tx.institution.updateMany({
+        where: updateWhere as Prisma.InstitutionWhereInput,
         data: {
           name: merged.name,
           code: merged.code,
@@ -196,7 +219,18 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           ownership: merged.ownershipId,
           status: merged.status,
           customData: buildCustomData(merged, userCustomData) as Prisma.InputJsonValue,
+          version: { increment: 1 },
         },
+      });
+      if (result.count === 0) {
+        // Either the row vanished between findFirst and here, or (when
+        // expectedVersion was passed) the version no longer matches — a
+        // concurrent writer won the race.
+        return null;
+      }
+
+      const row = (await tx.institution.findFirst({
+        where: { id, tenantId },
       })) as InstitutionRow;
       return toEntity(row);
     });

@@ -25,6 +25,8 @@ export interface InstitutionEntity {
   contactPhone: string | null;
   contactEmail: string | null;
   deactivationReason: string | null;
+  /** PRC-L322: optimistic-lock version, incremented on every update. */
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,11 +47,20 @@ export interface InstitutionRepository {
   /** Create a new institution */
   create(data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>): Promise<InstitutionEntity>;
 
-  /** Update an existing institution */
+  /**
+   * Update an existing institution.
+   *
+   * PRC-L322: when `expectedVersion` is provided, the update is a
+   * compare-and-swap against the row's current `version` — returns `null`
+   * (instead of throwing) when the version does not match, so the caller can
+   * distinguish "not found" from "modified concurrently." When omitted,
+   * behavior is unchanged (plain update, no version check).
+   */
   update(
     id: string,
     tenantId: string,
     data: Partial<InstitutionEntity>,
+    expectedVersion?: number,
   ): Promise<InstitutionEntity | null>;
 
   /** Find an institution by ID within a tenant */
