@@ -6,7 +6,7 @@
  *
  * @requirements 5.5
  */
-import { NotFoundError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PrismaClient, Class } from '@proctira/database';
 
 import { assertPeriodNotArchived, requireAssignableInstitution } from './assignable-guards.js';
@@ -163,6 +163,9 @@ export class ClassService {
 
   /**
    * Soft-delete a class.
+   *
+   * PRC-M284: a class with ENROLLED students is rejected — deleting it would
+   * otherwise silently orphan those enrollments.
    */
   async delete(tenantId: string, id: string): Promise<void> {
     const cls = await this.prisma.class.findFirst({
@@ -171,6 +174,15 @@ export class ClassService {
 
     if (!cls) {
       throw new NotFoundError(`Class '${id}' not found`);
+    }
+
+    const enrollmentCount = await this.prisma.enrollment.count({
+      where: { tenantId, classId: id, status: 'ENROLLED' },
+    });
+    if (enrollmentCount > 0) {
+      throw new BusinessRuleError(
+        `Cannot delete class '${id}': ${enrollmentCount} enrolled student(s) still reference it`,
+      );
     }
 
     await this.prisma.class.update({

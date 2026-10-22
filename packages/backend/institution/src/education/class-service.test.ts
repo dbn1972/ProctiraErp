@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClassService } from './class-service.js';
-import { NotFoundError } from '@proctira/common';
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
 
 function createMockPrisma() {
   return {
@@ -25,6 +25,9 @@ function createMockPrisma() {
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+    },
+    enrollment: {
+      count: vi.fn(),
     },
   } as any;
 }
@@ -268,6 +271,7 @@ describe('ClassService', () => {
   describe('delete', () => {
     it('should soft-delete a class', async () => {
       prisma.class.findFirst.mockResolvedValue({ id: 'class-1', deletedAt: null });
+      prisma.enrollment.count.mockResolvedValue(0);
       prisma.class.update.mockResolvedValue({});
 
       await service.delete(TENANT_ID, 'class-1');
@@ -282,6 +286,15 @@ describe('ClassService', () => {
       prisma.class.findFirst.mockResolvedValue(null);
 
       await expect(service.delete(TENANT_ID, 'nonexistent')).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-M284: deleting a class with ENROLLED students must be rejected.
+    it('should throw BusinessRuleError if the class has enrolled students (PRC-M284)', async () => {
+      prisma.class.findFirst.mockResolvedValue({ id: 'class-1', deletedAt: null });
+      prisma.enrollment.count.mockResolvedValue(4);
+
+      await expect(service.delete(TENANT_ID, 'class-1')).rejects.toThrow(BusinessRuleError);
+      expect(prisma.class.update).not.toHaveBeenCalled();
     });
   });
 });
