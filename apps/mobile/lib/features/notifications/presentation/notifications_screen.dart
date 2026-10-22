@@ -59,6 +59,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _onTap(CachedNotification item) async {
     await _repository.markRead(item.id);
+    // PRC-L014: best-effort server read-sync. The local read flag above is
+    // authoritative for the UI; swallow any error the same way _refresh()
+    // already swallows network errors, so this never blocks or breaks
+    // navigation (markAsRead() itself also never throws, but a fake/mocked
+    // implementation injected in tests might).
+    unawaited(_deviceApi.markAsRead(item.id).catchError((_) {}));
     if (!mounted) return;
     final String route = _router.routeFor(item.payload);
     unawaited(context.push(route));

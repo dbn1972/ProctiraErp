@@ -243,7 +243,7 @@ class _ScholarshipApplicationFormState
       return;
     }
     final ScholarshipProgram? program = _program;
-    if (program == null || !program.acceptsApplications) {
+    if (program == null || !program.acceptsApplications()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -314,7 +314,7 @@ class _ScholarshipApplicationFormState
         onAction: _loadProgram,
       );
     }
-    if (_program == null || !_program!.acceptsApplications) {
+    if (_program == null || !_program!.acceptsApplications()) {
       return const _BlockedApplication(
         title: 'Applications are closed',
         message:

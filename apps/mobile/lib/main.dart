@@ -47,7 +47,7 @@ Future<void> main() async {
   // app-lock is enabled (PRC-M469).
   AppLockLifecycleObserver(authBloc).attach();
 
-  runApp(const OpenEmisApp());
+  runApp(const ProctiraMobileApp());
 
   // Push notifications boot after `runApp` so the UI is interactive even
   // when Firebase config is missing on the device.

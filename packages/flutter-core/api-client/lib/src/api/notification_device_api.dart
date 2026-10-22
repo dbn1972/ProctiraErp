@@ -36,6 +36,25 @@ class NotificationDeviceApi extends BaseApi {
     await request<dynamic>('$_devicesPath/$deviceId', method: 'DELETE');
   }
 
+  /// Tell the backend a notification was read (PRC-L014), so read-state
+  /// syncs across the user's devices instead of staying device-local. The
+  /// local cache flag set by `NotificationRepository.markRead()` remains
+  /// authoritative for the UI regardless of whether this call succeeds, so
+  /// this is a best-effort fire-and-forget call: any failure (offline, 4xx,
+  /// 5xx) is swallowed here rather than thrown into the caller, matching how
+  /// the inbox screen already tolerates refresh failures.
+  Future<void> markAsRead(String notificationId) async {
+    try {
+      await request<dynamic>(
+        '$_notificationsPath/$notificationId/read',
+        method: 'POST',
+      );
+    } catch (_) {
+      // Best-effort: the device's local read-flag is authoritative for the
+      // UI regardless of server-sync outcome.
+    }
+  }
+
   /// Fetch the most recent notifications for the current user. Returns an
   /// empty list if the response is not in the expected envelope shape.
   Future<List<Map<String, dynamic>>> listNotifications({

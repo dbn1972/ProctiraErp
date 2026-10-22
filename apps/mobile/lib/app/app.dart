@@ -19,8 +19,8 @@ import '../features/scholarship/data/scholarship_repository.dart';
 /// Reads the active tenant from [TenantProvider] and applies ProctiraERP
 /// design tokens on top of Material 3. Provides domain repositories that
 /// feature screens resolve via `context.read`.
-class OpenEmisApp extends StatelessWidget {
-  const OpenEmisApp({super.key});
+class ProctiraMobileApp extends StatelessWidget {
+  const ProctiraMobileApp({super.key});
 
   @override
   Widget build(BuildContext context) {
