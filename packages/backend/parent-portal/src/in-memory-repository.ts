@@ -1,7 +1,7 @@
 /**
  * In-memory parent portal repository (v1 gateway default).
  */
-import { ConflictError } from '@proctira/common';
+import { ConflictError, type PaginatedResult, type PaginationOptions } from '@proctira/common';
 
 import type {
   ConsentEntity,
@@ -23,6 +23,18 @@ function isEffectiveAt(effectiveFrom: Date, effectiveTo: Date | null, at: Date):
   if (effectiveFrom.getTime() > at.getTime()) return false;
   if (effectiveTo != null && effectiveTo.getTime() <= at.getTime()) return false;
   return true;
+}
+
+/** PRC-M536: in-memory offset/limit slice mirroring the Pg COUNT + LIMIT/OFFSET pattern. */
+function paginateInMemory<T>(rows: T[], pagination: PaginationOptions): PaginatedResult<T> {
+  const totalItems = rows.length;
+  const offset = (pagination.page - 1) * pagination.pageSize;
+  const data = rows.slice(offset, offset + pagination.pageSize);
+  const totalPages = Math.ceil(totalItems / pagination.pageSize) || 1;
+  return {
+    data,
+    meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages },
+  };
 }
 
 export class InMemoryParentPortalRepository implements ParentPortalRepository {
@@ -190,12 +202,14 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
   async listThreadsForStudentIds(
     tenantId: string,
     studentIds: string[],
-  ): Promise<MessageThreadEntity[]> {
-    if (studentIds.length === 0) return [];
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<MessageThreadEntity>> {
+    if (studentIds.length === 0) return paginateInMemory([], pagination);
     const idSet = new Set(studentIds);
-    return this.threads
+    const rows = this.threads
       .filter((thread) => thread.tenantId === tenantId && idSet.has(thread.studentId))
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    return paginateInMemory(rows, pagination);
   }
 
   async findThreadById(id: string, tenantId: string): Promise<MessageThreadEntity | null> {
@@ -217,10 +231,15 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return entity;
   }
 
-  async listMessagesForThread(tenantId: string, threadId: string): Promise<MessageEntity[]> {
-    return this.messages
+  async listMessagesForThread(
+    tenantId: string,
+    threadId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<MessageEntity>> {
+    const rows = this.messages
       .filter((message) => message.tenantId === tenantId && message.threadId === threadId)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return paginateInMemory(rows, pagination);
   }
 
   async createConsent(
@@ -256,8 +275,12 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return { ...entity };
   }
 
-  async listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]> {
-    return this.consents
+  async listConsentsForParent(
+    tenantId: string,
+    parentUserId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ConsentEntity>> {
+    const rows = this.consents
       .filter(
         (consent) =>
           consent.tenantId === tenantId &&
@@ -265,6 +288,7 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
           consent.validTo == null,
       )
       .map((c) => ({ ...c }));
+    return paginateInMemory(rows, pagination);
   }
 
   async findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null> {
@@ -387,16 +411,22 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
   async listInvoicesForStudentIds(
     tenantId: string,
     studentIds: string[],
-  ): Promise<FeeInvoiceEntity[]> {
-    if (studentIds.length === 0) return [];
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeInvoiceEntity>> {
+    if (studentIds.length === 0) return paginateInMemory([], pagination);
     const idSet = new Set(studentIds);
-    return this.invoices.filter(
+    const rows = this.invoices.filter(
       (invoice) => invoice.tenantId === tenantId && idSet.has(invoice.studentId),
     );
+    return paginateInMemory(rows, pagination);
   }
 
-  async listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]> {
-    return this.invoices.filter((invoice) => invoice.tenantId === tenantId);
+  async listInvoicesForTenant(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeInvoiceEntity>> {
+    const rows = this.invoices.filter((invoice) => invoice.tenantId === tenantId);
+    return paginateInMemory(rows, pagination);
   }
 
   async findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null> {
@@ -429,8 +459,12 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return entity;
   }
 
-  async listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]> {
-    return this.payments.filter((payment) => payment.tenantId === tenantId);
+  async listPaymentsForTenant(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeePaymentEntity>> {
+    const rows = this.payments.filter((payment) => payment.tenantId === tenantId);
+    return paginateInMemory(rows, pagination);
   }
 
   async createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity> {
@@ -439,19 +473,25 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return entity;
   }
 
-  async listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]> {
-    return this.receipts.filter((receipt) => receipt.tenantId === tenantId);
+  async listReceiptsForTenant(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeReceiptEntity>> {
+    const rows = this.receipts.filter((receipt) => receipt.tenantId === tenantId);
+    return paginateInMemory(rows, pagination);
   }
 
   async listReceiptsForInvoiceIds(
     tenantId: string,
     invoiceIds: string[],
-  ): Promise<FeeReceiptEntity[]> {
-    if (invoiceIds.length === 0) return [];
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeReceiptEntity>> {
+    if (invoiceIds.length === 0) return paginateInMemory([], pagination);
     const idSet = new Set(invoiceIds);
-    return this.receipts.filter(
+    const rows = this.receipts.filter(
       (receipt) => receipt.tenantId === tenantId && idSet.has(receipt.invoiceId),
     );
+    return paginateInMemory(rows, pagination);
   }
 
   async findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null> {

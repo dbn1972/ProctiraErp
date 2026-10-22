@@ -1,6 +1,7 @@
 /**
  * Parent portal repository interface (in-memory v1 / Postgres).
  */
+import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 
 export type LinkStatus = 'active' | 'pending' | 'revoked';
 export type LinkRelationship = 'guardian' | 'mother' | 'father' | 'other';
@@ -246,18 +247,33 @@ export interface ParentPortalRepository {
   createThread(
     data: Omit<MessageThreadEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<MessageThreadEntity>;
-  listThreadsForStudentIds(tenantId: string, studentIds: string[]): Promise<MessageThreadEntity[]>;
+  /** PRC-M536: paginated — an unbounded studentIds list must not dump every thread. */
+  listThreadsForStudentIds(
+    tenantId: string,
+    studentIds: string[],
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<MessageThreadEntity>>;
   findThreadById(id: string, tenantId: string): Promise<MessageThreadEntity | null>;
 
   createMessage(data: Omit<MessageEntity, 'createdAt'>): Promise<MessageEntity>;
-  listMessagesForThread(tenantId: string, threadId: string): Promise<MessageEntity[]>;
+  /** PRC-M536: paginated — a long-lived thread must not dump every message. */
+  listMessagesForThread(
+    tenantId: string,
+    threadId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<MessageEntity>>;
 
   createConsent(
     data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
       decidedAt?: Date | null;
     },
   ): Promise<ConsentEntity>;
-  listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]>;
+  /** PRC-M536: paginated — a guardian's full consent history must not dump unbounded. */
+  listConsentsForParent(
+    tenantId: string,
+    parentUserId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ConsentEntity>>;
   findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null>;
   /** All versions for a consent chain (audit), oldest first. */
   listConsentVersions(tenantId: string, consentChainId: string): Promise<ConsentEntity[]>;
@@ -290,8 +306,17 @@ export interface ParentPortalRepository {
   findFeePlanById(id: string, tenantId: string): Promise<FeePlanEntity | null>;
 
   createInvoice(data: Omit<FeeInvoiceEntity, 'createdAt' | 'updatedAt'>): Promise<FeeInvoiceEntity>;
-  listInvoicesForStudentIds(tenantId: string, studentIds: string[]): Promise<FeeInvoiceEntity[]>;
-  listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]>;
+  /** PRC-M536: paginated — a guardian's full invoice history must not dump unbounded. */
+  listInvoicesForStudentIds(
+    tenantId: string,
+    studentIds: string[],
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeInvoiceEntity>>;
+  /** PRC-M536: paginated — the tenant-wide staff view must not dump every invoice. */
+  listInvoicesForTenant(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeInvoiceEntity>>;
   findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null>;
   updateInvoice(
     id: string,
@@ -300,10 +325,23 @@ export interface ParentPortalRepository {
   ): Promise<FeeInvoiceEntity | null>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
-  listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;
+  /** PRC-M536: paginated — the tenant-wide payment ledger must not dump unbounded. */
+  listPaymentsForTenant(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeePaymentEntity>>;
 
   createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity>;
-  listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]>;
-  listReceiptsForInvoiceIds(tenantId: string, invoiceIds: string[]): Promise<FeeReceiptEntity[]>;
+  /** PRC-M536: paginated — the tenant-wide receipt ledger must not dump unbounded. */
+  listReceiptsForTenant(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeReceiptEntity>>;
+  /** PRC-M536: paginated — a guardian's full receipt history must not dump unbounded. */
+  listReceiptsForInvoiceIds(
+    tenantId: string,
+    invoiceIds: string[],
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<FeeReceiptEntity>>;
   findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null>;
 }

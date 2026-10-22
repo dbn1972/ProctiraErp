@@ -182,9 +182,9 @@ describe('ParentPortalService', () => {
       expect(reply.body).toBe('Following up on my earlier question.');
 
       const messages = await service.listMessages(TENANT_A, PARENT_USER, thread.id);
-      expect(messages).toHaveLength(2);
-      expect(messages[0]!.body).toBe('Could you clarify the math assignment?');
-      expect(messages[1]!.body).toBe('Following up on my earlier question.');
+      expect(messages.data).toHaveLength(2);
+      expect(messages.data[0]!.body).toBe('Could you clarify the math assignment?');
+      expect(messages.data[1]!.body).toBe('Following up on my earlier question.');
     });
 
     it('lists threads for the parent', async () => {
@@ -195,8 +195,8 @@ describe('ParentPortalService', () => {
       });
 
       const threads = await service.listThreadsForParent(TENANT_A, PARENT_USER);
-      expect(threads).toHaveLength(1);
-      expect(threads[0]!.subject).toBe('Attendance');
+      expect(threads.data).toHaveLength(1);
+      expect(threads.data[0]!.subject).toBe('Attendance');
     });
   });
 
@@ -217,8 +217,8 @@ describe('ParentPortalService', () => {
       expect(consent.consentVersion).toBe(CONSENT_VERSION);
 
       const listed = await service.listConsentsForParent(TENANT_A, PARENT_USER);
-      expect(listed).toHaveLength(1);
-      expect(listed[0]!.consentVersion).toBe(CONSENT_VERSION);
+      expect(listed.data).toHaveLength(1);
+      expect(listed.data[0]!.consentVersion).toBe(CONSENT_VERSION);
     });
 
     it('allows parent to approve a pending consent', async () => {
@@ -379,8 +379,8 @@ describe('ParentPortalService', () => {
 
       const visiblePrimary = await service.listInvoicesForParent(TENANT_A, PARENT_PRIMARY);
       const visibleLimited = await service.listInvoicesForParent(TENANT_A, PARENT_LIMITED);
-      expect(visiblePrimary.map((row) => row.id)).toEqual([invoice.id]);
-      expect(visibleLimited).toHaveLength(0);
+      expect(visiblePrimary.data.map((row) => row.id)).toEqual([invoice.id]);
+      expect(visibleLimited.data).toHaveLength(0);
 
       const paid = await service.payInvoice(TENANT_A, PARENT_PRIMARY, invoice.id, {
         method: 'sandbox',
@@ -471,7 +471,7 @@ describe('ParentPortalService', () => {
         ).rejects.toThrow(BusinessRuleError);
         // Invoice must remain open — no forged 'paid' state.
         const reloaded = await service.listInvoicesForParent(TENANT_A, PARENT_USER);
-        expect(reloaded.find((row) => row.id === invoice.id)?.status).toBe('open');
+        expect(reloaded.data.find((row) => row.id === invoice.id)?.status).toBe('open');
       } finally {
         if (prev === undefined) delete process.env['PROVIDER_MODE'];
         else process.env['PROVIDER_MODE'] = prev;
@@ -514,7 +514,7 @@ describe('ParentPortalService', () => {
         ).rejects.toThrow(BusinessRuleError);
         // Invoice must remain open — no forged 'paid' state.
         const reloaded = await service.listInvoicesForParent(TENANT_A, PARENT_USER);
-        expect(reloaded.find((row) => row.id === invoice.id)?.status).toBe('open');
+        expect(reloaded.data.find((row) => row.id === invoice.id)?.status).toBe('open');
       } finally {
         if (prevNodeEnv === undefined) delete process.env['NODE_ENV'];
         else process.env['NODE_ENV'] = prevNodeEnv;
@@ -709,7 +709,7 @@ describe('ParentPortalService', () => {
         title: 'Restricted fee',
         amountCents: 5000,
       });
-      expect(await service.listInvoicesForParent(TENANT_A, PARENT_USER)).toHaveLength(0);
+      expect((await service.listInvoicesForParent(TENANT_A, PARENT_USER)).data).toHaveLength(0);
       await expect(service.payInvoice(TENANT_A, PARENT_USER, invoice.id)).rejects.toThrow(
         ForbiddenError,
       );
@@ -743,9 +743,9 @@ describe('ParentPortalService', () => {
       const invoicesB = await service.listInvoicesForParent(TENANT_B, PARENT_USER);
 
       expect(childrenB).toHaveLength(0);
-      expect(threadsB).toHaveLength(0);
-      expect(consentsB).toHaveLength(0);
-      expect(invoicesB).toHaveLength(0);
+      expect(threadsB.data).toHaveLength(0);
+      expect(consentsB.data).toHaveLength(0);
+      expect(invoicesB.data).toHaveLength(0);
     });
 
     it('returns 404 when accessing tenant A thread from tenant B', async () => {

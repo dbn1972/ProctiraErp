@@ -6,6 +6,8 @@ import {
   ForbiddenError,
   NotFoundError,
   resolveProviderDeliveryMode,
+  type PaginatedResult,
+  type PaginationOptions,
 } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -38,10 +40,48 @@ export interface StudentActor {
   userId: string;
 }
 
+/** PRC-M536: row types derived from the repository's paginated return shapes. */
+type FeeInvoiceRow = Awaited<
+  ReturnType<ParentPortalRepository['listInvoicesForTenant']>
+>['data'][number];
+type FeePaymentRow = Awaited<
+  ReturnType<ParentPortalRepository['listPaymentsForTenant']>
+>['data'][number];
+type FeeReceiptRow = Awaited<
+  ReturnType<ParentPortalRepository['listReceiptsForTenant']>
+>['data'][number];
+
 function receiptNumberFor(paymentId: string): string {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
+
+/** PRC-M536: default page/pageSize when a caller omits pagination. */
+const DEFAULT_PAGINATION: PaginationOptions = { page: 1, pageSize: 20 };
+
+/**
+ * PRC-M536: the fees-ledger (FeesLedgerPort) branch of each fee list method returns a plain
+ * unbounded array (that duck-typed interface is unchanged — altering it would require a
+ * cross-package @proctira/backend-fees change, which is out of this FEAT's scope). Apply the
+ * same page/pageSize contract to that array in the app layer so every list method returns an
+ * identical PaginatedResult<T> shape regardless of which backing store served the rows.
+ */
+function paginateArray<T>(rows: T[], pagination: PaginationOptions): PaginatedResult<T> {
+  const totalItems = rows.length;
+  const offset = (pagination.page - 1) * pagination.pageSize;
+  const data = rows.slice(offset, offset + pagination.pageSize);
+  const totalPages = Math.ceil(totalItems / pagination.pageSize) || 1;
+  return {
+    data,
+    meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages },
+  };
+}
+
+/**
+ * PRC-M536: internal, non-user-facing "fetch every row in scope" page used only to derive the
+ * full set of fee-visible invoice ids for receipt scoping — not a page a caller ever requests.
+ */
+const UNBOUNDED_INTERNAL_PAGE: PaginationOptions = { page: 1, pageSize: 1_000_000 };
 
 /** Duck-typed FeesService so parent-portal fee routes share one ledger (G-903). */
 export interface FeesLedgerPort {
@@ -411,9 +451,58 @@ export class ParentPortalService {
     return { thread, message };
   }
 
-  async listThreadsForParent(tenantId: string, parentUserId: string) {
+  async listThreadsForParent(
+    tenantId: string,
+    parentUserId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ) {
     const studentIds = await this.getLinkedStudentIds(tenantId, parentUserId);
-    return this.repository.listThreadsForStudentIds(tenantId, studentIds);
+    return this.repository.listThreadsForStudentIds(tenantId, studentIds, pagination);
+  }
+
+  /** PRC-M319: staff-facing thread list for a given student, across every linked parent. */
+  async listThreadsForStaff(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ) {
+    return this.repository.listThreadsForStudentIds(tenantId, [studentId], pagination);
+  }
+
+  /**
+   * PRC-M319: thin staff-authored variant of {@link createThread} — same two-step
+   * create (thread + first message), but createdBy is the staff actor and the first
+   * message's senderRole is 'staff' instead of 'parent'. Reuses the existing
+   * assertConsentTargetLinked guard (the same one createConsentRequest/supersedeConsent
+   * use) so a staff caller cannot open a thread naming a parentUserId who is not an
+   * active linked guardian of the student — no duplicated link-existence SQL.
+   */
+  async createStaffThread(
+    tenantId: string,
+    actorId: string,
+    input: { studentId: string; parentUserId: string; subject: string; body: string },
+  ) {
+    await this.assertConsentTargetLinked(tenantId, input.parentUserId, input.studentId);
+
+    const thread = await this.repository.createThread({
+      id: uuidv4(),
+      tenantId,
+      studentId: input.studentId,
+      subject: input.subject,
+      createdBy: actorId,
+      status: 'open',
+    });
+
+    const message = await this.repository.createMessage({
+      id: uuidv4(),
+      threadId: thread.id,
+      tenantId,
+      senderUserId: actorId,
+      senderRole: 'staff',
+      body: input.body,
+    });
+
+    return { thread, message };
   }
 
   async addMessage(
@@ -442,14 +531,19 @@ export class ParentPortalService {
     });
   }
 
-  async listMessages(tenantId: string, parentUserId: string, threadId: string) {
+  async listMessages(
+    tenantId: string,
+    parentUserId: string,
+    threadId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ) {
     const thread = await this.repository.findThreadById(threadId, tenantId);
     if (!thread) {
       throw new NotFoundError(`Message thread with id '${threadId}' not found`);
     }
 
     await this.assertParentLinkedToStudent(tenantId, parentUserId, thread.studentId);
-    return this.repository.listMessagesForThread(tenantId, threadId);
+    return this.repository.listMessagesForThread(tenantId, threadId, pagination);
   }
 
   async createConsentRequest(tenantId: string, actorId: string, input: CreateConsentInput) {
@@ -479,8 +573,12 @@ export class ParentPortalService {
     });
   }
 
-  async listConsentsForParent(tenantId: string, parentUserId: string) {
-    return this.repository.listConsentsForParent(tenantId, parentUserId);
+  async listConsentsForParent(
+    tenantId: string,
+    parentUserId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ) {
+    return this.repository.listConsentsForParent(tenantId, parentUserId, pagination);
   }
 
   async listConsentHistory(tenantId: string, parentUserId: string, consentId: string) {
@@ -776,23 +874,28 @@ export class ParentPortalService {
     });
   }
 
-  async listInvoicesForParent(tenantId: string, parentUserId: string) {
+  async listInvoicesForParent(
+    tenantId: string,
+    parentUserId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<FeeInvoiceRow>> {
     const studentIds = await this.getFeeVisibleStudentIds(tenantId, parentUserId);
     if (this.fees) {
-      return this.fees.listInvoicesForStudentIds(tenantId, studentIds) as ReturnType<
-        ParentPortalRepository['listInvoicesForStudentIds']
-      >;
+      const rows = await this.fees.listInvoicesForStudentIds(tenantId, studentIds);
+      return paginateArray(rows as FeeInvoiceRow[], pagination);
     }
-    return this.repository.listInvoicesForStudentIds(tenantId, studentIds);
+    return this.repository.listInvoicesForStudentIds(tenantId, studentIds, pagination);
   }
 
-  async listInvoicesForStaff(tenantId: string) {
+  async listInvoicesForStaff(
+    tenantId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<FeeInvoiceRow>> {
     if (this.fees) {
-      return this.fees.listInvoices(tenantId) as ReturnType<
-        ParentPortalRepository['listInvoicesForTenant']
-      >;
+      const rows = await this.fees.listInvoices(tenantId);
+      return paginateArray(rows as FeeInvoiceRow[], pagination);
     }
-    return this.repository.listInvoicesForTenant(tenantId);
+    return this.repository.listInvoicesForTenant(tenantId, pagination);
   }
 
   async voidInvoice(
@@ -829,36 +932,47 @@ export class ParentPortalService {
     return updated!;
   }
 
-  async listPaymentsForStaff(tenantId: string) {
+  async listPaymentsForStaff(
+    tenantId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<FeePaymentRow>> {
     if (this.fees) {
-      return this.fees.listPayments(tenantId) as ReturnType<
-        ParentPortalRepository['listPaymentsForTenant']
-      >;
+      const rows = await this.fees.listPayments(tenantId);
+      return paginateArray(rows as FeePaymentRow[], pagination);
     }
-    return this.repository.listPaymentsForTenant(tenantId);
+    return this.repository.listPaymentsForTenant(tenantId, pagination);
   }
 
-  async listReceiptsForStaff(tenantId: string) {
+  async listReceiptsForStaff(
+    tenantId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<FeeReceiptRow>> {
     if (this.fees) {
-      return this.fees.listReceipts(tenantId) as ReturnType<
-        ParentPortalRepository['listReceiptsForTenant']
-      >;
+      const rows = await this.fees.listReceipts(tenantId);
+      return paginateArray(rows as FeeReceiptRow[], pagination);
     }
-    return this.repository.listReceiptsForTenant(tenantId);
+    return this.repository.listReceiptsForTenant(tenantId, pagination);
   }
 
-  async listReceiptsForParent(tenantId: string, parentUserId: string) {
-    const invoices = await this.listInvoicesForParent(tenantId, parentUserId);
-    if (this.fees) {
-      return this.fees.listReceiptsForInvoiceIds(
-        tenantId,
-        invoices.map((invoice) => invoice.id),
-      ) as ReturnType<ParentPortalRepository['listReceiptsForInvoiceIds']>;
-    }
-    return this.repository.listReceiptsForInvoiceIds(
+  async listReceiptsForParent(
+    tenantId: string,
+    parentUserId: string,
+    pagination: PaginationOptions = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<FeeReceiptRow>> {
+    // PRC-M536: fetch the guardian's full fee-visible invoice id set (an internal,
+    // non-user-facing lookup — not the page the caller asked for) so the receipt list is scoped
+    // correctly before paginating the receipts themselves.
+    const invoices = await this.listInvoicesForParent(
       tenantId,
-      invoices.map((invoice) => invoice.id),
+      parentUserId,
+      UNBOUNDED_INTERNAL_PAGE,
     );
+    const invoiceIds = invoices.data.map((invoice) => invoice.id);
+    if (this.fees) {
+      const rows = await this.fees.listReceiptsForInvoiceIds(tenantId, invoiceIds);
+      return paginateArray(rows as FeeReceiptRow[], pagination);
+    }
+    return this.repository.listReceiptsForInvoiceIds(tenantId, invoiceIds, pagination);
   }
 
   async getReceipt(tenantId: string, receiptId: string) {
