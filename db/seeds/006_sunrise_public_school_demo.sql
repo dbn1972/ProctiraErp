@@ -1601,20 +1601,28 @@ FROM (
     -- INSERT succeeds once per fresh DB) but guaranteed on a re-seed, which
     -- CI's job does. Moved to mv-5, which has no other section_meetings
     -- booking anywhere in this seed. g9b-thu has no room (NULL) already.
-    ('g9b-mon', '00000000-0000-4000-8000-00000000a572'::uuid, 1, 3, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
+    --
+    -- g9b-mon also moved off (day=1,period=3): that exact slot must stay
+    -- free for g9a-mon (below), which e2e/16d-institutions-detail-live.
+    -- spec.ts's schedule-overview test depends on to render "Teacher
+    -- clash" + "Period 3 (09:20–10:00)" for teacher a593. g9b-mon moved to
+    -- (day=1,period=5), free for a593 on day=1.
+    ('g9b-mon', '00000000-0000-4000-8000-00000000a572'::uuid, 1, 5, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9b-tue', '00000000-0000-4000-8000-00000000a572'::uuid, 2, 1, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9b-wed', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 4, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9b-thu', '00000000-0000-4000-8000-00000000a572'::uuid, 4, 2, NULL::int, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9b-fri', '00000000-0000-4000-8000-00000000a572'::uuid, 5, 6, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
-    -- PRC-M172 (teacher-slot clash): shifted off (day=1,period=3) and
-    -- (day=3,period=5), which collide with teacher a593's g9b-mon and
-    -- g10-wed bookings in this same demo roster, under the
-    -- section_meetings_teacher_slot_uidx (tenant_id, teacher_staff_id,
-    -- day_of_week, bell_period_id) added by db/sql/232. Also moved off
-    -- room_n=1 (now used by '8a' at day=1/period=2) and room_n=3 (now used
-    -- by '9b' at day=1/2/3,period=3) per the PRC-M396(c) room fix above;
-    -- room_n=4 (mv-4) has no other section_meetings bookings in this seed.
-    ('g9a-mon', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 1, 1, 4, '00000000-0000-4000-8000-00000000a593'::uuid),
+    -- PRC-M172 (teacher-slot clash) / PRC-M396 (visual clash preserved):
+    -- g9a-mon restored to (day=1,period=3) -- the slot the schedule-
+    -- overview E2E test expects to visibly clash with 'clash-g8c' below
+    -- (same teacher a593, day=1, period=4 -- a DIFFERENT bell_period_id,
+    -- so section_meetings_teacher_slot_uidx does not reject it, while the
+    -- app-layer clash detector (clash-helper.ts's detectMeetingClashes)
+    -- still flags any identical dayOfWeek, which both reach). g9a-wed kept
+    -- off (day=3,period=5), which collides with g10-wed's teacher a595 at
+    -- that slot. Room: mv-1/mv-3 are used by '8a'/'9b' above, so both
+    -- g9a-mon and g9a-wed use mv-4, which has no other booking.
+    ('g9a-mon', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 1, 3, 4, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9a-wed', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 3, 3, 4, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g10-wed', '00000000-0000-4000-8000-00000000a573'::uuid, 3, 5, 1, '00000000-0000-4000-8000-00000000a595'::uuid)
 ) AS spec(key, section_id, day, period, room_n, teacher)
@@ -1785,13 +1793,24 @@ SET room_id = EXCLUDED.room_id,
     deleted_at = NULL,
     updated_at = now();
 
--- PRC-M396: the deliberate schedule-page teacher clash (Neha on G9A-MATH and
--- G8C-HIN, Mon P3) is no longer seedable: db/sql/232 added a DB-level
--- (tenant_id, teacher_staff_id, day_of_week, bell_period_id) unique index that
--- now correctly rejects double-booking the same teacher at the same slot, so
--- this demo row would fail to apply. Give G8C-HIN its own non-conflicting
--- teacher/period instead of double-booking Neha; the clash-detection UI is
--- exercised by its own component/unit tests, not by this seed row.
+-- PRC-M396 / PRC-M396(c) follow-up: the deliberate schedule-page teacher
+-- clash (Neha on G9A-MATH and G8C-HIN, Mon Period 3 -- asserted by
+-- apps/web/e2e/16d-institutions-detail-live.spec.ts, which this file must
+-- keep satisfying) cannot be two literally-active rows at the same
+-- (teacher, day, bell_period_id) any more: db/sql/232's unique index on
+-- section_meetings now rejects that outright. The index's own WHERE clause
+-- is scoped to `status = 'active'` (not merely non-deleted), so a second
+-- row for the same slot with any OTHER status is not a duplicate at the DB
+-- level. G8C-HIN's row uses status='archived' -- it is explicitly asserted
+-- as "Archived" by the same E2E test's sectionRows check -- and
+-- packages/backend/timetable/src/clash-helper.ts's isActive() treats
+-- 'archived' as still live for conflict-detection purposes (it only
+-- excludes 'cancelled' | 'inactive' | 'deleted'), so
+-- GET /timetable/conflicts still reports the staff clash the schedule
+-- overview page renders. G8C-HIN keeps period 3 -- the same slot as
+-- g9a-mon above -- rather than period 4, which no longer collides with
+-- anything after the room/period fixes above and would make the clash
+-- banner disappear.
 INSERT INTO section_meetings (
   id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
 )
@@ -1799,14 +1818,14 @@ VALUES (
   uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-clash-g8c'),
   '00000000-0000-4000-8000-00000000a501',
   '00000000-0000-4000-8000-00000000a571',
-  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-4'),
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-3'),
   1,
   NULL,
   '00000000-0000-4000-8000-00000000a593',
-  'active'
+  'archived'
 )
 ON CONFLICT (section_id, bell_period_id, day_of_week) DO UPDATE
-SET teacher_staff_id = EXCLUDED.teacher_staff_id, status = 'active', deleted_at = NULL, updated_at = now();
+SET teacher_staff_id = EXCLUDED.teacher_staff_id, status = 'archived', deleted_at = NULL, updated_at = now();
 
 INSERT INTO timetable_teacher_absences (
   id, tenant_id, institution_id, staff_id, absence_date, reason, created_by
