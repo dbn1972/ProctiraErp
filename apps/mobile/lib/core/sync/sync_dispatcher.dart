@@ -63,7 +63,9 @@ class AttendanceSyncDispatcher implements SyncDispatcher {
   @override
   Future<DispatchOutcome> dispatch(PendingSyncRow row) async {
     if (row.entityType != SyncEntityType.attendance) {
-      return const DispatchPermanent('Unsupported entity for attendance dispatcher');
+      return const DispatchPermanent(
+        'Unsupported entity for attendance dispatcher',
+      );
     }
 
     try {
@@ -135,7 +137,6 @@ class AttendanceSyncDispatcher implements SyncDispatcher {
       'date': saved.date,
       'status': saved.status.toWire(),
       'comment': saved.comment,
-      'recordedBy': saved.recordedBy,
       'createdAt': saved.createdAt,
       'updatedAt': saved.updatedAt,
     };
