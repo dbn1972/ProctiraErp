@@ -203,6 +203,10 @@ Future<JourneyHarness> bootstrapTestApp({
   String? tenantDisplayName,
   bool startsOnline = false,
   Map<String, String> initialSecureStorage = const <String, String>{},
+  // PRC-M566: lets a journey drive the dispatcher through a non-transient
+  // outcome (conflict / permanent failure) instead of only the default
+  // "stays queued" path every other hardened journey exercises.
+  DispatchOutcome Function(PendingSyncRow row)? dispatcherOutcomeFactory,
 }) async {
   initialiseTestPlatform();
 
@@ -242,7 +246,9 @@ Future<JourneyHarness> bootstrapTestApp({
     startsOnline: startsOnline,
   );
   await _replaceConnectivity(connectivity);
-  final RecordingSyncDispatcher dispatcher = RecordingSyncDispatcher();
+  final RecordingSyncDispatcher dispatcher = RecordingSyncDispatcher(
+    outcomeFactory: dispatcherOutcomeFactory,
+  );
   await _replaceSyncEngine(dispatcher);
 
   return JourneyHarness(
@@ -286,7 +292,7 @@ Future<void> _replaceSyncEngine(RecordingSyncDispatcher dispatcher) async {
 /// [MaterialApp.router] using the production [AppRouter] so guards,
 /// redirects, and theming all behave like the real app.
 Widget buildJourneyApp() {
-  return const OpenEmisApp();
+  return const ProctiraMobileApp();
 }
 
 /// Navigate via the registered [AppRouter] — do not use

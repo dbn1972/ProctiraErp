@@ -22,6 +22,8 @@ class CachedInstitution {
     this.sector,
     this.ownership,
     this.status,
+    this.latitude,
+    this.longitude,
     required this.payload,
     required this.updatedAt,
   });
@@ -35,6 +37,11 @@ class CachedInstitution {
   final String? sector;
   final String? ownership;
   final String? status;
+
+  /// Geofence coordinates (PRC-M468), mirroring [Institution.latitude]/
+  /// [Institution.longitude].
+  final double? latitude;
+  final double? longitude;
   final Map<String, dynamic> payload;
   final int updatedAt;
 
@@ -59,6 +66,8 @@ class CachedInstitution {
       sector: row['sector'] as String?,
       ownership: row['ownership'] as String?,
       status: row['status'] as String?,
+      latitude: (row['latitude'] as num?)?.toDouble(),
+      longitude: (row['longitude'] as num?)?.toDouble(),
       payload: decoded,
       updatedAt: (row['updated_at'] as num?)?.toInt() ?? 0,
     );
@@ -210,6 +219,11 @@ class InstitutionRepository {
         'sector': i.sector,
         'ownership': i.ownership,
         'status': i.status,
+        // PRC-M468: persist the institution's geofence coordinates so the
+        // attendance geofence banner can compare against them. Previously
+        // these columns (present since the v5 migration) were never written.
+        'latitude': i.latitude,
+        'longitude': i.longitude,
         'payload': jsonEncode(<String, dynamic>{
           'id': i.id,
           'name': i.name,
@@ -219,6 +233,8 @@ class InstitutionRepository {
           'sector': i.sector,
           'ownership': i.ownership,
           'status': i.status,
+          'latitude': i.latitude,
+          'longitude': i.longitude,
           'createdAt': i.createdAt,
           'updatedAt': i.updatedAt,
         }),
