@@ -277,7 +277,7 @@ export class PrismaExaminationRepository implements ExaminationRepository {
       });
       if (!enrollment) return null;
       // PRC-M240: demographics come from the student / institution records, not the client.
-      const [student, institution, passedRecords] = await Promise.all([
+      const [student, institution, passedRecords, registrations] = await Promise.all([
         tx.student.findFirst({ where: { id: studentId, tenantId }, select: { gender: true } }),
         tx.institution.findFirst({
           where: { id: enrollment.institutionId, tenantId },
@@ -287,9 +287,21 @@ export class PrismaExaminationRepository implements ExaminationRepository {
           where: { tenantId, studentId, passed: true },
           select: { subjectId: true, examinationId: true },
         }),
+        // PRC-M234 follow-up: every non-cancelled registration this student has
+        // ever made, in any examination — used to derive attemptedSubjectCodes
+        // (see StudentEnrollment.attemptedSubjectCodes doc for why this exists).
+        tx.examinationCandidateRegistration.findMany({
+          where: { tenantId, studentId, status: { not: 'CANCELLED' } },
+          select: { subjectIds: true, examinationId: true },
+        }),
       ]);
 
-      const examinationIds = [...new Set(passedRecords.map((r) => r.examinationId))];
+      const examinationIds = [
+        ...new Set([
+          ...passedRecords.map((r) => r.examinationId),
+          ...registrations.map((r) => r.examinationId),
+        ]),
+      ];
       const examinationsById =
         examinationIds.length > 0
           ? new Map(
@@ -309,11 +321,23 @@ export class PrismaExaminationRepository implements ExaminationRepository {
         if (code) completedSubjectCodes.add(code);
       }
 
+      const attemptedSubjectCodes = new Set<string>();
+      for (const registration of registrations) {
+        const subjects = examinationsById.get(registration.examinationId);
+        if (!subjects) continue;
+        const subjectIds = jsonArray<string>(registration.subjectIds);
+        for (const subjectId of subjectIds) {
+          const code = subjects.find((s) => s.id === subjectId)?.code;
+          if (code) attemptedSubjectCodes.add(code);
+        }
+      }
+
       return {
         studentId,
         status: enrollment.status.toLowerCase() as StudentEnrollment['status'],
         institutionId: enrollment.institutionId,
         completedSubjectCodes: [...completedSubjectCodes],
+        attemptedSubjectCodes: [...attemptedSubjectCodes],
         gender: student?.gender ?? null,
         areaId: institution?.areaId ?? null,
       };

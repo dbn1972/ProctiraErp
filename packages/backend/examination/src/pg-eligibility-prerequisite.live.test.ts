@@ -17,7 +17,8 @@ import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { describe, expect, it } from 'vitest';
 
 import { ExaminationService } from './examination-service.js';
-import { createExaminationRepository } from './repository-factory.js';
+import { createExaminationRepository, createResultRepository } from './repository-factory.js';
+import { ResultPublicationService } from './result-publication-service.js';
 import type { CreateExaminationInput } from './schemas.js';
 
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-eligibility-prerequisite.live.test' });
@@ -125,14 +126,31 @@ async function seedEnrolledStudent(): Promise<EnrollmentFixture> {
 
 describe('candidate eligibility prerequisite completion (live Postgres, PRC-M234)', () => {
   it.skipIf(!live)(
-    'rejects registration when the student has zero completed prerequisite subjects',
+    'rejects registration when the student attempted the subject before but never passed it',
     async () => {
+      // PRC-M234 follow-up: this scenario used to be "zero completed
+      // prerequisite subjects, zero history at all" -- but that is a
+      // student's first-ever attempt at the subject, which the bootstrap
+      // exemption now correctly allows (see "a student can register, pass,
+      // and publish a subject for the very first time" below and
+      // examination-service.test.ts's two new bootstrap-exemption cases).
+      // The rule must still reject a student who HAS attempted the subject
+      // before and failed/never completed it -- a real prior attempt with
+      // no passed record, not a brand-new attempt.
       const fx = await seedEnrolledStudent();
       const repository = createExaminationRepository({ databaseUrl: DATABASE_URL! });
       const service = new ExaminationService(repository);
 
-      const exam = await service.create(fx.tenantId, examBody('ADV-MATH'));
+      const priorExam = await service.create(fx.tenantId, examBody('ADV-MATH'));
+      await service.registerCandidate(fx.tenantId, priorExam.id, {
+        studentId: fx.studentId,
+        centerId: priorExam.centers[0]!.id,
+        subjectIds: [priorExam.subjects[0]!.id],
+      });
+      // No marks/publish for priorExam: the student attempted ADV-MATH (has a
+      // registration) but has no passed examination_academic_records row.
 
+      const exam = await service.create(fx.tenantId, examBody('ADV-MATH'));
       await expect(
         service.registerCandidate(fx.tenantId, exam.id, {
           studentId: fx.studentId,
@@ -170,6 +188,57 @@ describe('candidate eligibility prerequisite completion (live Postgres, PRC-M234
         studentId: fx.studentId,
         centerId: exam.centers[0]!.id,
         subjectIds: [exam.subjects[0]!.id],
+      });
+      expect(registration.studentId).toBe(fx.studentId);
+    },
+  );
+
+  /**
+   * PRC-M234 follow-up: the fix above makes completedSubjectCodes real
+   * against Postgres, which exposed a second, pre-existing bug the rule
+   * never had to answer for while it was fail-open — "every exam subject
+   * must already be completed" is circular on a student's first-ever
+   * attempt at that subject, since even the FIRST exam that teaches it also
+   * demands it already be completed. This drives the real
+   * register -> marks -> publish -> re-register pipeline end to end
+   * (no direct SQL seed) to prove the bootstrap exemption actually closes
+   * the gap, not just in the unit-test fixture.
+   */
+  it.skipIf(!live)(
+    'a student can register, pass, and publish a subject for the very first time, through the real pipeline',
+    async () => {
+      const fx = await seedEnrolledStudent();
+      const repository = createExaminationRepository({ databaseUrl: DATABASE_URL! });
+      const resultRepository = createResultRepository({ databaseUrl: DATABASE_URL! });
+      const service = new ExaminationService(repository);
+      const publicationService = new ResultPublicationService(repository, resultRepository);
+
+      const firstExam = await service.create(fx.tenantId, examBody('FIRST-TIME'));
+      await service.update(fx.tenantId, firstExam.id, { status: 'SCHEDULED' });
+      const subjectId = firstExam.subjects[0]!.id;
+      const centerId = firstExam.centers[0]!.id;
+
+      // The student has never attempted FIRST-TIME before -- this must succeed,
+      // not be rejected as "has not completed prerequisite subjects".
+      await service.registerCandidate(fx.tenantId, firstExam.id, {
+        studentId: fx.studentId,
+        centerId,
+        subjectIds: [subjectId],
+      });
+
+      await publicationService.recordMarks(fx.tenantId, firstExam.id, {
+        entries: [{ studentId: fx.studentId, marks: [{ subjectId, score: 85 }] }],
+      });
+      await service.update(fx.tenantId, firstExam.id, { status: 'IN_PROGRESS' });
+      await publicationService.publishResults(fx.tenantId, firstExam.id);
+
+      // A second FIRST-TIME exam now requires the (now-completed) prerequisite
+      // and must succeed via completedSubjectCodes, same as the direct-SQL test above.
+      const secondExam = await service.create(fx.tenantId, examBody('FIRST-TIME'));
+      const registration = await service.registerCandidate(fx.tenantId, secondExam.id, {
+        studentId: fx.studentId,
+        centerId: secondExam.centers[0]!.id,
+        subjectIds: [secondExam.subjects[0]!.id],
       });
       expect(registration.studentId).toBe(fx.studentId);
     },

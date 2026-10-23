@@ -131,6 +131,22 @@ export interface StudentEnrollment {
    * student has no passed records yet — the rule is enforced, not skipped.
    */
   completedSubjectCodes: string[] | null;
+  /**
+   * PRC-M234 follow-up: subject codes the student has ever been registered
+   * as a candidate for in ANY examination (pass, fail, or still pending),
+   * distinct from completedSubjectCodes. The prerequisite-completion rule
+   * requires every exam subject to already be completed, which — applied
+   * unconditionally — is circular for a student's very first attempt at a
+   * subject: no one could ever pass MATH for the first time, since
+   * registering for any MATH exam (including that first one) would already
+   * demand a prior MATH pass. This field lets the rule distinguish
+   * "never attempted this subject" (exempt from its own prerequisite, same
+   * as a brand-new subject with no history) from "attempted and failed"
+   * (still blocked until passed). `null`/undefined when the enrollment
+   * source cannot answer this either, in which case the bootstrap exemption
+   * does not apply (same fail-closed default as completedSubjectCodes).
+   */
+  attemptedSubjectCodes?: string[] | null;
   /** PRC-M240: gender from the student record (raw value), when known. */
   gender?: string | null;
   /** PRC-M240: geographic area of the enrolling institution, when known. */

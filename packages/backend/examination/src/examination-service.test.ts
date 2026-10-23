@@ -537,6 +537,54 @@ describe('ExaminationService', () => {
       }
     });
 
+    it('should allow a candidate registering for a subject for the very first time ever (PRC-M234 bootstrap)', async () => {
+      // Applied unconditionally, "every exam subject must already be completed"
+      // is circular on a student's first-ever attempt at a subject -- nobody
+      // could ever pass MATH for the first time if registering for any MATH
+      // exam (including that first one) already demanded a prior MATH pass.
+      const input = validExaminationInput();
+      const exam = await service.create(tenantId, input);
+      const examSubjectCode = exam.subjects[0]!.code;
+
+      repository.setStudentEnrollment({
+        studentId: 'student-bootstrap',
+        status: 'enrolled',
+        institutionId: uuid(),
+        completedSubjectCodes: [],
+        attemptedSubjectCodes: [], // never registered for this subject before
+      });
+
+      const registration = await service.registerCandidate(tenantId, exam.id, {
+        studentId: 'student-bootstrap',
+        centerId: exam.centers[0]!.id,
+        subjectIds: [exam.subjects[0]!.id],
+      });
+      expect(registration.studentId).toBe('student-bootstrap');
+      expect(examSubjectCode).toBeTruthy();
+    });
+
+    it('should still reject a candidate who attempted a subject before but has not passed it (PRC-M234 bootstrap does not exempt retries)', async () => {
+      const input = validExaminationInput();
+      const exam = await service.create(tenantId, input);
+      const examSubjectCode = exam.subjects[0]!.code;
+
+      repository.setStudentEnrollment({
+        studentId: 'student-retry',
+        status: 'enrolled',
+        institutionId: uuid(),
+        completedSubjectCodes: [], // attempted, but not passed
+        attemptedSubjectCodes: [examSubjectCode], // has a prior registration for this subject
+      });
+
+      await expect(
+        service.registerCandidate(tenantId, exam.id, {
+          studentId: 'student-retry',
+          centerId: exam.centers[0]!.id,
+          subjectIds: [exam.subjects[0]!.id],
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
     it('should reject candidate with both inactive enrollment and missing prerequisites', async () => {
       const input = validExaminationInput();
       const exam = await service.create(tenantId, input);
