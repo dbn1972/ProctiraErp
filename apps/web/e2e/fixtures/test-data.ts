@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
+import type { APIRequestContext } from '@playwright/test';
+
 /**
  * Generates a unique student-name suffix so that concurrent test runs don't
  * collide on uniqueness constraints in the backend.
@@ -55,6 +57,91 @@ export interface SeedConfig {
   gatewayUrl?: string;
   tenantSubdomain?: string;
   authToken?: string;
+}
+
+/**
+ * Gets-or-creates the single tenant-wide "current" academic year shared by
+ * every live-gated E2E spec.
+ *
+ * PRC-L122 made academic-year windows overlap-checked at the `tenantId`
+ * level (`AcademicPeriod` has no per-institution scoping column — years are
+ * tenant-wide by design). Before that guard shipped, every spec safely
+ * created its own throwaway "current year" fixture with a now-centered
+ * window (`isoDate(-30)..isoDate(300)`, etc.) because nothing checked for
+ * collisions. All of those windows span "today" by construction, so with the
+ * guard live the first spec to run against the shared E2E tenant wins and
+ * every later spec's create call 409s.
+ *
+ * Mirrors {@link uniqueGradeOrder}'s approach to the same class of problem
+ * (specs sharing one tenant against one per-run Postgres) but inverted:
+ * `order` values are cheap to make non-colliding by drawing wider, so each
+ * spec keeps creating its own; academic years are a single tenant-wide
+ * concept by design, so the fix is to share one instead of avoiding overlap.
+ *
+ * Idempotent and race-tolerant: a list-then-create-on-miss has an inherent
+ * TOCTOU gap when specs run in parallel shards, so a losing create's 409 is
+ * treated as "another spec already created it" and resolved by re-fetching
+ * rather than failing — the same self-heals-on-retry posture already
+ * documented on {@link uniqueGradeOrder}.
+ */
+export async function ensureSharedAcademicYear(
+  request: APIRequestContext,
+  gatewayUrl: string,
+  headers: Record<string, string>,
+): Promise<{ id: string; startDate: string; endDate: string }> {
+  const list = await request.get(`${gatewayUrl}/api/v1/academic-periods?kind=year`, { headers });
+  if (list.ok()) {
+    const years = (await list.json()) as Array<{
+      id: string;
+      startDate: string;
+      endDate: string;
+    }>;
+    const [first] = years;
+    if (first) {
+      return { id: first.id, startDate: first.startDate, endDate: first.endDate };
+    }
+  }
+
+  const suffix = uniqueSuffix();
+  const create = await request.post(`${gatewayUrl}/api/v1/academic-periods`, {
+    headers,
+    data: {
+      name: `E2E Shared Year ${suffix}`,
+      code: `E2E-SHARED-AY-${suffix}`,
+      startDate: '2026-04-01',
+      endDate: '2027-03-31',
+      status: 'active',
+    },
+  });
+
+  if (create.status() === 201) {
+    const body = (await create.json()) as { id: string; startDate: string; endDate: string };
+    return { id: body.id, startDate: body.startDate, endDate: body.endDate };
+  }
+
+  if (create.status() === 409) {
+    // Another spec/shard won the create race (code collision or the
+    // PRC-L122 overlap guard firing against a year created concurrently).
+    // Re-fetch rather than failing — the loser just needs the winner's row.
+    const retry = await request.get(`${gatewayUrl}/api/v1/academic-periods?kind=year`, {
+      headers,
+    });
+    if (retry.ok()) {
+      const years = (await retry.json()) as Array<{
+        id: string;
+        startDate: string;
+        endDate: string;
+      }>;
+      const [first] = years;
+      if (first) {
+        return { id: first.id, startDate: first.startDate, endDate: first.endDate };
+      }
+    }
+  }
+
+  throw new Error(
+    `ensureSharedAcademicYear: create failed (${create.status()}): ${await create.text()}`,
+  );
 }
 
 /**
