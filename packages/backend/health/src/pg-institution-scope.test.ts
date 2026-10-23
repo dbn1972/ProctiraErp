@@ -107,7 +107,7 @@ describe('PRC-L563: live-Postgres institution-scope isolation', () => {
   it.skipIf(!isPgPhiEnabled())(
     'school_nurse scoped to institution A can read student A but not student B (different institution)',
     async () => {
-      process.env.PHI_ENCRYPTION_KEY = 'l563-institution-scope-test-key';
+      process.env.PHI_ENCRYPTION_KEY = 'test-test-test-test-test-test-test-test';
       const phi = createPgPhiStore();
       expect(phi).not.toBeNull();
 
