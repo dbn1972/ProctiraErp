@@ -128,7 +128,12 @@ describe.skipIf(!DATABASE_URL)('PRC-M525 rollover concurrency (live Postgres)', 
 
     const runRollover = (service: AcademicCalendarService) =>
       withTenant(() =>
-        service.rollover(tenantId, source.id, { targetPeriodId: target.id, dryRun: false }, 'actor-race'),
+        service.rollover(
+          tenantId,
+          source.id,
+          { targetPeriodId: target.id, dryRun: false },
+          'actor-race',
+        ),
       );
 
     const results = await Promise.allSettled([runRollover(serviceA), runRollover(serviceB)]);

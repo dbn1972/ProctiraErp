@@ -365,11 +365,7 @@ describe('PgInstitutionRepository', () => {
       });
       created.push({ id: inactiveId, tenantId, areaId: inactiveAreaId });
 
-      const result = await repo.list(
-        tenantId,
-        {},
-        { page: 1, pageSize: 20, sortBy: 'directory' },
-      );
+      const result = await repo.list(tenantId, {}, { page: 1, pageSize: 20, sortBy: 'directory' });
       const ids = result.data.map((row) => row.id);
       // Active school sorts before the inactive one despite its code
       // ('Z...' vs 'A...') sorting later within an unordered-by-status list.
