@@ -18,7 +18,7 @@
     "@proctira/i18n": "workspace:*",
     "@proctira/tenant": "workspace:*",
     "@proctira/ui-components": "workspace:*",
-    "next": "^15.5.27",
+    "next": "^15.5.28",
     "next-intl": "^3.15.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
