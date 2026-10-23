@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
+import { ensurePgTestStaff } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { getSharedTimetablePool, PgTimetableRepository } from './pg-timetable-repository.js';
@@ -51,6 +52,32 @@ async function seedFixture(): Promise<Fixture> {
     );
   });
   return { tenantId, institutionId, academicPeriodId };
+}
+
+/**
+ * `section_meetings.teacher_staff_id` carries a live FK to `staff(id)` (db/sql/003). Any test
+ * that passes a staffId into createMeeting/createMeetingAtomic must create the row first, or
+ * the insert fails closed with `..._teacher_staff_id_fkey` against real Postgres. Reuses the
+ * shared ensurePgTestStaff fixture (also used by @proctira/backend-staff's live tests).
+ */
+async function seedStaff(tenantId: string): Promise<string> {
+  const staffId = randomUUID();
+  await ensurePgTestStaff(pool!, tenantId, staffId);
+  return staffId;
+}
+
+/** Second academic_periods row for the same tenant, for tests that clone/insert into a distinct period. */
+async function seedAcademicPeriod(tenantId: string): Promise<string> {
+  const academicPeriodId = randomUUID();
+  const suffix = academicPeriodId.slice(0, 8);
+  await withPgTenant(pool!, tenantId, async (client) => {
+    await client.query(
+      `INSERT INTO academic_periods (id, tenant_id, name, code, start_date, end_date)
+       VALUES ($1, $2, 'AY 2027-28', $3, '2027-04-01', '2028-03-31')`,
+      [academicPeriodId, tenantId, `AY-${suffix}`],
+    );
+  });
+  return academicPeriodId;
 }
 
 describe('PgTimetableRepository (live)', () => {
@@ -296,7 +323,7 @@ describe('PgTimetableRepository (live)', () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = randomUUID();
+      const staffId = await seedStaff(a.tenantId);
       const meetingFor = (sectionId: string): Parameters<typeof repo.createMeetingAtomic>[1] => ({
         id: randomUUID(),
         tenantId: a.tenantId,
@@ -488,8 +515,8 @@ describe('PgTimetableRepository (live)', () => {
       createdAt: now,
       updatedAt: now,
     });
-    const originalStaffId = randomUUID();
-    const substituteStaffId = randomUUID();
+    const originalStaffId = await seedStaff(a.tenantId);
+    const substituteStaffId = await seedStaff(a.tenantId);
     const meeting = await repo.createMeeting({
       id: randomUUID(),
       tenantId: a.tenantId,
@@ -566,7 +593,8 @@ describe('PgTimetableRepository (live)', () => {
         createdAt: now,
         updatedAt: now,
       });
-      const targetPeriodId = randomUUID();
+      const targetPeriodId = await seedAcademicPeriod(a.tenantId);
+      const cloneStaffId = await seedStaff(a.tenantId);
       const clonedSection = {
         id: randomUUID(),
         tenantId: a.tenantId,
@@ -590,7 +618,7 @@ describe('PgTimetableRepository (live)', () => {
         academicPeriodId: targetPeriodId,
         sectionId: clonedSection.id,
         subjectId: null,
-        staffId: randomUUID(),
+        staffId: cloneStaffId,
         periodId: period.id,
         roomId: null,
         dayOfWeek: 1,

@@ -115,10 +115,12 @@ describe('PgAttendanceOpsStore cross-tenant isolation (live)', () => {
         createdAt: new Date().toISOString(),
       });
 
+      // PgAttendanceOpsStore exposes device keys only via createDeviceKey/findDeviceKeyByHash
+      // (no listDeviceKeys) — both are already tenant-scoped by their SQL's WHERE tenant_id
+      // clause, so the isolation proof is the same hash looked up under each tenant.
       expect(await store.findDeviceKeyByHash(tenantA, apiKeyHash)).not.toBeNull();
+      expect((await store.findDeviceKeyByHash(tenantA, apiKeyHash))?.id).toBe(created.id);
       expect(await store.findDeviceKeyByHash(tenantB, apiKeyHash)).toBeNull();
-      expect((await store.listDeviceKeys(tenantB)).map((d) => d.id)).not.toContain(created.id);
-      expect((await store.listDeviceKeys(tenantA)).map((d) => d.id)).toContain(created.id);
     },
   );
 });

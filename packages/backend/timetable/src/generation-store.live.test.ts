@@ -2,14 +2,15 @@
  * PRC-L503: live-PG round-trip coverage for PgTimetableOpsStore (createJob/updateJob/
  * listJobs/failStaleJobs/createAbsence/listAbsences), mirroring
  * attendance-ingest.live.test.ts's requireLiveDatabaseUrl + it.skipIf(!live) pattern.
- * timetable_generation_jobs/timetable_teacher_absences (db/sql/041) have no FK to
- * institutions/academic_periods — only tenant_id is FORCE RLS-scoped — so synthetic UUIDs are
- * sufficient fixtures here (no institutions/academic_periods seeding needed).
+ * timetable_generation_jobs (db/sql/041) has no FK to institutions/academic_periods — only
+ * tenant_id is FORCE RLS-scoped — so synthetic UUIDs are sufficient fixtures for jobRow().
+ * timetable_teacher_absences.staff_id DOES carry a live FK to staff(id) (db/sql/085/086), so
+ * the absence tests seed a real staff row via ensurePgTestStaff first.
  */
 import { randomUUID } from 'node:crypto';
 
 import { getSharedPgPool } from '@proctira/database';
-import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
+import { ensurePgTestStaff, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { describe, expect, it } from 'vitest';
 
@@ -116,6 +117,7 @@ describe('PgTimetableOpsStore (live)', () => {
       await ensurePgTestTenant(pool!, tenantB);
       const institutionId = randomUUID();
       const staffId = randomUUID();
+      await ensurePgTestStaff(pool!, tenantA, staffId);
       const now = new Date().toISOString();
 
       const created = await store.createAbsence({
