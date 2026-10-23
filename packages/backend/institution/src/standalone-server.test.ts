@@ -36,12 +36,19 @@ describe('PRC-L572 standalone-server start() rejection handling', () => {
     // Importing the module runs its module-level `start().catch(...)` call.
     await import('./standalone-server.js');
 
-    // Flush the microtask queue so the rejected promise's `.catch` handler runs.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Poll for the rejection's `.catch` handler to run rather than assuming
+    // a fixed number of microtask ticks is enough: under CI load the event
+    // loop can take longer than two zero-delay `setTimeout`s to get back to
+    // this chain, which previously made this test flaky (timed out at the
+    // outer 5000ms test timeout despite the assertion being correct).
+    await vi.waitFor(
+      () => {
+        expect(exitSpy).toHaveBeenCalledWith(1);
+      },
+      { timeout: 4000, interval: 10 },
+    );
 
     expect(errorSpy).toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('exports start() directly so it can be invoked and awaited without relying on module side effects', async () => {
