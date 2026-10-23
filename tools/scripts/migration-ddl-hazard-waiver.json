@@ -84,6 +84,13 @@
       "approvedBy": "repository owner (W1-DATA-18 gate introduction)"
     },
     {
+      "path": "db/sql/248_academic_fee_overlap_exclusion.sql",
+      "hazards": ["blocking_unique_or_pk"],
+      "reason": "PRC-M213: replaces the race-prone SELECT-check overlap triggers (academic_periods_reject_overlap / fee_structures_reject_overlap, both from db/sql/083) with ADD CONSTRAINT ... EXCLUDE USING gist on academic_periods and fee_structures. Postgres has no NOT VALID option for EXCLUDE constraints, so this ADD CONSTRAINT is a genuine blocking (ACCESS EXCLUSIVE) operation for its duration -- there is no online-safe equivalent to defer the validation scan the way NOT VALID + VALIDATE CONSTRAINT does for FK/CHECK. Both tables are small reference/catalog tables (academic periods and fee structures per tenant, not transactional volume), so the lock window is brief. A live preflight confirmed zero overlapping rows on this worktree's shared Postgres before applying.",
+      "maintenanceWindow": "PRC-M213 remediation window (small reference tables; brief ACCESS EXCLUSIVE acceptable)",
+      "approvedBy": "audit-gap-fast-mode batch (migration/db-module-batch)"
+    },
+    {
       "path": "db/sql/097_admissions_public_context.sql",
       "hazards": ["validate_under_force_rls"],
       "reason": "W1-DATA-18: validates a constraint without lifting FORCE ROW LEVEL SECURITY. Under FORCE RLS the tenant policy applies to the table owner, so Postgres runs the validation scan under it, a migration session has no app.tenant_id bound, the scan sees zero rows, and VALIDATE CONSTRAINT reports success without comparing anything. Demonstrated while fixing 098: one planted orphan row and VALIDATE returned success. These files predate the rule and are checksum-locked, so they cannot be edited. Waived rather than fixed in place, on this evidence: a live scan of every validated single-column FK on a FORCE-RLS table, run as superuser with session_replication_role = replica so all rows were visible, found 0 violations. The constraints are therefore unproven rather than known-wrong. Remedy is a forward-only re-validation migration using the 100 pattern (lift FORCE, validate, restore, in one transaction), not an edit to these files.",

@@ -29,7 +29,7 @@ Tests       20 passed (20)
 
 ## Seed verify (live Postgres)
 
-Applied `db/seeds/004_sis_master_schedule_demo.sql`:
+Applied `db/seeds/004b_sis_master_schedule_demo.sql`:
 
 | Entity              | Count                    |
 | ------------------- | ------------------------ |

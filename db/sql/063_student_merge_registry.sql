@@ -1,4 +1,8 @@
 -- W2-SIS-02: durable student duplicate-merge audit registry.
+--
+-- PRC-L463: confirmed via grep (packages/backend/*/src/*.ts) this table has
+-- no application read/write consumer as of this writing — forward-provisioned
+-- with no current runtime consumer, not an active feature's durable store.
 
 CREATE TABLE IF NOT EXISTS student_merges (
   id UUID PRIMARY KEY,
