@@ -325,7 +325,7 @@ describe('Audit Routes', () => {
         method: 'PUT',
         url: '/audit/retention',
         payload: {
-          retentionMonths: 1,
+          retentionMonths: 12, // PRC-L295: statutory floor raised from 1 to 12 months
           archivalEnabled: true,
           archivalDestination: 's3://archive/',
         },

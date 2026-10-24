@@ -1,6 +1,9 @@
 -- Sunrise Public School — one-tenant screen-review demo.
--- Idempotent (fixed ids, ON CONFLICT DO NOTHING, plus UPDATEs that rename
--- the original Pune school in place). Does not delete rows.
+-- Idempotent via fixed ids, ON CONFLICT DO NOTHING/UPDATE, and UPDATEs that
+-- rename the original Pune school in place. EXCEPTION: section_meetings rows
+-- for the two seeded sections are DELETEd and reinserted on every run, so a
+-- re-apply does not leave stale slot assignments lingering alongside fresh
+-- ones; every other table is append/update-only.
 -- Directory volume (five Delhi schools, generated students/staff/attendance)
 -- is appended after the named screen-review rows. Attendance is five recent
 -- dates including CURRENT_DATE so "Reporting today" is non-zero.
@@ -1871,36 +1874,55 @@ SET section_meeting_id = EXCLUDED.section_meeting_id,
     status = 'SCHEDULED',
     updated_at = now();
 
-INSERT INTO audit_log_entries (
-  id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-  ip_address, occurred_at, metadata
-)
-SELECT
-  uuid_generate_v5(
-    '6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid,
-    'sunrise-audit-mv-' || item.n::text
-  ),
-  '00000000-0000-4000-8000-00000000a501',
-  'institution',
-  '00000000-0000-4000-8000-00000000a551',
-  'UPDATE',
-  'priya-sharma',
-  item.actor,
-  '127.0.0.1',
-  item.occurred_at,
-  jsonb_build_object(
-    'title', item.title,
-    'tone', item.tone,
-    'institutionId', '00000000-0000-4000-8000-00000000a551'
-  )
-FROM (
-  VALUES
-    (1, 'Attendance submitted for class sections'::text, 'green'::text, 'Priya Sharma'::text, TIMESTAMPTZ '2026-09-28 09:42:00+05:30'),
-    (2, 'Term 2 timetable published', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-24 11:00:00+05:30'),
-    (3, 'Room 204 flagged for repair in the facility register', 'amber', 'Sunil Rao', TIMESTAMPTZ '2026-09-22 15:10:00+05:30'),
-    (4, 'Class sections confirmed for the active academic period', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-18 10:00:00+05:30')
-) AS item(n, title, tone, actor, occurred_at)
-ON CONFLICT (id) DO NOTHING;
+-- PRC-L461: these rows are deliberately unchained demo data (no chain_seq /
+-- prev_hash / entry_hash — written directly, not through the audit service's
+-- hashing path). That is only safe pre-chain-cutover legacy data for this
+-- tenant. If a real chain already exists for the sunrise tenant by the time
+-- this seed runs, these unchained rows would surface in ChainVerifier's
+-- unchainedAfterCutover count (packages/backend/audit/src/audit-hash.ts) and
+-- fail verification — so skip the insert entirely in that case rather than
+-- silently poisoning an already-chained tenant's history.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM audit_log_entries
+     WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
+       AND chain_seq IS NOT NULL
+  ) THEN
+    RAISE NOTICE 'Sunrise tenant already has chained audit_log_entries — skipping unchained demo audit rows';
+  ELSE
+    INSERT INTO audit_log_entries (
+      id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+      ip_address, occurred_at, metadata
+    )
+    SELECT
+      uuid_generate_v5(
+        '6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid,
+        'sunrise-audit-mv-' || item.n::text
+      ),
+      '00000000-0000-4000-8000-00000000a501',
+      'institution',
+      '00000000-0000-4000-8000-00000000a551',
+      'UPDATE',
+      'priya-sharma',
+      item.actor,
+      '127.0.0.1',
+      item.occurred_at,
+      jsonb_build_object(
+        'title', item.title,
+        'tone', item.tone,
+        'institutionId', '00000000-0000-4000-8000-00000000a551'
+      )
+    FROM (
+      VALUES
+        (1, 'Attendance submitted for class sections'::text, 'green'::text, 'Priya Sharma'::text, TIMESTAMPTZ '2026-09-28 09:42:00+05:30'),
+        (2, 'Term 2 timetable published', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-24 11:00:00+05:30'),
+        (3, 'Room 204 flagged for repair in the facility register', 'amber', 'Sunil Rao', TIMESTAMPTZ '2026-09-22 15:10:00+05:30'),
+        (4, 'Class sections confirmed for the active academic period', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-18 10:00:00+05:30')
+    ) AS item(n, title, tone, actor, occurred_at)
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+END $$;
 
 -- Institution detail tabs: Class 9-B Mathematics gradebook, MATH curriculum, facility tree.
 -- Idempotent. Tenant a501 / institution a551.
