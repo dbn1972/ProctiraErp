@@ -11,6 +11,7 @@ const ADMIN_ROLES = [
   'super-admin',
   'super_admin',
   'system_admin',
+  'platform_admin',
   'principal',
   'school_admin',
 ] as const;
