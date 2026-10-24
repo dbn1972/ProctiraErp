@@ -17,7 +17,7 @@
 import { registerGracefulShutdown } from '@proctira/common';
 import { closeDatabaseResources } from '@proctira/database';
 import { observabilityPlugin } from '@proctira/observability';
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 
 import { InMemoryInstitutionRepository } from './in-memory-repository.js';
 import { institutionPlugin } from './institution-plugin.js';
@@ -27,7 +27,12 @@ const HOST = process.env['HOST'] || '0.0.0.0';
 const LOG_LEVEL = process.env['LOG_LEVEL'] || 'info';
 const SERVICE_NAME = 'institution';
 
-async function start() {
+/**
+ * PRC-L572: exported (not just module-local) so the module-level call below
+ * can `.catch()` it, and so a test can import it directly to assert the
+ * rejection path without spinning up a real listening server.
+ */
+export async function start(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: LOG_LEVEL,
@@ -102,6 +107,15 @@ async function start() {
       },
     ],
   });
+
+  return app;
 }
 
-start();
+// PRC-L572: a rejected `start()` must fail loudly (log + nonzero exit)
+// instead of leaving an unhandled promise rejection. No `app.log` instance
+// exists yet if `start()` rejected before Fastify finished constructing, so
+// this falls back to `console.error`.
+start().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -347,6 +347,54 @@ describe('G-905 academic calendar', () => {
       });
       expect(ownList.json().data).toHaveLength(1);
     });
+
+    // PRC-M286: addEvent must verify institutionId belongs to the caller's
+    // tenant before storing it on the event.
+    it('rejects an institutionId belonging to another tenant (PRC-M286)', async () => {
+      const year = await createYear(app, 'AY26', '2026-04-01', '2027-03-31');
+      const foreignInstitutionRes = await app.inject({
+        method: 'POST',
+        url: '/institutions',
+        headers: { 'x-tenant-id': TENANT_B },
+        payload: {
+          name: 'Tenant B School',
+          code: `CAL-B-${randomUUID().slice(0, 8)}`,
+          areaId: randomUUID(),
+          typeId: randomUUID(),
+          sectorId: randomUUID(),
+          ownershipId: randomUUID(),
+        },
+      });
+      expect(foreignInstitutionRes.statusCode).toBe(201);
+      const foreignInstitutionId = foreignInstitutionRes.json().id as string;
+
+      const rejected = await app.inject({
+        method: 'POST',
+        url: `/academic-periods/${year.id}/calendar`,
+        payload: {
+          kind: 'holiday',
+          name: 'Cross-tenant event',
+          institutionId: foreignInstitutionId,
+          startDate: '2026-11-08',
+          endDate: '2026-11-08',
+        },
+      });
+      expect(rejected.statusCode).toBe(404);
+
+      const ownInstitutionId = await createInstitution(app);
+      const accepted = await app.inject({
+        method: 'POST',
+        url: `/academic-periods/${year.id}/calendar`,
+        payload: {
+          kind: 'holiday',
+          name: 'Own-tenant event',
+          institutionId: ownInstitutionId,
+          startDate: '2026-11-09',
+          endDate: '2026-11-09',
+        },
+      });
+      expect(accepted.statusCode).toBe(201);
+    });
   });
 
   describe('rollover', () => {

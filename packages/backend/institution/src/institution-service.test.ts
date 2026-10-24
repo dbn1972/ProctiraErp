@@ -110,16 +110,10 @@ describe('InstitutionService', () => {
       );
     });
 
-    it('should enforce unique code across different tenants', async () => {
-      const code = 'GLOBAL-CODE-001';
-      const input1 = validCreateInput({ code });
-      await service.create(TENANT_ID, input1);
-
-      // Same code in a different tenant should also fail (global uniqueness)
-      const otherTenantId = uuid();
-      const input2 = validCreateInput({ code });
-      await expect(service.create(otherTenantId, input2)).rejects.toThrow(ConflictError);
-    });
+    // PRC-M287: code uniqueness is per-tenant, matching the DB's
+    // `@@unique([tenantId, code])` — a different tenant reusing the same
+    // code is not a conflict (see the PRC-M287 case below for the positive
+    // assertion of this behavior).
 
     it('should throw ConflictError when name already exists in the same area', async () => {
       const areaId = uuid();
@@ -149,6 +143,23 @@ describe('InstitutionService', () => {
       expect(result2.name).toBe(name);
       expect(result1.areaId).toBe(areaId1);
       expect(result2.areaId).toBe(areaId2);
+    });
+
+    // PRC-M287: the DB enforces per-tenant uniqueness; the in-memory test
+    // double previously enforced a stricter global uniqueness that
+    // production never had.
+    it('should allow the same code in different tenants (PRC-M287)', async () => {
+      const code = 'PER-TENANT-CODE';
+      const tenantA = uuid();
+      const tenantB = uuid();
+      const inputA = validCreateInput({ code });
+      const inputB = validCreateInput({ code });
+
+      const resultA = await service.create(tenantA, inputA);
+      const resultB = await service.create(tenantB, inputB);
+
+      expect(resultA.code).toBe(code);
+      expect(resultB.code).toBe(code);
     });
 
     it('should allow same name in different tenants within the same area', async () => {
@@ -309,6 +320,90 @@ describe('InstitutionService', () => {
       const otherTenantId = uuid();
       await expect(service.deactivate(otherTenantId, created.id, 'reason')).rejects.toThrow(
         NotFoundError,
+      );
+    });
+
+    // PRC-L323: deactivate() must refuse when the institution still has
+    // active enrollments — otherwise students are silently left enrolled at
+    // an inactive school.
+    it('should throw BusinessRuleError when the institution has active enrollments (PRC-L323)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+      repository.setEnrollmentCount(created.id, 3);
+
+      await expect(service.deactivate(TENANT_ID, created.id, 'Closing')).rejects.toThrow(
+        BusinessRuleError,
+      );
+
+      const stillActive = await service.getById(TENANT_ID, created.id);
+      expect(stillActive.status).toBe('ACTIVE');
+    });
+
+    it('should allow deactivation when there are no active enrollments (PRC-L323)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+      repository.setEnrollmentCount(created.id, 0);
+
+      const deactivated = await service.deactivate(TENANT_ID, created.id, 'Closing');
+      expect(deactivated.status).toBe('INACTIVE');
+    });
+
+    // PRC-L322: the in-memory repository's compare-and-swap directly proves
+    // two concurrent readers racing a write cannot both land silently — the
+    // stale-version writer loses instead of overwriting the winner's write
+    // with no error.
+    it('rejects a stale-version write once a fresher write has landed (PRC-L322)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+
+      // Two independent readers both capture the row at the same version
+      // before either writes (simulating concurrent reads).
+      const reader1Version = created.version;
+      const reader2Version = created.version;
+      expect(reader1Version).toBe(reader2Version);
+
+      // Reader 1 wins the race: its compare-and-swap matches and lands.
+      const afterFirstWrite = await repository.update(
+        created.id,
+        TENANT_ID,
+        { deactivationReason: 'First writer' },
+        reader1Version,
+      );
+      expect(afterFirstWrite).not.toBeNull();
+      expect(afterFirstWrite?.version).toBe(reader1Version + 1);
+
+      // Reader 2's stale version no longer matches the row's current
+      // version — its write must be rejected (null), not silently applied.
+      const afterSecondWrite = await repository.update(
+        created.id,
+        TENANT_ID,
+        { deactivationReason: 'Second writer (stale)' },
+        reader2Version,
+      );
+      expect(afterSecondWrite).toBeNull();
+
+      const final = await service.getById(TENANT_ID, created.id);
+      expect(final.deactivationReason).toBe('First writer');
+    });
+
+    // PRC-L322: InstitutionService.deactivate() must translate a
+    // version-mismatch (null from repository.update) into ConflictError,
+    // not the misleading NotFoundError the row's own existence check would
+    // otherwise imply.
+    it('should throw ConflictError (not NotFoundError) when deactivate loses an optimistic-lock race (PRC-L322)', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+
+      const racingRepository: typeof repository = {
+        ...repository,
+        findById: repository.findById.bind(repository),
+        update: async () => null, // simulates a concurrent writer winning the race
+        countActiveEnrollments: repository.countActiveEnrollments.bind(repository),
+      } as unknown as typeof repository;
+      const racingService = new InstitutionService(racingRepository);
+
+      await expect(racingService.deactivate(TENANT_ID, created.id, 'reason')).rejects.toThrow(
+        ConflictError,
       );
     });
   });

@@ -6,7 +6,7 @@
  *
  * @requirements 5.5
  */
-import { NotFoundError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError } from '@proctira/common';
 import type { PrismaClient, Class } from '@proctira/database';
 
 import { assertPeriodNotArchived, requireAssignableInstitution } from './assignable-guards.js';
@@ -55,6 +55,27 @@ export class ClassService {
 
     if (dto.classTeacherStaffId) {
       await this.requireStaff(tenantId, dto.classTeacherStaffId);
+    }
+
+    // PRC-M285: reject a class section that duplicates an existing
+    // (institution, grade, period, name) slot within the tenant. No DB
+    // constraint backed this before `253_institution_class_name_unique.sql`
+    // (see migration) — this app-level check narrows the race window; the
+    // partial unique index is the authoritative guard for a true race.
+    const duplicate = await this.prisma.class.findFirst({
+      where: {
+        tenantId,
+        institutionId: dto.institutionId,
+        gradeId: dto.gradeId,
+        academicPeriodId: dto.academicPeriodId,
+        name: dto.name,
+        deletedAt: null,
+      },
+    });
+    if (duplicate) {
+      throw new ConflictError(
+        `A class named '${dto.name}' already exists for this grade and academic period`,
+      );
     }
 
     return this.prisma.class.create({
@@ -163,6 +184,9 @@ export class ClassService {
 
   /**
    * Soft-delete a class.
+   *
+   * PRC-M284: a class with ENROLLED students is rejected — deleting it would
+   * otherwise silently orphan those enrollments.
    */
   async delete(tenantId: string, id: string): Promise<void> {
     const cls = await this.prisma.class.findFirst({
@@ -171,6 +195,15 @@ export class ClassService {
 
     if (!cls) {
       throw new NotFoundError(`Class '${id}' not found`);
+    }
+
+    const enrollmentCount = await this.prisma.enrollment.count({
+      where: { tenantId, classId: id, status: 'ENROLLED' },
+    });
+    if (enrollmentCount > 0) {
+      throw new BusinessRuleError(
+        `Cannot delete class '${id}': ${enrollmentCount} enrolled student(s) still reference it`,
+      );
     }
 
     await this.prisma.class.update({

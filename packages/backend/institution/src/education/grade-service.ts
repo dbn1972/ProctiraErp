@@ -6,7 +6,7 @@
  *
  * @requirements 5.5
  */
-import { NotFoundError, ConflictError } from '@proctira/common';
+import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
 import type { PrismaClient, Grade } from '@proctira/database';
 
 import type { CreateGradeDto, UpdateGradeDto } from './grade-schemas.js';
@@ -138,6 +138,9 @@ export class GradeService {
 
   /**
    * Soft-delete a grade.
+   *
+   * PRC-M284: a grade that still has live classes or enrolled students is
+   * rejected — deleting it would otherwise silently orphan those rows.
    */
   async delete(tenantId: string, id: string): Promise<void> {
     const grade = await this.prisma.grade.findFirst({
@@ -146,6 +149,21 @@ export class GradeService {
 
     if (!grade) {
       throw new NotFoundError(`Grade '${id}' not found`);
+    }
+
+    const [classCount, enrollmentCount] = await Promise.all([
+      this.prisma.class.count({ where: { tenantId, gradeId: id, deletedAt: null } }),
+      this.prisma.enrollment.count({ where: { tenantId, gradeId: id, status: 'ENROLLED' } }),
+    ]);
+    if (classCount > 0) {
+      throw new BusinessRuleError(
+        `Cannot delete grade '${id}': ${classCount} class(es) still reference it`,
+      );
+    }
+    if (enrollmentCount > 0) {
+      throw new BusinessRuleError(
+        `Cannot delete grade '${id}': ${enrollmentCount} enrolled student(s) still reference it`,
+      );
     }
 
     await this.prisma.grade.update({

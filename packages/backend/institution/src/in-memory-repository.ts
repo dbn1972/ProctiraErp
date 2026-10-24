@@ -24,6 +24,7 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
     const now = new Date();
     const entity: InstitutionEntity = {
       ...data,
+      version: data.version ?? 1,
       createdAt: now,
       updatedAt: now,
     };
@@ -35,9 +36,14 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
     id: string,
     tenantId: string,
     data: Partial<InstitutionEntity>,
+    expectedVersion?: number,
   ): Promise<InstitutionEntity | null> {
     const existing = this.institutions.get(id);
     if (!existing || existing.tenantId !== tenantId) {
+      return null;
+    }
+    // PRC-L322: compare-and-swap when the caller passes an expected version.
+    if (expectedVersion !== undefined && existing.version !== expectedVersion) {
       return null;
     }
 
@@ -47,6 +53,7 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
       id: existing.id,
       tenantId: existing.tenantId,
       createdAt: existing.createdAt,
+      version: existing.version + 1,
       updatedAt: new Date(),
     };
     this.institutions.set(id, updated);
@@ -61,9 +68,9 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
     return entity;
   }
 
-  async findByCode(code: string): Promise<InstitutionEntity | null> {
+  async findByCode(code: string, tenantId: string): Promise<InstitutionEntity | null> {
     for (const entity of this.institutions.values()) {
-      if (entity.code === code) {
+      if (entity.code === code && entity.tenantId === tenantId) {
         return entity;
       }
     }
