@@ -387,6 +387,27 @@ describe('AuditService', () => {
       ).rejects.toThrow(ValidationError);
     });
 
+    // PRC-L295: statutory floor raised from 1 month to 12 months.
+    it('should reject retention months below the 12-month floor', async () => {
+      await expect(
+        service.setRetentionConfig({
+          tenantId: 'tenant-1',
+          retentionMonths: 11,
+          archivalEnabled: false,
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('should accept retention months at the 12-month floor', async () => {
+      const config = await service.setRetentionConfig({
+        tenantId: 'tenant-1',
+        retentionMonths: 12,
+        archivalEnabled: false,
+      });
+
+      expect(config.retentionMonths).toBe(12);
+    });
+
     it('should reject retention months greater than 120', async () => {
       await expect(
         service.setRetentionConfig({
@@ -424,17 +445,17 @@ describe('AuditService', () => {
     });
 
     it('should archive expired entries', async () => {
-      // Set retention to 1 month
+      // Set retention to the 12-month floor (PRC-L295)
       await service.setRetentionConfig({
         tenantId: 'tenant-1',
-        retentionMonths: 1,
+        retentionMonths: 12,
         archivalEnabled: true,
         archivalDestination: 's3://archive/',
       });
 
-      // Create an old entry directly in the repository
+      // Create an old entry directly in the repository, older than the floor
       const oldDate = new Date();
-      oldDate.setMonth(oldDate.getMonth() - 3);
+      oldDate.setMonth(oldDate.getMonth() - 13);
 
       await repository.create({
         id: 'old-entry-1',
@@ -482,13 +503,13 @@ describe('AuditService', () => {
     it('should return archival candidate count', async () => {
       await service.setRetentionConfig({
         tenantId: 'tenant-1',
-        retentionMonths: 1,
+        retentionMonths: 12,
         archivalEnabled: true,
         archivalDestination: 's3://archive/',
       });
 
       const oldDate = new Date();
-      oldDate.setMonth(oldDate.getMonth() - 3);
+      oldDate.setMonth(oldDate.getMonth() - 13);
 
       await repository.create({
         id: 'old-1',

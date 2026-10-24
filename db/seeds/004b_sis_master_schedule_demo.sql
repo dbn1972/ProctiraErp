@@ -33,6 +33,11 @@ BEGIN
     RETURN;
   END IF;
 
+  -- PRC-L556: bind the tenant GUC before any domain-table write so RLS does
+  -- not silently filter these inserts to zero rows under the non-superuser
+  -- runtime role.
+  PERFORM set_app_tenant_id(tid::text);
+
   SELECT id INTO inst_id FROM institutions
    WHERE tenant_id = tid AND code = 'CBSE-DEL-01' AND deleted_at IS NULL;
   IF inst_id IS NULL THEN
@@ -138,6 +143,12 @@ BEGIN
   VALUES (uuid_generate_v4(), tid, sec1, student2, 'ENROLLED', CURRENT_DATE);
   INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status, enrolled_at)
   VALUES (uuid_generate_v4(), tid, sec1, student3, 'ENROLLED', CURRENT_DATE);
+
+  -- PRC-L556: fail loudly if RLS silently filtered these writes to zero rows
+  -- instead of reporting success on an empty no-op.
+  IF (SELECT count(*) FROM sections WHERE tenant_id = tid AND id IN (sec1, sec2)) = 0 THEN
+    RAISE EXCEPTION 'PRC-L556 guard: expected sections rows for tenant % but found 0 (RLS silent no-op?)', tid;
+  END IF;
 
   RAISE NOTICE 'WS2 master schedule seed applied for CBSE-DEL-01 (2 sections, 3 rooms, 3 meetings)';
 END $$;

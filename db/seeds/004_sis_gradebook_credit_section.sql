@@ -21,6 +21,11 @@ BEGIN
     RETURN;
   END IF;
 
+  -- PRC-L556: bind the tenant GUC before any domain-table write so RLS does
+  -- not silently filter these inserts to zero rows under the non-superuser
+  -- runtime role.
+  PERFORM set_app_tenant_id(tid::text);
+
   SELECT id INTO bid_cbse FROM boards WHERE tenant_id = tid AND code = 'CBSE' AND deleted_at IS NULL;
   SELECT id INTO bid_icse FROM boards WHERE tenant_id = tid AND code = 'ICSE' AND deleted_at IS NULL;
   SELECT id INTO bid_mh   FROM boards WHERE tenant_id = tid AND code = 'MH-STATE' AND deleted_at IS NULL;
@@ -104,6 +109,12 @@ BEGIN
     INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status)
     VALUES (uuid_generate_v4(), tid, demo_section_id, student_b, 'ENROLLED')
     ON CONFLICT (section_id, student_id) DO NOTHING;
+  END IF;
+
+  -- PRC-L556: fail loudly if RLS silently filtered these writes to zero rows
+  -- instead of reporting success on an empty no-op.
+  IF (SELECT count(*) FROM credit_rules WHERE tenant_id = tid) = 0 THEN
+    RAISE EXCEPTION 'PRC-L556 guard: expected credit_rules rows for tenant % but found 0 (RLS silent no-op?)', tid;
   END IF;
 
   RAISE NOTICE 'Seeded credit_rules + section 10-A (%) for tenant %', demo_section_id, tid;
