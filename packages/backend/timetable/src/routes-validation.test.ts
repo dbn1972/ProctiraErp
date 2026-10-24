@@ -62,6 +62,21 @@ describe('timetable input validation (PRC-M399)', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  /**
+   * PRC-L175 part 1 (verify, not re-implement): `date` is in the package-wide preValidation
+   * hook's DATE_QUERY_KEYS, so a non-existent calendar date like 2026-02-30 is already rejected
+   * before the handler runs. Keep this as regression coverage rather than adding a second,
+   * redundant isValidIsoDate(query.date) guard in the handler.
+   */
+  it('GET /teacher-absences/affected with an invalid date returns 400 (PRC-L175 part 1)', async () => {
+    const staffId = '55555555-5555-4555-8555-555555555555';
+    const res = await app.inject({
+      method: 'GET',
+      url: `/timetable/teacher-absences/affected?institutionId=${INST}&staffId=${staffId}&date=2026-02-30`,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('rejects 99:99 times and unknown meeting status', async () => {
     const sched = await app.inject({
       method: 'POST',

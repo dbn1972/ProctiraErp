@@ -11,6 +11,16 @@ const StatusUnion = Type.Union([
 const UUID_PATTERN =
   '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
+/** PRC-L277: a UUID string field, reusing the same canonical pattern across this schema file. */
+const UuidStr = () => Type.String({ pattern: UUID_PATTERN });
+
+/**
+ * PRC-L277: leave-request attachments must be an https:// URL (object storage /
+ * document host), never `javascript:`/`data:`/bare paths — those are XSS/open-
+ * redirect vectors if ever rendered as a clickable link in a portal UI.
+ */
+const HTTPS_URL_PATTERN = '^https://[^\\s]+$';
+
 /**
  * PRC-M170: attendanceId must be a UUID; studentId/classId/attendanceDate are
  * verified against the stored record and fromStatus is derived from it (a
@@ -23,9 +33,9 @@ export const CreateRegularisationSchema = Type.Object({
    * names that same record.
    */
   attendanceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-  studentId: Type.String({ minLength: 1 }),
-  institutionId: Type.String({ minLength: 1 }),
-  classId: Type.String({ minLength: 1 }),
+  studentId: UuidStr(),
+  institutionId: UuidStr(),
+  classId: UuidStr(),
   attendanceDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
   /**
    * PRC-M081/PRC-M170: the stored status is always used; when supplied this
@@ -43,14 +53,15 @@ export const DecideRequestSchema = Type.Object({
 export type DecideRequestInput = Static<typeof DecideRequestSchema>;
 
 export const CreateLeaveRequestSchema = Type.Object({
-  studentId: Type.String({ minLength: 1 }),
-  institutionId: Type.String({ minLength: 1 }),
-  classId: Type.String({ minLength: 1 }),
-  academicPeriodId: Type.String({ minLength: 1 }),
+  studentId: UuidStr(),
+  institutionId: UuidStr(),
+  classId: UuidStr(),
+  academicPeriodId: UuidStr(),
   fromDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
   toDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
   reason: Type.Optional(Type.String({ maxLength: 2000 })),
-  attachmentUrl: Type.Optional(Type.String({ maxLength: 2000 })),
+  /** PRC-L277: https:// only — rejects javascript:/data:/bare-path XSS vectors. */
+  attachmentUrl: Type.Optional(Type.String({ pattern: HTTPS_URL_PATTERN, maxLength: 2000 })),
 });
 export type CreateLeaveRequestInput = Static<typeof CreateLeaveRequestSchema>;
 
