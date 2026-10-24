@@ -239,6 +239,39 @@ export function generateSyncSql(catalog) {
   emitGrantLoop('trigger_owned', CLASS_PRIVILEGES.trigger_owned);
   emitGrantLoop('dml', CLASS_PRIVILEGES.dml);
 
+  // PRC-M209: column-scoped exceptions layered on top of a table's class.
+  // The catalog's class values are table-wide (no per-table notes field — see
+  // db/README.md's "Column-scoped exceptions on top of a class" section), so
+  // a narrower grant than the class default is re-applied here on every sync
+  // instead of in db/runtime-table-privileges.json. Without this, the
+  // unconditional "REVOKE ALL ... FROM proctira_app" loop above wipes any
+  // standalone GRANT a migration added (e.g. 247's column-scoped
+  // GRANT UPDATE (status)), because this script re-runs at the end of every
+  // apply-sql.sh invocation.
+  const columnScopedExceptions = [
+    {
+      table: 'institution_repair_requests',
+      privilege: 'UPDATE',
+      columns: ['status'],
+      prc: 'PRC-M209',
+    },
+  ];
+  if (columnScopedExceptions.length > 0) {
+    lines.push('  -- Column-scoped exceptions on top of a class (db/README.md).');
+    for (const exc of columnScopedExceptions) {
+      lines.push(`    IF to_regclass('public.${exc.table}') IS NOT NULL THEN`);
+      lines.push(
+        `      -- ${exc.prc}: ${exc.privilege} (${exc.columns.join(', ')}) only; ` +
+          `other columns stay governed by the table's class above.`,
+      );
+      lines.push(
+        `      EXECUTE 'GRANT ${exc.privilege} (${exc.columns.join(', ')}) ON TABLE ${exc.table} TO proctira_app';`,
+      );
+      lines.push('    END IF;');
+    }
+    lines.push('');
+  }
+
   lines.push('  -- Sequences for INSERT into non-denied tables.');
   lines.push('  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO proctira_app;');
   lines.push('END $$;');
