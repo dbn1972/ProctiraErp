@@ -257,11 +257,14 @@ export class PrismaExaminationRepository implements ExaminationRepository {
    * its `EnrollmentStatus` enum value is mapped to the lowercase form this
    * interface expects.
    *
-   * Integration gap: there is no source for completed subjects in the schema
-   * (no completed-subjects/transcript table the enrollment domain exposes),
-   * so `completedSubjectCodes` is `null` and the service skips the
-   * prerequisite-completion rule (G-902: otherwise no candidate could ever be
-   * registered against live Postgres).
+   * PRC-M234: completed subjects are sourced from `examination_academic_records`
+   * — passed rows (one per student x subject x examination, written at
+   * publication time) are joined back to the originating examination's JSONB
+   * `subjects` array to resolve each row's subject *code* (the records table
+   * only stores `subjectId`, which is only meaningful within its own
+   * examination's subjects array). `completedSubjectCodes` defaults to `[]`
+   * (not `null`) once this wiring exists — `null` is reserved for enrollment
+   * sources that genuinely cannot answer the question, which Postgres can.
    */
   async getStudentEnrollment(
     studentId: string,
@@ -274,21 +277,82 @@ export class PrismaExaminationRepository implements ExaminationRepository {
       });
       if (!enrollment) return null;
       // PRC-M240: demographics come from the student / institution records, not the client.
-      const [student, institution] = await Promise.all([
+      const [student, institution, passedRecords, registrations] = await Promise.all([
         tx.student.findFirst({ where: { id: studentId, tenantId }, select: { gender: true } }),
         tx.institution.findFirst({
           where: { id: enrollment.institutionId, tenantId },
           select: { areaId: true },
         }),
+        tx.examinationAcademicRecord.findMany({
+          where: { tenantId, studentId, passed: true },
+          select: { subjectId: true, examinationId: true },
+        }),
+        // PRC-M234 follow-up: every non-cancelled registration this student has
+        // ever made, in any examination — used to derive attemptedSubjectCodes
+        // (see StudentEnrollment.attemptedSubjectCodes doc for why this exists).
+        tx.examinationCandidateRegistration.findMany({
+          where: { tenantId, studentId, status: { not: 'CANCELLED' } },
+          select: { subjectIds: true, examinationId: true },
+        }),
       ]);
+
+      const examinationIds = [
+        ...new Set([
+          ...passedRecords.map((r) => r.examinationId),
+          ...registrations.map((r) => r.examinationId),
+        ]),
+      ];
+      const examinationsById =
+        examinationIds.length > 0
+          ? new Map(
+              (
+                await tx.examination.findMany({
+                  where: { tenantId, id: { in: examinationIds } },
+                  select: { id: true, subjects: true },
+                })
+              ).map((e) => [e.id, jsonArray<ExaminationSubject>(e.subjects)] as const),
+            )
+          : new Map<string, ExaminationSubject[]>();
+
+      const completedSubjectCodes = new Set<string>();
+      for (const record of passedRecords) {
+        const subjects = examinationsById.get(record.examinationId);
+        const code = subjects?.find((s) => s.id === record.subjectId)?.code;
+        if (code) completedSubjectCodes.add(code);
+      }
+
+      const attemptedSubjectCodes = new Set<string>();
+      for (const registration of registrations) {
+        const subjects = examinationsById.get(registration.examinationId);
+        if (!subjects) continue;
+        const subjectIds = jsonArray<string>(registration.subjectIds);
+        for (const subjectId of subjectIds) {
+          const code = subjects.find((s) => s.id === subjectId)?.code;
+          if (code) attemptedSubjectCodes.add(code);
+        }
+      }
+
       return {
         studentId,
         status: enrollment.status.toLowerCase() as StudentEnrollment['status'],
         institutionId: enrollment.institutionId,
-        completedSubjectCodes: null,
+        completedSubjectCodes: [...completedSubjectCodes],
+        attemptedSubjectCodes: [...attemptedSubjectCodes],
         gender: student?.gender ?? null,
         areaId: institution?.areaId ?? null,
       };
+    });
+  }
+
+  /** PRC-M510: batched student display-name lookup (see interface doc). */
+  async getStudentNames(tenantId: string, studentIds: string[]): Promise<Map<string, string>> {
+    if (studentIds.length === 0) return new Map();
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const students = await tx.student.findMany({
+        where: { tenantId, id: { in: studentIds }, deletedAt: null },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      return new Map(students.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
     });
   }
 

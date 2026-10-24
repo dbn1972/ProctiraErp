@@ -18,6 +18,8 @@ export class InMemoryExaminationRepository implements ExaminationRepository {
   private examinations: Map<string, ExaminationEntity> = new Map();
   private candidateRegistrations: Map<string, CandidateRegistration> = new Map();
   private studentEnrollments: Map<string, StudentEnrollment> = new Map();
+  /** PRC-M510: test-settable fixture mirroring setStudentEnrollment's pattern. */
+  private studentNames: Map<string, string> = new Map();
 
   async create(
     data: Omit<ExaminationEntity, 'createdAt' | 'updatedAt'>,
@@ -139,6 +141,21 @@ export class InMemoryExaminationRepository implements ExaminationRepository {
     return this.studentEnrollments.get(studentId) ?? null;
   }
 
+  /** PRC-M510: batched lookup over the fixture map seeded by setStudentName. */
+  async getStudentNames(_tenantId: string, studentIds: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    for (const id of studentIds) {
+      const name = this.studentNames.get(id);
+      if (name) result.set(id, name);
+    }
+    return result;
+  }
+
+  /** Test helper to set a student's display name (PRC-M510). */
+  setStudentName(studentId: string, name: string): void {
+    this.studentNames.set(studentId, name);
+  }
+
   async createCandidateRegistration(data: CandidateRegistration): Promise<CandidateRegistration> {
     const key = `${data.examinationId}:${data.studentId}`;
     this.candidateRegistrations.set(key, data);
@@ -173,5 +190,6 @@ export class InMemoryExaminationRepository implements ExaminationRepository {
     this.examinations.clear();
     this.candidateRegistrations.clear();
     this.studentEnrollments.clear();
+    this.studentNames.clear();
   }
 }

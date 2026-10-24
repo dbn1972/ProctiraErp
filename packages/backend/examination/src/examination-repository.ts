@@ -124,11 +124,29 @@ export interface StudentEnrollment {
   institutionId: string;
   /**
    * Subject codes the student has completed. `null` means the enrollment
-   * source has no transcript data (e.g. the Postgres repository today), in
-   * which case the prerequisite-completion rule is skipped rather than
-   * rejecting every registration.
+   * source has no transcript data at all, in which case the
+   * prerequisite-completion rule is skipped rather than rejecting every
+   * registration. PRC-M234: the Postgres repository resolves this from
+   * `examination_academic_records` and returns `[]` (not `null`) when the
+   * student has no passed records yet — the rule is enforced, not skipped.
    */
   completedSubjectCodes: string[] | null;
+  /**
+   * PRC-M234 follow-up: subject codes the student has ever been registered
+   * as a candidate for in ANY examination (pass, fail, or still pending),
+   * distinct from completedSubjectCodes. The prerequisite-completion rule
+   * requires every exam subject to already be completed, which — applied
+   * unconditionally — is circular for a student's very first attempt at a
+   * subject: no one could ever pass MATH for the first time, since
+   * registering for any MATH exam (including that first one) would already
+   * demand a prior MATH pass. This field lets the rule distinguish
+   * "never attempted this subject" (exempt from its own prerequisite, same
+   * as a brand-new subject with no history) from "attempted and failed"
+   * (still blocked until passed). `null`/undefined when the enrollment
+   * source cannot answer this either, in which case the bootstrap exemption
+   * does not apply (same fail-closed default as completedSubjectCodes).
+   */
+  attemptedSubjectCodes?: string[] | null;
   /** PRC-M240: gender from the student record (raw value), when known. */
   gender?: string | null;
   /** PRC-M240: geographic area of the enrolling institution, when known. */
@@ -167,6 +185,15 @@ export interface ExaminationRepository {
 
   /** Get student enrollment information for eligibility validation */
   getStudentEnrollment(studentId: string, tenantId: string): Promise<StudentEnrollment | null>;
+
+  /**
+   * PRC-M510: batched display-name lookup for candidates that have no
+   * `examination_candidates` row yet (e.g. admit cards before marks exist),
+   * so a registration-driven document candidate shows a real name instead
+   * of the raw student UUID. Missing/unknown students are simply absent
+   * from the returned map — callers decide the fallback.
+   */
+  getStudentNames(tenantId: string, studentIds: string[]): Promise<Map<string, string>>;
 
   /** Save a candidate registration */
   createCandidateRegistration(data: CandidateRegistration): Promise<CandidateRegistration>;
