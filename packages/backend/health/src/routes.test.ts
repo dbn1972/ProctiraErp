@@ -77,6 +77,44 @@ describe('Health Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.code).toBe('VALIDATION_ERROR');
     });
+
+    // PRC-L316 (10a): non-UUID studentId must be rejected at the schema
+    // layer. Failing-first: before the UUID pattern was added to
+    // CreateMeasurementSchema's studentId, this payload would have passed
+    // validation and returned 201.
+    it('PRC-L316: returns 400 VALIDATION_ERROR for a non-UUID studentId', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/measurements',
+        payload: {
+          studentId: 'not-a-uuid',
+          date: '2024-03-15',
+          height: 165,
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.code).toBe('VALIDATION_ERROR');
+    });
+
+    // PRC-L316 (10c): vitals upper bound. Failing-first: before maximum:300
+    // was added to heartRate, this would have returned 201.
+    it('PRC-L316: returns 400 for heartRate:99999 (out-of-bound vital)', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/measurements',
+        payload: {
+          studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+          date: '2024-03-15',
+          heartRate: 99999,
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.code).toBe('VALIDATION_ERROR');
+    });
   });
 
   describe('GET /health/measurements/student/:studentId', () => {
@@ -101,6 +139,29 @@ describe('Health Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.data).toHaveLength(1);
       expect(body.meta.totalItems).toBe(1);
+    });
+
+    // PRC-L114: pageSize/page bounds. Failing-first — before
+    // resolvePaginationQuery replaced the inline `Number(query.pageSize) ||
+    // 20` parsing, both of these were silently accepted (NaN/out-of-range
+    // values fell back to the `|| 20`/`|| 1` default or passed straight
+    // through unbounded).
+    it('PRC-L114: returns 400 VALIDATION_ERROR for pageSize=99999', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health/measurements/student/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d?pageSize=99999',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
+    });
+
+    it('PRC-L114: returns 400 VALIDATION_ERROR for page=-1', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health/measurements/student/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d?page=-1',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -145,6 +206,64 @@ describe('Health Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.sessionType).toBe('individual');
       expect(body.status).toBe('completed');
+    });
+
+    // PRC-L316 (10a): counsellorId is an FK-id field too — failing-first
+    // before the UUID pattern was added to CreateCounsellingSessionSchema.
+    it('PRC-L316: returns 400 VALIDATION_ERROR for a non-UUID counsellorId', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/counselling/sessions',
+        payload: {
+          studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+          counsellorId: 'not-a-uuid',
+          sessionDate: '2024-03-20',
+          sessionType: 'individual',
+          reason: 'Exam anxiety',
+          caseNotes: 'Discussed coping strategies',
+          followUpRequired: false,
+          status: 'completed',
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  describe('GET /health/counselling/sessions/student/:studentId pagination (PRC-L114)', () => {
+    it('returns 400 VALIDATION_ERROR for pageSize=99999', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health/counselling/sessions/student/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d?pageSize=99999',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  describe('POST /health/special-needs/referrals', () => {
+    // PRC-L316 (10a): diagnosisId is an FK-id field — failing-first before
+    // the UUID pattern was added to CreateReferralSchema.
+    it('PRC-L316: returns 400 VALIDATION_ERROR for a non-UUID diagnosisId', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/special-needs/referrals',
+        payload: {
+          studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+          diagnosisId: 'not-a-uuid',
+          referralDate: '2024-03-15',
+          referredBy: 'Dr A',
+          referredTo: 'Clinic',
+          reason: 'Follow-up',
+          status: 'pending',
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.code).toBe('VALIDATION_ERROR');
     });
   });
 

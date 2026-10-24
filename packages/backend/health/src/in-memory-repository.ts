@@ -23,6 +23,7 @@ import type {
   ScreeningProgramEntity,
   NurseIncidentEntity,
 } from './health-repository.js';
+import { BreakGlassNotPendingError } from './pg-break-glass-store.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
 import {
   isBreakGlassGrantActive,
@@ -519,6 +520,12 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<ReferralEntity>,
+    // PRC-M519/L115: accepted-and-ignored, matching every create*() method's
+    // existing in-memory convention — there is no real client/transaction to
+    // invoke appendAuditInTxn with here (that is Postgres-store-only).
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
+    },
   ): Promise<ReferralEntity | null> {
     const existing = this.referrals.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -570,6 +577,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<AccommodationPlanEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity | null> {
     const existing = this.accommodationPlans.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -624,6 +634,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<CounsellingSessionEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity | null> {
     const existing = this.counsellingSessions.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -923,10 +936,18 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     approverUserId: string,
+    // PRC-M519/L115: accepted-and-ignored — no real client/transaction exists
+    // in-memory, matching every other write method's convention here.
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant | null> {
     const existing = await this.findBreakGlassGrantById(id, tenantId);
     if (!existing) return null;
-    if (existing.status !== 'pending') return { ...existing };
+    // PRC-L113 sub-issue 2 (FEAT-001): an already-resolved grant must throw,
+    // not silently return 200 with the unchanged row — mirrors the Postgres
+    // store's BreakGlassNotPendingError.
+    if (existing.status !== 'pending') throw new BreakGlassNotPendingError(existing.status);
     if (existing.requesterUserId === approverUserId) {
       throw new Error('DUAL_CONTROL_VIOLATION');
     }
@@ -947,10 +968,13 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     approverUserId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant | null> {
     const existing = await this.findBreakGlassGrantById(id, tenantId);
     if (!existing) return null;
-    if (existing.status !== 'pending') return { ...existing };
+    if (existing.status !== 'pending') throw new BreakGlassNotPendingError(existing.status);
     if (existing.requesterUserId === approverUserId) {
       throw new Error('DUAL_CONTROL_VIOLATION');
     }

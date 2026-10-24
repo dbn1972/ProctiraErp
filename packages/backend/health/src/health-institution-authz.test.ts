@@ -80,9 +80,9 @@ describe('W1-SEC-04 COMPLETE health institution authz', () => {
     };
     expect(isSchoolBoundHealthActor(missingScope)).toBe(true);
     expect(effectiveInstitutionIds(missingScope)).toEqual([]);
-    expect(
-      hasHealthAccess(missingScope, studentId, { studentInstitutionId: institutionA }),
-    ).toBe(false);
+    expect(hasHealthAccess(missingScope, studentId, { studentInstitutionId: institutionA })).toBe(
+      false,
+    );
   });
 
   it('denies health_officer tenant-wide list when institution scope is missing', () => {
@@ -109,12 +109,7 @@ describe('W1-SEC-04 COMPLETE health institution authz', () => {
       guardianOfStudentIds: [],
       institutionIds: [institutionB], // JWT lies — authoritative wins
     };
-    const result = await service.listAllergies(
-      tenantId,
-      studentId,
-      { page: 1, pageSize: 10 },
-      ctx,
-    );
+    const result = await service.listAllergies(tenantId, studentId, { page: 1, pageSize: 10 }, ctx);
     expect(result.data).toHaveLength(1);
   });
 
@@ -128,5 +123,83 @@ describe('W1-SEC-04 COMPLETE health institution authz', () => {
     await expect(
       service.listAllergies(tenantId, studentId, { page: 1, pageSize: 10 }, nurseInstB),
     ).rejects.toThrow(ForbiddenError);
+  });
+
+  /**
+   * PRC-L312: findActorInstitutionAssignments throwing (RLS failure, schema
+   * drift, connection error) is NOT the same as "lookup not attempted" — the
+   * old code treated both cases identically by catching and returning
+   * `null`, so a thrown lookup fell back to JWT institution claims. A
+   * school-bound actor whose JWT claims happen to include the student's real
+   * institution was then granted access on a failed lookup, exactly as if
+   * the lookup had never been attempted.
+   *
+   * Failing-first: before the fix, pg-actor-institution-assignments.ts's
+   * findActorInstitutionAssignments caught the thrown error and returned
+   * `null`, so resolveAuthoritativeInstitutions treated `assigned === null`
+   * as "not resolved" and left the JWT `institutionIds` claim in place —
+   * `schoolNurseInstA` below would have been GRANTED access despite the
+   * throwing lookup. The repository stub here makes the lookup throw
+   * directly to exercise that path without touching the Postgres store.
+   */
+  describe('PRC-L312: institution-lookup failure fails closed', () => {
+    class ThrowingLookupRepository extends InMemoryHealthRepository {
+      override async findActorInstitutionAssignments(): Promise<string[] | null> {
+        throw new Error('simulated RLS/connection failure');
+      }
+    }
+
+    it('denies a school-bound actor whose JWT claim would otherwise grant access once the lookup throws', async () => {
+      const throwingRepo = new ThrowingLookupRepository();
+      throwingRepo.setStudentInstitution(tenantId, studentId, institutionA);
+      const throwingService = new HealthService(throwingRepo);
+      await throwingService.createAllergy(
+        tenantId,
+        { studentId, allergyType: 'food', description: 'Peanuts', severity: 'high' },
+        { userId: 'health-admin', roles: ['health_admin'], guardianOfStudentIds: [] },
+      );
+
+      // JWT claims institutionA — which matches the student's real
+      // institution and would grant access if the lookup had simply not run.
+      const nurseWithMatchingJwtClaim: HealthAccessContext = {
+        userId: 'nurse-a',
+        roles: ['school_nurse'],
+        guardianOfStudentIds: [],
+        institutionIds: [institutionA],
+      };
+
+      await expect(
+        throwingService.listAllergies(
+          tenantId,
+          studentId,
+          { page: 1, pageSize: 10 },
+          nurseWithMatchingJwtClaim,
+        ),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('a tenant-wide health_admin is unaffected by the same thrown lookup error', async () => {
+      const throwingRepo = new ThrowingLookupRepository();
+      throwingRepo.setStudentInstitution(tenantId, studentId, institutionA);
+      const throwingService = new HealthService(throwingRepo);
+      const tenantWideAdmin: HealthAccessContext = {
+        userId: 'admin-1',
+        roles: ['health_admin'],
+        guardianOfStudentIds: [],
+      };
+      await throwingService.createAllergy(
+        tenantId,
+        { studentId, allergyType: 'food', description: 'Peanuts', severity: 'high' },
+        tenantWideAdmin,
+      );
+
+      const result = await throwingService.listAllergies(
+        tenantId,
+        studentId,
+        { page: 1, pageSize: 10 },
+        tenantWideAdmin,
+      );
+      expect(result.data).toHaveLength(1);
+    });
   });
 });

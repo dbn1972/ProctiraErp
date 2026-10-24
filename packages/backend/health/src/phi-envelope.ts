@@ -187,6 +187,17 @@ export class LocalStubPhiKmsClient implements PhiKmsClient {
   }
 }
 
+/**
+ * PRC-L313 (NEEDS_DECISION, not implemented in this batch): `activeProvider`
+ * is resolved once at boot (`ensurePhiEnvelopeProvider`) and cached for the
+ * life of the process — there is no hot-reload path. Rotating
+ * `PHI_KMS_WRAPPED_ROOT_KEY` (or bumping `PHI_KMS_KEY_VERSION`) today
+ * requires a process restart before the new root key takes effect; any
+ * already-running process keeps using the root key it unwrapped at boot via
+ * `KmsPhiEnvelopeProvider.unwrapRootKey()`. Whether to add a root-key
+ * hot-refresh path (and its blast radius on in-flight encrypt/decrypt calls)
+ * is a product/ops decision for the PR body, not a codeable slice here.
+ */
 let activeProvider: PhiEnvelopeProvider | null | undefined;
 
 /** Test/DI hook — reset between unit tests. */
@@ -234,6 +245,17 @@ export function assertPhiEnvelopeConfigured(env: NodeJS.ProcessEnv = process.env
   if (isProductionEnv(env) && kind === 'local-stub' && !envFlag('ALLOW_PHI_KMS_STUB', env)) {
     throw new PhiEnvelopeMisconfiguredError(
       'W1-SEC-04: local-stub PHI envelope requires ALLOW_PHI_KMS_STUB=1 in production',
+    );
+  }
+  // PRC-M517: ALLOW_PHI_KMS_STUB=1 is a deliberate, explicit override — it
+  // does not throw — but a fake (non-AWS) KMS client protecting PHI in
+  // production is loud-warning-worthy every time it is reached, not a
+  // silent pass-through.
+  if (isProductionEnv(env) && kind === 'local-stub' && envFlag('ALLOW_PHI_KMS_STUB', env)) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      'PRC-M517: PHI_ENVELOPE_PROVIDER=local-stub is active in production ' +
+        '(ALLOW_PHI_KMS_STUB=1). This uses a non-AWS stub KMS client to protect PHI at rest.',
     );
   }
   if (kind === 'kms' || kind === 'local-stub') {
