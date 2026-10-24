@@ -50,6 +50,13 @@ export interface GenerateInput {
   demands: GeneratorDemand[];
   unavailable?: UnavailableSlot[];
   teacherMaxPeriodsPerDay?: number;
+  /**
+   * PRC-M550(a): assignments already committed to the DB (active meetings for this
+   * institution/period) before this run started. Seeded into occupancy before the greedy fill
+   * loop so canPlaceHard already rejects slots the DB has taken, instead of the generator
+   * happily double-booking them and persistMeetings silently skipping the clash later.
+   */
+  existingAssignments?: GeneratorAssignment[];
 }
 
 export interface GeneratorAssignment {
@@ -193,11 +200,18 @@ function canPlaceHard(
   roomId: string | null,
   occ: Occupancy,
   unavailable: Set<string>,
+  maxPeriods: number,
 ): boolean {
   if (unavailable.has(key([demand.staffId, dayOfWeek, periodId]))) return false;
   if (occ.teacher.has(key([demand.staffId, dayOfWeek, periodId]))) return false;
   if (occ.section.has(key([demand.sectionId, dayOfWeek, periodId]))) return false;
   if (roomId && occ.room.has(key([roomId, dayOfWeek, periodId]))) return false;
+  // PRC-L374 part 1: teacherMaxPeriodsPerDay used to be scoring-only (softScore penalizes it,
+  // but the repair loop's displace-and-retry could still cycle MAX_REPAIR_PASSES times and
+  // leave the output over the cap). Make it a hard rejection: the generator now leaves excess
+  // demand unassigned rather than ever placing a teacher's day over the limit.
+  const dayLoad = occ.teacherDay.get(key([demand.staffId, dayOfWeek])) ?? 0;
+  if (dayLoad >= maxPeriods) return false;
   return true;
 }
 
@@ -251,7 +265,9 @@ function tryPlaceOne(
     if (rooms.length > 0 && roomId === null && (demand.enrollmentCount ?? 0) > 0) {
       continue;
     }
-    if (!canPlaceHard(demand, slot.dayOfWeek, slot.period.id, roomId, occ, unavailable)) {
+    if (
+      !canPlaceHard(demand, slot.dayOfWeek, slot.period.id, roomId, occ, unavailable, maxPeriods)
+    ) {
       continue;
     }
     const score = softScore(demand, slot.dayOfWeek, roomId, occ, maxPeriods);
@@ -285,6 +301,10 @@ export function generateTimetable(input: GenerateInput): GenerateResult {
   );
   const slots = buildSlots(days, input.periods);
   const occ = emptyOccupancy();
+  // PRC-M550(a): seed occupancy with already-committed assignments before placing anything new.
+  for (const existing of input.existingAssignments ?? []) {
+    occupy(occ, existing);
+  }
   const assignments: GeneratorAssignment[] = [];
   const remaining = new Map<string, { demand: GeneratorDemand; left: number }>();
 
