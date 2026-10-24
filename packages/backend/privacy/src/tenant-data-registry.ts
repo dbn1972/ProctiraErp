@@ -197,9 +197,12 @@ const WIPE: Record<string, readonly string[]> = {
     'seat_matrix',
   ],
   attendance: [
+    'attendance_absence_threshold_config',
     'attendance_device_keys',
     'attendance_ingest_events',
+    'attendance_institution_config',
     'attendance_leave_requests',
+    'attendance_leave_types',
     'attendance_regularisation_requests',
     'student_attendance',
   ],

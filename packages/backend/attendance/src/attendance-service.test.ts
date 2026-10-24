@@ -550,40 +550,42 @@ describe('AttendanceService', () => {
   });
 
   describe('validateAttendanceDate', () => {
-    it('should accept today', () => {
+    it('should accept today', async () => {
       const today = new Date();
       const dateStr = today.toISOString().split('T')[0]!;
       const periodStart = new Date('2020-01-01');
       const periodEnd = new Date('2099-12-31');
 
-      expect(() => service.validateAttendanceDate(dateStr, periodStart, periodEnd)).not.toThrow();
+      await expect(
+        service.validateAttendanceDate(dateStr, periodStart, periodEnd),
+      ).resolves.not.toThrow();
     });
 
-    it('should accept past dates within period', () => {
+    it('should accept past dates within period', async () => {
       const periodStart = new Date('2024-01-01');
       const periodEnd = new Date('2024-12-31');
 
-      expect(() =>
+      await expect(
         service.validateAttendanceDate('2024-06-15', periodStart, periodEnd),
-      ).not.toThrow();
+      ).resolves.not.toThrow();
     });
 
-    it('should reject future dates', () => {
+    it('should reject future dates', async () => {
       const periodStart = new Date('2024-01-01');
       const periodEnd = new Date('2099-12-31');
 
-      expect(() => service.validateAttendanceDate('2099-12-31', periodStart, periodEnd)).toThrow(
-        BusinessRuleError,
-      );
+      await expect(
+        service.validateAttendanceDate('2099-12-31', periodStart, periodEnd),
+      ).rejects.toThrow(BusinessRuleError);
     });
 
-    it('should reject dates before period start', () => {
+    it('should reject dates before period start', async () => {
       const periodStart = new Date('2024-01-01');
       const periodEnd = new Date('2024-12-31');
 
-      expect(() => service.validateAttendanceDate('2023-12-31', periodStart, periodEnd)).toThrow(
-        BusinessRuleError,
-      );
+      await expect(
+        service.validateAttendanceDate('2023-12-31', periodStart, periodEnd),
+      ).rejects.toThrow(BusinessRuleError);
     });
   });
 

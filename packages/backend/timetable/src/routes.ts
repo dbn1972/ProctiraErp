@@ -65,6 +65,11 @@ function tenantIdOf(request: FastifyRequest, reply: FastifyReply): string | unde
   return tenantId;
 }
 
+/** PRC-L373: the request's authenticated subject, for threading a real actorId into audits. */
+function actorIdOf(request: FastifyRequest): string | null {
+  return (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
+}
+
 function requestRoles(request: FastifyRequest): unknown {
   const user = (
     request as FastifyRequest & {
@@ -360,14 +365,18 @@ export async function registerTimetableRoutes(
       });
     }
     try {
-      const row = await service.createBellSchedule(tenantId, {
-        institutionId: validated.data.institutionId,
-        academicPeriodId: validated.data.academicPeriodId,
-        name: validated.data.name,
-        code: validated.data.code,
-        dayPattern: validated.data.dayPattern ?? '1,2,3,4,5',
-        status: validated.data.status ?? 'active',
-      });
+      const row = await service.createBellSchedule(
+        tenantId,
+        {
+          institutionId: validated.data.institutionId,
+          academicPeriodId: validated.data.academicPeriodId,
+          name: validated.data.name,
+          code: validated.data.code,
+          dayPattern: validated.data.dayPattern ?? '1,2,3,4,5',
+          status: validated.data.status ?? 'active',
+        },
+        actorIdOf(request),
+      );
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -395,6 +404,7 @@ export async function registerTimetableRoutes(
         id,
         validated.data,
         expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+        actorIdOf(request),
       );
       if (!row) {
         return reply
@@ -414,7 +424,7 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
-      const ok = await service.deleteBellSchedule(tenantId, id);
+      const ok = await service.deleteBellSchedule(tenantId, id, actorIdOf(request));
       if (!ok) {
         return reply
           .status(404)
@@ -461,10 +471,14 @@ export async function registerTimetableRoutes(
     }
     try {
       const { bellScheduleId } = request.params as { bellScheduleId: string };
-      const row = await service.createPeriod(tenantId, {
-        bellScheduleId,
-        ...validated.data,
-      });
+      const row = await service.createPeriod(
+        tenantId,
+        {
+          bellScheduleId,
+          ...validated.data,
+        },
+        actorIdOf(request),
+      );
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -492,6 +506,7 @@ export async function registerTimetableRoutes(
         id,
         validated.data,
         expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+        actorIdOf(request),
       );
       if (!row) {
         return reply
@@ -510,7 +525,7 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
-      const ok = await service.deletePeriod(tenantId, id);
+      const ok = await service.deletePeriod(tenantId, id, actorIdOf(request));
       if (!ok) {
         return reply
           .status(404)
@@ -563,17 +578,21 @@ export async function registerTimetableRoutes(
       });
     }
     try {
-      const row = await service.createMeeting(tenantId, {
-        institutionId: validated.data.institutionId,
-        academicPeriodId: validated.data.academicPeriodId,
-        sectionId: validated.data.sectionId,
-        subjectId: validated.data.subjectId ?? null,
-        staffId: validated.data.staffId,
-        periodId: validated.data.periodId,
-        roomId: validated.data.roomId ?? null,
-        dayOfWeek: validated.data.dayOfWeek,
-        status: validated.data.status ?? 'active',
-      });
+      const row = await service.createMeeting(
+        tenantId,
+        {
+          institutionId: validated.data.institutionId,
+          academicPeriodId: validated.data.academicPeriodId,
+          sectionId: validated.data.sectionId,
+          subjectId: validated.data.subjectId ?? null,
+          staffId: validated.data.staffId,
+          periodId: validated.data.periodId,
+          roomId: validated.data.roomId ?? null,
+          dayOfWeek: validated.data.dayOfWeek,
+          status: validated.data.status ?? 'active',
+        },
+        actorIdOf(request),
+      );
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -601,6 +620,7 @@ export async function registerTimetableRoutes(
         id,
         validated.data,
         expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+        actorIdOf(request),
       );
       if (!row) {
         return reply
@@ -620,7 +640,7 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
-      const ok = await service.deleteMeeting(tenantId, id);
+      const ok = await service.deleteMeeting(tenantId, id, actorIdOf(request));
       if (!ok) {
         return reply
           .status(404)
@@ -679,7 +699,7 @@ export async function registerTimetableRoutes(
       });
     }
     try {
-      const row = await service.createSubstitution(tenantId, validated.data);
+      const row = await service.createSubstitution(tenantId, validated.data, actorIdOf(request));
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -719,14 +739,18 @@ export async function registerTimetableRoutes(
       });
     }
     try {
-      const row = await service.createRoom(tenantId, {
-        institutionId: validated.data.institutionId,
-        code: validated.data.code,
-        name: validated.data.name,
-        capacity: validated.data.capacity ?? 30,
-        roomType: validated.data.roomType ?? 'CLASSROOM',
-        status: validated.data.status ?? 'active',
-      });
+      const row = await service.createRoom(
+        tenantId,
+        {
+          institutionId: validated.data.institutionId,
+          code: validated.data.code,
+          name: validated.data.name,
+          capacity: validated.data.capacity ?? 30,
+          roomType: validated.data.roomType ?? 'CLASSROOM',
+          status: validated.data.status ?? 'active',
+        },
+        actorIdOf(request),
+      );
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -825,16 +849,20 @@ export async function registerTimetableRoutes(
       });
     }
     try {
-      const row = await service.createSection(tenantId, {
-        institutionId: validated.data.institutionId,
-        academicPeriodId: validated.data.academicPeriodId,
-        name: validated.data.name,
-        code: validated.data.code,
-        gradeId: validated.data.gradeId ?? null,
-        primaryTeacherId: validated.data.primaryTeacherId ?? null,
-        defaultRoomId: validated.data.defaultRoomId ?? null,
-        capacity: validated.data.capacity ?? 40,
-      });
+      const row = await service.createSection(
+        tenantId,
+        {
+          institutionId: validated.data.institutionId,
+          academicPeriodId: validated.data.academicPeriodId,
+          name: validated.data.name,
+          code: validated.data.code,
+          gradeId: validated.data.gradeId ?? null,
+          primaryTeacherId: validated.data.primaryTeacherId ?? null,
+          defaultRoomId: validated.data.defaultRoomId ?? null,
+          capacity: validated.data.capacity ?? 40,
+        },
+        actorIdOf(request),
+      );
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -863,6 +891,7 @@ export async function registerTimetableRoutes(
         id,
         validated.data,
         expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+        actorIdOf(request),
       );
       if (!row) {
         return reply.status(404).send({
@@ -885,7 +914,7 @@ export async function registerTimetableRoutes(
     try {
       const { id } = request.params as { id: string };
       if (!(await assertSectionInInstitution(service, tenantId, id, request, reply))) return;
-      const ok = await service.deleteSection(tenantId, id);
+      const ok = await service.deleteSection(tenantId, id, actorIdOf(request));
       if (!ok) {
         return reply.status(404).send({
           code: 'NOT_FOUND',
@@ -935,7 +964,12 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
-      const row = await service.enrollStudent(tenantId, id, validated.data.studentId);
+      const row = await service.enrollStudent(
+        tenantId,
+        id,
+        validated.data.studentId,
+        actorIdOf(request),
+      );
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -965,7 +999,12 @@ export async function registerTimetableRoutes(
           statusCode: 404,
         });
       }
-      const result = await service.bulkEnrollStudents(tenantId, id, validated.data.studentIds);
+      const result = await service.bulkEnrollStudents(
+        tenantId,
+        id,
+        validated.data.studentIds,
+        actorIdOf(request),
+      );
       return reply.status(200).send({
         enrolled: result.enrolled,
         failed: result.failed,
@@ -986,7 +1025,7 @@ export async function registerTimetableRoutes(
     if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id, studentId } = request.params as { id: string; studentId: string };
-      const row = await service.withdrawStudent(tenantId, id, studentId);
+      const row = await service.withdrawStudent(tenantId, id, studentId, actorIdOf(request));
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -1179,39 +1218,80 @@ export async function registerTimetableRoutes(
       return sendDomainError(reply, error);
     }
   });
-  fastify.post<{ Body: { sourcePeriodId?: string; targetPeriodId?: string } }>(
-    `${prefix}/clone-period`,
-    async (request, reply) => {
-      // PRC-M406: clone writes sections/meetings — scheduler roles only, tenant first.
-      const tenantId = tenantIdOf(request, reply);
-      if (!tenantId) return;
-      if (!requireAction(request, reply, 'schedule.write')) return;
-      const sourcePeriodId = request.body?.sourcePeriodId;
-      const targetPeriodId = request.body?.targetPeriodId;
-      if (
-        !sourcePeriodId ||
-        !targetPeriodId ||
-        !UUID_RE.test(sourcePeriodId) ||
-        !UUID_RE.test(targetPeriodId)
-      ) {
-        return reply.code(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'sourcePeriodId and targetPeriodId are required UUIDs',
-          statusCode: 400,
+  // ── Durable audit trail (PRC-L373) ────────────────────────────────────────
+
+  fastify.get(`${prefix}/audits`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.read')) return;
+    try {
+      const page = listPageOf(request);
+      if (!page) return badRequest(reply, 'limit must be a positive integer and offset >= 0');
+      const result = await service.listDurableAudits(tenantId, page);
+      if (!result) {
+        return reply.status(503).send({
+          code: 'AUDIT_STORE_UNAVAILABLE',
+          message: 'Durable audit storage is not configured for this deployment',
+          statusCode: 503,
         });
       }
-      const actorId = (request as { user?: { sub?: string } }).user?.sub ?? null;
-      try {
-        const result = await service.cloneForAcademicPeriod(
-          tenantId,
-          sourcePeriodId,
-          targetPeriodId,
-          { actorId },
-        );
-        return reply.code(201).send(result);
-      } catch (error) {
-        return sendDomainError(reply, error);
+      return reply.send({
+        data: result.data,
+        page: { limit: page.limit, offset: page.offset, totalItems: result.meta.totalItems },
+      });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post<{
+    Body: { sourcePeriodId?: string; targetPeriodId?: string; institutionId?: string };
+  }>(`${prefix}/clone-period`, async (request, reply) => {
+    // PRC-M406: clone writes sections/meetings — scheduler roles only, tenant first.
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
+    const sourcePeriodId = request.body?.sourcePeriodId;
+    const targetPeriodId = request.body?.targetPeriodId;
+    const institutionId = request.body?.institutionId;
+    if (
+      !sourcePeriodId ||
+      !targetPeriodId ||
+      !institutionId ||
+      !UUID_RE.test(sourcePeriodId) ||
+      !UUID_RE.test(targetPeriodId) ||
+      !UUID_RE.test(institutionId)
+    ) {
+      return reply.code(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'sourcePeriodId, targetPeriodId and institutionId are required UUIDs',
+        statusCode: 400,
+      });
+    }
+    // PRC-M549: resolve institution scope the same way the /sections/:id hook does, so a
+    // caller scoped to one institution cannot clone another institution's schedule data.
+    const user = (
+      request as FastifyRequest & {
+        user?: { tenantId?: string; institutions?: unknown; roles?: unknown };
       }
-    },
-  );
+    ).user;
+    try {
+      assertInstitutionInScope(user, institutionId, 'Institution not found');
+    } catch (error) {
+      if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
+      throw error;
+    }
+    const actorId = (request as { user?: { sub?: string } }).user?.sub ?? null;
+    try {
+      const result = await service.cloneForAcademicPeriod(
+        tenantId,
+        sourcePeriodId,
+        targetPeriodId,
+        { actorId, institutionId },
+      );
+      return reply.code(201).send(result);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
 }

@@ -24,6 +24,8 @@ describe('timetablePlugin with a shared service', () => {
   it.each([
     ['staffBelongsToInstitution', { staffBelongsToInstitution: async () => true }],
     ['timeZone', { timeZone: 'Asia/Kolkata' }],
+    // PRC-L373: auditPool joins the same fail-fast guard as timeZone/staffBelongsToInstitution.
+    ['auditPool', { auditPool: { query: async () => ({ rows: [] }) } }],
   ])('refuses %s alongside options.service (would be dropped)', async (_name, extra) => {
     const repository = new InMemoryTimetableRepository();
     const service = new TimetableService(repository, new InMemoryTimetableOpsStore());
