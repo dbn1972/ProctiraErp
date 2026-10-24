@@ -19,10 +19,12 @@ export interface TimetablePluginOptions {
   prefix?: string;
   /** PRC-M101: when set, meetings/substitutions reject staff of another institution. */
   staffBelongsToInstitution?: StaffInstitutionMembership;
+  /** PRC-L373: when set, mutation audits are also persisted durably (see TimetableServiceOptions). */
+  auditPool?: TimetableServiceOptions['auditPool'];
   /**
    * PRC-L320: pre-built service instance shared with other in-process callers
    * (e.g. institution rollover) so they use the mounted instance, not a copy.
-   * Construction-time options (timeZone, staffBelongsToInstitution) must then be
+   * Construction-time options (timeZone, staffBelongsToInstitution, auditPool) must then be
    * given to that service, not here.
    */
   service?: TimetableService;
@@ -36,10 +38,13 @@ declare module 'fastify' {
 
 export const timetablePlugin = fp(
   async function timetablePluginImpl(fastify: FastifyInstance, options: TimetablePluginOptions) {
-    if (options.service && (options.staffBelongsToInstitution || options.timeZone)) {
-      // Fail fast instead of silently dropping PRC-M101 / PRC-M403 wiring.
+    if (
+      options.service &&
+      (options.staffBelongsToInstitution || options.timeZone || options.auditPool)
+    ) {
+      // Fail fast instead of silently dropping PRC-M101 / PRC-M403 / PRC-L373 wiring.
       throw new Error(
-        'timetablePlugin: pass staffBelongsToInstitution/timeZone to the shared TimetableService, not alongside options.service',
+        'timetablePlugin: pass staffBelongsToInstitution/timeZone/auditPool to the shared TimetableService, not alongside options.service',
       );
     }
     const service =
@@ -47,6 +52,7 @@ export const timetablePlugin = fp(
       new TimetableService(options.repository, options.opsStore ?? createTimetableOpsStore(), {
         timeZone: options.timeZone,
         staffBelongsToInstitution: options.staffBelongsToInstitution,
+        auditPool: options.auditPool,
       });
     fastify.decorate('timetableService', service);
     await registerTimetableRoutes(fastify, {
