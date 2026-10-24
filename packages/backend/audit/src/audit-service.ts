@@ -249,12 +249,14 @@ export class AuditService {
    * Requirement 21.5: Configurable retention with automated archival.
    */
   async setRetentionConfig(input: SetRetentionInput): Promise<AuditRetentionConfig> {
-    if (input.retentionMonths < 1) {
-      throw new ValidationError('Retention period must be at least 1 month', [
+    if (input.retentionMonths < 12) {
+      // PRC-L295: statutory floor of 12 months (D5-privacy-retention.md), matching
+      // db/sql/243_audit_retention_floor.sql's CHECK (retention_months >= 12).
+      throw new ValidationError('Retention period must be at least 12 months', [
         {
           field: 'retentionMonths',
           rule: 'minimum',
-          message: 'Retention period must be at least 1 month',
+          message: 'Retention period must be at least 12 months',
         },
       ]);
     }

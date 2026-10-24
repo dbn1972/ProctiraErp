@@ -205,7 +205,7 @@ describe('PgAuditRepository hash chain (live, G-913)', () => {
     await ensurePgTestTenant(pool!, tenantId);
     await repo.setRetentionConfig({
       tenantId,
-      retentionMonths: 6,
+      retentionMonths: 12, // PRC-L295/243: DB floor is retention_months >= 12
       archivalEnabled: true,
       archivalDestination: null,
       lastArchivalAt: null,
