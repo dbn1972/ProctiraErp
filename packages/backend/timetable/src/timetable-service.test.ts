@@ -611,4 +611,136 @@ describe('G-917 generation jobs + absences', () => {
     expect(affected).toHaveLength(1);
     expect(affected[0]?.staffId).toBe(staffA);
   });
+
+  /**
+   * PRC-M396(a): assertNoMeetingClash scoped its scan by candidate.institutionId, which
+   * previously came straight from the client body. A caller naming a sectionId that belongs
+   * to institution A but claiming institutionId B got the clash scan run against (near-empty)
+   * institution B, so a real A-side double-book went undetected.
+   */
+  it('rejects a client-forged institutionId that disagrees with the section (PRC-M396a)', async () => {
+    const institutionB = '99999999-9999-4999-8999-999999999999';
+    const service = new TimetableService(new InMemoryTimetableRepository());
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'DAYM396',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    const period = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    const section = await service.createSection(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: '10-A',
+    });
+    // staffA is already booked at institution A's slot.
+    await service.createMeeting(tenantId, {
+      institutionId,
+      academicPeriodId,
+      sectionId: section.id,
+      subjectId: null,
+      staffId: staffA,
+      periodId: period.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+    });
+    const otherSection = await service.createSection(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: '10-B',
+    });
+    // Same real institution (via sectionId), but the client claims institutionB in the body.
+    // Pre-fix: assertNoMeetingClash scanned institutionB's (empty) meetings and let this through,
+    // silently double-booking staffA at institution A. Post-fix: the mismatch is rejected (400).
+    await expect(
+      service.createMeeting(tenantId, {
+        institutionId: institutionB,
+        academicPeriodId,
+        sectionId: otherSection.id,
+        subjectId: null,
+        staffId: staffA,
+        periodId: period.id,
+        roomId: null,
+        dayOfWeek: 1,
+        status: 'active',
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  /**
+   * PRC-L175 part 2: listAffectedPeriods never looked at substitutions, so a period already
+   * covered by a SCHEDULED substitution for the exact absence date still showed as "needs a
+   * substitute." hasSubstitute is additive (rows are never filtered out, only annotated).
+   */
+  it('flags affected periods already covered by a substitution (PRC-L175 part 2)', async () => {
+    const service = new TimetableService(new InMemoryTimetableRepository());
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'DAYL175',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    const period1 = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    const period2 = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P2',
+      periodOrder: 2,
+      startTime: '09:00',
+      endTime: '09:45',
+    });
+    // Covered meeting: staffA's section, gets a SCHEDULED substitution for the absence date.
+    const coveredMeeting = await service.createMeeting(tenantId, {
+      institutionId,
+      academicPeriodId,
+      sectionId: sectionA,
+      subjectId: null,
+      staffId: staffA,
+      periodId: period1.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+    });
+    // Uncovered sibling: same staff, different section/period, same weekday, no substitution.
+    const uncoveredMeeting = await service.createMeeting(tenantId, {
+      institutionId,
+      academicPeriodId,
+      sectionId: sectionB,
+      subjectId: null,
+      staffId: staffA,
+      periodId: period2.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+    });
+    await service.createSubstitution(tenantId, {
+      sectionMeetingId: coveredMeeting.id,
+      substituteStaffId: staffB,
+      substitutionDate: '2026-09-07', // Monday, ISO weekday 1
+    });
+    const affected = await service.listAffectedPeriods(tenantId, {
+      institutionId,
+      staffId: staffA,
+      date: '2026-09-07',
+    });
+    expect(affected).toHaveLength(2);
+    expect(affected.find((m) => m.id === coveredMeeting.id)?.hasSubstitute).toBe(true);
+    expect(affected.find((m) => m.id === uncoveredMeeting.id)?.hasSubstitute).toBe(false);
+  });
 });

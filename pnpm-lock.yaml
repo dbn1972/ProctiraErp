@@ -2694,6 +2694,9 @@ importers:
 
   packages/backend/timetable:
     dependencies:
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common

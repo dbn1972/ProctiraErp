@@ -7,19 +7,24 @@
  * bound on the same connection that executes the query; `tenantId` is also kept
  * in every `where` clause as defense-in-depth (mirrors PrismaInstitutionRepository).
  *
- * Notes on methods without a dedicated table:
- *  - `getInstitutionAttendanceConfig` / `getAbsenceThresholdConfig` have no
- *    backing schema yet, so they return `null`. The service degrades safely:
- *    it defaults to `recordingMode: 'class'` and treats a null threshold config
- *    as "no alerting configured". Persisting these is a future enhancement.
+ * Notes on methods without a dedicated Prisma model:
+ *  - `getInstitutionAttendanceConfig` / `getAbsenceThresholdConfig` (PRC-M169)
+ *    read `attendance_institution_config` / `attendance_absence_threshold_config`
+ *    / `attendance_leave_types` (db/sql/231) via a raw pg pool bound with
+ *    `withPgTenant`, since these tables are not Prisma-mapped. They still
+ *    return `null` when no row exists for the institution — the service's
+ *    existing "degrade to defaults" behavior (recordingMode: 'class', no
+ *    alerting) is unchanged for unconfigured institutions. Surfacing a 501
+ *    for an unconfigured institution instead is an explicit owner-decision
+ *    flag, not implemented here.
  *  - `attendance_audit` carries no tenant id; its RLS policy derives tenancy from
  *    the parent attendance row, so callers pass `tenantId` to bind the context.
  */
 import { createHash } from 'node:crypto';
 
 import { ConflictError, NotFoundError, type AttendanceStatus } from '@proctira/common';
-import { withTenantTransaction } from '@proctira/database';
-import type { Prisma, PrismaClient } from '@proctira/database';
+import { getSharedPgPool, withPgTenant, withTenantTransaction } from '@proctira/database';
+import type { Prisma, PrismaClient, PgQueryable } from '@proctira/database';
 
 import type {
   AbsenceThresholdConfig,
@@ -30,6 +35,7 @@ import type {
   AttendanceStatusCount,
   AttendanceWriteOp,
   InstitutionAttendanceConfig,
+  RecordingMode,
   StaffAttendanceEntity,
   StudentAttendanceEntity,
   StudentRosterEntry,
@@ -143,6 +149,21 @@ export function actorUuid(subject: string): string {
 
 export class PrismaAttendanceRepository implements AttendanceRepository {
   constructor(private readonly prisma: PrismaClient) {}
+
+  /**
+   * PRC-M169: lazily resolves the shared raw pg pool for the three
+   * non-Prisma-mapped config tables (db/sql/231). Falls back to
+   * `process.env.DATABASE_URL` the same way `getSharedPgPool()` does
+   * elsewhere in this repo; throws if no pool can be resolved (the Prisma
+   * client itself already required one to be constructed).
+   */
+  private pgPool(): PgQueryable {
+    const pool = getSharedPgPool();
+    if (!pool) {
+      throw new Error('PrismaAttendanceRepository: no DATABASE_URL available for raw pg queries');
+    }
+    return pool;
+  }
 
   // --- Student attendance ---
 
@@ -508,15 +529,30 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
 
   // --- Roster (reads existing enrollment + student tables) ---
 
+  /**
+   * PRC-L275: `date` now bounds the roster by enrollment window
+   * (`enrolledAt <= date` and `exitedAt IS NULL OR exitedAt >= date`), so a
+   * student who transferred out before this date no longer appears, and one
+   * who hasn't enrolled yet doesn't either. Previously the parameter was
+   * unused (`_date`) and every ENROLLED row was returned regardless of date.
+   */
   async getClassRoster(
     tenantId: string,
     classId: string,
     academicPeriodId: string,
-    _date: string,
+    date: string,
   ): Promise<StudentRosterEntry[]> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const asOf = toDateOnly(date);
       const enrollments = await tx.enrollment.findMany({
-        where: { tenantId, classId, academicPeriodId, status: 'ENROLLED' },
+        where: {
+          tenantId,
+          classId,
+          academicPeriodId,
+          status: 'ENROLLED',
+          enrolledAt: { lte: asOf },
+          OR: [{ exitedAt: null }, { exitedAt: { gte: asOf } }],
+        },
         include: { student: true },
       });
       return enrollments.map((e) => ({
@@ -581,20 +617,76 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     });
   }
 
-  // --- Config (no backing table yet — service degrades safely) ---
+  // --- Config (PRC-M169: db/sql/231 raw-SQL tables, not Prisma-mapped) ---
 
+  /**
+   * Returns the configured recording mode + leave types for an institution,
+   * or `null` when no row exists — the service degrades to
+   * `recordingMode: 'class'` with no leave types in that case (unchanged
+   * behavior). Does NOT surface a 501 for an unconfigured institution; that
+   * is an explicit owner-decision flag, not part of this fix.
+   */
   async getInstitutionAttendanceConfig(
-    _tenantId: string,
-    _institutionId: string,
+    tenantId: string,
+    institutionId: string,
   ): Promise<InstitutionAttendanceConfig | null> {
-    return null;
+    return withPgTenant(this.pgPool(), tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT recording_mode FROM attendance_institution_config
+          WHERE tenant_id = $1 AND institution_id = $2 LIMIT 1`,
+        [tenantId, institutionId],
+      );
+      const row = rows[0] as { recording_mode: string } | undefined;
+      if (!row) return null;
+
+      const { rows: leaveTypeRows } = await client.query(
+        `SELECT id, code, name, is_active FROM attendance_leave_types
+          WHERE tenant_id = $1 AND institution_id = $2
+          ORDER BY code ASC`,
+        [tenantId, institutionId],
+      );
+      const leaveTypes = (
+        leaveTypeRows as Array<{ id: string; code: string; name: string; is_active: boolean }>
+      ).map((lt) => ({
+        id: lt.id,
+        code: lt.code,
+        name: lt.name,
+        isActive: lt.is_active,
+      }));
+
+      return {
+        tenantId,
+        institutionId,
+        recordingMode: row.recording_mode as RecordingMode,
+        leaveTypes,
+      };
+    });
   }
 
+  /** Returns the configured absence-alert threshold, or `null` when unconfigured (no alerting). */
   async getAbsenceThresholdConfig(
-    _tenantId: string,
-    _institutionId: string,
+    tenantId: string,
+    institutionId: string,
   ): Promise<AbsenceThresholdConfig | null> {
-    return null;
+    return withPgTenant(this.pgPool(), tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT threshold, evaluation_period_days, recipient_role_ids
+           FROM attendance_absence_threshold_config
+          WHERE tenant_id = $1 AND institution_id = $2 LIMIT 1`,
+        [tenantId, institutionId],
+      );
+      const row = rows[0] as
+        | { threshold: number; evaluation_period_days: number; recipient_role_ids: string[] }
+        | undefined;
+      if (!row) return null;
+      return {
+        tenantId,
+        institutionId,
+        threshold: row.threshold,
+        evaluationPeriodDays: row.evaluation_period_days,
+        recipientRoleIds: row.recipient_role_ids ?? [],
+      };
+    });
   }
 
   // --- Audit (append-only; RLS derived from the parent attendance row — G-732) ---
