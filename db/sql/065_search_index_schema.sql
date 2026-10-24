@@ -1,6 +1,13 @@
 -- W3-D2: Tenant-scoped search index foundation (Postgres backing store).
 -- Durable documents for global search / command palette entity lookup.
 -- Wave 3 ships schema + RLS; application adapters wire in a follow-up slice.
+--
+-- PRC-L463: confirmed via grep this table has no application read/write
+-- consumer wired into the running gateway as of this writing —
+-- @proctira/search-index's PostgresSearchIndex adapter exists and is unit
+-- tested, but no backend package or app calls createSearchIndex()/
+-- PostgresSearchIndex against it today. Forward-provisioned with no current
+-- runtime consumer.
 
 CREATE TABLE IF NOT EXISTS search_index_documents (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

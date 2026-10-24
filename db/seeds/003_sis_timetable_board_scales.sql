@@ -21,6 +21,11 @@ BEGIN
     RETURN;
   END IF;
 
+  -- PRC-L556: bind the tenant GUC before any domain-table write so RLS does
+  -- not silently filter these inserts to zero rows under the non-superuser
+  -- runtime role.
+  PERFORM set_app_tenant_id(tid::text);
+
   SELECT id INTO bid_cbse FROM boards WHERE tenant_id = tid AND code = 'CBSE' AND deleted_at IS NULL;
   SELECT id INTO bid_icse FROM boards WHERE tenant_id = tid AND code = 'ICSE' AND deleted_at IS NULL;
   SELECT id INTO bid_mh   FROM boards WHERE tenant_id = tid AND code = 'MH-STATE' AND deleted_at IS NULL;
@@ -76,6 +81,9 @@ BEGIN
     '{"board":"CBSE","source":"003_sis_timetable_board_scales"}'::jsonb
   );
 
+  -- PRC-L555: CBSE's actual 9-point scale splits the lowest band into E1/E2
+  -- (both fail bands, 0 grade points) instead of a single E band, giving 9
+  -- contiguous labeled bands with no gap or overlap across 0-100.
   INSERT INTO grading_scale_bands (id, tenant_id, grading_scale_id, label, min_percent, max_percent, grade_points, sort_order)
   SELECT uuid_generate_v4(), tid, scale_cbse, v.label, v.min_p, v.max_p, v.gp, v.ord
   FROM (VALUES
@@ -86,7 +94,8 @@ BEGIN
     ('C1', 51.00,  60.99,  6.00, 5),
     ('C2', 41.00,  50.99,  5.00, 6),
     ('D',  33.00,  40.99,  4.00, 7),
-    ('E',   0.00,  32.99,  0.00, 8)
+    ('E1', 21.00,  32.99,  0.00, 8),
+    ('E2',  0.00,  20.99,  0.00, 9)
   ) AS v(label, min_p, max_p, gp, ord);
 
   -- ICSE percentage + letter bands
@@ -127,6 +136,12 @@ BEGIN
     ('Pass',        35.00,  44.99,  4.00, 4),
     ('Fail',         0.00,  34.99,  0.00, 5)
   ) AS v(label, min_p, max_p, gp, ord);
+
+  -- PRC-L556: fail loudly if RLS silently filtered these writes to zero rows
+  -- instead of reporting success on an empty no-op.
+  IF (SELECT count(*) FROM grading_scales WHERE tenant_id = tid) = 0 THEN
+    RAISE EXCEPTION 'PRC-L556 guard: expected grading_scales rows for tenant % but found 0 (RLS silent no-op?)', tid;
+  END IF;
 
   RAISE NOTICE 'Seeded board_codes + grading_scales for tenant %', tid;
 END $$;
