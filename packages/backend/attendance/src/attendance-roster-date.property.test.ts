@@ -377,7 +377,7 @@ describe('Property 22: Attendance Date Validation', () => {
     return today.toISOString().split('T')[0]!;
   }
 
-  it('accepts current date when within active academic period', () => {
+  it('accepts current date when within active academic period', async () => {
     const todayStr = getTodayStr();
     const today = new Date(todayStr + 'T00:00:00Z');
 
@@ -388,10 +388,12 @@ describe('Property 22: Attendance Date Validation', () => {
     periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
     // Should not throw
-    expect(() => service.validateAttendanceDate(todayStr, periodStart, periodEnd)).not.toThrow();
+    await expect(
+      service.validateAttendanceDate(todayStr, periodStart, periodEnd),
+    ).resolves.not.toThrow();
   });
 
-  it('accepts any past date within the active academic period', () => {
+  it('accepts any past date within the active academic period', async () => {
     const todayStr = getTodayStr();
     const today = new Date(todayStr + 'T00:00:00Z');
 
@@ -401,22 +403,22 @@ describe('Property 22: Attendance Date Validation', () => {
     const periodEnd = new Date(today);
     periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
-    fc.assert(
-      fc.property(
+    await fc.assert(
+      fc.asyncProperty(
         // Generate past dates within the period (between period start and today)
         dateStrArb(periodStart, today),
-        (dateStr) => {
+        async (dateStr) => {
           // Should not throw for any past date within the period
-          expect(() =>
+          await expect(
             service.validateAttendanceDate(dateStr, periodStart, periodEnd),
-          ).not.toThrow();
+          ).resolves.not.toThrow();
         },
       ),
       { numRuns: 100 },
     );
   });
 
-  it('rejects all future dates with appropriate error message', () => {
+  it('rejects all future dates with appropriate error message', async () => {
     const todayStr = getTodayStr();
     const today = new Date(todayStr + 'T00:00:00Z');
 
@@ -430,16 +432,16 @@ describe('Property 22: Attendance Date Validation', () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    fc.assert(
-      fc.property(dateStrArb(tomorrow, periodEnd), (futureDateStr) => {
+    await fc.assert(
+      fc.asyncProperty(dateStrArb(tomorrow, periodEnd), async (futureDateStr) => {
         // Should throw BusinessRuleError for any future date
-        expect(() => service.validateAttendanceDate(futureDateStr, periodStart, periodEnd)).toThrow(
-          BusinessRuleError,
-        );
+        await expect(
+          service.validateAttendanceDate(futureDateStr, periodStart, periodEnd),
+        ).rejects.toThrow(BusinessRuleError);
 
         // Verify error message indicates future attendance cannot be recorded
         try {
-          service.validateAttendanceDate(futureDateStr, periodStart, periodEnd);
+          await service.validateAttendanceDate(futureDateStr, periodStart, periodEnd);
         } catch (error: any) {
           expect(error).toBeInstanceOf(BusinessRuleError);
           expect(error.message.toLowerCase()).toContain('future');
@@ -449,7 +451,7 @@ describe('Property 22: Attendance Date Validation', () => {
     );
   });
 
-  it('rejects dates before the academic period start', () => {
+  it('rejects dates before the academic period start', async () => {
     const todayStr = getTodayStr();
     const today = new Date(todayStr + 'T00:00:00Z');
 
@@ -465,18 +467,18 @@ describe('Property 22: Attendance Date Validation', () => {
     const dayBeforePeriod = new Date(periodStart);
     dayBeforePeriod.setDate(dayBeforePeriod.getDate() - 1);
 
-    fc.assert(
-      fc.property(dateStrArb(wayBefore, dayBeforePeriod), (earlyDateStr) => {
+    await fc.assert(
+      fc.asyncProperty(dateStrArb(wayBefore, dayBeforePeriod), async (earlyDateStr) => {
         // Should throw BusinessRuleError for dates before period start
-        expect(() => service.validateAttendanceDate(earlyDateStr, periodStart, periodEnd)).toThrow(
-          BusinessRuleError,
-        );
+        await expect(
+          service.validateAttendanceDate(earlyDateStr, periodStart, periodEnd),
+        ).rejects.toThrow(BusinessRuleError);
       }),
       { numRuns: 100 },
     );
   });
 
-  it('rejects dates after the academic period end (even if in the past)', () => {
+  it('rejects dates after the academic period end (even if in the past)', async () => {
     const todayStr = getTodayStr();
     const today = new Date(todayStr + 'T00:00:00Z');
 
@@ -492,19 +494,19 @@ describe('Property 22: Attendance Date Validation', () => {
     if (dayAfterPeriod <= today) {
       const maxDate = new Date(Math.min(today.getTime(), new Date('2023-12-31').getTime()));
 
-      fc.assert(
-        fc.property(dateStrArb(dayAfterPeriod, maxDate), (lateDateStr) => {
+      await fc.assert(
+        fc.asyncProperty(dateStrArb(dayAfterPeriod, maxDate), async (lateDateStr) => {
           // Should throw BusinessRuleError for dates after period end
-          expect(() => service.validateAttendanceDate(lateDateStr, periodStart, periodEnd)).toThrow(
-            BusinessRuleError,
-          );
+          await expect(
+            service.validateAttendanceDate(lateDateStr, periodStart, periodEnd),
+          ).rejects.toThrow(BusinessRuleError);
         }),
         { numRuns: 100 },
       );
     }
   });
 
-  it('the period start date itself is accepted (boundary)', () => {
+  it('the period start date itself is accepted (boundary)', async () => {
     const todayStr = getTodayStr();
     const today = new Date(todayStr + 'T00:00:00Z');
 
@@ -517,17 +519,17 @@ describe('Property 22: Attendance Date Validation', () => {
     const periodStartStr = periodStart.toISOString().split('T')[0]!;
 
     // Period start date should be accepted (it's a past date within the period)
-    expect(() =>
+    await expect(
       service.validateAttendanceDate(periodStartStr, periodStart, periodEnd),
-    ).not.toThrow();
+    ).resolves.not.toThrow();
   });
 
-  it('date validation outcome depends only on date relative to today and period bounds', () => {
+  it('date validation outcome depends only on date relative to today and period bounds', async () => {
     const todayStr = getTodayStr();
     const today = new Date(todayStr + 'T00:00:00Z');
 
-    fc.assert(
-      fc.property(
+    await fc.assert(
+      fc.asyncProperty(
         // Generate period start (1-3 years ago)
         fc.integer({ min: 1, max: 3 }).map((yearsAgo) => {
           const d = new Date(today);
@@ -542,7 +544,7 @@ describe('Property 22: Attendance Date Validation', () => {
         }),
         // Generate any date in a wide range
         dateStrArb(new Date('2020-01-01'), new Date('2030-12-31')),
-        (periodStart, periodEnd, dateStr) => {
+        async (periodStart, periodEnd, dateStr) => {
           const attendanceDate = new Date(dateStr + 'T00:00:00Z');
           const periodStartNorm = new Date(periodStart);
           periodStartNorm.setUTCHours(0, 0, 0, 0);
@@ -556,13 +558,13 @@ describe('Property 22: Attendance Date Validation', () => {
           const shouldReject = isFuture || isBeforePeriod || isAfterPeriod;
 
           if (shouldReject) {
-            expect(() => service.validateAttendanceDate(dateStr, periodStart, periodEnd)).toThrow(
-              BusinessRuleError,
-            );
-          } else {
-            expect(() =>
+            await expect(
               service.validateAttendanceDate(dateStr, periodStart, periodEnd),
-            ).not.toThrow();
+            ).rejects.toThrow(BusinessRuleError);
+          } else {
+            await expect(
+              service.validateAttendanceDate(dateStr, periodStart, periodEnd),
+            ).resolves.not.toThrow();
           }
         },
       ),

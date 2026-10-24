@@ -16,7 +16,19 @@
 import { Type, type Static } from '@sinclair/typebox';
 
 const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
-const DatePattern = '^\\d{4}-\\d{2}-\\d{2}$';
+/** Calendar date shape; real-date validity is checked by {@link isValidIsoDate}. */
+const DatePattern = '^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$';
+
+/**
+ * PRC-M496: `DatePattern` matches shape but not validity (e.g. `2026-02-30`
+ * matches the regex but isn't a real date). Reuses the exact regex+round-trip
+ * algorithm from packages/backend/timetable/src/schemas.ts's isValidIsoDate.
+ */
+export function isValidIsoDate(value: string): boolean {
+  if (!new RegExp(DatePattern).test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
 
 /**
  * Schema for recording a single student's attendance.

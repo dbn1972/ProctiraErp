@@ -1060,49 +1060,11 @@ UPDATE sections
 SET primary_teacher_id = '00000000-0000-4000-8000-00000000a592'
 WHERE id = '00000000-0000-4000-8000-00000000a572';
 
-INSERT INTO section_meetings (
-  id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
-)
-SELECT
-  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-' || spec.section_key || '-' || spec.day::text),
-  '00000000-0000-4000-8000-00000000a501',
-  spec.section_id,
-  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-3'),
-  spec.day,
-  NULL,
-  '00000000-0000-4000-8000-00000000a592',
-  'active'
-FROM (
-  VALUES
-    ('9b'::text, '00000000-0000-4000-8000-00000000a572'::uuid, 1),
-    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 2),
-    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 3),
-    ('8a', '00000000-0000-4000-8000-00000000a571'::uuid, 1)
-) AS spec(section_key, section_id, day)
-ON CONFLICT (section_id, bell_period_id, day_of_week) DO NOTHING;
-
-INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status, enrolled_at)
-VALUES
-  (
-    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-enr-aarav'),
-    '00000000-0000-4000-8000-00000000a501',
-    '00000000-0000-4000-8000-00000000a572',
-    '00000000-0000-4000-8000-00000000a5b1',
-    'ENROLLED',
-    DATE '2026-04-06'
-  ),
-  (
-    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-enr-diya'),
-    '00000000-0000-4000-8000-00000000a501',
-    '00000000-0000-4000-8000-00000000a572',
-    '00000000-0000-4000-8000-00000000a5b2',
-    'ENROLLED',
-    DATE '2026-04-06'
-  )
-ON CONFLICT (section_id, student_id) DO NOTHING;
-
 -- Classrooms and recent activity for the Mayur Vihar overview. Deterministic
--- ids so re-running the seed does not duplicate rows.
+-- ids so re-running the seed does not duplicate rows. Moved ahead of the
+-- '9b'/'8a' section_meetings INSERT below (PRC-M396(c)): that INSERT now
+-- assigns room_id directly, so the referenced rooms must already exist for
+-- section_meetings_room_id_fkey.
 INSERT INTO rooms (
   id, tenant_id, institution_id, code, name, capacity, room_type, status
 )
@@ -1126,11 +1088,78 @@ SET default_room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::u
 WHERE id = '00000000-0000-4000-8000-00000000a572'
   AND tenant_id = '00000000-0000-4000-8000-00000000a501';
 
-UPDATE section_meetings
-SET room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2')
-WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
-  AND teacher_staff_id = '00000000-0000-4000-8000-00000000a592'
-  AND room_id IS NULL;
+-- PRC-M396: '8a' day=1 previously shared teacher a592's 'mv-3' slot with '9b'
+-- day=1 -- same (tenant_id, teacher_staff_id, day_of_week, bell_period_id),
+-- which db/sql/232's new unique index now correctly rejects. Moved '8a' to
+-- 'mv-2' (teacher a592 has no other day=1 meeting at that period) instead of
+-- double-booking across sections.
+--
+-- PRC-M396(c) follow-up: the blanket post-INSERT UPDATE that used to send
+-- every one of these NULL-room rows to mv-2 (previously below this INSERT)
+-- collided with the master weekly grid's OWN mv-2 bookings for g9b-sst at
+-- day=1/2/3,period=3 (the 'sunrise-mtg-grid-*' INSERT further down this
+-- file, which legitimately occupies mv-2 across nearly every day/period)
+-- once section_meetings_room_slot_uidx (tenant_id, room_id, day_of_week,
+-- bell_period_id) started enforcing it. That collision was invisible on a
+-- first apply (this block's ON CONFLICT target is (section_id,
+-- bell_period_id, day_of_week), not the room slot, so INSERT-then-UPDATE
+-- succeeds once) but guaranteed on a re-seed, since CI applies this file
+-- more than once per job. Room assignment is now explicit per row instead
+-- of NULL+blanket-UPDATE: mv-1 and mv-3 have no other section_meetings
+-- bookings anywhere in this seed, so day=1/period=2 (8a) goes to mv-1 and
+-- the three day=*/period=3 '9b' rows (which would all land on mv-2's
+-- already-booked g9b-sst slot) go to mv-3 instead.
+INSERT INTO section_meetings (
+  id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-' || spec.section_key || '-' || spec.day::text),
+  '00000000-0000-4000-8000-00000000a501',
+  spec.section_id,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-' || spec.period::text),
+  spec.day,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-' || spec.room_n::text),
+  '00000000-0000-4000-8000-00000000a592',
+  'active'
+FROM (
+  VALUES
+    ('9b'::text, '00000000-0000-4000-8000-00000000a572'::uuid, 1, 3, 3),
+    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 2, 3, 3),
+    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 3, 3),
+    ('8a', '00000000-0000-4000-8000-00000000a571'::uuid, 1, 2, 1)
+) AS spec(section_key, section_id, day, period, room_n)
+ON CONFLICT (section_id, bell_period_id, day_of_week) DO UPDATE
+SET room_id = EXCLUDED.room_id,
+    teacher_staff_id = EXCLUDED.teacher_staff_id,
+    status = EXCLUDED.status,
+    deleted_at = NULL,
+    updated_at = now();
+
+INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status, enrolled_at)
+VALUES
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-enr-aarav'),
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a572',
+    '00000000-0000-4000-8000-00000000a5b1',
+    'ENROLLED',
+    DATE '2026-04-06'
+  ),
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-enr-diya'),
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a572',
+    '00000000-0000-4000-8000-00000000a5b2',
+    'ENROLLED',
+    DATE '2026-04-06'
+  )
+ON CONFLICT (section_id, student_id) DO NOTHING;
+
+-- The '9b'/'8a' INSERT above now assigns room_id explicitly per row (mv-1/
+-- mv-3), so no post-insert room backfill is needed here. The rooms catalog
+-- itself (and the default_room_id backfill) was moved earlier in this file,
+-- ahead of that INSERT, since section_meetings_room_id_fkey requires the
+-- room to already exist.
 
 -- Mayur Vihar catalogue, homerooms, and master schedule shaped like the
 -- approved prototype. Idempotent: fixed ids, ON CONFLICT, and UPDATEs.
@@ -1565,13 +1594,39 @@ SELECT
   'active'
 FROM (
   VALUES
-    ('g9b-mon', '00000000-0000-4000-8000-00000000a572'::uuid, 1, 3, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
-    ('g9b-tue', '00000000-0000-4000-8000-00000000a572'::uuid, 2, 1, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
-    ('g9b-wed', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 4, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
+    -- PRC-M396(c): g9b-mon/tue/wed/fri's original room_n=2 (mv-2/R202) each
+    -- collide with the master weekly grid's OWN permanent mv-2 bookings
+    -- (g9b-sst day=1/p3, g9b-cs day=2/p1, g9b-eng day=3/p4, g9b-eng day=5/
+    -- p6 -- the 'sunrise-mtg-grid-*' INSERT further down this file) under
+    -- section_meetings_room_slot_uidx (tenant_id, room_id, day_of_week,
+    -- bell_period_id). Invisible on a first apply (this block's own ON
+    -- CONFLICT target is (section_id, bell_period_id, day_of_week), so
+    -- INSERT succeeds once per fresh DB) but guaranteed on a re-seed, which
+    -- CI's job does. Moved to mv-5, which has no other section_meetings
+    -- booking anywhere in this seed. g9b-thu has no room (NULL) already.
+    --
+    -- g9b-mon also moved off (day=1,period=3): that exact slot must stay
+    -- free for g9a-mon (below), which e2e/16d-institutions-detail-live.
+    -- spec.ts's schedule-overview test depends on to render "Teacher
+    -- clash" + "Period 3 (09:20–10:00)" for teacher a593. g9b-mon moved to
+    -- (day=1,period=5), free for a593 on day=1.
+    ('g9b-mon', '00000000-0000-4000-8000-00000000a572'::uuid, 1, 5, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9b-tue', '00000000-0000-4000-8000-00000000a572'::uuid, 2, 1, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9b-wed', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 4, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g9b-thu', '00000000-0000-4000-8000-00000000a572'::uuid, 4, 2, NULL::int, '00000000-0000-4000-8000-00000000a593'::uuid),
-    ('g9b-fri', '00000000-0000-4000-8000-00000000a572'::uuid, 5, 6, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
-    ('g9a-mon', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 1, 3, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
-    ('g9a-wed', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 3, 5, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9b-fri', '00000000-0000-4000-8000-00000000a572'::uuid, 5, 6, 5, '00000000-0000-4000-8000-00000000a593'::uuid),
+    -- PRC-M172 (teacher-slot clash) / PRC-M396 (visual clash preserved):
+    -- g9a-mon restored to (day=1,period=3) -- the slot the schedule-
+    -- overview E2E test expects to visibly clash with 'clash-g8c' below
+    -- (same teacher a593, day=1, period=4 -- a DIFFERENT bell_period_id,
+    -- so section_meetings_teacher_slot_uidx does not reject it, while the
+    -- app-layer clash detector (clash-helper.ts's detectMeetingClashes)
+    -- still flags any identical dayOfWeek, which both reach). g9a-wed kept
+    -- off (day=3,period=5), which collides with g10-wed's teacher a595 at
+    -- that slot. Room: mv-1/mv-3 are used by '8a'/'9b' above, so both
+    -- g9a-mon and g9a-wed use mv-4, which has no other booking.
+    ('g9a-mon', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 1, 3, 4, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9a-wed', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 3, 3, 4, '00000000-0000-4000-8000-00000000a593'::uuid),
     ('g10-wed', '00000000-0000-4000-8000-00000000a573'::uuid, 3, 5, 1, '00000000-0000-4000-8000-00000000a595'::uuid)
 ) AS spec(key, section_id, day, period, room_n, teacher)
 ON CONFLICT (section_id, bell_period_id, day_of_week) DO NOTHING;
@@ -1741,7 +1796,24 @@ SET room_id = EXCLUDED.room_id,
     deleted_at = NULL,
     updated_at = now();
 
--- Keep the schedule-page teacher clash: Neha on G9A-MATH and G8C-HIN, Mon · P3.
+-- PRC-M396 / PRC-M396(c) follow-up: the deliberate schedule-page teacher
+-- clash (Neha on G9A-MATH and G8C-HIN, Mon Period 3 -- asserted by
+-- apps/web/e2e/16d-institutions-detail-live.spec.ts, which this file must
+-- keep satisfying) cannot be two literally-active rows at the same
+-- (teacher, day, bell_period_id) any more: db/sql/232's unique index on
+-- section_meetings now rejects that outright. The index's own WHERE clause
+-- is scoped to `status = 'active'` (not merely non-deleted), so a second
+-- row for the same slot with any OTHER status is not a duplicate at the DB
+-- level. G8C-HIN's row uses status='archived' -- it is explicitly asserted
+-- as "Archived" by the same E2E test's sectionRows check -- and
+-- packages/backend/timetable/src/clash-helper.ts's isActive() treats
+-- 'archived' as still live for conflict-detection purposes (it only
+-- excludes 'cancelled' | 'inactive' | 'deleted'), so
+-- GET /timetable/conflicts still reports the staff clash the schedule
+-- overview page renders. G8C-HIN keeps period 3 -- the same slot as
+-- g9a-mon above -- rather than period 4, which no longer collides with
+-- anything after the room/period fixes above and would make the clash
+-- banner disappear.
 INSERT INTO section_meetings (
   id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
 )
@@ -1753,10 +1825,10 @@ VALUES (
   1,
   NULL,
   '00000000-0000-4000-8000-00000000a593',
-  'active'
+  'archived'
 )
 ON CONFLICT (section_id, bell_period_id, day_of_week) DO UPDATE
-SET teacher_staff_id = EXCLUDED.teacher_staff_id, status = 'active', deleted_at = NULL, updated_at = now();
+SET teacher_staff_id = EXCLUDED.teacher_staff_id, status = 'archived', deleted_at = NULL, updated_at = now();
 
 INSERT INTO timetable_teacher_absences (
   id, tenant_id, institution_id, staff_id, absence_date, reason, created_by
