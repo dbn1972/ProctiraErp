@@ -133,6 +133,14 @@ function localPunchParts(iso: string, timeZone: string): { date: string; hour: n
   }
 }
 
+/**
+ * PRC-M173: `Date` -> `YYYY-MM-DD` in an IANA timezone; falls back to the UTC
+ * calendar date when the timezone is invalid.
+ */
+function localDateStr(d: Date, timeZone: string): string {
+  return localPunchParts(d.toISOString(), timeZone)?.date ?? dateOnlyStr(d);
+}
+
 /** Patch that re-opens a claimed request when its attendance write fails. */
 const REOPEN = {
   status: 'requested' as const,
@@ -389,7 +397,14 @@ export class AttendanceOpsService {
             tenantId,
             row.academicPeriodId,
           );
-          const today = dateOnlyStr(this.options.now?.() ?? new Date());
+          // PRC-M173: "today" is the institution-local calendar date (same
+          // timezone resolution as device punches), not the UTC date — an IST
+          // approval between 00:00 and 05:30 must still cover local today.
+          const timeZone =
+            (await this.punchConfig.resolveTimeZone?.(tenantId, row.institutionId)) ??
+            this.punchConfig.defaultTimeZone ??
+            'Asia/Kolkata';
+          const today = localDateStr(this.options.now?.() ?? new Date(), timeZone);
           let fromDate = row.fromDate;
           let toDate = row.toDate;
           if (period) {

@@ -251,3 +251,61 @@ describe('PRC-M173 part 4: optional holidayLookup (disabled by default)', () => 
     expect(repo.getStudentAttendanceRecords()).toHaveLength(3);
   });
 });
+describe('PRC-M173 part 5: future-date cap uses the institution-local date (failing-first)', () => {
+  // 2024-06-12T20:00Z is Thursday 2024-06-13 01:30 in Asia/Kolkata.
+  const NOW = () => new Date('2024-06-12T20:00:00Z');
+
+  async function approveLeave(ops: AttendanceOpsService) {
+    const leave = await ops.requestLeave(
+      TENANT_ID,
+      {
+        studentId: STUDENT_ID,
+        institutionId: INSTITUTION_ID,
+        classId: CLASS_ID,
+        academicPeriodId: PERIOD_ID,
+        fromDate: '2024-06-12',
+        toDate: '2024-06-14',
+      },
+      PARENT,
+    );
+    await ops.decideLeave(TENANT_ID, leave.id, 'approved', APPROVER, undefined);
+  }
+
+  it('an IST institution approving at 01:30 local includes local "today"', async () => {
+    const repo = new InMemoryAttendanceRepository();
+    seedPeriod(repo, '2024-01-01', '2024-12-31');
+    const ops = new AttendanceOpsService(new InMemoryAttendanceOpsStore(), repo, {}, { now: NOW });
+    await approveLeave(ops);
+    const dates = repo
+      .getStudentAttendanceRecords()
+      .map((r) => r.date)
+      .sort();
+    expect(dates).toEqual(['2024-06-12', '2024-06-13']);
+  });
+
+  it('honours the per-institution timezone resolver', async () => {
+    const repo = new InMemoryAttendanceRepository();
+    seedPeriod(repo, '2024-01-01', '2024-12-31');
+    const ops = new AttendanceOpsService(
+      new InMemoryAttendanceOpsStore(),
+      repo,
+      { resolveTimeZone: () => 'UTC' },
+      { now: NOW },
+    );
+    await approveLeave(ops);
+    expect(repo.getStudentAttendanceRecords().map((r) => r.date)).toEqual(['2024-06-12']);
+  });
+
+  it('falls back to the UTC date for an invalid timezone', async () => {
+    const repo = new InMemoryAttendanceRepository();
+    seedPeriod(repo, '2024-01-01', '2024-12-31');
+    const ops = new AttendanceOpsService(
+      new InMemoryAttendanceOpsStore(),
+      repo,
+      { defaultTimeZone: 'Not/AZone' },
+      { now: NOW },
+    );
+    await approveLeave(ops);
+    expect(repo.getStudentAttendanceRecords().map((r) => r.date)).toEqual(['2024-06-12']);
+  });
+});
