@@ -605,7 +605,7 @@ export class TransportService {
   async createStudentAssignment(
     tenantId: string,
     input: CreateStudentAssignmentInput,
-    actorId = 'transport',
+    actorId: string,
   ): Promise<StudentRouteAssignmentEntity> {
     // Validate route exists and is active
     const route = await this.repository.findRouteById(input.routeId, tenantId);
@@ -898,11 +898,7 @@ export class TransportService {
     };
   }
 
-  async upsertTripAttendance(
-    tenantId: string,
-    input: UpsertBusAttendanceInput,
-    actorId = 'transport',
-  ) {
+  async upsertTripAttendance(tenantId: string, input: UpsertBusAttendanceInput, actorId: string) {
     await this.getRouteById(tenantId, input.routeId);
     if (input.stopId) {
       const stop = await this.repository.findStopById(input.stopId, tenantId);
@@ -1076,7 +1072,7 @@ export class TransportService {
   async createTransportFeeStructure(
     tenantId: string,
     input: CreateTransportFeeStructureInput,
-    actorId = 'transport',
+    actorId: string,
   ) {
     if (input.routeId) await this.getRouteById(tenantId, input.routeId);
     if (input.stopId) {
@@ -1265,7 +1261,7 @@ export class TransportService {
    */
   async retryPendingFeeLinks(
     tenantId: string,
-    actorId = 'transport',
+    actorId: string,
     options: { limit?: number; leaseMs?: number } = {},
   ): Promise<{ claimed: number; invoiced: number; stillPending: number; pendingCount: number }> {
     if (!this.fees) {

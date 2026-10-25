@@ -107,8 +107,19 @@ function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
-function getActorId(request: FastifyRequest): string {
-  return (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'transport';
+/**
+ * PRC-L392: actor attribution comes only from the verified principal's `sub`.
+ * There is no literal fallback; a principal without `sub` gets 401.
+ */
+function requireActorId(request: FastifyRequest, reply: FastifyReply): string | undefined {
+  const sub = (request as FastifyRequest & { user?: { sub?: unknown } }).user?.sub;
+  if (typeof sub === 'string' && sub.trim() !== '') return sub;
+  void reply.status(401).send({
+    code: 'UNAUTHORIZED',
+    message: 'Authenticated user context is required',
+    statusCode: 401,
+  });
+  return undefined;
 }
 
 /**
@@ -1004,11 +1015,13 @@ export async function registerTransportRoutes(
         });
       }
 
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
         const assignment = await transportService.createStudentAssignment(
           tenantId,
           result.data,
-          getActorId(request),
+          actorId,
         );
         return reply.status(201).send({
           ...assignment,
@@ -1448,12 +1461,10 @@ export async function registerTransportRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
-        const row = await transportService.upsertTripAttendance(
-          tenantId,
-          bodyResult.data,
-          getActorId(request),
-        );
+        const row = await transportService.upsertTripAttendance(tenantId, bodyResult.data, actorId);
         return reply.status(200).send(serializeDates(row as unknown as Record<string, unknown>));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -1597,11 +1608,13 @@ export async function registerTransportRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
         const alert = await transportService.acknowledgeAlert(
           tenantId,
           paramsResult.data.id,
-          getActorId(request),
+          actorId,
         );
         return reply.status(200).send(serializeDates(alert as unknown as Record<string, unknown>));
       } catch (error: unknown) {
@@ -1630,11 +1643,13 @@ export async function registerTransportRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
         const band = await transportService.createTransportFeeStructure(
           tenantId,
           bodyResult.data,
-          getActorId(request),
+          actorId,
         );
         return reply.status(201).send(serializeDates(band as unknown as Record<string, unknown>));
       } catch (error: unknown) {
@@ -1679,8 +1694,10 @@ export async function registerTransportRoutes(
     async function retryFeeLinksHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
-        const result = await transportService.retryPendingFeeLinks(tenantId, getActorId(request));
+        const result = await transportService.retryPendingFeeLinks(tenantId, actorId);
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
