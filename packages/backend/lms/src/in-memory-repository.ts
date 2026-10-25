@@ -245,6 +245,15 @@ export class InMemoryLmsRepository implements LmsRepository {
     return (this.questions.get(assignmentId) ?? []).filter((q) => q.tenantId === tenantId);
   }
 
+  async listQuestionsForAssignments(
+    tenantId: string,
+    assignmentIds: string[],
+  ): Promise<QuizQuestionEntity[]> {
+    return [...new Set(assignmentIds)].flatMap((id) =>
+      (this.questions.get(id) ?? []).filter((q) => q.tenantId === tenantId),
+    );
+  }
+
   async createAssignmentWithQuestions(
     data: Omit<AssignmentEntity, 'createdAt' | 'updatedAt'>,
     questions: Omit<QuizQuestionEntity, 'createdAt'>[],
@@ -350,6 +359,16 @@ export class InMemoryLmsRepository implements LmsRepository {
       .filter((s) => !filter.status || s.status === filter.status)
       .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
     return paginate(items, pagination);
+  }
+
+  async listSubmissionsForAssignments(
+    tenantId: string,
+    assignmentIds: string[],
+  ): Promise<SubmissionEntity[]> {
+    const wanted = new Set(assignmentIds);
+    return Array.from(this.submissions.values())
+      .filter((s) => s.tenantId === tenantId && wanted.has(s.assignmentId))
+      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
   }
 
   // ─── Spiral PAL ledger ─────────────────────────────────────────────────

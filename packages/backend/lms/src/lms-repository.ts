@@ -409,6 +409,11 @@ export interface LmsRepository {
     questions: Omit<QuizQuestionEntity, 'createdAt'>[],
   ): Promise<QuizQuestionEntity[]>;
   listQuestions(tenantId: string, assignmentId: string): Promise<QuizQuestionEntity[]>;
+  /** PRC-L330: questions for many assignments in one query (position order per assignment). */
+  listQuestionsForAssignments(
+    tenantId: string,
+    assignmentIds: string[],
+  ): Promise<QuizQuestionEntity[]>;
 
   /**
    * PRC-M300: insert an assignment and its quiz questions all-or-nothing (one
@@ -454,6 +459,14 @@ export interface LmsRepository {
     filter: SubmissionFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<SubmissionEntity>>;
+  /**
+   * PRC-L330: submissions for many assignments in one query, newest first within
+   * each assignment (same order as `listSubmissions`).
+   */
+  listSubmissionsForAssignments(
+    tenantId: string,
+    assignmentIds: string[],
+  ): Promise<SubmissionEntity[]>;
 
   // Spiral PAL ledger
   upsertMastery(

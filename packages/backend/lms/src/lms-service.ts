@@ -302,6 +302,16 @@ function bankToQuizQuestion(
   };
 }
 
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    const list = grouped.get(key(item)) ?? [];
+    list.push(item);
+    grouped.set(key(item), list);
+  }
+  return grouped;
+}
+
 function toBankLike(q: QuizQuestionEntity) {
   return {
     id: q.id,
@@ -1648,15 +1658,20 @@ export class LmsService {
     const students = new Set<string>();
     const scores: number[] = [];
     const skillHits = new Map<string, { label: string; correct: number; attempts: number }>();
+    // PRC-L330: two batched reads instead of two queries per assignment.
+    const assignmentIds = assignments.map((a) => a.id);
+    const [allSubmissions, allQuestions] = await Promise.all([
+      this.repository.listSubmissionsForAssignments(tenantId, assignmentIds),
+      this.repository.listQuestionsForAssignments(tenantId, assignmentIds),
+    ]);
+    const submissionsByAssignment = groupBy(allSubmissions, (s) => s.assignmentId);
+    const questionsByAssignment = groupBy(allQuestions, (q) => q.assignmentId);
     for (const assignment of assignments) {
-      const submissions = await this.repository.listSubmissions(
-        tenantId,
-        { assignmentId: assignment.id },
-        { page: 1, pageSize: 500 },
-      );
-      submissionCount += submissions.data.length;
-      const questions = await this.repository.listQuestions(tenantId, assignment.id);
-      for (const sub of submissions.data) {
+      // Same per-assignment window as before (newest 500 submissions).
+      const submissions = (submissionsByAssignment.get(assignment.id) ?? []).slice(0, 500);
+      submissionCount += submissions.length;
+      const questions = questionsByAssignment.get(assignment.id) ?? [];
+      for (const sub of submissions) {
         students.add(sub.studentId);
         if (sub.score != null) scores.push(sub.score);
         const graded = gradeObjectiveQuiz(questions.map(toBankLike), sub.answers);

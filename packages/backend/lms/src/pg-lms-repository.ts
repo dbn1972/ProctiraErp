@@ -798,6 +798,23 @@ export class PgLmsRepository implements LmsRepository {
     );
   }
 
+  async listQuestionsForAssignments(
+    tenantId: string,
+    assignmentIds: string[],
+  ): Promise<QuizQuestionEntity[]> {
+    if (assignmentIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM lms_quiz_questions
+         WHERE tenant_id = $1 AND assignment_id = ANY($2::uuid[])
+         ORDER BY assignment_id, position`,
+        [tenantId, [...new Set(assignmentIds)]],
+      );
+      return result.rows.map((row) => mapQuestion(row as Record<string, unknown>));
+    });
+  }
+
   private async selectQuestions(
     client: PgQueryable,
     tenantId: string,
@@ -939,6 +956,23 @@ export class PgLmsRepository implements LmsRepository {
         data: result.rows.map((row) => mapSubmission(row as Record<string, unknown>)),
         meta: paginateMeta(totalItems, pagination),
       };
+    });
+  }
+
+  async listSubmissionsForAssignments(
+    tenantId: string,
+    assignmentIds: string[],
+  ): Promise<SubmissionEntity[]> {
+    if (assignmentIds.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM lms_submissions
+         WHERE tenant_id = $1 AND assignment_id = ANY($2::uuid[])
+         ORDER BY submitted_at DESC`,
+        [tenantId, [...new Set(assignmentIds)]],
+      );
+      return result.rows.map((row) => mapSubmission(row as Record<string, unknown>));
     });
   }
 
