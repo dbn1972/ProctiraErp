@@ -13,7 +13,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
+import { installAssessmentRouteGuard } from './assessment-http-guard.js';
 import {
   EnterSingleResultSchema,
   BulkResultEntrySchema,
@@ -47,12 +47,8 @@ export async function registerResultRoutes(
   fastify: FastifyInstance,
   options: ResultRoutesOptions,
 ): Promise<void> {
-  // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
-  fastify.addHook('preHandler', async (request, reply) => {
-    if (!enforceAssessmentRouteAccess(request, reply)) {
-      return reply;
-    }
-  });
+  // W1-SEC-02: package-level RBAC; PRC-L083: installed once per instance.
+  installAssessmentRouteGuard(fastify);
   const { resultService, resultsPrefix = '/results' } = options;
 
   /**
