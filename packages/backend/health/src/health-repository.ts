@@ -393,6 +393,9 @@ export interface HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<ReferralEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
+    },
   ): Promise<ReferralEntity | null>;
   findReferralById(id: string, tenantId: string): Promise<ReferralEntity | null>;
   listReferralsByStudent(
@@ -412,6 +415,9 @@ export interface HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<AccommodationPlanEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity | null>;
   findAccommodationPlanById(id: string, tenantId: string): Promise<AccommodationPlanEntity | null>;
   listAccommodationPlansByStudent(
@@ -431,6 +437,9 @@ export interface HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<CounsellingSessionEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity | null>;
   findCounsellingSessionById(
     id: string,

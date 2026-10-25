@@ -5,6 +5,23 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PgCounsellingStore } from './pg-counselling-store.js';
 
+const sessionRow = {
+  id: 'cs-1',
+  tenant_id: 't1',
+  student_id: 's1',
+  counsellor_id: 'c1',
+  session_date: '2024-06-01',
+  session_type: 'individual',
+  reason: 'enc',
+  case_notes: 'enc',
+  outcome: null,
+  follow_up_required: false,
+  follow_up_date: null,
+  status: 'completed',
+  created_at: new Date(),
+  updated_at: new Date(),
+};
+
 vi.mock('@proctira/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@proctira/database')>();
   return {
@@ -17,26 +34,19 @@ vi.mock('@proctira/database', async (importOriginal) => {
       const client = {
         query: vi.fn(async (sql: string) => {
           if (typeof sql === 'string' && sql.includes('INSERT INTO counselling_sessions')) {
-            return {
-              rows: [
-                {
-                  id: 'cs-1',
-                  tenant_id: 't1',
-                  student_id: 's1',
-                  counsellor_id: 'c1',
-                  session_date: '2024-06-01',
-                  session_type: 'individual',
-                  reason: 'enc',
-                  case_notes: 'enc',
-                  outcome: null,
-                  follow_up_required: false,
-                  follow_up_date: null,
-                  status: 'completed',
-                  created_at: new Date(),
-                  updated_at: new Date(),
-                },
-              ],
-            };
+            return { rows: [sessionRow] };
+          }
+          // PRC-M519/L115: update() now runs its SELECT + UPDATE inside the
+          // same withPgTenant closure as create() (single COMMIT with audit).
+          if (
+            typeof sql === 'string' &&
+            sql.includes('FROM counselling_sessions') &&
+            sql.includes('SELECT')
+          ) {
+            return { rows: [sessionRow] };
+          }
+          if (typeof sql === 'string' && sql.includes('UPDATE counselling_sessions')) {
+            return { rows: [sessionRow] };
           }
           return { rows: [] };
         }),
@@ -88,5 +98,22 @@ describe('W1-SEC-10 counselling write + audit same txn', () => {
     expect(entity.id).toBe('cs-1');
     expect(appendAuditInTxn).toHaveBeenCalledTimes(1);
     expect(appendAuditInTxn.mock.calls[0]?.[1]).toMatchObject({ id: 'cs-1' });
+  });
+
+  // ─── PRC-M519/L115: update() previously had NO appendAuditInTxn hook ────
+
+  it('update invokes appendAuditInTxn with the same client (failing-first against pre-9a shape)', async () => {
+    const store = stubStore();
+    const appendAuditInTxn = vi.fn(async () => undefined);
+    const entity = await store.update('cs-1', 't1', { outcome: 'resolved' }, { appendAuditInTxn });
+    expect(entity?.id).toBe('cs-1');
+    expect(appendAuditInTxn).toHaveBeenCalledTimes(1);
+    expect(appendAuditInTxn.mock.calls[0]?.[1]).toMatchObject({ id: 'cs-1' });
+  });
+
+  it('update without appendAuditInTxn still succeeds', async () => {
+    const store = stubStore();
+    const entity = await store.update('cs-1', 't1', { outcome: 'resolved' });
+    expect(entity?.id).toBe('cs-1');
   });
 });

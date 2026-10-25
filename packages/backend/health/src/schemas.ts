@@ -22,9 +22,12 @@ import { Type, type Static } from '@sinclair/typebox';
 
 // ─── Common Schemas ───────────────────────────────────────────────────────────
 
+/** PRC-L316 (10a): shared UUID pattern for every body-level FK-id field below. */
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
 export const UuidParamsSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: UUID_PATTERN,
     description: 'UUID',
   }),
 });
@@ -32,7 +35,7 @@ export type UuidParams = Static<typeof UuidParamsSchema>;
 
 export const StudentParamsSchema = Type.Object({
   studentId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: UUID_PATTERN,
     description: 'Student UUID',
   }),
 });
@@ -51,21 +54,24 @@ export type PaginationQuery = Static<typeof PaginationQuerySchema>;
 // ─── Health Measurement Schemas ───────────────────────────────────────────────
 
 export const CreateMeasurementSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   date: Type.String({
     pattern: '^\\d{4}-\\d{2}-\\d{2}$',
     description: 'Measurement date (YYYY-MM-DD)',
   }),
-  height: Type.Optional(Type.Number({ minimum: 0, description: 'Height in cm' })),
-  weight: Type.Optional(Type.Number({ minimum: 0, description: 'Weight in kg' })),
-  bmi: Type.Optional(Type.Number({ minimum: 0, description: 'Body Mass Index' })),
+  // PRC-L316 (10c): upper bounds on vitals — e.g. heartRate:99999 must be rejected.
+  height: Type.Optional(Type.Number({ minimum: 0, maximum: 300, description: 'Height in cm' })),
+  weight: Type.Optional(Type.Number({ minimum: 0, maximum: 500, description: 'Weight in kg' })),
+  bmi: Type.Optional(Type.Number({ minimum: 0, maximum: 100, description: 'Body Mass Index' })),
   bloodPressureSystolic: Type.Optional(
-    Type.Number({ minimum: 0, description: 'Systolic blood pressure (mmHg)' }),
+    Type.Number({ minimum: 0, maximum: 300, description: 'Systolic blood pressure (mmHg)' }),
   ),
   bloodPressureDiastolic: Type.Optional(
-    Type.Number({ minimum: 0, description: 'Diastolic blood pressure (mmHg)' }),
+    Type.Number({ minimum: 0, maximum: 300, description: 'Diastolic blood pressure (mmHg)' }),
   ),
-  heartRate: Type.Optional(Type.Number({ minimum: 0, description: 'Heart rate (bpm)' })),
+  heartRate: Type.Optional(
+    Type.Number({ minimum: 0, maximum: 300, description: 'Heart rate (bpm)' }),
+  ),
   visionLeft: Type.Optional(
     Type.String({ maxLength: 20, description: 'Left eye vision (e.g., 20/20)' }),
   ),
@@ -80,16 +86,16 @@ export const UpdateMeasurementSchema = Type.Object({
   date: Type.Optional(
     Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Measurement date' }),
   ),
-  height: Type.Optional(Type.Number({ minimum: 0, description: 'Height in cm' })),
-  weight: Type.Optional(Type.Number({ minimum: 0, description: 'Weight in kg' })),
-  bmi: Type.Optional(Type.Number({ minimum: 0, description: 'Body Mass Index' })),
+  height: Type.Optional(Type.Number({ minimum: 0, maximum: 300, description: 'Height in cm' })),
+  weight: Type.Optional(Type.Number({ minimum: 0, maximum: 500, description: 'Weight in kg' })),
+  bmi: Type.Optional(Type.Number({ minimum: 0, maximum: 100, description: 'Body Mass Index' })),
   bloodPressureSystolic: Type.Optional(
-    Type.Number({ minimum: 0, description: 'Systolic blood pressure' }),
+    Type.Number({ minimum: 0, maximum: 300, description: 'Systolic blood pressure' }),
   ),
   bloodPressureDiastolic: Type.Optional(
-    Type.Number({ minimum: 0, description: 'Diastolic blood pressure' }),
+    Type.Number({ minimum: 0, maximum: 300, description: 'Diastolic blood pressure' }),
   ),
-  heartRate: Type.Optional(Type.Number({ minimum: 0, description: 'Heart rate' })),
+  heartRate: Type.Optional(Type.Number({ minimum: 0, maximum: 300, description: 'Heart rate' })),
   visionLeft: Type.Optional(Type.String({ maxLength: 20, description: 'Left eye vision' })),
   visionRight: Type.Optional(Type.String({ maxLength: 20, description: 'Right eye vision' })),
   notes: Type.Optional(Type.String({ maxLength: 1000, description: 'Additional notes' })),
@@ -99,7 +105,7 @@ export type UpdateMeasurementInput = Static<typeof UpdateMeasurementSchema>;
 // ─── Allergy Schemas ──────────────────────────────────────────────────────────
 
 export const CreateAllergySchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   allergyType: Type.String({
     minLength: 1,
     maxLength: 100,
@@ -135,7 +141,7 @@ export type UpdateAllergyInput = Static<typeof UpdateAllergySchema>;
 // ─── Health Condition Schemas ─────────────────────────────────────────────────
 
 export const CreateConditionSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   conditionName: Type.String({
     minLength: 1,
     maxLength: 200,
@@ -170,7 +176,7 @@ export type UpdateConditionInput = Static<typeof UpdateConditionSchema>;
 // ─── Vaccination Schemas ──────────────────────────────────────────────────────
 
 export const CreateVaccinationSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   vaccineName: Type.String({ minLength: 1, maxLength: 200, description: 'Name of the vaccine' }),
   doseNumber: Type.Number({ minimum: 1, description: 'Dose number (e.g., 1, 2, 3)' }),
   dateAdministered: Type.String({
@@ -215,7 +221,7 @@ export type CreateNurseIncidentInput = Static<typeof CreateNurseIncidentSchema>;
 // ─── Insurance Schemas ────────────────────────────────────────────────────────
 
 export const CreateInsuranceSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   provider: Type.String({ minLength: 1, maxLength: 200, description: 'Insurance provider name' }),
   policyNumber: Type.String({ minLength: 1, maxLength: 100, description: 'Policy number' }),
   coverageType: Type.String({ minLength: 1, maxLength: 100, description: 'Type of coverage' }),
@@ -240,7 +246,7 @@ export type UpdateInsuranceInput = Static<typeof UpdateInsuranceSchema>;
 // ─── Special Needs Assessment Schemas ─────────────────────────────────────────
 
 export const CreateSpecialNeedsAssessmentSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   assessmentDate: Type.String({
     pattern: '^\\d{4}-\\d{2}-\\d{2}$',
     description: 'Assessment date',
@@ -256,8 +262,10 @@ export type CreateSpecialNeedsAssessmentInput = Static<typeof CreateSpecialNeeds
 // ─── Diagnosis Schemas ────────────────────────────────────────────────────────
 
 export const CreateDiagnosisSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
-  assessmentId: Type.Optional(Type.String({ description: 'Related assessment UUID' })),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
+  assessmentId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Related assessment UUID' }),
+  ),
   diagnosisDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Diagnosis date' }),
   diagnosedBy: Type.String({ minLength: 1, maxLength: 200, description: 'Diagnosed by' }),
   condition: Type.String({ minLength: 1, maxLength: 200, description: 'Diagnosed condition' }),
@@ -274,8 +282,10 @@ export type CreateDiagnosisInput = Static<typeof CreateDiagnosisSchema>;
 // ─── Referral Schemas ─────────────────────────────────────────────────────────
 
 export const CreateReferralSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
-  diagnosisId: Type.Optional(Type.String({ description: 'Related diagnosis UUID' })),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
+  diagnosisId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Related diagnosis UUID' }),
+  ),
   referralDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Referral date' }),
   referredBy: Type.String({ minLength: 1, maxLength: 200, description: 'Referred by' }),
   referredTo: Type.String({
@@ -305,8 +315,10 @@ export type UpdateReferralInput = Static<typeof UpdateReferralSchema>;
 // ─── Accommodation Plan Schemas ───────────────────────────────────────────────
 
 export const CreateAccommodationPlanSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
-  diagnosisId: Type.Optional(Type.String({ description: 'Related diagnosis UUID' })),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
+  diagnosisId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Related diagnosis UUID' }),
+  ),
   planName: Type.String({ minLength: 1, maxLength: 200, description: 'Plan name/title' }),
   startDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Plan start date' }),
   endDate: Type.Optional(
@@ -356,8 +368,8 @@ export type UpdateAccommodationPlanInput = Static<typeof UpdateAccommodationPlan
 // ─── Counselling Session Schemas ──────────────────────────────────────────────
 
 export const CreateCounsellingSessionSchema = Type.Object({
-  studentId: Type.String({ description: 'Student UUID' }),
-  counsellorId: Type.String({ description: 'Counsellor (staff) UUID' }),
+  studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
+  counsellorId: Type.String({ pattern: UUID_PATTERN, description: 'Counsellor (staff) UUID' }),
   sessionDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Session date' }),
   sessionType: Type.String({
     enum: ['individual', 'group', 'family', 'crisis'],
@@ -393,7 +405,7 @@ export type UpdateCounsellingSessionInput = Static<typeof UpdateCounsellingSessi
 
 export const CreateHealthBreakGlassRequestSchema = Type.Object({
   studentId: Type.String({
-    minLength: 1,
+    pattern: UUID_PATTERN,
     description: 'Student whose PHI field will be unredacted',
   }),
   fieldPath: Type.String({

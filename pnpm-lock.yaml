@@ -1726,6 +1726,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.52
         version: 0.34.52
+      '@smithy/node-http-handler':
+        specifier: 4.12.1
+        version: 4.12.1
       fastify-plugin:
         specifier: ^4.5.0
         version: 4.5.1
