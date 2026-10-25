@@ -34,7 +34,8 @@
  * Requirements: 1.2 (Transport_Module)
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { resolvePaginationQuery, validate, validateQuery } from '@proctira/validation';
+import type { TSchema } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
@@ -50,6 +51,10 @@ import {
   UpdateStudentAssignmentSchema,
   TransportParamsSchema,
   RouteParamsSchema,
+  TransportListQuerySchema,
+  TransportRouteListQuerySchema,
+  TransportDriverAssignmentListQuerySchema,
+  TransportStudentAssignmentListQuerySchema,
   type CreateTransportRouteInput,
   type UpdateTransportRouteInput,
   type CreateRouteStopInput,
@@ -104,6 +109,31 @@ function getTenantId(request: FastifyRequest): string | null {
 
 function getActorId(request: FastifyRequest): string {
   return (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'transport';
+}
+
+/**
+ * PRC-L390: validates a list querystring (platform pagination bounds plus the
+ * endpoint's filter schema). Sends 400 and returns undefined on failure.
+ */
+function parseListQuery(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  schema: TSchema,
+): { page: number; pageSize: number } | undefined {
+  const query = (request.query ?? {}) as Record<string, unknown>;
+  const paging = resolvePaginationQuery(query);
+  const result = paging.success ? validateQuery(schema, query) : paging;
+  if (!paging.success || !result.success) {
+    void reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'Validation failed',
+      statusCode: 400,
+      errors: result.success ? [] : result.errors,
+    });
+    return undefined;
+  }
+  const data = paging.data as { page: number; pageSize: number };
+  return { page: data.page, pageSize: data.pageSize };
 }
 
 function tenantMissing(reply: FastifyReply) {
@@ -253,9 +283,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportRouteListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -676,9 +707,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -915,9 +947,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportDriverAssignmentListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -1074,9 +1107,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportStudentAssignmentListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
