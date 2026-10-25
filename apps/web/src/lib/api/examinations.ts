@@ -9,6 +9,7 @@
  * `gatewayFetch` helper which auto-forwards Authorization + X-Tenant-ID.
  */
 import { gatewayFetch } from './gateway';
+import { MAX_API_PAGE_SIZE } from './pagination';
 import type { CreateExaminationFormValues } from '@/lib/validation/examination-schema';
 
 export interface Examination {
@@ -272,15 +273,50 @@ interface MarksCandidateRecord {
 
 interface PublicationRecord {
   publishedAt: string;
-  gradeResults: Array<{
-    candidateId: string;
-    studentId: string;
-    subjectId: string;
-    score: number;
-    grade: string;
-    passed: boolean;
-  }>;
+  // PRC-M243: the route paginates this field (`{ data, meta }`), not a bare
+  // array — getExaminationResultsView below reads every page via
+  // fetchAllPublicationGradeResults rather than destructuring it directly.
+  gradeResults: {
+    data: Array<{
+      candidateId: string;
+      studentId: string;
+      subjectId: string;
+      score: number;
+      grade: string;
+      passed: boolean;
+    }>;
+    meta: { page: number; pageSize: number; totalItems: number; totalPages: number };
+  };
   incompleteRecords: Array<{ candidateId: string; studentId: string; subjectId: string }>;
+}
+
+/** Bounded like `gatewayFetchAllPages`'s `MAX_AUTO_PAGES` — a hard stop so a bad `totalPages` cannot loop forever. */
+const MAX_GRADE_RESULT_PAGES = 50;
+
+/**
+ * Fetches every page of a publication's `gradeResults` (PRC-M243 made the
+ * field `{ data, meta }`-paginated rather than a bare array). Unlike
+ * `gatewayFetchAllPages`, the paginated field is nested inside a response
+ * that also carries `publishedAt`/`incompleteRecords`/etc., so the whole
+ * response is fetched once per page and only `gradeResults.data` collected —
+ * `gatewayFetchAllPages` assumes the top-level body itself is `{ data, meta }`
+ * and doesn't fit this shape.
+ */
+async function fetchAllPublicationGradeResults(
+  examinationId: string,
+): Promise<PublicationRecord['gradeResults']['data']> {
+  const items: PublicationRecord['gradeResults']['data'] = [];
+  for (let page = 1; page <= MAX_GRADE_RESULT_PAGES; page += 1) {
+    const result = await gatewayFetch<PublicationRecord>(
+      `/examinations/${encodeURIComponent(examinationId)}/results?page=${page}&pageSize=${MAX_API_PAGE_SIZE}`,
+      { throwOnError: false, next: { revalidate: 0 } },
+    );
+    if (!result.data) break;
+    items.push(...result.data.gradeResults.data);
+    const totalPages = result.data.gradeResults.meta.totalPages;
+    if (!totalPages || page >= totalPages) break;
+  }
+  return items;
 }
 
 /**
@@ -290,7 +326,7 @@ interface PublicationRecord {
 export async function getExaminationResultsView(
   examination: Examination,
 ): Promise<ExaminationResultsView> {
-  const [marks, publication, registrations] = await Promise.all([
+  const [marks, publication, registrations, allGradeResults] = await Promise.all([
     gatewayFetch<{ data: MarksCandidateRecord[] }>(
       `/examinations/${encodeURIComponent(examination.id)}/results/marks`,
       { throwOnError: false, next: { revalidate: 0 } },
@@ -300,11 +336,15 @@ export async function getExaminationResultsView(
       next: { revalidate: 0 },
     }),
     listExaminationCandidates(examination.id),
+    fetchAllPublicationGradeResults(examination.id),
   ]);
   const markRows = marks.data?.data ?? [];
   const published = publication.data ?? null;
+  // `published` only tells us a publication exists (for `publishedAt` below);
+  // the grade rows themselves come from `allGradeResults`, which already
+  // paged through every `gradeResults` page rather than just the first.
   const gradeByKey = new Map(
-    (published?.gradeResults ?? []).map((g) => [`${g.studentId}:${g.subjectId}`, g] as const),
+    (published ? allGradeResults : []).map((g) => [`${g.studentId}:${g.subjectId}`, g] as const),
   );
   const subjectById = new Map(examination.subjects.map((s) => [s.id, s] as const));
   const allExamSubjectIds = examination.subjects.map((s) => s.id);

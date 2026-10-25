@@ -35,7 +35,6 @@ import type { ExaminationCenter, ExaminationSubject } from './examination-reposi
 import type { ExamOpsStore } from './ops-store.js';
 import type {
   CandidateGradeResult,
-  CandidateSubjectResult,
   IncompleteRecord,
   PublicationResult,
 } from './result-repository.js';
@@ -105,16 +104,23 @@ export class PrismaDocumentRepository implements DocumentRepository {
   ) {}
 
   /**
-   * Derived read-model: `examination_candidates` joined with the parent
-   * examination's JSONB `centers`/`subjects` and the `students` table.
+   * Derived read-model driven by `examination_candidate_registrations` — every
+   * registered student appears (PRC-M510: previously this drove from
+   * `examination_candidates`, so a student with zero marks/candidate rows yet
+   * silently disappeared from admit cards and seating/results reads) — LEFT
+   * joined with `examination_candidates` by (tenantId, examinationId,
+   * studentId) for marks-era fields (gender, area, subjectResults fallback)
+   * when that row exists, plus the parent examination's JSONB
+   * `centers`/`subjects` and the `students` table.
    *
    * Mapping choices (documented, conservative):
    * - studentName: `Student.firstName + ' ' + Student.lastName`; falls back
    *   to the studentId if the student row is missing (cross-domain read).
-   * - rollNumber: no roll-number source exists in the schema, so the
-   *   candidate id is used as a stable, unique stand-in.
-   * - subjectIds: from the candidate's registration (`subject_ids`) when one
-   *   exists, otherwise derived from the candidate's `subject_results`.
+   * - rollNumber: no roll-number source exists in the schema; the candidate
+   *   row id is used when one exists, otherwise the registration id — both
+   *   stable, unique stand-ins.
+   * - subjectIds: from the registration's `subject_ids` (now the row driver,
+   *   always present) rather than the candidate's `subject_results`.
    * - photoUrl: no source — omitted.
    */
   async getDocumentCandidates(
@@ -128,47 +134,50 @@ export class PrismaDocumentRepository implements DocumentRepository {
         where['id'] = { in: candidateIds };
       }
 
-      const [examination, candidates] = await Promise.all([
+      const [examination, registrations] = await Promise.all([
         tx.examination.findFirst({ where: { id: examinationId, tenantId } }),
-        tx.examinationCandidate.findMany({ where }),
+        tx.examinationCandidateRegistration.findMany({ where }),
       ]);
-      if (candidates.length === 0) return [];
+      if (registrations.length === 0) return [];
 
       const centers = jsonArray<ExaminationCenter>(examination?.centers);
       const subjects = jsonArray<ExaminationSubject>(examination?.subjects);
       const centerNameById = new Map(centers.map((c) => [c.id, c.name]));
       const subjectNameById = new Map(subjects.map((s) => [s.id, s.name]));
 
-      const studentIds = [...new Set(candidates.map((c) => c.studentId))];
-      const [students, registrations] = await Promise.all([
+      const studentIds = [...new Set(registrations.map((r) => r.studentId))];
+      const [students, candidates] = await Promise.all([
         tx.student.findMany({
           where: { tenantId, id: { in: studentIds }, deletedAt: null },
           select: { id: true, firstName: true, lastName: true },
         }),
-        tx.examinationCandidateRegistration.findMany({
+        tx.examinationCandidate.findMany({
           where: { tenantId, examinationId, studentId: { in: studentIds } },
         }),
       ]);
       const studentById = new Map(students.map((s) => [s.id, s]));
-      const registrationByStudentId = new Map(registrations.map((r) => [r.studentId, r]));
+      // LEFT JOIN: present only for students who already have marks/candidate rows.
+      const candidateByStudentId = new Map(candidates.map((c) => [c.studentId, c]));
 
-      return candidates.map((candidate) => {
-        const student = studentById.get(candidate.studentId);
-        const registration = registrationByStudentId.get(candidate.studentId);
-        const subjectIds = registration
-          ? jsonArray<string>(registration.subjectIds)
-          : jsonArray<CandidateSubjectResult>(candidate.subjectResults).map((r) => r.subjectId);
+      return registrations.map((registration) => {
+        const student = studentById.get(registration.studentId);
+        const candidate = candidateByStudentId.get(registration.studentId);
+        const subjectIds = jsonArray<string>(registration.subjectIds);
+        const centerId = candidate?.centerId ?? registration.centerId;
         return {
-          id: candidate.id,
-          studentId: candidate.studentId,
-          studentName: student ? `${student.firstName} ${student.lastName}` : candidate.studentId,
-          rollNumber: candidate.id,
-          centerId: candidate.centerId,
-          centerName: centerNameById.get(candidate.centerId) ?? candidate.centerId,
+          id: candidate?.id ?? registration.id,
+          studentId: registration.studentId,
+          studentName: student
+            ? `${student.firstName} ${student.lastName}`
+            : registration.studentId,
+          rollNumber: candidate?.id ?? registration.id,
+          centerId,
+          centerName: centerNameById.get(centerId) ?? centerId,
           subjectIds,
           subjectNames: subjectIds.map((id) => subjectNameById.get(id) ?? id),
           // PRC-H057: nullable column; legacy fallback until DocumentCandidate carries null.
-          gender: candidate.gender ?? 'other',
+          // No candidate row yet (not marked) => gender genuinely unknown, same fallback.
+          gender: candidate?.gender ?? 'other',
         };
       });
     });

@@ -16,6 +16,7 @@
  *   strings inside the payload and are revived to `Date` on read.
  * - `examination_academic_records`: one append-only row per update.
  */
+import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
@@ -97,6 +98,51 @@ export class PrismaResultRepository implements ResultRepository {
           ? (row.subjectResults as unknown as CandidateSubjectResult[])
           : [],
       }));
+    });
+  }
+
+  /**
+   * PRC-M243: paginated candidates for the marks GET handler. Mapping
+   * mirrors {@link getCandidates} exactly (same legacy gender/area
+   * fallbacks) — only the result set and shape are bounded/paginated.
+   */
+  async getCandidatesPage(
+    examinationId: string,
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ExaminationCandidate>> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const page = Math.max(1, pagination.page);
+      const pageSize = Math.max(1, pagination.pageSize);
+      const where = { examinationId, tenantId };
+      const [totalItems, rows] = await Promise.all([
+        tx.examinationCandidate.count({ where }),
+        tx.examinationCandidate.findMany({
+          where,
+          orderBy: { studentId: 'asc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+      ]);
+      return {
+        data: rows.map((row) => ({
+          id: row.id,
+          examinationId: row.examinationId,
+          studentId: row.studentId,
+          centerId: row.centerId,
+          gender: (row.gender ?? 'other') as ExaminationCandidate['gender'],
+          areaId: row.areaId ?? row.centerId,
+          subjectResults: Array.isArray(row.subjectResults)
+            ? (row.subjectResults as unknown as CandidateSubjectResult[])
+            : [],
+        })),
+        meta: {
+          page,
+          pageSize,
+          totalItems,
+          totalPages: Math.ceil(totalItems / pageSize),
+        },
+      };
     });
   }
 

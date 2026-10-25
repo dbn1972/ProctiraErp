@@ -80,7 +80,13 @@ describe('getExaminationResultsView', () => {
       registrations: [registration('s1', ['m', 'e']), registration('s2', ['m', 'e'])],
       publication: {
         publishedAt: '2025-02-01',
-        gradeResults: [{ studentId: 's1', subjectId: 'm', score: 80, grade: 'A' }],
+        // PRC-M243: the real route paginates this field (`{ data, meta }`),
+        // not a bare array — match production shape so this mock can't drift
+        // from it the way the production client code once did.
+        gradeResults: {
+          data: [{ studentId: 's1', subjectId: 'm', score: 80, grade: 'A' }],
+          meta: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+        },
       },
     });
     const view = await getExaminationResultsView(exam);

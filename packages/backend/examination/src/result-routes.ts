@@ -21,11 +21,21 @@ import type { ExaminationAction } from './examination-access.js';
 import { examinationReadWritePreHandler } from './examination-http-guard.js';
 import type { ResultPublicationService } from './result-publication-service.js';
 import {
+  ListMarksQuerySchema,
   RecordMarksSchema,
   ResultExaminationParamsSchema,
+  type ListMarksQuery,
   type RecordMarksBody,
   type ResultExaminationParams,
 } from './result-schemas.js';
+
+/** PRC-M243: default/bounded page and pageSize, shared by both GET handlers. */
+function resolvePagination(query: ListMarksQuery): { page: number; pageSize: number } {
+  return {
+    page: query.page ?? 1,
+    pageSize: query.pageSize ?? 20,
+  };
+}
 
 /**
  * Options for registering result publication routes.
@@ -113,12 +123,16 @@ export async function registerResultRoutes(
   /**
    * GET /examinations/:examinationId/results
    * Get publication result for an examination.
+   *
+   * PRC-M243: gradeResults (one row per candidate-subject) previously came
+   * back as a single unbounded array; it is now a { data, meta } page,
+   * validated against ListMarksQuerySchema.
    */
-  fastify.get<{ Params: ResultExaminationParams }>(
+  fastify.get<{ Params: ResultExaminationParams; Querystring: ListMarksQuery }>(
     `${prefix}/:examinationId/results`,
     { preHandler: guard('exam.read.staff') },
     async function getResultsHandler(
-      request: FastifyRequest<{ Params: ResultExaminationParams }>,
+      request: FastifyRequest<{ Params: ResultExaminationParams; Querystring: ListMarksQuery }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(ResultExaminationParamsSchema, request.params);
@@ -128,6 +142,15 @@ export async function registerResultRoutes(
           message: 'Invalid examination ID',
           statusCode: 400,
           errors: paramsResult.errors,
+        });
+      }
+      const queryResult = validate(ListMarksQuerySchema, request.query, { convert: true });
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid pagination parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
         });
       }
 
@@ -145,6 +168,8 @@ export async function registerResultRoutes(
           tenantId,
           paramsResult.data.examinationId,
         );
+        const { page, pageSize } = resolvePagination(queryResult.data);
+        const start = (page - 1) * pageSize;
 
         return reply.status(200).send({
           examinationId: result.examinationId,
@@ -153,7 +178,15 @@ export async function registerResultRoutes(
           processedCount: result.processedCount,
           incompleteCount: result.incompleteCount,
           durationMs: result.durationMs,
-          gradeResults: result.gradeResults,
+          gradeResults: {
+            data: result.gradeResults.slice(start, start + pageSize),
+            meta: {
+              page,
+              pageSize,
+              totalItems: result.gradeResults.length,
+              totalPages: Math.ceil(result.gradeResults.length / pageSize),
+            },
+          },
           incompleteRecords: result.incompleteRecords,
         });
       } catch (error: unknown) {
@@ -221,12 +254,17 @@ export async function registerResultRoutes(
   /**
    * GET /examinations/:examinationId/results/marks
    * Recorded marks per candidate (drives the Results tab before publication).
+   *
+   * PRC-M243: previously returned every candidate in one unbounded array
+   * (`{ data: candidates, meta: { total } }` with no page/pageSize). Now
+   * paginated via ResultRepository.getCandidatesPage, validated against
+   * ListMarksQuerySchema.
    */
-  fastify.get<{ Params: ResultExaminationParams }>(
+  fastify.get<{ Params: ResultExaminationParams; Querystring: ListMarksQuery }>(
     `${prefix}/:examinationId/results/marks`,
     { preHandler: guard('exam.read.staff') },
     async function getMarksHandler(
-      request: FastifyRequest<{ Params: ResultExaminationParams }>,
+      request: FastifyRequest<{ Params: ResultExaminationParams; Querystring: ListMarksQuery }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(ResultExaminationParamsSchema, request.params);
@@ -238,6 +276,15 @@ export async function registerResultRoutes(
           errors: paramsResult.errors,
         });
       }
+      const queryResult = validate(ListMarksQuerySchema, request.query, { convert: true });
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid pagination parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({
@@ -247,11 +294,13 @@ export async function registerResultRoutes(
         });
       }
       try {
-        const candidates = await resultPublicationService.getMarks(
+        const { page, pageSize } = resolvePagination(queryResult.data);
+        const result = await resultPublicationService.getMarksPage(
           tenantId,
           paramsResult.data.examinationId,
+          { page, pageSize },
         );
-        return reply.status(200).send({ data: candidates, meta: { total: candidates.length } });
+        return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

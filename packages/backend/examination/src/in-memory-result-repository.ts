@@ -6,6 +6,7 @@
  * Every map is keyed by `${tenantId}:${examinationId}` so cross-tenant reads
  * return empty results (PRC-L469), mirroring RLS on the Prisma repository.
  */
+import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { BusinessRuleError, ConflictError } from '@proctira/common';
 
 import type {
@@ -46,6 +47,27 @@ export class InMemoryResultRepository implements ResultRepository {
 
   async getCandidates(examinationId: string, tenantId: string): Promise<ExaminationCandidate[]> {
     return this.candidates.get(key(tenantId, examinationId)) ?? [];
+  }
+
+  /** PRC-M243: paginated slice of the same filtered array `getCandidates` returns. */
+  async getCandidatesPage(
+    examinationId: string,
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ExaminationCandidate>> {
+    const all = this.candidates.get(key(tenantId, examinationId)) ?? [];
+    const page = Math.max(1, pagination.page);
+    const pageSize = Math.max(1, pagination.pageSize);
+    const start = (page - 1) * pageSize;
+    return {
+      data: all.slice(start, start + pageSize),
+      meta: {
+        page,
+        pageSize,
+        totalItems: all.length,
+        totalPages: Math.ceil(all.length / pageSize),
+      },
+    };
   }
 
   async upsertCandidates(tenantId: string, candidates: ExaminationCandidate[]): Promise<void> {

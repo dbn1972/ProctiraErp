@@ -271,4 +271,58 @@ describe('G-908 examination ops routes', () => {
     });
     expect(teacherRes.statusCode).toBe(200);
   });
+
+  // PRC-M620: a learner-role matrix (student AND guardian, not just student)
+  // across every ops GET endpoint, so a future role-vocabulary change can't
+  // silently reopen a learner-readable ops route without a test failing.
+  it('denies both student and guardian reads across every ops GET endpoint', async () => {
+    const fx = await seedExam();
+    const opsGetUrls = [
+      `/examinations/${fx.examId}/sessions`,
+      `/examinations/${fx.examId}/seating`,
+      `/examinations/${fx.examId}/marks/entries`,
+      `/examinations/${fx.examId}/reevaluations`,
+    ];
+
+    for (const learnerRole of [
+      { roleId: 'student', roleName: 'STUDENT', areaId: null },
+      { roleId: 'guardian', roleName: 'GUARDIAN', areaId: null },
+    ] as const) {
+      actorRoles = [learnerRole];
+      for (const url of opsGetUrls) {
+        const res = await app.inject({ method: 'GET', url });
+        expect(res.statusCode, `${learnerRole.roleName} GET ${url}`).toBe(403);
+      }
+    }
+
+    // A session's invigilator list is also a staff-only read, reached via
+    // sessions/:sessionId/invigilators — exercise it with a seeded session.
+    actorRoles = [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }];
+    const session = await app.inject({
+      method: 'POST',
+      url: `/examinations/${fx.examId}/sessions`,
+      payload: {
+        subjectId: fx.subjectId,
+        date: futureDate(8),
+        startTime: '09:00',
+        endTime: '11:00',
+        roomId: 'HALL-C',
+        centerId: fx.centerId,
+      },
+    });
+    expect(session.statusCode).toBe(201);
+    const sessionId = session.json().id as string;
+
+    for (const learnerRole of [
+      { roleId: 'student', roleName: 'STUDENT', areaId: null },
+      { roleId: 'guardian', roleName: 'GUARDIAN', areaId: null },
+    ] as const) {
+      actorRoles = [learnerRole];
+      const res = await app.inject({
+        method: 'GET',
+        url: `/examinations/${fx.examId}/sessions/${sessionId}/invigilators`,
+      });
+      expect(res.statusCode, `${learnerRole.roleName} GET invigilators`).toBe(403);
+    }
+  });
 });

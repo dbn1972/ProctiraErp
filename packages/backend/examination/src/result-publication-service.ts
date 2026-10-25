@@ -18,6 +18,8 @@ import {
   BusinessRuleError,
   ValidationError,
   type FieldError,
+  type PaginationOptions,
+  type PaginatedResult,
 } from '@proctira/common';
 
 import type { ExaminationRepository, ExaminationGradingScheme } from './examination-repository.js';
@@ -600,6 +602,22 @@ export class ResultPublicationService {
       throw new NotFoundError(`Examination with id '${examinationId}' not found`);
     }
     return this.resultRepository.getCandidates(examinationId, tenantId);
+  }
+
+  /**
+   * PRC-M243: paginated recorded marks, backing GET .../results/marks (which
+   * previously returned the full unbounded array via {@link getMarks}).
+   */
+  async getMarksPage(
+    tenantId: string,
+    examinationId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ExaminationCandidate>> {
+    const examination = await this.examinationRepository.findById(examinationId, tenantId);
+    if (!examination) {
+      throw new NotFoundError(`Examination with id '${examinationId}' not found`);
+    }
+    return this.resultRepository.getCandidatesPage(examinationId, tenantId, pagination);
   }
 
   /**
