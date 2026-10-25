@@ -14,6 +14,7 @@ import {
 import type { CatalogueService } from './catalogue-service.js';
 import { formatApiLabel, resolveReportKey, type CatalogueReportKey } from './catalogue.js';
 import { canAccessReport, isReportManager, isReportStaff } from './report-access.js';
+import type { ReportArtifactRecord } from './report-store.js';
 import { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
 
 export interface CatalogueRoutesOptions {
@@ -202,13 +203,21 @@ export function registerCatalogueRoutes(
       const visibleRuns = manager
         ? runs
         : runs.filter((run) => canAccessReport(roles, run.reportKey));
-      const payload = await Promise.all(
-        visibleRuns.map(async (run) => {
-          const artifact = run.artifactId
-            ? await service.getArtifact(tenantId, run.artifactId).catch(() => null)
-            : null;
-          return service.toInsightsRunFromRecords(run, artifact, resolveUserId(request));
-        }),
+      // PRC-L143: one batched artifact lookup instead of one tenant transaction per run.
+      // A failed lookup degrades to "no artifact" for every run, as the per-run path did.
+      const artifactIds = visibleRuns
+        .map((run) => run.artifactId)
+        .filter((id): id is string => Boolean(id));
+      const artifacts = await service
+        .getArtifactsByIds(tenantId, artifactIds)
+        .catch((): ReportArtifactRecord[] => []);
+      const artifactById = new Map(artifacts.map((artifact) => [artifact.id, artifact]));
+      const payload = visibleRuns.map((run) =>
+        service.toInsightsRunFromRecords(
+          run,
+          run.artifactId ? (artifactById.get(run.artifactId) ?? null) : null,
+          resolveUserId(request),
+        ),
       );
       return reply.send({ data: payload });
     } catch (error: unknown) {
