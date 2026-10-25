@@ -14,6 +14,7 @@ import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/commo
 import { v4 as uuidv4 } from 'uuid';
 
 import { validateCompatibility } from './compatibility.js';
+import type { ExtensionPointRegistry } from './extension-points/extension-point-registry.js';
 import type { PluginRepository, PluginEntity, PluginInstallEntity } from './plugin-repository.js';
 import type { RegisterPluginInput, InstallPluginInput } from './schemas.js';
 
@@ -32,6 +33,12 @@ export class PluginService {
   constructor(
     private readonly repository: PluginRepository,
     private readonly config: PluginServiceConfig,
+    /**
+     * PRC-M604: runtime registry of hooks, UI slot components and event
+     * subscriptions. When provided, disable/uninstall remove the install's
+     * registrations so the plugin stops receiving payloads.
+     */
+    private readonly registry?: Pick<ExtensionPointRegistry, 'unregisterAllForInstall'>,
   ) {}
 
   /**
@@ -277,6 +284,9 @@ export class PluginService {
       disabledAt: new Date(),
     });
 
+    // PRC-M604: a disabled plugin must stop receiving hook/event payloads.
+    const hooksUnregistered = this.registry?.unregisterAllForInstall(installId) ?? 0;
+
     // Audit log
     await this.repository.createAuditEntry({
       id: uuidv4(),
@@ -285,7 +295,7 @@ export class PluginService {
       installId,
       action: 'disable',
       actor,
-      details: { previousStatus: install.status },
+      details: { previousStatus: install.status, hooksUnregistered },
     });
 
     return updated;
@@ -321,6 +331,9 @@ export class PluginService {
       throw new BusinessRuleError('Plugin is already uninstalled');
     }
 
+    // PRC-M604: an uninstalled plugin must stop receiving hook/event payloads.
+    const hooksUnregistered = this.registry?.unregisterAllForInstall(installId) ?? 0;
+
     // Audit log
     await this.repository.createAuditEntry({
       id: uuidv4(),
@@ -329,7 +342,7 @@ export class PluginService {
       installId,
       action: 'uninstall',
       actor,
-      details: { reason: reason ?? 'No reason provided' },
+      details: { reason: reason ?? 'No reason provided', hooksUnregistered },
     });
 
     return updated;
