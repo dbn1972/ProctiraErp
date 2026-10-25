@@ -11,8 +11,8 @@
  * GET    /pipelines/:pipelineId/executions/:executionId - Get execution details
  */
 import { getActor } from '@proctira/backend-auth';
-import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { AppError, type FieldError } from '@proctira/common';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { listDestinationConnections } from './connectors/connection-registry.js';
@@ -22,6 +22,7 @@ import {
   CreatePipelineSchema,
   UpdatePipelineSchema,
   PipelineParamsSchema,
+  PipelineListQuerySchema,
   type CreatePipelineInput,
   type UpdatePipelineInput,
   type PipelineParams,
@@ -112,6 +113,31 @@ function canManageEtl(request: FastifyRequest): boolean {
 
 function getTenantId(request: FastifyRequest): string | undefined {
   return (request as FastifyRequest & { tenantId?: string }).tenantId;
+}
+
+/**
+ * PRC-L099: querystring values arrive as strings, so `enabled=false` never matched the boolean
+ * filter and page/pageSize were unbounded. Validate with conversion (applies defaults and the
+ * 1..100 caps) and require integer paging.
+ */
+function parseListQuery(
+  query: unknown,
+):
+  | { success: true; data: PipelineListQuery & { page: number; pageSize: number } }
+  | { success: false; errors: FieldError[] } {
+  const result = validateQuery(PipelineListQuerySchema, query);
+  if (!result.success) return result;
+  const page = result.data.page ?? 1;
+  const pageSize = result.data.pageSize ?? 20;
+  const errors: FieldError[] = [];
+  if (!Number.isInteger(page)) {
+    errors.push({ field: 'page', message: 'page must be an integer', rule: 'integer' });
+  }
+  if (!Number.isInteger(pageSize)) {
+    errors.push({ field: 'pageSize', message: 'pageSize must be an integer', rule: 'integer' });
+  }
+  if (errors.length > 0) return { success: false, errors };
+  return { success: true, data: { ...result.data, page, pageSize } };
 }
 
 /**
@@ -228,16 +254,18 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const queryResult = parseListQuery(request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const { page, pageSize, search, enabled } = queryResult.data;
 
-      const result = await etlService.listPipelines(
-        tenantId,
-        { search: query.search, enabled: query.enabled },
-        page,
-        pageSize,
-      );
+      const result = await etlService.listPipelines(tenantId, { search, enabled }, page, pageSize);
 
       return reply.status(200).send({
         data: result.data.map((p) => formatPipelineResponse(p, canManageEtl(request))),
@@ -458,9 +486,16 @@ export async function registerETLRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      const queryResult = parseListQuery(request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const { page, pageSize } = queryResult.data;
 
       try {
         const result = await etlService.listExecutions(

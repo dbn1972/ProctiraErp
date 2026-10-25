@@ -140,6 +140,49 @@ describe('ETL Routes', () => {
       expect(body.data).toHaveLength(0);
       expect(body.meta.total).toBe(0);
     });
+
+    // PRC-L099: querystring values are strings; the list filter must convert `enabled`.
+    it('filters by enabled=true / enabled=false', async () => {
+      await app.inject({ method: 'POST', url: '/pipelines', payload: validPipelineBody });
+      await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: { ...validPipelineBody, name: 'Disabled Pipeline', enabled: false },
+      });
+
+      const disabled = await app.inject({ method: 'GET', url: '/pipelines?enabled=false' });
+      expect(disabled.statusCode).toBe(200);
+      const disabledBody = JSON.parse(disabled.payload);
+      expect(disabledBody.data.map((p: { name: string }) => p.name)).toEqual(['Disabled Pipeline']);
+
+      const enabled = await app.inject({ method: 'GET', url: '/pipelines?enabled=true' });
+      const enabledBody = JSON.parse(enabled.payload);
+      expect(enabledBody.data.map((p: { name: string }) => p.name)).toEqual(['Test Pipeline']);
+    });
+
+    // PRC-L099: page/pageSize must be validated (1..n integers, pageSize <= 100).
+    for (const qs of ['page=0', 'pageSize=500', 'page=abc', 'page=1.5', 'enabled=maybe']) {
+      it(`rejects invalid list query ${qs} (400)`, async () => {
+        const response = await app.inject({ method: 'GET', url: `/pipelines?${qs}` });
+        expect(response.statusCode).toBe(400);
+        expect(JSON.parse(response.payload).code).toBe('VALIDATION_ERROR');
+      });
+    }
+
+    it('rejects an invalid executions list pageSize (400)', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
+      const created = JSON.parse(createResponse.payload);
+      const response = await app.inject({
+        method: 'GET',
+        url: `/pipelines/${created.id}/executions?pageSize=500`,
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.payload).code).toBe('VALIDATION_ERROR');
+    });
   });
 
   describe('GET /pipelines/:pipelineId', () => {
