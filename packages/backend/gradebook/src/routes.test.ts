@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { gradebookPlugin } from './gradebook-plugin.js';
 import { InMemoryGradebookExtrasStore } from './extras-store.js';
+import { GradebookService } from './gradebook-service.js';
 import { InMemoryGradebookRepository } from './in-memory-repository.js';
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
@@ -361,5 +362,221 @@ describe('gradebook routes G-907', () => {
       if (previousKms === undefined) delete process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
       else process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF = previousKms;
     }
+  });
+});
+
+// PRC-L561: HTTP-level proof for cross-tenant downloads, path-traversal ids and
+// portal /entries scoping. Concurrency is covered by grade-entry-concurrency.test.ts.
+describe('PRC-L561 gradebook download and portal read authorization', () => {
+  const TENANT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const BOARD = '22222222-2222-4222-8222-222222222222';
+  const INST = '66666666-6666-4666-8666-666666666666';
+  const OTHER_STUDENT = '99999999-9999-4999-8999-999999999999';
+  const ENV_KEYS = [
+    'SIS_REPORT_CARD_DIR',
+    'SIS_TRANSCRIPT_DIR',
+    'SIS_BOARD_EXPORT_DIR',
+    'TRANSCRIPT_SIGNING_SECRET',
+    'TRANSCRIPT_SIGNING_KMS_KEY_REF',
+  ] as const;
+  let savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>;
+  let repo: InMemoryGradebookRepository;
+  let extras: InMemoryGradebookExtrasStore;
+  const apps: FastifyInstance[] = [];
+
+  beforeEach(() => {
+    savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
+    process.env.SIS_REPORT_CARD_DIR = mkdtempSync(join(tmpdir(), 'l561-report-cards-'));
+    process.env.SIS_TRANSCRIPT_DIR = mkdtempSync(join(tmpdir(), 'l561-transcripts-'));
+    process.env.SIS_BOARD_EXPORT_DIR = mkdtempSync(join(tmpdir(), 'l561-board-exports-'));
+    process.env.TRANSCRIPT_SIGNING_SECRET = 'l561-route-test-transcript-secret';
+    process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF = 'env:TRANSCRIPT_SIGNING_SECRET';
+
+    repo = new InMemoryGradebookRepository();
+    extras = new InMemoryGradebookExtrasStore();
+    repo.seedSection({
+      id: SECTION,
+      tenantId: TENANT,
+      institutionId: INST,
+      academicPeriodId: '77777777-7777-4777-8777-777777777777',
+      code: '10-A',
+      name: 'Class 10-A',
+      status: 'PUBLISHED',
+    });
+    repo.seedBoard({ id: BOARD, tenantId: TENANT, code: 'CBSE', name: 'CBSE' });
+    repo.seedInstitution({
+      id: INST,
+      tenantId: TENANT,
+      boardId: BOARD,
+      code: 'CBSE-DEL-01',
+      name: 'CBSE Demo',
+    });
+    for (const [id, codeType, codeValue] of [
+      ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'AFFILIATION', 'CBSE-AFF-L561'],
+      ['cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'CENTRE', 'CBSE-CTR-L561'],
+    ] as const) {
+      repo.seedBoardCode({
+        id,
+        tenantId: TENANT,
+        boardId: BOARD,
+        institutionId: INST,
+        codeType,
+        codeValue,
+        label: codeType,
+      });
+    }
+    repo.seedExportCandidate({
+      studentId: STUDENT,
+      firstName: 'Student',
+      lastName: 'One',
+      nationalId: 'NID-L561',
+      institutionId: INST,
+      grades: [
+        { assessmentCode: 'ENG', numericScore: 88, letterGrade: null },
+        { assessmentCode: 'MATH', numericScore: 95, letterGrade: null },
+        { assessmentCode: 'SCI', numericScore: 84, letterGrade: null },
+        { assessmentCode: 'SST', numericScore: 79, letterGrade: null },
+      ],
+      latestTranscript: null,
+    });
+  });
+
+  afterEach(async () => {
+    while (apps.length > 0) await apps.pop()!.close();
+    for (const key of ENV_KEYS) {
+      const value = savedEnv[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  /** App on the shared repository whose caller belongs to `tenantId`. */
+  async function appFor(
+    tenantId: string,
+    roles: string[],
+    studentBinding?: { listReadableStudentIds: () => Promise<string[]> },
+  ): Promise<FastifyInstance> {
+    const instance = Fastify({ logger: false });
+    instance.addHook('onRequest', async (request) => {
+      (
+        request as FastifyRequest & { user: { tenantId: string; id: string; roles: string[] } }
+      ).user = { tenantId, id: 'actor-l561', roles };
+    });
+    await instance.register(gradebookPlugin, {
+      repository: repo,
+      extras,
+      prefix: '/gradebook',
+      studentBinding,
+    });
+    await instance.ready();
+    apps.push(instance);
+    return instance;
+  }
+
+  /** Tenant A artifacts: a report card, a transcript and a board export. */
+  async function produceTenantAArtifacts(staffA: FastifyInstance) {
+    const card = await staffA.inject({
+      method: 'POST',
+      url: '/gradebook/report-cards',
+      payload: { studentId: STUDENT, boardId: BOARD },
+    });
+    expect(card.statusCode, card.body).toBe(201);
+    const transcript = await staffA.inject({
+      method: 'POST',
+      url: '/gradebook/transcripts/issue',
+      payload: { studentId: STUDENT },
+    });
+    expect(transcript.statusCode, transcript.body).toBe(201);
+    const exportJob = await staffA.inject({
+      method: 'POST',
+      url: '/gradebook/board-exports',
+      payload: { boardId: BOARD, institutionId: INST, studentIds: [STUDENT] },
+    });
+    expect(exportJob.statusCode, exportJob.body).toBe(201);
+    return [
+      `/gradebook/report-cards/${(card.json() as { id: string }).id}/download`,
+      `/gradebook/transcripts/${(transcript.json() as { id: string }).id}/download`,
+      `/gradebook/board-exports/${(exportJob.json() as { id: string }).id}/download?format=csv`,
+    ];
+  }
+
+  it('another tenant cannot download tenant A report cards, transcripts or board exports', async () => {
+    const staffA = await appFor(TENANT, ['admin']);
+    const staffB = await appFor(TENANT_B, ['admin']);
+    const urls = await produceTenantAArtifacts(staffA);
+
+    for (const url of urls) {
+      const own = await staffA.inject({ method: 'GET', url });
+      expect(own.statusCode, `tenant A ${url}`).toBe(200);
+      expect(own.rawPayload.length).toBeGreaterThan(0);
+
+      const foreign = await staffB.inject({ method: 'GET', url });
+      expect(foreign.statusCode, `tenant B ${url}`).toBe(404);
+      expect(foreign.headers['content-disposition']).toBeUndefined();
+      expect(foreign.body).not.toContain('NID-L561');
+    }
+  });
+
+  it('path-traversal ids on the download routes never return a file', async () => {
+    const staffA = await appFor(TENANT, ['admin']);
+    await produceTenantAArtifacts(staffA);
+    const ids = ['..%2F..%2F..%2Fetc%2Fpasswd', '%2e%2e%2f%2e%2e%2fetc%2fpasswd', '..', '....%2F'];
+    for (const id of ids) {
+      for (const url of [
+        `/gradebook/report-cards/${id}/download`,
+        `/gradebook/transcripts/${id}/download`,
+        `/gradebook/board-exports/${id}/download?format=csv`,
+      ]) {
+        const res = await staffA.inject({ method: 'GET', url });
+        expect([400, 404], `${url} -> ${res.statusCode}`).toContain(res.statusCode);
+        expect(res.headers['content-disposition']).toBeUndefined();
+        expect(res.body).not.toContain('root:');
+      }
+    }
+  });
+
+  it('portal /entries is bound to linked students and shows only published grades', async () => {
+    // Seed one published and one draft grade for STUDENT (no actor: seeding only).
+    const seeding = new GradebookService(repo, extras);
+    const published = await seeding.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 91,
+    });
+    for (const action of ['submit', 'approve', 'lock', 'publish'] as const) {
+      await seeding.transitionGradeEntry(TENANT, published.id, action);
+    }
+    await seeding.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'ENG',
+      numericScore: 40,
+    });
+
+    const parent = await appFor(TENANT, ['parent'], {
+      listReadableStudentIds: async () => [STUDENT],
+    });
+    const unlinked = await parent.inject({
+      method: 'GET',
+      url: `/gradebook/entries?studentId=${OTHER_STUDENT}`,
+    });
+    expect(unlinked.statusCode).toBe(403);
+
+    const linked = await parent.inject({
+      method: 'GET',
+      url: `/gradebook/entries?studentId=${STUDENT}`,
+    });
+    expect(linked.statusCode).toBe(200);
+    const rows = (linked.json() as { data: Array<{ id: string; assessmentCode: string }> }).data;
+    expect(rows.map((r) => r.id)).toEqual([published.id]);
+
+    // Staff still see the draft as well (regression guard for the filter).
+    const staff = await appFor(TENANT, ['registrar']);
+    const all = await staff.inject({
+      method: 'GET',
+      url: `/gradebook/entries?studentId=${STUDENT}`,
+    });
+    expect((all.json() as { data: unknown[] }).data).toHaveLength(2);
   });
 });
