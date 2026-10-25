@@ -10,12 +10,12 @@
  *
  * All operations are tenant-scoped and produce audit log entries.
  */
+import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
-import { AppError, NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
 
-import type { PluginRepository, PluginEntity, PluginInstallEntity } from './plugin-repository.js';
-import type { PluginManifest, RegisterPluginInput, InstallPluginInput } from './schemas.js';
 import { validateCompatibility } from './compatibility.js';
+import type { PluginRepository, PluginEntity, PluginInstallEntity } from './plugin-repository.js';
+import type { RegisterPluginInput, InstallPluginInput } from './schemas.js';
 
 /**
  * Configuration for the plugin service.
@@ -58,31 +58,35 @@ export class PluginService {
 
     const pluginId = uuidv4();
 
-    // Create the plugin entity
-    const plugin = await this.repository.createPlugin({
-      id: pluginId,
-      name: manifest.name,
-      owner: manifest.owner,
-      version: manifest.version,
-      description: description ?? null,
-      category: category ?? null,
-      status: 'active',
-      supportedProductVersions: manifest.supportedProductVersions,
-      requiredPermissions: manifest.requiredPermissions,
-      requiredExtensionPoints: manifest.requiredExtensionPoints,
-      tenantScopeBehavior: manifest.tenantScopeBehavior,
-      auditBehavior: manifest.auditBehavior,
-      configSchema: manifest.configSchema ?? null,
-      runtimeDependencies: manifest.runtimeDependencies,
-    });
-
-    // Store the manifest
-    await this.repository.createManifest({
-      id: uuidv4(),
-      pluginId,
-      version: manifest.version,
-      manifestData: manifest as unknown as Record<string, unknown>,
-    });
+    // PRC-L478: create the plugin and its manifest atomically; the repository
+    // re-checks name uniqueness so concurrent registrations cannot both succeed.
+    const plugin = await this.repository.registerAtomically(
+      {
+        id: pluginId,
+        name: manifest.name,
+        owner: manifest.owner,
+        version: manifest.version,
+        description: description ?? null,
+        category: category ?? null,
+        status: 'active',
+        supportedProductVersions: manifest.supportedProductVersions,
+        requiredPermissions: manifest.requiredPermissions,
+        requiredExtensionPoints: manifest.requiredExtensionPoints,
+        tenantScopeBehavior: manifest.tenantScopeBehavior,
+        auditBehavior: manifest.auditBehavior,
+        configSchema: manifest.configSchema ?? null,
+        runtimeDependencies: manifest.runtimeDependencies,
+      },
+      {
+        id: uuidv4(),
+        pluginId,
+        version: manifest.version,
+        manifestData: manifest as unknown as Record<string, unknown>,
+      },
+    );
+    if (!plugin) {
+      throw new ConflictError(`Plugin with name '${manifest.name}' already exists`);
+    }
 
     // Audit log (use a system tenant for registry-level operations)
     await this.repository.createAuditEntry({
@@ -166,16 +170,6 @@ export class PluginService {
 
     const installId = uuidv4();
 
-    // Create the installation record
-    const install = await this.repository.createInstall({
-      id: installId,
-      pluginId,
-      tenantId,
-      status: 'installed',
-      consentedPermissions,
-      configuration: configuration ?? null,
-    });
-
     // Record permissions
     const permissionEntities = consentedPermissions.map((permission) => ({
       id: uuidv4(),
@@ -188,8 +182,21 @@ export class PluginService {
       consentedBy: actor,
     }));
 
-    if (permissionEntities.length > 0) {
-      await this.repository.createPermissions(permissionEntities);
+    // PRC-L478: create the install and its permissions atomically; the repository
+    // re-checks for an active install so concurrent installs cannot both succeed.
+    const install = await this.repository.installAtomically(
+      {
+        id: installId,
+        pluginId,
+        tenantId,
+        status: 'installed',
+        consentedPermissions,
+        configuration: configuration ?? null,
+      },
+      permissionEntities,
+    );
+    if (!install) {
+      throw new ConflictError(`Plugin '${plugin.name}' is already installed for this tenant`);
     }
 
     // Audit log
@@ -305,13 +312,14 @@ export class PluginService {
       throw new BusinessRuleError('Plugin is already uninstalled');
     }
 
-    // Revoke all permissions
-    await this.repository.revokeAllPermissionsByInstall(installId, actor);
-
-    const updated = await this.repository.updateInstall(installId, {
-      status: 'uninstalled',
+    // PRC-L478: revoke all permissions and mark uninstalled atomically; the
+    // repository re-checks the state so concurrent uninstalls cannot both succeed.
+    const updated = await this.repository.uninstallAtomically(installId, actor, {
       uninstalledAt: new Date(),
     });
+    if (!updated) {
+      throw new BusinessRuleError('Plugin is already uninstalled');
+    }
 
     // Audit log
     await this.repository.createAuditEntry({
