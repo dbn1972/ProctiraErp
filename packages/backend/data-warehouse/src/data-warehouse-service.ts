@@ -946,6 +946,10 @@ export class DataWarehouseService {
           timePeriodIds.push(tp.id);
         }
       }
+      // PRC-M593: a requested filter that matches no period must not widen to all data.
+      if (timePeriodIds.length === 0) {
+        return { data: [], total: 0 };
+      }
     }
 
     return this.repository.queryData(
