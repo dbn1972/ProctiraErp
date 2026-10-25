@@ -44,9 +44,14 @@ export function createLogSinkAuditSink(logSink: LogSink): EtlAuditSink {
       executionId: event.executionId ?? '',
       tenantId: event.tenantId,
       message: `Audit: ${event.action}`,
+      // Identifiers are repeated in metadata because ConsoleLogSink (the default on the live
+      // gateway and etl-worker mounts) prints only `message` and `metadata`.
       metadata: {
         action: event.action,
         actorId: event.actorId,
+        tenantId: event.tenantId,
+        pipelineId: event.pipelineId,
+        executionId: event.executionId,
         ...(event.outcome !== undefined ? { outcome: event.outcome } : {}),
       },
     });

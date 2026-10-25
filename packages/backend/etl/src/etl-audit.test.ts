@@ -129,6 +129,69 @@ describe('ETL audit events (PRC-L302)', () => {
     expect(JSON.stringify(audit)).not.toContain('super-secret-password');
   });
 
+  it('default sink carries tenant/pipeline/execution ids in metadata (ConsoleLogSink prints only message + metadata)', async () => {
+    const logSink = new InMemoryLogSink();
+    const service = new ETLService(new InMemoryPipelineRepository(), {
+      defaultRetryPolicy: { maxRetries: 0, backoffMs: 1 },
+      testMode: true,
+      logSink,
+      connectorFactory: memoryConnectorFactory(),
+    });
+    const created = await service.createPipeline(TENANT, input(), { actorId: 'user-1' });
+    const run = await service.executePipeline(TENANT, created.id, { actorId: 'user-1' });
+    const audit = logSink.entries.filter((e) => (e.phase as string) === 'audit');
+    expect(audit.map((e) => e.metadata)).toEqual([
+      {
+        action: 'pipeline.create',
+        actorId: 'user-1',
+        tenantId: TENANT,
+        pipelineId: created.id,
+        executionId: null,
+      },
+      {
+        action: 'pipeline.execute',
+        actorId: 'user-1',
+        tenantId: TENANT,
+        pipelineId: created.id,
+        executionId: run.id,
+        outcome: 'completed',
+      },
+    ]);
+  });
+
+  it('a failed execution emits one pipeline.execute event with outcome failed', async () => {
+    const events: CapturedEvent[] = [];
+    const failingSink = {
+      load: async () => {
+        throw new Error('destination unavailable');
+      },
+      validate: async () => ({ valid: true }),
+    };
+    const service = new ETLService(new InMemoryPipelineRepository(), {
+      defaultRetryPolicy: { maxRetries: 0, backoffMs: 1 },
+      testMode: true,
+      logSink: new InMemoryLogSink(),
+      connectorFactory: memoryConnectorFactory(failingSink),
+      auditSink: (event: CapturedEvent) => {
+        events.push(event);
+      },
+    } as ETLServiceConfig);
+    const created = await service.createPipeline(TENANT, input(), { actorId: 'user-1' });
+    events.length = 0;
+    await expect(
+      service.executePipeline(TENANT, created.id, { actorId: 'user-1' }),
+    ).rejects.toThrow('destination unavailable');
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      action: 'pipeline.execute',
+      tenantId: TENANT,
+      actorId: 'user-1',
+      pipelineId: created.id,
+      outcome: 'failed',
+    });
+    expect(events[0]!.executionId).toEqual(expect.any(String));
+  });
+
   it('routes pass the JWT subject as the actor', async () => {
     const { service, events } = build();
     const app = Fastify();
