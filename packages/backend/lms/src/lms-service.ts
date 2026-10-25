@@ -764,8 +764,11 @@ export class LmsService {
     if (!updated) throw new NotFoundError('Submission not found');
 
     // Homework/assignment grades feed the PAL ledger for the linked skills:
-    // ≥ 60 % counts as a correct attempt.
-    if (assignment.skillIds.length > 0 && assignment.maxScore > 0) {
+    // ≥ 60 % counts as a correct attempt. PRC-M296: only on the submission's
+    // first grading — re-grades and overrides of auto-graded quizzes (already
+    // fed by submit) never re-count attempts.
+    const firstGrading = submission.gradedAt == null;
+    if (firstGrading && assignment.skillIds.length > 0 && assignment.maxScore > 0) {
       const correct = input.score / assignment.maxScore >= 0.6;
       for (const skillId of assignment.skillIds) {
         await this.applyPalAttempt(tenantId, submission.studentId, skillId, {

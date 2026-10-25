@@ -1,7 +1,9 @@
 /**
- * PRC-M295: Spiral PAL mastery is fed once per submission.
+ * PRC-M295 / PRC-M296: Spiral PAL mastery is fed once per submission.
  *  - submit(): PAL is applied only after the submission insert succeeds, so a
  *    failed or duplicate submission never moves mastery.
+ *  - grade(): PAL is applied only on the first grading of a submission, so
+ *    re-grades and manual overrides never re-count attempts.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -110,5 +112,69 @@ describe('PRC-M295 — quiz submit applies PAL only after the submission is stor
     // One attempt per skill-tagged question, not twice that.
     expect(await attemptsFor(repo, studentId)).toHaveLength(quiz.questions.length);
     expect((await repo.findMastery(TENANT, studentId, skillA.id))?.attempts).toBe(1);
+  });
+});
+
+describe('PRC-M296 — grade() applies PAL only on the first grading', () => {
+  it('re-grading homework does not add PAL attempts again', async () => {
+    const repo = new InMemoryLmsRepository();
+    const svc = new LmsService(repo);
+    const skill = await seedSkill(svc, 'ESSAYS');
+    const homework = await svc.createAssignment(
+      TENANT,
+      {
+        scope: 'school',
+        institutionId: SCHOOL,
+        kind: 'homework',
+        title: 'Essay homework',
+        subject: 'English',
+        skillIds: [skill.id],
+        maxScore: 10,
+        publish: true,
+      },
+      teacher,
+    );
+    const studentId = randomUUID();
+    const submission = await svc.submit(
+      TENANT,
+      homework.id,
+      { studentId, institutionId: SCHOOL, content: 'My essay' },
+      studentActor(studentId),
+    );
+
+    await svc.grade(TENANT, submission.id, { score: 4 }, teacher);
+    const afterFirst = await repo.findMastery(TENANT, studentId, skill.id);
+    expect(await attemptsFor(repo, studentId)).toHaveLength(1);
+
+    const regraded = await svc.grade(TENANT, submission.id, { score: 9 }, teacher);
+    expect(regraded.score).toBe(9);
+    expect(await attemptsFor(repo, studentId)).toHaveLength(1);
+    expect((await repo.findMastery(TENANT, studentId, skill.id))?.attempts).toBe(
+      afterFirst?.attempts,
+    );
+  });
+
+  it('a manual override of an auto-graded quiz does not re-feed PAL', async () => {
+    const repo = new InMemoryLmsRepository();
+    const svc = new LmsService(repo);
+    const { quiz } = await seedTaggedQuiz(svc);
+    const studentId = randomUUID();
+    const submission = await svc.submit(
+      TENANT,
+      quiz.id,
+      {
+        studentId,
+        institutionId: SCHOOL,
+        answers: quiz.questions.map((q) => ({ questionId: q.id, selectedOptionIndex: 0 })),
+      },
+      studentActor(studentId),
+    );
+    expect(submission.autoGraded).toBe(true);
+    const before = await attemptsFor(repo, studentId);
+    expect(before).toHaveLength(quiz.questions.length);
+
+    const overridden = await svc.grade(TENANT, submission.id, { score: 1 }, teacher);
+    expect(overridden.score).toBe(1);
+    expect(await attemptsFor(repo, studentId)).toHaveLength(before.length);
   });
 });
