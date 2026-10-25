@@ -11,6 +11,13 @@ import { Type, type Static } from '@sinclair/typebox';
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 const UuidString = () => Type.String({ pattern: UUID_PATTERN, description: 'UUID v4 identifier' });
 
+/** PRC-L554: BCP-47 subset — lowercase primary language, up to three subtags (e.g. hi-IN). */
+export const LANGUAGE_CODE_PATTERN = '^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$';
+/** PRC-L554: translatable field name — identifier style (e.g. name, shortName, info). */
+export const FIELD_NAME_PATTERN = '^[A-Za-z][A-Za-z0-9_]{0,49}$';
+const LanguageCode = () =>
+  Type.String({ minLength: 2, maxLength: 10, pattern: LANGUAGE_CODE_PATTERN });
+
 // ─── Entity Types for Translation ────────────────────────────────────────────
 
 export const TranslatableEntityTypeSchema = Type.Union([
@@ -42,10 +49,11 @@ export interface Translation {
 export const CreateTranslationSchema = Type.Object({
   entityType: TranslatableEntityTypeSchema,
   entityId: UuidString(),
-  language: Type.String({ minLength: 2, maxLength: 10 }),
+  language: LanguageCode(),
   field: Type.String({
     minLength: 1,
     maxLength: 50,
+    pattern: FIELD_NAME_PATTERN,
     description: 'Field name to translate (e.g., "name", "shortName", "info")',
   }),
   value: Type.String({ minLength: 1, maxLength: 5000 }),
@@ -64,7 +72,7 @@ export type BatchTranslationInput = Static<typeof BatchTranslationSchema>;
 // ─── Translation Import/Export Schema ────────────────────────────────────────
 
 export const TranslationExportQuerySchema = Type.Object({
-  language: Type.Optional(Type.String({ minLength: 2, maxLength: 10 })),
+  language: Type.Optional(LanguageCode()),
   entityType: Type.Optional(TranslatableEntityTypeSchema),
   format: Type.Optional(Type.Union([Type.Literal('json'), Type.Literal('csv')])),
 });
@@ -81,7 +89,7 @@ export type TranslationImportInput = Static<typeof TranslationImportSchema>;
 // ─── Translation List Query ──────────────────────────────────────────────────
 
 export const TranslationListQuerySchema = Type.Object({
-  language: Type.Optional(Type.String({ minLength: 2, maxLength: 10 })),
+  language: Type.Optional(LanguageCode()),
   entityType: Type.Optional(TranslatableEntityTypeSchema),
   entityId: Type.Optional(UuidString()),
   page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),

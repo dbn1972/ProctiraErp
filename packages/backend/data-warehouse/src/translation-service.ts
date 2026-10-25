@@ -5,7 +5,7 @@
  * Supports translation import/export in JSON and CSV formats.
  * Implements Requirement 15.5.
  */
-import { NotFoundError, ValidationError } from '@proctira/common';
+import { NotFoundError, ValidationError, type FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
@@ -21,7 +21,32 @@ import type {
   TranslationImportResult,
   TranslationExportResult,
 } from './translation-schemas.js';
+import { FIELD_NAME_PATTERN, LANGUAGE_CODE_PATTERN } from './translation-schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
+
+const LANGUAGE_CODE_RE = new RegExp(LANGUAGE_CODE_PATTERN);
+const FIELD_NAME_RE = new RegExp(FIELD_NAME_PATTERN);
+
+/** PRC-L554: language code / field name errors for one translation (empty when valid). */
+function translationKeyErrors(language: string, field: string): FieldError[] {
+  const errors: FieldError[] = [];
+  if (!LANGUAGE_CODE_RE.test(language)) {
+    errors.push({
+      field: 'language',
+      message: `Invalid language code: ${language}`,
+      rule: 'pattern',
+    });
+  }
+  if (!FIELD_NAME_RE.test(field)) {
+    errors.push({ field: 'field', message: `Invalid field name: ${field}`, rule: 'pattern' });
+  }
+  return errors;
+}
+
+function assertTranslationKey(language: string, field: string): void {
+  const errors = translationKeyErrors(language, field);
+  if (errors.length > 0) throw new ValidationError('Validation failed', errors);
+}
 
 export interface TranslationServiceConfig {
   /** Supported languages */
@@ -53,6 +78,7 @@ export class TranslationService {
     input: CreateTranslationInput,
     ctx: AuditContext = {},
   ): Promise<Translation> {
+    assertTranslationKey(input.language, input.field);
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
     if (!warehouse) {
@@ -108,6 +134,7 @@ export class TranslationService {
     for (let i = 0; i < input.translations.length; i++) {
       const item = input.translations[i]!;
       try {
+        assertTranslationKey(item.language, item.field);
         await this.validateEntityExists(tenantId, warehouseId, item.entityType, item.entityId);
         validTranslations.push({
           id: uuidv4(),
@@ -317,6 +344,14 @@ export class TranslationService {
           field: 'entityType',
           message: `Invalid entity type: ${item.entityType}`,
         });
+        continue;
+      }
+
+      const keyErrors = translationKeyErrors(item.language, item.field);
+      if (keyErrors.length > 0) {
+        for (const keyError of keyErrors) {
+          errors.push({ row: i + 1, field: keyError.field, message: keyError.message });
+        }
         continue;
       }
 

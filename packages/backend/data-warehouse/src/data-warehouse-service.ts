@@ -282,7 +282,16 @@ export class DataWarehouseService {
         resourceType: 'indicator',
         resourceId: indicatorId,
       },
-      () => this.repository.deleteIndicator(indicatorId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteIndicator(indicatorId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'indicator',
+          indicatorId,
+        );
+      },
     );
   }
 
@@ -384,7 +393,16 @@ export class DataWarehouseService {
     await this.audit.wrap(
       ctx,
       { tenantId, warehouseId, action: 'unit.delete', resourceType: 'unit', resourceId: unitId },
-      () => this.repository.deleteUnit(unitId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteUnit(unitId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'unit',
+          unitId,
+        );
+      },
     );
   }
 
@@ -490,7 +508,16 @@ export class DataWarehouseService {
         resourceType: 'subgroup',
         resourceId: subgroupId,
       },
-      () => this.repository.deleteSubgroup(subgroupId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteSubgroup(subgroupId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'subgroup',
+          subgroupId,
+        );
+      },
     );
   }
 
@@ -761,7 +788,16 @@ export class DataWarehouseService {
     await this.audit.wrap(
       ctx,
       { tenantId, warehouseId, action: 'area.delete', resourceType: 'area', resourceId: areaId },
-      () => this.repository.deleteArea(areaId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteArea(areaId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'area',
+          areaId,
+        );
+      },
     );
   }
 
