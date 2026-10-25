@@ -204,13 +204,16 @@ export function registerCatalogueRoutes(
         ? runs
         : runs.filter((run) => canAccessReport(roles, run.reportKey));
       // PRC-L143: one batched artifact lookup instead of one tenant transaction per run.
-      // A failed lookup degrades to "no artifact" for every run, as the per-run path did.
+      // A failed lookup is logged and degrades to "no artifact" for the listed runs.
       const artifactIds = visibleRuns
         .map((run) => run.artifactId)
         .filter((id): id is string => Boolean(id));
       const artifacts = await service
         .getArtifactsByIds(tenantId, artifactIds)
-        .catch((): ReportArtifactRecord[] => []);
+        .catch((err: unknown): ReportArtifactRecord[] => {
+          request.log.warn({ err }, 'report runs: batched artifact lookup failed');
+          return [];
+        });
       const artifactById = new Map(artifacts.map((artifact) => [artifact.id, artifact]));
       const payload = visibleRuns.map((run) =>
         service.toInsightsRunFromRecords(

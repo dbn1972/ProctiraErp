@@ -74,8 +74,12 @@ async function seed(store: InstanceType<typeof InMemoryReportStore>) {
   }
 }
 
-async function buildApp(store: InstanceType<typeof InMemoryReportStore>) {
-  const app = Fastify();
+async function buildApp(store: InstanceType<typeof InMemoryReportStore>, logLines?: string[]) {
+  const app = logLines
+    ? Fastify({
+        logger: { level: 'warn', stream: { write: (line: string) => logLines.push(line) } },
+      })
+    : Fastify();
   apps.push(app);
   app.decorateRequest('user', undefined);
   app.addHook('onRequest', async (request) => {
@@ -140,6 +144,26 @@ describe('PRC-L143 GET /reports/runs artifact lookup', () => {
     const body = res.json() as { data: Array<{ artifactId: string | null }> };
     expect(body.data).toEqual(JSON.parse(JSON.stringify(expected)));
     expect(body.data.filter((r) => r.artifactId !== null)).toHaveLength(3);
+  });
+
+  it('logs a failed batch lookup and still lists the runs without artifacts', async () => {
+    const store = new InMemoryReportStore();
+    await seed(store);
+    const logLines: string[] = [];
+    const app = await buildApp(store, logLines);
+    vi.spyOn(store, 'getArtifactsByIds').mockRejectedValueOnce(new Error('pg down'));
+    const res = await app.inject({
+      method: 'GET',
+      url: '/reports/runs',
+      headers: { 'x-tenant-id': TENANT },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { data: Array<{ artifactId: string | null }> };
+    expect(body.data).toHaveLength(5);
+    expect(body.data.every((r) => r.artifactId === null)).toBe(true);
+    const warned = logLines.filter((line) => line.includes('batched artifact lookup failed'));
+    expect(warned).toHaveLength(1);
+    expect(warned[0]).toContain('pg down');
   });
 });
 
