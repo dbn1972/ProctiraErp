@@ -134,7 +134,9 @@ describe('W1-SEC-10 HealthService PHI read integration', () => {
         get(target, prop, receiver) {
           if (prop === 'logPhiAccess') return undefined;
           const value = Reflect.get(target, prop, receiver);
-          return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+          return typeof value === 'function'
+            ? (value as (...a: unknown[]) => unknown).bind(target)
+            : value;
         },
       }) as HealthRepository;
 

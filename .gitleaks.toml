@@ -64,6 +64,15 @@ regexes = [
   # Placeholder admin password in an in-memory tenant-provisioning fixture
   # (email a@b.example); never sent to a real IdP. Referenced by zero non-test files.
   '''pw-123456789''',
+
+  # packages/backend/health/src/pg-institution-scope.test.ts (branch history, PRC-L563, commit aef5c4d4)
+  # PHI_ENCRYPTION_KEY test fixture for the stub KMS round-trip in the
+  # institution-scope isolation test; superseded by a lower-entropy value in a
+  # later commit on the same branch, but PR-range gitleaks scans walk every
+  # commit in PR_BASE_SHA..PR_HEAD_SHA, not just the final diff, so the
+  # original value still surfaces. Referenced by zero non-test files; not a
+  # credential for any real system.
+  '''l563-institution-scope-test-key''',
 ]
 
 paths = [
