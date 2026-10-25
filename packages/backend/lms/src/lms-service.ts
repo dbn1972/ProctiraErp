@@ -670,6 +670,7 @@ export class LmsService {
     let autoGraded = false;
     let gradedAt: Date | null = null;
     const answers = input.answers ?? [];
+    let palResults: ReturnType<typeof gradeObjectiveQuiz>['results'] = [];
 
     if (assignment.kind === 'quiz') {
       const questions = await this.repository.listQuestions(tenantId, assignmentId);
@@ -688,24 +689,16 @@ export class LmsService {
         autoGraded = true;
         gradedAt = now;
       }
-      for (const r of graded.results) {
-        if (!r.skillId) continue;
-        await this.applyPalAttempt(tenantId, input.studentId, r.skillId, {
-          correct: r.correct,
-          source: 'quiz',
-          sourceId: assignmentId,
-          institutionId: input.institutionId ?? assignment.institutionId,
-          now,
-        });
-      }
+      palResults = graded.results;
     } else if (answers.length > 0) {
       throw new ValidationError('Only quizzes accept answers', [
         { field: 'answers', rule: 'kind', message: 'answers are only valid for quizzes' },
       ]);
     }
 
+    let saved: SubmissionEntity;
     try {
-      return await this.repository.createSubmission({
+      saved = await this.repository.createSubmission({
         id: randomUUID(),
         tenantId,
         assignmentId,
@@ -728,6 +721,20 @@ export class LmsService {
       }
       throw error;
     }
+
+    // PRC-M295: PAL mastery moves only once the submission is stored, so a
+    // duplicate or failed insert never double-counts attempts.
+    for (const r of palResults) {
+      if (!r.skillId) continue;
+      await this.applyPalAttempt(tenantId, input.studentId, r.skillId, {
+        correct: r.correct,
+        source: 'quiz',
+        sourceId: assignmentId,
+        institutionId: input.institutionId ?? assignment.institutionId,
+        now,
+      });
+    }
+    return saved;
   }
 
   async grade(

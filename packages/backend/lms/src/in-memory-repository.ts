@@ -291,8 +291,17 @@ export class InMemoryLmsRepository implements LmsRepository {
   async createSubmission(
     data: Omit<SubmissionEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<SubmissionEntity> {
-    const dup = await this.findSubmission(data.tenantId, data.assignmentId, data.studentId);
-    if (dup) throw new Error('duplicate submission');
+    // Check-and-insert without an intervening await so concurrent submits behave
+    // like the UNIQUE (tenant_id, assignment_id, student_id) constraint in Postgres.
+    for (const s of this.submissions.values()) {
+      if (
+        s.tenantId === data.tenantId &&
+        s.assignmentId === data.assignmentId &&
+        s.studentId === data.studentId
+      ) {
+        throw new Error('duplicate submission');
+      }
+    }
     const now = new Date();
     const entity: SubmissionEntity = { ...data, createdAt: now, updatedAt: now };
     this.submissions.set(entity.id, entity);
