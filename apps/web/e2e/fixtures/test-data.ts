@@ -28,6 +28,33 @@ export function uniqueGradeOrder(): number {
   return (randomBytes(2).readUInt16BE(0) % 32767) + 1;
 }
 
+/**
+ * Draws a random one-year (April–March) window far enough in the future
+ * that it can never overlap the 2026 baseline seeded year
+ * (tools/e2e/seed-e2e-tenants.sql) or the shared "current" year from
+ * {@link ensureSharedAcademicYear}.
+ *
+ * Several specs each need their OWN distinct, not-shared academic year (e.g.
+ * to test creation/rollover/hierarchy behavior in isolation) rather than
+ * reusing the one shared "current" year. Before PRC-L122's per-tenant
+ * overlap guard, hardcoding a fixed future window (e.g. 2038-04-01..
+ * 2039-03-31) was safe since nothing checked for collisions. With the guard
+ * live, two specs sharing one tenant that both hardcode the SAME window
+ * collide with each other, and a spec calling its own helper more than once
+ * per run collides with itself.
+ *
+ * Mirrors {@link uniqueGradeOrder}'s approach to the identical class of
+ * problem: draw from a wide enough space that a real collision is
+ * vanishingly unlikely, and let a rare one self-heal on Playwright's retry
+ * rather than coordinating shared state across every caller.
+ */
+export function uniqueFarFutureYearWindow(): { startDate: string; endDate: string } {
+  // 2040..2099: 60 candidate years, nowhere near the 2026 baseline/shared
+  // year or 2030-2036 range already used by 38-academic-calendar-write-smoke.
+  const year = 2040 + (randomBytes(1).readUInt8(0) % 60);
+  return { startDate: `${year}-04-01`, endDate: `${year + 1}-03-31` };
+}
+
 export interface TestStudent {
   firstName: string;
   lastName: string;

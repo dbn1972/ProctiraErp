@@ -14,7 +14,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 import { parentPortalJwtHeaders } from './fixtures/parent-portal-auth';
-import { uniqueGradeOrder } from './fixtures/test-data';
+import { uniqueFarFutureYearWindow, uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -102,13 +102,18 @@ async function createPeriodAndGrade(request: APIRequestContext): Promise<{
   gradeName: string;
 }> {
   const tag = stamp();
+  // PRC-L122: a fixed far-future window collided with itself across this
+  // function's own 4 call sites and with 43-curriculum-coverage's identical
+  // hardcoded window on the same shared tenant. Draw a unique one instead
+  // (see uniqueFarFutureYearWindow's doc comment).
+  const window = uniqueFarFutureYearWindow();
   const periodRes = await request.post(`${GATEWAY_URL}/api/v1/academic-periods`, {
     headers: headers(),
     data: {
       name: `E2E Adm Year ${tag}`,
       code: `AY-ADM-${tag}`,
-      startDate: '2038-04-01',
-      endDate: '2039-03-31',
+      startDate: window.startDate,
+      endDate: window.endDate,
       status: 'inactive',
     },
   });
