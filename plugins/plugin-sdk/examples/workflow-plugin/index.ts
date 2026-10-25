@@ -32,6 +32,7 @@ export default definePlugin({
     supportedProductVersions: '>=1.0.0 <2.0.0',
     requiredPermissions: [
       'workflow.read',
+      'workflow.write',
       'workflow.transition',
       'student.read',
       'enrollment.read',
