@@ -8,6 +8,8 @@ import { HealthService } from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 import { PHI_FIELD_COUNSELLING_CASE_NOTES, PHI_FIELD_REDACTED } from './phi-field-acl.js';
+import { HEALTH_BREAK_GLASS_APPROVER_ROLES } from './phi-field-acl.js';
+import { TENANT_WIDE_HEALTH_ROLES } from './health-service.js';
 
 describe('Health PHI field ACL + break-glass (P0-09)', () => {
   let service: HealthService;

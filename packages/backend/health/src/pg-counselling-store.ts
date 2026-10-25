@@ -136,52 +136,70 @@ export class PgCounsellingStore {
     id: string,
     tenantId: string,
     data: Partial<CounsellingSessionEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findById(id, tenantId);
-    if (!existing) return null;
-    const merged: CounsellingSessionEntity = {
-      ...existing,
-      ...data,
-      id: existing.id,
-      tenantId: existing.tenantId,
-      studentId: existing.studentId,
-      createdAt: existing.createdAt,
-      updatedAt: new Date(),
-    };
-    const scope = await this.phiScope(tenantId, merged.studentId);
-    const result = await this.query(
-      tenantId,
-      `UPDATE counselling_sessions SET
-        counsellor_id = $3,
-        session_date = $4::date,
-        session_type = $5,
-        reason = $6,
-        case_notes = $7,
-        outcome = $8,
-        follow_up_required = $9,
-        follow_up_date = $10::date,
-        status = $11,
-        updated_at = $12
-      WHERE id = $1 AND tenant_id = $2
-      RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.counsellorId,
-        merged.sessionDate,
-        merged.sessionType,
-        encryptPhi(merged.reason, scope),
-        encryptPhi(merged.caseNotes, scope),
-        encryptPhi(merged.outcome, scope),
-        merged.followUpRequired,
-        merged.followUpDate,
-        merged.status,
-        merged.updatedAt,
-      ],
-    );
-    if (!result.rows[0]) return null;
-    return mapRow(result.rows[0] as Record<string, unknown>);
+    // PRC-M519/L115: restructured into the same single withPgTenant closure
+    // create() uses (SELECT + UPDATE + audit share one COMMIT), instead of
+    // two independent withPgTenant calls (findById, then a second query).
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const existingResult = await client.query(
+        `SELECT * FROM counselling_sessions WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId],
+      );
+      const existingRow = (existingResult.rows as Record<string, unknown>[])[0];
+      if (!existingRow) return null;
+      const existing = mapRow(existingRow);
+      const merged: CounsellingSessionEntity = {
+        ...existing,
+        ...data,
+        id: existing.id,
+        tenantId: existing.tenantId,
+        studentId: existing.studentId,
+        createdAt: existing.createdAt,
+        updatedAt: new Date(),
+      };
+      const scope = await this.phiScope(tenantId, merged.studentId);
+      const result = await client.query(
+        `UPDATE counselling_sessions SET
+          counsellor_id = $3,
+          session_date = $4::date,
+          session_type = $5,
+          reason = $6,
+          case_notes = $7,
+          outcome = $8,
+          follow_up_required = $9,
+          follow_up_date = $10::date,
+          status = $11,
+          updated_at = $12
+        WHERE id = $1 AND tenant_id = $2
+        RETURNING *`,
+        [
+          id,
+          tenantId,
+          merged.counsellorId,
+          merged.sessionDate,
+          merged.sessionType,
+          encryptPhi(merged.reason, scope),
+          encryptPhi(merged.caseNotes, scope),
+          encryptPhi(merged.outcome, scope),
+          merged.followUpRequired,
+          merged.followUpDate,
+          merged.status,
+          merged.updatedAt,
+        ],
+      );
+      const row = (result.rows as Record<string, unknown>[])[0];
+      if (!row) return null;
+      const entity = mapRow(row);
+      // W1-SEC-10 / PRC-M519/L115: counselling update + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async findById(id: string, tenantId: string): Promise<CounsellingSessionEntity | null> {
