@@ -339,6 +339,11 @@ describe('legacy SPA is unreachable', () => {
     expect(existsSync(join(WEB_SRC, 'RootRouter.tsx'))).toBe(false);
   });
 
+  it('has removed the dead pasted-ID transcript form (PRC-L530)', () => {
+    // Unreferenced; the live flow is IssueTranscriptByName on /students/records (D6).
+    expect(existsSync(join(WEB_SRC, 'components/gradebook/issue-transcript-form.tsx'))).toBe(false);
+  });
+
   it('pulls exactly the 10 live feature files into the App Router closure', () => {
     const closure = appRouterClosure();
     const reachableFeatures = [...closure]
