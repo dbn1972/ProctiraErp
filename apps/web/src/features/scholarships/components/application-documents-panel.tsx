@@ -39,8 +39,17 @@ export function ApplicationDocumentsPanel({
   const [loading, setLoading] = useState(true);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const rejectRow = rows.find((row) => row.id === rejectId) ?? null;
+  const reasonFieldId = `reject-reason-${applicationId}`;
 
+  // PRC-L270: the reason is scoped to one reject dialog; reset on open/close.
+  const closeReject = () => {
+    setRejectId(null);
+    setReason('');
+    setReasonError(null);
+  };
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -103,8 +112,7 @@ export function ApplicationDocumentsPanel({
         json: { reason },
         apiRoot,
       });
-      setRejectId(null);
-      setReason('');
+      closeReject();
       await load();
     } catch (err) {
       setError(err instanceof BrowserGatewayError ? err.message : 'Could not reject the document');
@@ -177,6 +185,8 @@ export function ApplicationDocumentsPanel({
                     disabled={pending}
                     data-testid={`document-reject-${row.id}`}
                     onClick={() => {
+                      setReason('');
+                      setReasonError(null);
                       setRejectId(row.id);
                     }}
                   >
@@ -188,40 +198,54 @@ export function ApplicationDocumentsPanel({
           </li>
         ))}
       </ul>
-      <label className="block text-xs font-medium" htmlFor={`reject-reason-${applicationId}`}>
-        Rejection reason
-      </label>
-      <textarea
-        id={`reject-reason-${applicationId}`}
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
-        rows={2}
-        className="w-full rounded-md border px-3 py-2 text-sm"
-        placeholder="Required before you reject a document"
-      />
       <ConfirmActionDialog
         open={rejectId != null}
         onOpenChange={(open) => {
-          if (!open) setRejectId(null);
+          if (!open) closeReject();
         }}
         title="Reject this document?"
         description={
-          reason.trim()
-            ? `The applicant will see: ${reason.trim()}`
-            : 'Enter a rejection reason before confirming.'
+          rejectRow
+            ? `${documentTypeLabel(rejectRow.documentType)} (${rejectRow.originalFilename}) will be marked Rejected. The applicant will see your reason.`
+            : 'The applicant will see your reason.'
         }
         confirmLabel="Reject document"
         destructive
         pending={pending}
         onConfirm={() => {
           if (!reason.trim()) {
-            setError('Enter a rejection reason before confirming.');
+            setReasonError('Enter a rejection reason before confirming.');
             return;
           }
           void reject();
         }}
         testId="scholarship-document-reject"
-      />
+      >
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium" htmlFor={reasonFieldId}>
+            Rejection reason (required)
+          </label>
+          <textarea
+            id={reasonFieldId}
+            value={reason}
+            onChange={(event) => {
+              setReason(event.target.value);
+              if (reasonError) setReasonError(null);
+            }}
+            rows={3}
+            required
+            aria-required="true"
+            aria-invalid={reasonError ? 'true' : undefined}
+            aria-describedby={reasonError ? `${reasonFieldId}-error` : undefined}
+            className="w-full rounded-md border px-3 py-2 text-sm"
+          />
+          {reasonError ? (
+            <p id={`${reasonFieldId}-error`} role="alert" className="text-sm text-destructive">
+              {reasonError}
+            </p>
+          ) : null}
+        </div>
+      </ConfirmActionDialog>
     </section>
   );
 }
