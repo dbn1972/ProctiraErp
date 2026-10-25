@@ -310,24 +310,51 @@ async function loadEnrolment(
 }
 
 async function loadExamResults(client: PgQueryable, tenantId: string): Promise<ReportTable> {
-  for (const table of ['examination_results', 'exam_results', 'candidate_results']) {
-    if (!(await relationExists(client, table))) continue;
-    // `table` comes from the fixed allow-list above (not user input).
-    const result = await client.query(`SELECT * FROM ${table} LIMIT $1`, [CATALOGUE_FETCH_LIMIT]);
-    const rows = result.rows as Record<string, unknown>[];
-    const fieldNames = Array.isArray(result.fields)
-      ? (result.fields as Array<{ name: string }>).map((f) => f.name)
-      : Object.keys(rows[0] ?? {});
-    const keys = fieldNames.filter((k) => k !== 'tenant_id').slice(0, 6);
-    return {
-      columns: [...keys.map((k) => ({ name: k, label: k })), { name: 'tenantId', label: 'Tenant' }],
-      rows: rows.map((r) => ({
-        ...Object.fromEntries(keys.map((k) => [k, r[k]])),
-        tenantId,
-      })),
-    };
-  }
-  throw new ReportDataUnavailableError('No examination results relation is available');
+  // PRC-M343: bind to the examination schema (036_examination_ops_schema.sql) with an
+  // explicit column list. Only resolved marks (final_marks set) are results, matching
+  // examination ops-service `resolved: finalMarks !== null`; one row per
+  // examination/candidate/subject (entry 1 preferred, as in listMarksPairs).
+  await requireRelation(client, 'exam_marks_entries');
+  const { rows } = await client.query(
+    `SELECT DISTINCT ON (examination_id, candidate_id, subject_id)
+            examination_id::text AS examination_id,
+            candidate_id::text AS candidate_id,
+            subject_id::text AS subject_id,
+            final_marks::float8 AS final_marks,
+            resolved_at
+       FROM exam_marks_entries
+      WHERE tenant_id = $1::uuid
+        AND final_marks IS NOT NULL
+      ORDER BY examination_id, candidate_id, subject_id, entry_no
+      LIMIT $2`,
+    [tenantId, CATALOGUE_FETCH_LIMIT],
+  );
+  return {
+    columns: [
+      { name: 'examinationId', label: 'Examination' },
+      { name: 'candidateId', label: 'Candidate' },
+      { name: 'subjectId', label: 'Subject' },
+      { name: 'finalMarks', label: 'Final marks' },
+      { name: 'resolvedAt', label: 'Resolved at' },
+      { name: 'tenantId', label: 'Tenant' },
+    ],
+    rows: (
+      rows as Array<{
+        examination_id: string;
+        candidate_id: string;
+        subject_id: string;
+        final_marks: number;
+        resolved_at: Date | string | null;
+      }>
+    ).map((r) => ({
+      examinationId: r.examination_id,
+      candidateId: r.candidate_id,
+      subjectId: r.subject_id,
+      finalMarks: r.final_marks,
+      resolvedAt: r.resolved_at instanceof Date ? r.resolved_at.toISOString() : r.resolved_at,
+      tenantId,
+    })),
+  };
 }
 
 async function loadLive(
