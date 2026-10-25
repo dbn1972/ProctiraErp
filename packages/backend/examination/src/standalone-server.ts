@@ -13,66 +13,47 @@
  *   REDIS_URL     - Redis connection string
  *   KAFKA_BROKERS - Comma-separated Kafka broker list
  *   RABBITMQ_URL  - RabbitMQ connection string
- *   JWT_SECRET    - JWT verification secret
+ *   JWT_SECRET    - JWT verification secret (required, >= 32 chars; HS256)
+ *   JWT_ISSUER    - Expected `iss` claim (optional)
+ *   JWT_AUDIENCE  - Expected `aud` claim (optional)
+ *
+ * PRC-M621: every domain route requires a verified gateway JWT; tenant context
+ * comes only from the verified token. /ready probes the database (503 when
+ * down). Repositories come from the same factories the gateway uses, so
+ * DATABASE_URL selects Postgres (Prisma + RLS) instead of this entry point
+ * always constructing hard-coded in-memory repositories regardless of
+ * DATABASE_URL, as it did before this change.
  */
 import { registerGracefulShutdown } from '@proctira/common';
 import { closeDatabaseResources } from '@proctira/database';
 import { observabilityPlugin } from '@proctira/observability';
-import Fastify from 'fastify';
 
-import { examinationPlugin } from './examination-plugin.js';
-import { InMemoryDocumentRepository } from './in-memory-document-repository.js';
-import { InMemoryExaminationRepository } from './in-memory-repository.js';
-import { InMemoryResultRepository } from './in-memory-result-repository.js';
+import { buildStandaloneExaminationApp, STANDALONE_SERVICE_NAME } from './standalone-app.js';
 
 const PORT = parseInt(process.env['PORT'] || '3025', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
 const LOG_LEVEL = process.env['LOG_LEVEL'] || 'info';
-const SERVICE_NAME = 'examination';
+const SERVICE_NAME = STANDALONE_SERVICE_NAME;
 
 async function start() {
-  const app = Fastify({
+  const app = await buildStandaloneExaminationApp({
+    jwt: {
+      secret: process.env['JWT_SECRET'] ?? '',
+      issuer: process.env['JWT_ISSUER'] || undefined,
+      audience: process.env['JWT_AUDIENCE'] || undefined,
+    },
     logger: {
       level: LOG_LEVEL,
       transport: process.env['NODE_ENV'] === 'development' ? { target: 'pino-pretty' } : undefined,
     },
-    requestIdHeader: 'x-request-id',
-    genReqId: () => crypto.randomUUID(),
-  });
-
-  // Prometheus metrics + GET /metrics (G-725): same plugin the gateway uses so
-  // standalone deployments are scraped by infra/observability/prometheus.yml.
-  await app.register(observabilityPlugin, {
-    serviceName: SERVICE_NAME,
-    ignorePaths: ['/health', '/ready'],
-  });
-
-  // Health check endpoint (liveness)
-  app.get('/health', async (_request, reply) => {
-    return reply.status(200).send({
-      status: 'healthy',
-      service: SERVICE_NAME,
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      version: process.env['npm_package_version'] || '0.1.0',
-    });
-  });
-
-  // Readiness check
-  app.get('/ready', async (_request, reply) => {
-    return reply.status(200).send({
-      status: 'ready',
-      service: SERVICE_NAME,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // Register the examination domain plugin with repositories
-  await app.register(examinationPlugin, {
-    prefix: '/examinations',
-    repository: new InMemoryExaminationRepository(),
-    resultRepository: new InMemoryResultRepository(),
-    documentRepository: new InMemoryDocumentRepository(),
+    // Prometheus metrics + GET /metrics (G-725): same plugin the gateway uses so
+    // standalone deployments are scraped by infra/observability/prometheus.yml.
+    beforeDomain: async (instance) => {
+      await instance.register(observabilityPlugin, {
+        serviceName: SERVICE_NAME,
+        ignorePaths: ['/health', '/ready'],
+      });
+    },
   });
 
   try {
@@ -105,4 +86,4 @@ async function start() {
   });
 }
 
-start();
+void start();

@@ -1,0 +1,22 @@
+-- PRC-M231: the room/invigilator clash check loaded every exam_sessions row
+-- for the tenant (SELECT * FROM exam_sessions WHERE tenant_id = $1) before
+-- filtering in app code — no DB-level narrowing by room/date at all. The
+-- app-layer scoping that now accompanies this index (ops-store.ts's
+-- createSessionGuarded) narrows the pre-fetch to the candidate's own
+-- (tenant_id, room_id, session_date); this index makes that narrowed lookup
+-- an index scan instead of a sequential scan as the table grows.
+--
+-- Additive, idempotent (IF NOT EXISTS), renumbering-safe: a single CREATE
+-- INDEX statement, no data rewrite, safe to re-run.
+--
+-- Documented residual (same honesty as the sibling timetable batch's own
+-- clash-index residual in db/sql/232_timetable_meeting_teacher_room_exclusion_uidx.sql):
+-- this index speeds the now room/date-scoped clash query; it does not by
+-- itself enforce no-overlap at the database level. Two sessions in the same
+-- room on the same date with overlapping (but not identical) start_time/
+-- end_time ranges are still only caught by the app-layer findRoomClashes()
+-- check (clash.ts), not by a DB constraint — a true range-overlap guarantee
+-- would need an EXCLUDE USING gist constraint over a computed time range,
+-- which is a materially larger, separate change.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS exam_sessions_room_overlap_idx
+  ON exam_sessions (tenant_id, room_id, session_date, start_time);

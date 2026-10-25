@@ -742,12 +742,22 @@ export class ExaminationService {
     }
     const examSubjectCodes = examination.subjects.map((s) => s.code);
     const completedCodes = new Set(enrollment.completedSubjectCodes);
+    // PRC-M234 follow-up: applied unconditionally, "every exam subject must
+    // already be completed" is circular on a student's first-ever attempt
+    // at a subject — nobody could ever pass it for the first time. Exempt a
+    // subject from its own prerequisite only when the student has never
+    // been registered for it before (not just never passed it); a subject
+    // they attempted and failed still blocks until passed. When the
+    // enrollment source cannot answer "ever attempted" either, fail closed
+    // (no exemption) — same default as completedSubjectCodes === null.
+    const attemptedCodes =
+      enrollment.attemptedSubjectCodes != null ? new Set(enrollment.attemptedSubjectCodes) : null;
     const missingSubjects: string[] = [];
 
     for (const code of examSubjectCodes) {
-      if (!completedCodes.has(code)) {
-        missingSubjects.push(code);
-      }
+      if (completedCodes.has(code)) continue;
+      if (attemptedCodes !== null && !attemptedCodes.has(code)) continue;
+      missingSubjects.push(code);
     }
 
     if (missingSubjects.length > 0) {
