@@ -131,6 +131,84 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
     201,
   );
 
+  // PRC-M234: registration now enforces the pre-existing (previously fail-open)
+  // eligibility rule that every exam subject must already be a *completed*
+  // (passed, published) prerequisite for the student — sourced from
+  // `examination_academic_records`. Run one small, prior exam cycle for the
+  // same subjects (register -> mark -> publish) so this fixture's student has
+  // genuine passed records before registering for the real test exam below.
+  const gradingScheme = {
+    name: 'Standard',
+    minScore: 0,
+    maxScore: 100,
+    passThreshold: 40,
+    thresholds: [
+      { grade: 'A', minScore: 80, maxScore: 100 },
+      { grade: 'B', minScore: 60, maxScore: 79 },
+      { grade: 'C', minScore: 40, maxScore: 59 },
+      { grade: 'F', minScore: 0, maxScore: 39 },
+    ],
+  };
+  const subjectSpecs = [
+    { name: 'Mathematics', code: 'MATH', maxScore: 100 },
+    { name: 'Science', code: 'SCI', maxScore: 100 },
+  ];
+  const priorExam = await postOk(
+    request,
+    '/examinations',
+    {
+      name: `E2E Prior Exam ${stamp}`,
+      code: `E2E-PRIOR-${stamp.toUpperCase()}`,
+      academicPeriodId: period.id,
+      // Creation requires dates >= 7 days out (examination-service.ts
+      // validateExamDates); only create/update enforce this, not marks
+      // entry/publish, so this "prior" cycle can still be fully marked and
+      // published today even though its dates are in the (near) future.
+      startDate: isoDate(8),
+      endDate: isoDate(9),
+      subjects: subjectSpecs,
+      centers: [{ name: 'Main Hall', code: 'HALL', institutionId: INSTITUTION_A, capacity: 200 }],
+      gradingSchemes: [gradingScheme],
+    },
+    201,
+  );
+  const priorScheduled = await request.put(`${GATEWAY_URL}/api/v1/examinations/${priorExam.id}`, {
+    headers: headers(),
+    data: { status: 'SCHEDULED' },
+  });
+  expect(priorScheduled.status(), await priorScheduled.text()).toBe(200);
+  const priorSubjectIds = (priorExam.subjects as Array<{ id: string }>).map((s) => s.id);
+  const priorCenterId = (priorExam.centers as Array<{ id: string }>)[0]!.id;
+  await postOk(
+    request,
+    `/examinations/${priorExam.id}/candidates`,
+    { studentId: student.id, centerId: priorCenterId, subjectIds: priorSubjectIds },
+    201,
+  );
+  await postOk(
+    request,
+    `/examinations/${priorExam.id}/results/marks`,
+    {
+      entries: [
+        {
+          studentId: student.id,
+          marks: priorSubjectIds.map((subjectId) => ({ subjectId, score: 85 })),
+        },
+      ],
+    },
+    200,
+  );
+  const priorMoved = await request.put(`${GATEWAY_URL}/api/v1/examinations/${priorExam.id}`, {
+    headers: headers(),
+    data: { status: 'IN_PROGRESS' },
+  });
+  expect(priorMoved.status(), await priorMoved.text()).toBe(200);
+  const priorPublished = await request.post(
+    `${GATEWAY_URL}/api/v1/examinations/${priorExam.id}/results/publish`,
+    { headers: headers() },
+  );
+  expect(priorPublished.status(), await priorPublished.text()).toBe(200);
+
   const exam = await postOk(
     request,
     '/examinations',
@@ -140,25 +218,9 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
       academicPeriodId: period.id,
       startDate: isoDate(10),
       endDate: isoDate(12),
-      subjects: [
-        { name: 'Mathematics', code: 'MATH', maxScore: 100 },
-        { name: 'Science', code: 'SCI', maxScore: 100 },
-      ],
+      subjects: subjectSpecs,
       centers: [{ name: 'Main Hall', code: 'HALL', institutionId: INSTITUTION_A, capacity: 200 }],
-      gradingSchemes: [
-        {
-          name: 'Standard',
-          minScore: 0,
-          maxScore: 100,
-          passThreshold: 40,
-          thresholds: [
-            { grade: 'A', minScore: 80, maxScore: 100 },
-            { grade: 'B', minScore: 60, maxScore: 79 },
-            { grade: 'C', minScore: 40, maxScore: 59 },
-            { grade: 'F', minScore: 0, maxScore: 39 },
-          ],
-        },
-      ],
+      gradingSchemes: [gradingScheme],
     },
     201,
   );
