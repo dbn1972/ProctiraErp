@@ -160,6 +160,18 @@ export interface DistributionRepository {
     data: Partial<Pick<DistributionRecordEntity, 'status' | 'submittedAt' | 'remindersSent'>>,
   ): Promise<DistributionRecordEntity | null>;
 
+  /**
+   * PRC-L165: atomically mark a not-yet-completed record completed and return it; `null`
+   * when it is missing or already completed. Persistent implementations must use a single
+   * conditional statement (`UPDATE ... SET status='completed', submitted_at=$3
+   * WHERE id=$1 AND tenant_id=$2 AND status <> 'completed' RETURNING *`), never read-then-write.
+   */
+  markCompletedIfOpen(
+    id: string,
+    tenantId: string,
+    submittedAt: string,
+  ): Promise<DistributionRecordEntity | null>;
+
   /** Count distribution records by status for a survey */
   countByStatus(tenantId: string, surveyId: string): Promise<Record<CompletionStatus, number>>;
 }

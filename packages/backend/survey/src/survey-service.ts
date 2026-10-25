@@ -361,23 +361,35 @@ export class SurveyService {
       throw new ValidationError('Survey submission validation failed', errors);
     }
 
-    // Create submission
-    const submission = await this.submissionRepo.create({
-      id: uuidv4(),
+    // PRC-L165: claim the distribution first (atomic check-and-set) so a concurrent second
+    // submit cannot also pass the completed check and store a duplicate submission.
+    const submittedAt = new Date();
+    const claimed = await this.distributionRepo.markCompletedIfOpen(
+      distribution.id,
       tenantId,
-      surveyId: input.surveyId,
-      institutionId: input.institutionId,
-      answers: input.answers,
-      submittedAt: new Date(),
-    });
+      submittedAt.toISOString(),
+    );
+    if (!claimed) {
+      throw new BusinessRuleError('Survey has already been submitted for this institution');
+    }
 
-    // Update distribution status to completed
-    await this.distributionRepo.update(distribution.id, tenantId, {
-      status: 'completed',
-      submittedAt: new Date().toISOString(),
-    });
-
-    return submission;
+    try {
+      return await this.submissionRepo.create({
+        id: uuidv4(),
+        tenantId,
+        surveyId: input.surveyId,
+        institutionId: input.institutionId,
+        answers: input.answers,
+        submittedAt,
+      });
+    } catch (error: unknown) {
+      // PRC-L165: the submission was not stored — reopen the distribution, then rethrow.
+      await this.distributionRepo.update(distribution.id, tenantId, {
+        status: distribution.status,
+        submittedAt: distribution.submittedAt,
+      });
+      throw error;
+    }
   }
 
   // ─── Reminder Operations ─────────────────────────────────────────────────
@@ -410,17 +422,27 @@ export class SurveyService {
       return { remindersSent: 0 };
     }
 
-    // Send notifications if publisher is available
-    const targetInstitutionIds = incompleteRecords.map((r) => r.institutionId);
-    if (this.notificationPublisher) {
-      await this.notificationPublisher.sendReminder(tenantId, surveyId, targetInstitutionIds);
-    }
-
-    // Update reminder counts
-    for (const record of incompleteRecords) {
-      await this.distributionRepo.update(record.id, tenantId, {
-        remindersSent: record.remindersSent + 1,
-      });
+    // PRC-L165: store every reminder count first, then publish; on any failure restore the
+    // prior counts so counts and sent reminders never diverge.
+    const incremented: DistributionRecordEntity[] = [];
+    try {
+      for (const record of incompleteRecords) {
+        await this.distributionRepo.update(record.id, tenantId, {
+          remindersSent: record.remindersSent + 1,
+        });
+        incremented.push(record);
+      }
+      const targetInstitutionIds = incompleteRecords.map((r) => r.institutionId);
+      if (this.notificationPublisher) {
+        await this.notificationPublisher.sendReminder(tenantId, surveyId, targetInstitutionIds);
+      }
+    } catch (error: unknown) {
+      for (const record of incremented) {
+        await this.distributionRepo.update(record.id, tenantId, {
+          remindersSent: record.remindersSent,
+        });
+      }
+      throw error;
     }
 
     return { remindersSent: incompleteRecords.length };
