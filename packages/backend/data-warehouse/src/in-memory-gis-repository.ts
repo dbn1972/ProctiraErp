@@ -43,6 +43,17 @@ export class InMemoryGISRepository implements GISRepository {
     this.layers.delete(id);
   }
 
+  async deleteLayersForWarehouse(warehouseId: string, tenantId: string): Promise<number> {
+    let deleted = 0;
+    for (const [id, layer] of this.layers) {
+      if (layer.warehouseId === warehouseId && layer.tenantId === tenantId) {
+        this.layers.delete(id);
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
+
   async findLayerById(id: string, warehouseId: string, tenantId: string): Promise<GISLayer | null> {
     const layer = this.layers.get(id);
     if (!layer || layer.warehouseId !== warehouseId || layer.tenantId !== tenantId) {

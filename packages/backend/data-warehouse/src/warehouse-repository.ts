@@ -30,6 +30,10 @@ export interface WarehouseRepository {
   // Warehouse operations
   createWarehouse(warehouse: Warehouse): Promise<Warehouse>;
   updateWarehouse(id: string, tenantId: string, updates: Partial<Warehouse>): Promise<Warehouse>;
+  /**
+   * PRC-L453: implementations must delete the warehouse and, atomically with it, every
+   * indicator, unit, subgroup, time period, area and data record of that warehouse and tenant.
+   */
   deleteWarehouse(id: string, tenantId: string): Promise<void>;
   findWarehouseById(id: string, tenantId: string): Promise<Warehouse | null>;
   listWarehouses(
