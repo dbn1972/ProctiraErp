@@ -6,7 +6,9 @@
  * supplied (an empty password is accepted only outside production with
  * MIGRATION_ALLOW_EMPTY_PASSWORD=1 for local throwaway databases). Target
  * Postgres TLS is controlled by TARGET_PG_SSL and defaults to verified TLS in
- * production.
+ * production. Schema names and the batch size are interpolated into SQL, so
+ * TARGET_PG_SCHEMA / MIGRATION_STAGING_SCHEMA must be safe identifiers and
+ * MIGRATION_BATCH_SIZE a positive integer.
  *
  * The migrator connects as a dedicated owner role (not the runtime
  * proctira_app role): it owns the migrated objects and deliberately bypasses
@@ -14,6 +16,7 @@
  * pods.
  */
 
+import { assertSafeIdentifier } from './sql-safety.js';
 import type { MigrationConfig } from './types.js';
 
 /** TARGET_PG_SSL values mapped onto node-pg's PGSSLMODE handling. */
@@ -40,6 +43,19 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Migrat
     }
     return value;
   };
+
+  // These values are spliced into SQL as quoted identifiers / LIMIT across the
+  // pipeline, so validate them once here and fail closed.
+  const pgSchema = env('TARGET_PG_SCHEMA', 'public');
+  assertSafeIdentifier(pgSchema, 'TARGET_PG_SCHEMA');
+  const stagingSchema = env('MIGRATION_STAGING_SCHEMA', 'migration_staging');
+  assertSafeIdentifier(stagingSchema, 'MIGRATION_STAGING_SCHEMA');
+  const batchSizeRaw = env('MIGRATION_BATCH_SIZE', '5000');
+  if (!/^[1-9][0-9]*$/.test(batchSizeRaw)) {
+    throw new Error(
+      `MIGRATION_BATCH_SIZE must be a positive integer: ${JSON.stringify(batchSizeRaw)}`,
+    );
+  }
 
   const pgSsl = env('TARGET_PG_SSL', production ? 'verify-full' : 'disable');
   if (!PG_SSL_MODES.has(pgSsl)) {
@@ -68,12 +84,12 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Migrat
       database: env('TARGET_PG_DATABASE', 'proctira_unified'),
       user: required('TARGET_PG_USER'),
       password: password('TARGET_PG_PASSWORD'),
-      schema: env('TARGET_PG_SCHEMA', 'public'),
+      schema: pgSchema,
     },
-    batchSize: parseInt(env('MIGRATION_BATCH_SIZE', '5000'), 10),
+    batchSize: parseInt(batchSizeRaw, 10),
     defaultTenantName: env('MIGRATION_DEFAULT_TENANT_NAME', 'Default Organization'),
     defaultTenantSlug: env('MIGRATION_DEFAULT_TENANT_SLUG', 'default'),
-    stagingSchema: env('MIGRATION_STAGING_SCHEMA', 'migration_staging'),
+    stagingSchema,
     logLevel: env('MIGRATION_LOG_LEVEL', 'info') as MigrationConfig['logLevel'],
     pgloaderBin: env('PGLOADER_BIN', 'pgloader'),
     reportOutputPath: process.env['MIGRATION_REPORT_OUTPUT_PATH'] || undefined,
