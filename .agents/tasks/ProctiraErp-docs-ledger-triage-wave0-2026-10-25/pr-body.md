@@ -307,4 +307,13 @@ Rollout and rollback: documentation only. Revert the ledger commit to roll back.
 
 ## Reviewer verdict
 
-PENDING: independent review not yet run (`review/review.json` absent).
+APPROVED: one independent semantic review pass found no blocking findings. The full review doc is kept locally in the run folder (`review/review.md`) and is not committed.
+
+### Follow-ups (non-blocking review findings)
+
+- [ ] PRC-M292: FULLY_CLOSED rests on the in-memory suite. The PG `claimCopyForCheckout` / `decrementAvailable` path looks correct in code, but no live-PG test ran. Add a live-PG hold-fulfilment test, or annotate the PG path as EXTERNALLY_UNVERIFIED.
+- [ ] PRC-L573: the concurrency and cross-tenant tests use `InMemoryLibraryRepository` only, so PG row locking and RLS are not proven. Record that limit in the row note, or add live-PG tests.
+- [ ] PRC-L434 / PRC-M330: L434 is closed by the D6 deletion, and its cited web tests are indirect (route guard, not upload). Confirm that the M330 residual covers the server-issued id / AV step from L434's prior note.
+- [ ] PRC-M386 residual: upload compensation swallows blob-delete errors, and `removeDocument` deletes the row before the blob. A storage failure can still orphan an untracked blob. Note the residual or add retry/outbox.
+- [ ] PRC-L447 / PRC-L448: Wave 1 Batch B (`fix/ui-packages-batch1`) has 2 findings against a target of about 10. Merge it into a later custom-field batch or accept it as a small PR.
+- [ ] Batch A owner-parked items: L435's tenant-timezone step depends on the unanswered DECISION_REGISTER §3 policy (L596 is NEEDS_DECISION for the same policy). The L413 and M134 prior notes say "owner". Confirm these with the owner or drop those halves. Run the D6 guardrail (full Next build + web/E2E) for the L530/M144/M147 deletions.
