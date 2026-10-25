@@ -260,6 +260,45 @@ describe('Theme Routes', () => {
       expect(body.commitMessage).toBe('First publish');
       expect(body.publishedBy).toBe('admin-user');
     });
+
+    it('rejects an invalid publish body with 400 and creates no revision (PRC-L172)', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/themes',
+        payload: { name: 'Bad Publish', level: 'tenant', tokens: validTokens() },
+      });
+      const created = createResponse.json();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/themes/${created.id}/publish`,
+        payload: { commitMessage: 'x'.repeat(501) },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ code: 'VALIDATION_ERROR', statusCode: 400 });
+      expect(await repository.listRevisions(created.id)).toHaveLength(0);
+    });
+
+    it('persists the commit message from a valid publish body (PRC-L172)', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/themes',
+        payload: { name: 'Good Publish', level: 'tenant', tokens: validTokens() },
+      });
+      const created = createResponse.json();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/themes/${created.id}/publish`,
+        payload: { commitMessage: 'Release notes' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const revisions = await repository.listRevisions(created.id);
+      expect(revisions).toHaveLength(1);
+      expect(revisions[0]?.commitMessage).toBe('Release notes');
+    });
   });
 
   describe('POST /themes/:themeId/rollback', () => {
