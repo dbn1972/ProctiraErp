@@ -20,6 +20,7 @@ import {
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { safeRegexTest } from './safe-regex-guard.js';
 import type {
   CreateSurveyInput,
   UpdateSurveyInput,
@@ -577,6 +578,17 @@ export class SurveyService {
         });
       }
 
+      if (q.validation?.pattern !== undefined) {
+        // PRC-L164: reject patterns the ReDoS guard would refuse to run (unsafe/invalid/too long).
+        const guard = safeRegexTest(q.validation.pattern, '');
+        if (!guard.ok) {
+          errors.push({
+            field: `questions[${i}].validation.pattern`,
+            rule: 'pattern',
+            message: `Question '${q.label}': validation pattern is not allowed (${guard.reason})`,
+          });
+        }
+      }
       if (q.type === 'repeater' && (!q.repeaterFields || q.repeaterFields.length === 0)) {
         errors.push({
           field: `questions[${i}].repeaterFields`,
@@ -630,19 +642,37 @@ export class SurveyService {
               message: `Question '${question.label}' expects a text value`,
             });
           } else if (question.validation) {
-            if (question.validation.minLength && value.length < question.validation.minLength) {
+            // PRC-L164: a 0 bound is a real bound (compare against undefined, not truthiness).
+            if (
+              question.validation.minLength !== undefined &&
+              value.length < question.validation.minLength
+            ) {
               errors.push({
                 field: `answers.${question.id}`,
                 rule: 'minLength',
                 message: `Question '${question.label}' must be at least ${question.validation.minLength} characters`,
               });
             }
-            if (question.validation.maxLength && value.length > question.validation.maxLength) {
+            if (
+              question.validation.maxLength !== undefined &&
+              value.length > question.validation.maxLength
+            ) {
               errors.push({
                 field: `answers.${question.id}`,
                 rule: 'maxLength',
                 message: `Question '${question.label}' must be at most ${question.validation.maxLength} characters`,
               });
+            }
+            if (question.validation.pattern !== undefined) {
+              // PRC-L164: author-supplied regex runs behind the ReDoS guard; fail closed.
+              const result = safeRegexTest(question.validation.pattern, value);
+              if (!result.ok || !result.matches) {
+                errors.push({
+                  field: `answers.${question.id}`,
+                  rule: 'pattern',
+                  message: `Question '${question.label}' does not match the required format`,
+                });
+              }
             }
           }
           break;
@@ -730,6 +760,10 @@ export class SurveyService {
               rule: 'type',
               message: `Question '${question.label}' expects an array of row objects`,
             });
+          } else {
+            // PRC-L164: each row is an object keyed by column name.
+            const cells = (question.columns ?? []).map((c) => ({ ...c, key: c.name }));
+            errors.push(...validateRows(question, value, cells));
           }
           break;
 
@@ -740,6 +774,10 @@ export class SurveyService {
               rule: 'type',
               message: `Question '${question.label}' expects an array of repeater entries`,
             });
+          } else {
+            // PRC-L164: repeater fields have no `name`, so entries are keyed by field label.
+            const cells = (question.repeaterFields ?? []).map((f) => ({ ...f, key: f.label }));
+            errors.push(...validateRows(question, value, cells));
           }
           break;
       }
@@ -865,4 +903,89 @@ function sameQuestionSet(
       (c.required ?? false) === (q.required ?? false)
     );
   });
+}
+
+/** PRC-L164: definition of one table column / repeater field, with its answer key. */
+interface CellDefinition {
+  key: string;
+  type: 'text' | 'number' | 'date' | 'dropdown';
+  required?: boolean;
+  options?: Array<{ value: string }>;
+}
+
+function isEmptyCell(value: unknown): boolean {
+  return value === undefined || value === null || value === '';
+}
+
+function cellTypeError(cell: CellDefinition, value: unknown): string | null {
+  switch (cell.type) {
+    case 'text':
+      return typeof value === 'string' ? null : 'expects a text value';
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value) ? null : 'expects a numeric value';
+    case 'date':
+      return typeof value === 'string' && !isNaN(Date.parse(value))
+        ? null
+        : 'expects a valid date string';
+    case 'dropdown':
+      return typeof value === 'string' ? null : 'expects a string value';
+  }
+}
+
+/**
+ * PRC-L164: validate table rows / repeater entries cell by cell. Each row must be a plain
+ * object; unknown keys are ignored. Field paths are `answers.<qid>[<row>].<key>`.
+ */
+function validateRows(
+  question: QuestionEntity,
+  rows: unknown[],
+  cells: CellDefinition[],
+): FieldError[] {
+  const errors: FieldError[] = [];
+  rows.forEach((row, index) => {
+    const rowPath = `answers.${question.id}[${index}]`;
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+      errors.push({
+        field: rowPath,
+        rule: 'type',
+        message: `Question '${question.label}' row ${index + 1} must be an object`,
+      });
+      return;
+    }
+    const record = row as Record<string, unknown>;
+    for (const cell of cells) {
+      const value = record[cell.key];
+      const field = `${rowPath}.${cell.key}`;
+      if (isEmptyCell(value)) {
+        if (cell.required) {
+          errors.push({
+            field,
+            rule: 'required',
+            message: `Question '${question.label}' row ${index + 1}: '${cell.key}' is required`,
+          });
+        }
+        continue;
+      }
+      const typeError = cellTypeError(cell, value);
+      if (typeError) {
+        errors.push({
+          field,
+          rule: 'type',
+          message: `Question '${question.label}' row ${index + 1}: '${cell.key}' ${typeError}`,
+        });
+        continue;
+      }
+      if (cell.type === 'dropdown' && cell.options) {
+        const validValues = cell.options.map((o) => o.value);
+        if (!validValues.includes(value as string)) {
+          errors.push({
+            field,
+            rule: 'enum',
+            message: `Question '${question.label}' row ${index + 1}: '${cell.key}' must be one of: ${validValues.join(', ')}`,
+          });
+        }
+      }
+    }
+  });
+  return errors;
 }
