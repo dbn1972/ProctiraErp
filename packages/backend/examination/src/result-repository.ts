@@ -11,6 +11,8 @@
  */
 import { createHash } from 'node:crypto';
 
+import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 /**
  * Gender type for candidates.
  */
@@ -161,6 +163,18 @@ export interface AcademicRecordUpdate {
 export interface ResultRepository {
   /** Get all candidates for an examination */
   getCandidates(examinationId: string, tenantId: string): Promise<ExaminationCandidate[]>;
+
+  /**
+   * PRC-M243: paginated candidates, for the GET .../results/marks handler
+   * (previously returned the full unbounded array). Internal callers that
+   * need the full set (recordMarks, applyFinalMarksUnit, admit-card
+   * resolution) keep using {@link getCandidates} unchanged.
+   */
+  getCandidatesPage(
+    examinationId: string,
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ExaminationCandidate>>;
 
   /**
    * Upsert candidate rows (marks entry before publication, G-902). Keyed by

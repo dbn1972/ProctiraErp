@@ -181,7 +181,14 @@ export const examinationPlugin = fp(
         documentTaskQueue,
         blobStore,
         outboxStore,
-        { logger: { warn: (obj, msg) => fastify.log.warn(obj, msg) } },
+        {
+          logger: { warn: (obj, msg) => fastify.log.warn(obj, msg) },
+          // PRC-M232: prefer the durable ops-table sessions over the legacy
+          // examination.sessions JSONB column when an ops store is wired.
+          sessionSource: examOpsStore
+            ? (tenantId, examinationId) => examOpsStore.listSessions(tenantId, examinationId)
+            : undefined,
+        },
       );
       certificateGenerator = documentGenerationService;
       fastify.decorate('documentGenerationService', documentGenerationService);

@@ -89,6 +89,10 @@ export class CachedExaminationRepository implements ExaminationRepository {
     return this.delegate.getStudentEnrollment(studentId, tenantId);
   }
 
+  async getStudentNames(tenantId: string, studentIds: string[]): Promise<Map<string, string>> {
+    return this.delegate.getStudentNames(tenantId, studentIds);
+  }
+
   async createCandidateRegistration(data: CandidateRegistration): Promise<CandidateRegistration> {
     return this.delegate.createCandidateRegistration(data);
   }
