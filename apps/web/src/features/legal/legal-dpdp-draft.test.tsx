@@ -59,6 +59,23 @@ describe('legal pages carry the D5 draft marker (PRC-L262)', () => {
     expect(page.textContent).toContain('[institution DPO contact — set by your institution]');
   });
 
+  it('/legal/privacy numbers its sections 1..n in order with a single rights section', () => {
+    render(<PrivacyPolicyRoute />);
+    const numbers = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((h) => /^(\d+)\./.exec(h.textContent ?? '')?.[1])
+      .filter((n): n is string => n !== undefined)
+      .map(Number);
+    expect(numbers.length).toBeGreaterThan(0);
+    expect(numbers).toEqual(numbers.map((_, i) => i + 1));
+    // D5 §6: one rights channel ("exercised through your institution"); no legacy copy that
+    // routes rights requests elsewhere or lists non-DPDP rights.
+    expect(screen.getAllByRole('heading', { level: 2, name: /rights/i })).toHaveLength(1);
+    const page = screen.getByTestId('legal-privacy-page');
+    expect(page.textContent).toContain('exercised through your institution');
+    expect(page.textContent).not.toMatch(/portability|operating ministry or board/i);
+  });
+
   it('/legal/terms carries the D5 terms summary with the counsel placeholder', () => {
     render(<TermsOfServiceRoute />);
     const page = screen.getByTestId('legal-terms-page');

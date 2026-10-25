@@ -153,22 +153,6 @@ export default function PrivacyPolicy({
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">5. Your rights</h2>
-          <p className="text-base leading-relaxed text-foreground">
-            Depending on jurisdiction you may request access, correction, erasure, restriction,
-            portability, or objection regarding your personal information. Email{' '}
-            <a
-              href="mailto:privacy@proctira.org"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              privacy@proctira.org
-            </a>{' '}
-            with your request. For data held inside a production tenant, requests should be
-            addressed to the operating ministry or board.
-          </p>
-        </section>
-
-        <section className="space-y-3">
           <h2 className="text-xl font-semibold text-foreground">11. Contact</h2>
           <p className="text-base leading-relaxed text-foreground">
             Questions about this policy can be sent to{' '}
