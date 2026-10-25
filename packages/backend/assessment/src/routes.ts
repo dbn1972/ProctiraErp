@@ -225,14 +225,26 @@ export async function registerAssessmentRoutes(
         });
       }
 
-      const query = { ...request.query } as GradingSchemeListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-L081: validate the list query against its schema (bounds + enum).
+      const parsed = validate(
+        GradingSchemeListQuerySchema,
+        { ...request.query },
+        { convert: true },
+      );
+      if (!parsed.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: parsed.errors,
+        });
+      }
+      const query = parsed.data;
 
       const result = await assessmentService.listGradingSchemes(
         tenantId,
         { type: query.type, search: query.search },
-        { page, pageSize },
+        { page: query.page ?? 1, pageSize: query.pageSize ?? 20 },
       );
 
       return reply.status(200).send({
