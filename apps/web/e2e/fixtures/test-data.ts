@@ -110,13 +110,24 @@ export interface SeedConfig {
  * treated as "another spec already created it" and resolved by re-fetching
  * rather than failing — the same self-heals-on-retry posture already
  * documented on {@link uniqueGradeOrder}.
+ *
+ * Filters the list query (and the create-race retry) to `status=active`.
+ * Specs 41 and 43 each create their own `kind: 'year'` fixture with
+ * `status: 'inactive'` on purpose (see {@link uniqueFarFutureYearWindow}),
+ * so an unfiltered `?kind=year` list can return one of those instead of the
+ * real shared active year — every later caller then inherits an inactive
+ * period id and 422s as soon as it tries an operation that requires an
+ * active period (e.g. marking attendance). Years can also be archived by
+ * rollover, so `active` is the only status a caller of this helper can use.
  */
 export async function ensureSharedAcademicYear(
   request: APIRequestContext,
   gatewayUrl: string,
   headers: Record<string, string>,
 ): Promise<{ id: string; startDate: string; endDate: string }> {
-  const list = await request.get(`${gatewayUrl}/api/v1/academic-periods?kind=year`, { headers });
+  const list = await request.get(`${gatewayUrl}/api/v1/academic-periods?kind=year&status=active`, {
+    headers,
+  });
   if (list.ok()) {
     const years = (await list.json()) as Array<{
       id: string;
@@ -150,9 +161,10 @@ export async function ensureSharedAcademicYear(
     // Another spec/shard won the create race (code collision or the
     // PRC-L122 overlap guard firing against a year created concurrently).
     // Re-fetch rather than failing — the loser just needs the winner's row.
-    const retry = await request.get(`${gatewayUrl}/api/v1/academic-periods?kind=year`, {
-      headers,
-    });
+    const retry = await request.get(
+      `${gatewayUrl}/api/v1/academic-periods?kind=year&status=active`,
+      { headers },
+    );
     if (retry.ok()) {
       const years = (await retry.json()) as Array<{
         id: string;
