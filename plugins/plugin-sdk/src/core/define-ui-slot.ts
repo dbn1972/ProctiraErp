@@ -4,8 +4,6 @@
  * Provides a type-safe way to register UI components in platform
  * extension slots (dashboard widgets, entity detail tabs, etc.).
  */
-import type { UISlotLocation } from '@proctira/backend-plugin';
-
 /**
  * A UI slot component definition for registering frontend extensions.
  */
@@ -35,7 +33,7 @@ export interface UISlotComponentDefinition {
  * import { defineUISlot } from '@proctira/plugin-sdk';
  *
  * const dashboardWidget = defineUISlot(
- *   'dashboard-widget.main',
+ *   'dashboard.widget',
  *   'attendance-summary-widget',
  *   { label: 'Attendance Summary', icon: 'chart-bar', order: 10 }
  * );
