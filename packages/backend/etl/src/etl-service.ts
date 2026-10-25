@@ -815,10 +815,17 @@ export class ETLService {
 
   /**
    * Get an execution log by ID.
+   *
+   * PRC-L100: when `pipelineId` is given (the `/pipelines/:pipelineId/executions/:executionId`
+   * route), an execution of another pipeline is reported exactly like a missing one (404).
    */
-  async getExecution(tenantId: string, executionId: string): Promise<PipelineExecution> {
+  async getExecution(
+    tenantId: string,
+    executionId: string,
+    pipelineId?: string,
+  ): Promise<PipelineExecution> {
     const execution = await this.repository.getExecution(executionId, tenantId);
-    if (!execution) {
+    if (!execution || (pipelineId !== undefined && execution.pipelineId !== pipelineId)) {
       throw new NotFoundError(`Execution not found: ${executionId}`);
     }
     return execution;

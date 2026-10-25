@@ -305,6 +305,55 @@ describe('ETL Routes', () => {
     });
   });
 
+  // PRC-L100: the execution detail route must honour :pipelineId in the path.
+  describe('GET /pipelines/:pipelineId/executions/:executionId', () => {
+    async function createAndExecute(name: string) {
+      const created = JSON.parse(
+        (
+          await app.inject({
+            method: 'POST',
+            url: '/pipelines',
+            payload: { ...validPipelineBody, name },
+          })
+        ).payload,
+      ) as { id: string };
+      const execution = JSON.parse(
+        (await app.inject({ method: 'POST', url: `/pipelines/${created.id}/execute` })).payload,
+      ) as { id: string };
+      return { pipelineId: created.id, executionId: execution.id };
+    }
+
+    it('returns the execution under its own pipeline (200)', async () => {
+      const a = await createAndExecute('A');
+      const response = await app.inject({
+        method: 'GET',
+        url: `/pipelines/${a.pipelineId}/executions/${a.executionId}`,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.payload).pipelineId).toBe(a.pipelineId);
+    });
+
+    it('returns 404 when the execution belongs to another pipeline', async () => {
+      const a = await createAndExecute('A');
+      const b = await createAndExecute('B');
+      const response = await app.inject({
+        method: 'GET',
+        url: `/pipelines/${b.pipelineId}/executions/${a.executionId}`,
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns 400 for an invalid pipeline id', async () => {
+      const a = await createAndExecute('A');
+      const response = await app.inject({
+        method: 'GET',
+        url: `/pipelines/not-a-uuid/executions/${a.executionId}`,
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.payload).code).toBe('VALIDATION_ERROR');
+    });
+  });
+
   // PRC-H050: pipeline definitions carry connector credentials and execution error rows carry
   // source records. Only ETL/admin roles may touch pipelines; report-readers must not.
   describe('etl.manage for connector config (PRC-H115)', () => {

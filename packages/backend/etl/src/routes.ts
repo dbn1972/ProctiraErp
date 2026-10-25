@@ -542,10 +542,23 @@ export async function registerETLRoutes(
         });
       }
 
+      const paramsResult = validate(PipelineParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid pipeline ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
       const executionId = request.params.executionId;
 
       try {
-        const execution = await etlService.getExecution(tenantId, executionId);
+        const execution = await etlService.getExecution(
+          tenantId,
+          executionId,
+          paramsResult.data.pipelineId,
+        );
         return reply.status(200).send(formatExecutionResponse(execution));
       } catch (error: unknown) {
         if (error instanceof AppError) {
