@@ -245,6 +245,47 @@ export class InMemoryLmsRepository implements LmsRepository {
     return (this.questions.get(assignmentId) ?? []).filter((q) => q.tenantId === tenantId);
   }
 
+  async createAssignmentWithQuestions(
+    data: Omit<AssignmentEntity, 'createdAt' | 'updatedAt'>,
+    questions: Omit<QuizQuestionEntity, 'createdAt'>[],
+  ): Promise<{ assignment: AssignmentEntity; questions: QuizQuestionEntity[] }> {
+    const assignment = await this.createAssignment(data);
+    try {
+      const saved =
+        questions.length > 0 ? await this.replaceQuestions(data.tenantId, data.id, questions) : [];
+      return { assignment, questions: saved };
+    } catch (error) {
+      // All-or-nothing, mirroring the single Postgres transaction.
+      this.assignments.delete(data.id);
+      this.questions.delete(data.id);
+      throw error;
+    }
+  }
+
+  async updateAssignmentWithQuestions(
+    tenantId: string,
+    id: string,
+    patch: Parameters<LmsRepository['updateAssignment']>[2],
+    questions: Omit<QuizQuestionEntity, 'createdAt'>[] | null,
+  ): Promise<{ assignment: AssignmentEntity; questions: QuizQuestionEntity[] } | null> {
+    const before = await this.findAssignmentById(tenantId, id);
+    if (!before) return null;
+    const priorQuestions = this.questions.get(id);
+    try {
+      const assignment = await this.updateAssignment(tenantId, id, patch);
+      if (!assignment) return null;
+      const saved = questions
+        ? await this.replaceQuestions(tenantId, id, questions)
+        : await this.listQuestions(tenantId, id);
+      return { assignment, questions: saved };
+    } catch (error) {
+      this.assignments.set(id, before);
+      if (priorQuestions) this.questions.set(id, priorQuestions);
+      else this.questions.delete(id);
+      throw error;
+    }
+  }
+
   // ─── Submissions ───────────────────────────────────────────────────────
 
   async createSubmission(

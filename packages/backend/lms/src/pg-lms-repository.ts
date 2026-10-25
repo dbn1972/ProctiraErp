@@ -546,40 +546,79 @@ export class PgLmsRepository implements LmsRepository {
     data: Omit<AssignmentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<AssignmentEntity> {
     await this.ensureSchema();
+    return this.withTenant(data.tenantId, (client) => this.insertAssignment(client, data));
+  }
+
+  /** PRC-M300: assignment row + its questions in ONE tenant transaction. */
+  async createAssignmentWithQuestions(
+    data: Omit<AssignmentEntity, 'createdAt' | 'updatedAt'>,
+    questions: Omit<QuizQuestionEntity, 'createdAt'>[],
+  ): Promise<{ assignment: AssignmentEntity; questions: QuizQuestionEntity[] }> {
+    await this.ensureSchema();
     return this.withTenant(data.tenantId, async (client) => {
-      const result = await client.query(
-        `INSERT INTO lms_assignments (
-           id, tenant_id, scope, board_id, institution_id, kind, title, description,
-           subject, grade_level, section_id, academic_period_id, skill_ids, max_score, due_at,
-           time_limit_minutes, allow_late, status, created_by, published_at
-         ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,$19,$20
-         ) RETURNING *`,
-        [
-          data.id,
-          data.tenantId,
-          data.scope,
-          data.boardId,
-          data.institutionId,
-          data.kind,
-          data.title,
-          data.description,
-          data.subject,
-          data.gradeLevel,
-          data.sectionId,
-          data.academicPeriodId,
-          JSON.stringify(data.skillIds),
-          data.maxScore,
-          data.dueAt,
-          data.timeLimitMinutes,
-          data.allowLate,
-          data.status,
-          data.createdBy,
-          data.publishedAt,
-        ],
-      );
-      return mapAssignment(result.rows[0] as Record<string, unknown>);
+      const assignment = await this.insertAssignment(client, data);
+      const saved =
+        questions.length > 0
+          ? await this.writeQuestions(client, data.tenantId, data.id, questions)
+          : [];
+      return { assignment, questions: saved };
     });
+  }
+
+  /** PRC-M300: assignment patch + optional question replacement in ONE transaction. */
+  async updateAssignmentWithQuestions(
+    tenantId: string,
+    id: string,
+    patch: Parameters<LmsRepository['updateAssignment']>[2],
+    questions: Omit<QuizQuestionEntity, 'createdAt'>[] | null,
+  ): Promise<{ assignment: AssignmentEntity; questions: QuizQuestionEntity[] } | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const assignment = await this.updateAssignmentRow(client, tenantId, id, patch);
+      if (!assignment) return null;
+      const saved = questions
+        ? await this.writeQuestions(client, tenantId, id, questions)
+        : await this.selectQuestions(client, tenantId, id);
+      return { assignment, questions: saved };
+    });
+  }
+
+  private async insertAssignment(
+    client: PgQueryable,
+    data: Omit<AssignmentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AssignmentEntity> {
+    const result = await client.query(
+      `INSERT INTO lms_assignments (
+         id, tenant_id, scope, board_id, institution_id, kind, title, description,
+         subject, grade_level, section_id, academic_period_id, skill_ids, max_score, due_at,
+         time_limit_minutes, allow_late, status, created_by, published_at
+       ) VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18,$19,$20
+       ) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.scope,
+        data.boardId,
+        data.institutionId,
+        data.kind,
+        data.title,
+        data.description,
+        data.subject,
+        data.gradeLevel,
+        data.sectionId,
+        data.academicPeriodId,
+        JSON.stringify(data.skillIds),
+        data.maxScore,
+        data.dueAt,
+        data.timeLimitMinutes,
+        data.allowLate,
+        data.status,
+        data.createdBy,
+        data.publishedAt,
+      ],
+    );
+    return mapAssignment(result.rows[0] as Record<string, unknown>);
   }
 
   async updateAssignment(
@@ -588,6 +627,17 @@ export class PgLmsRepository implements LmsRepository {
     patch: Parameters<LmsRepository['updateAssignment']>[2],
   ): Promise<AssignmentEntity | null> {
     await this.ensureSchema();
+    return this.withTenant(tenantId, (client) =>
+      this.updateAssignmentRow(client, tenantId, id, patch),
+    );
+  }
+
+  private async updateAssignmentRow(
+    client: PgQueryable,
+    tenantId: string,
+    id: string,
+    patch: Parameters<LmsRepository['updateAssignment']>[2],
+  ): Promise<AssignmentEntity | null> {
     const sets: string[] = [];
     const params: unknown[] = [tenantId, id];
     for (const [key, column] of Object.entries(ASSIGNMENT_COLUMNS)) {
@@ -596,17 +646,19 @@ export class PgLmsRepository implements LmsRepository {
       params.push(key === 'skillIds' ? JSON.stringify(value ?? []) : value);
       sets.push(`${column} = $${params.length}${key === 'skillIds' ? '::jsonb' : ''}`);
     }
-    if (sets.length === 0) return this.findAssignmentById(tenantId, id);
-    sets.push('updated_at = now()');
-    return this.withTenant(tenantId, async (client) => {
-      const result = await client.query(
-        `UPDATE lms_assignments SET ${sets.join(', ')}
-         WHERE tenant_id = $1 AND id = $2 RETURNING *`,
-        params,
-      );
-      const row = result.rows[0] as Record<string, unknown> | undefined;
-      return row ? mapAssignment(row) : null;
-    });
+    const result =
+      sets.length === 0
+        ? await client.query('SELECT * FROM lms_assignments WHERE tenant_id = $1 AND id = $2', [
+            tenantId,
+            id,
+          ])
+        : await client.query(
+            `UPDATE lms_assignments SET ${[...sets, 'updated_at = now()'].join(', ')}
+             WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+            params,
+          );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapAssignment(row) : null;
   }
 
   async findAssignmentById(tenantId: string, id: string): Promise<AssignmentEntity | null> {
@@ -695,51 +747,68 @@ export class PgLmsRepository implements LmsRepository {
     questions: Omit<QuizQuestionEntity, 'createdAt'>[],
   ): Promise<QuizQuestionEntity[]> {
     await this.ensureSchema();
-    return this.withTenant(tenantId, async (client) => {
-      await client.query(
-        'DELETE FROM lms_quiz_questions WHERE tenant_id = $1 AND assignment_id = $2',
-        [tenantId, assignmentId],
+    return this.withTenant(tenantId, (client) =>
+      this.writeQuestions(client, tenantId, assignmentId, questions),
+    );
+  }
+
+  private async writeQuestions(
+    client: PgQueryable,
+    tenantId: string,
+    assignmentId: string,
+    questions: Omit<QuizQuestionEntity, 'createdAt'>[],
+  ): Promise<QuizQuestionEntity[]> {
+    await client.query(
+      'DELETE FROM lms_quiz_questions WHERE tenant_id = $1 AND assignment_id = $2',
+      [tenantId, assignmentId],
+    );
+    const rows: QuizQuestionEntity[] = [];
+    for (const q of questions) {
+      const result = await client.query(
+        `INSERT INTO lms_quiz_questions (
+           id, tenant_id, assignment_id, position, prompt, options,
+           correct_option_index, points, skill_id, explanation,
+           question_type, bank_item_id, payload
+         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb) RETURNING *`,
+        [
+          q.id,
+          tenantId,
+          assignmentId,
+          q.position,
+          q.prompt,
+          JSON.stringify(q.options),
+          q.correctOptionIndex < 0 ? null : q.correctOptionIndex,
+          q.points,
+          q.skillId,
+          q.explanation,
+          q.questionType ?? 'mcq',
+          q.bankId ?? null,
+          JSON.stringify(q.payload ?? {}),
+        ],
       );
-      const rows: QuizQuestionEntity[] = [];
-      for (const q of questions) {
-        const result = await client.query(
-          `INSERT INTO lms_quiz_questions (
-             id, tenant_id, assignment_id, position, prompt, options,
-             correct_option_index, points, skill_id, explanation,
-             question_type, bank_item_id, payload
-           ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb) RETURNING *`,
-          [
-            q.id,
-            tenantId,
-            assignmentId,
-            q.position,
-            q.prompt,
-            JSON.stringify(q.options),
-            q.correctOptionIndex < 0 ? null : q.correctOptionIndex,
-            q.points,
-            q.skillId,
-            q.explanation,
-            q.questionType ?? 'mcq',
-            q.bankId ?? null,
-            JSON.stringify(q.payload ?? {}),
-          ],
-        );
-        rows.push(mapQuestion(result.rows[0] as Record<string, unknown>));
-      }
-      return rows;
-    });
+      rows.push(mapQuestion(result.rows[0] as Record<string, unknown>));
+    }
+    return rows;
   }
 
   async listQuestions(tenantId: string, assignmentId: string): Promise<QuizQuestionEntity[]> {
     await this.ensureSchema();
-    return this.withTenant(tenantId, async (client) => {
-      const result = await client.query(
-        `SELECT * FROM lms_quiz_questions
-         WHERE tenant_id = $1 AND assignment_id = $2 ORDER BY position`,
-        [tenantId, assignmentId],
-      );
-      return result.rows.map((row) => mapQuestion(row as Record<string, unknown>));
-    });
+    return this.withTenant(tenantId, (client) =>
+      this.selectQuestions(client, tenantId, assignmentId),
+    );
+  }
+
+  private async selectQuestions(
+    client: PgQueryable,
+    tenantId: string,
+    assignmentId: string,
+  ): Promise<QuizQuestionEntity[]> {
+    const result = await client.query(
+      `SELECT * FROM lms_quiz_questions
+       WHERE tenant_id = $1 AND assignment_id = $2 ORDER BY position`,
+      [tenantId, assignmentId],
+    );
+    return result.rows.map((row) => mapQuestion(row as Record<string, unknown>));
   }
 
   // ─── Submissions ───────────────────────────────────────────────────────

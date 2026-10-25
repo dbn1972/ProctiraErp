@@ -449,31 +449,33 @@ export class LmsService {
     const maxScore = input.maxScore ?? (input.kind === 'quiz' && quizPoints > 0 ? quizPoints : 100);
     const now = new Date();
 
-    const assignment = await this.repository.createAssignment({
-      id,
-      tenantId,
-      scope: input.scope,
-      boardId: input.scope === 'board' ? input.boardId! : null,
-      institutionId: input.scope === 'school' ? input.institutionId! : null,
-      kind: input.kind,
-      title: input.title.trim(),
-      description: input.description ?? null,
-      subject: input.subject.trim(),
-      gradeLevel: input.gradeLevel ?? null,
-      sectionId: input.sectionId ?? null,
-      academicPeriodId: input.academicPeriodId ?? null,
-      skillIds,
-      maxScore,
-      dueAt: input.dueAt ? new Date(input.dueAt) : null,
-      timeLimitMinutes: input.timeLimitMinutes ?? null,
-      allowLate: input.allowLate ?? true,
-      status: publish ? 'published' : 'draft',
-      createdBy: uuidOrNull(actor.userId),
-      publishedAt: publish ? now : null,
-    });
-    const savedQuestions =
-      normalised.length > 0 ? await this.repository.replaceQuestions(tenantId, id, normalised) : [];
-    return { ...assignment, questions: savedQuestions };
+    // PRC-M300: the assignment row and its questions are written all-or-nothing.
+    const created = await this.repository.createAssignmentWithQuestions(
+      {
+        id,
+        tenantId,
+        scope: input.scope,
+        boardId: input.scope === 'board' ? input.boardId! : null,
+        institutionId: input.scope === 'school' ? input.institutionId! : null,
+        kind: input.kind,
+        title: input.title.trim(),
+        description: input.description ?? null,
+        subject: input.subject.trim(),
+        gradeLevel: input.gradeLevel ?? null,
+        sectionId: input.sectionId ?? null,
+        academicPeriodId: input.academicPeriodId ?? null,
+        skillIds,
+        maxScore,
+        dueAt: input.dueAt ? new Date(input.dueAt) : null,
+        timeLimitMinutes: input.timeLimitMinutes ?? null,
+        allowLate: input.allowLate ?? true,
+        status: publish ? 'published' : 'draft',
+        createdBy: uuidOrNull(actor.userId),
+        publishedAt: publish ? now : null,
+      },
+      normalised,
+    );
+    return { ...created.assignment, questions: created.questions };
   }
 
   async updateAssignment(
@@ -503,17 +505,28 @@ export class LmsService {
       }
     }
 
-    let questions = await this.repository.listQuestions(tenantId, id);
-    if (input.questions) {
-      questions = await this.repository.replaceQuestions(
-        tenantId,
-        id,
-        normaliseQuestions(tenantId, id, input.questions),
-      );
-    }
+    // PRC-M300: validate everything before any write, then persist the row and
+    // the questions in one repository call (one transaction in Postgres).
+    const replacement = input.questions ? normaliseQuestions(tenantId, id, input.questions) : null;
     const targetStatus = input.status ?? existing.status;
-    if (targetStatus === 'published' && existing.kind === 'quiz' && questions.length === 0) {
-      throw new BusinessRuleError('A quiz needs at least one question before it is published');
+    if (targetStatus === 'published' && existing.kind === 'quiz') {
+      const questionCount =
+        replacement?.length ?? (await this.repository.listQuestions(tenantId, id)).length;
+      if (questionCount === 0) {
+        throw new BusinessRuleError('A quiz needs at least one question before it is published');
+      }
+    }
+    if (replacement) {
+      // Submission answers reference question ids; replacing them would orphan
+      // every recorded answer and break grading/analytics.
+      const submissions = await this.repository.listSubmissions(
+        tenantId,
+        { assignmentId: id },
+        { page: 1, pageSize: 1 },
+      );
+      if (submissions.meta.totalItems > 0) {
+        throw new ConflictError('Questions cannot be edited once submissions exist');
+      }
     }
 
     const patch: Parameters<LmsRepository['updateAssignment']>[2] = {};
@@ -531,9 +544,14 @@ export class LmsService {
       patch.status = input.status;
       if (input.status === 'published' && !existing.publishedAt) patch.publishedAt = new Date();
     }
-    const updated = await this.repository.updateAssignment(tenantId, id, patch);
+    const updated = await this.repository.updateAssignmentWithQuestions(
+      tenantId,
+      id,
+      patch,
+      replacement,
+    );
     if (!updated) throw new NotFoundError('Assignment not found');
-    return { ...updated, questions };
+    return { ...updated.assignment, questions: updated.questions };
   }
 
   private assertTransition(from: AssignmentEntity['status'], to: AssignmentEntity['status']) {
