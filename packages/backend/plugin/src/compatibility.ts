@@ -322,7 +322,12 @@ export function checkCompatibility(productVersion: string, range: string): boole
   const version = parseSemver(productVersion);
   if (!version) return false;
   // Union (OR logic): "^1.0.0 || ^2.0.0"
-  return range.split('||').some((alternative) => {
+  const alternatives = range.split('||');
+  // A union with an empty side ("1.0.0 ||") is malformed; do not let it widen to "*".
+  if (alternatives.length > 1 && alternatives.some((alternative) => alternative.trim() === '')) {
+    return false;
+  }
+  return alternatives.some((alternative) => {
     const comparators = expandComparatorSet(alternative);
     if (!comparators) return false;
     // Space-separated comparators (AND logic): ">=1.0.0 <2.0.0"

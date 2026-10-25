@@ -189,6 +189,13 @@ describe('checkCompatibility', () => {
       expect(checkCompatibility('3.0.0', '^1.0.0 || ^2.0.0')).toBe(false);
     });
 
+    it('rejects a union with an empty alternative instead of matching everything', () => {
+      expect(checkCompatibility('2.1.0', '1.0.0 ||')).toBe(false);
+      expect(checkCompatibility('2.1.0', '|| 9.9.9')).toBe(false);
+      expect(checkCompatibility('2.1.0', '>=1.0.0 ||  ')).toBe(false);
+      expect(checkCompatibility('1.0.0', '1.0.0 || || 2.0.0')).toBe(false);
+    });
+
     it('supports compound alternatives', () => {
       expect(checkCompatibility('0.5.0', '>=0.1.0 <1.0.0 || >=2.0.0')).toBe(true);
       expect(checkCompatibility('1.5.0', '>=0.1.0 <1.0.0 || >=2.0.0')).toBe(false);
