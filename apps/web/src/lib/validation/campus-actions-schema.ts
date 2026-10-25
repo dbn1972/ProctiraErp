@@ -114,12 +114,13 @@ export const createRoomSchema = z.object({
   capacity,
   condition,
 });
+// PRC-L255: partial update — only the fields the user changed are sent.
 export const updateFacilitySchema = z.object({
   institutionId: uuid,
   id: uuid,
-  name: z.string().trim().min(1).max(200),
-  capacity,
-  condition,
+  name: z.string().trim().min(1).max(200).optional(),
+  capacity: capacity.optional(),
+  condition: condition.optional(),
 });
 
 // ── Curriculum (update/delete actions without an existing schema) ──────────
