@@ -22,7 +22,7 @@ const STUDENT_ID = '33333333-3333-4333-8333-333333333333';
 const PERIOD_ID = '55555555-5555-4555-8555-555555555555';
 const DEVICE_ID = 'gate-1';
 
-async function buildApp() {
+async function buildApp(roles: string[] = ['teacher']) {
   const repo = new InMemoryAttendanceRepository();
   const store = new InMemoryAttendanceOpsStore();
   const opsService = new AttendanceOpsService(store, repo);
@@ -40,7 +40,7 @@ async function buildApp() {
     // suite's schema-validation checks otherwise.
     (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
       sub: 'teacher-1',
-      roles: ['teacher'],
+      roles,
     };
   });
   await registerAttendanceRoutes(app, { attendanceService });
@@ -139,6 +139,63 @@ describe('PRC-L277: leave-request attachmentUrl scheme + UUID identifiers', () =
       },
     });
     expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+});
+
+describe('PRC-L277: device registration + ingest identifiers must be UUIDs', () => {
+  const event = {
+    eventId: 'evt-1',
+    studentId: STUDENT_ID,
+    punchedAt: '2026-06-10T08:00:00.000Z',
+    type: 'IN',
+    classId: CLASS_ID,
+    academicPeriodId: PERIOD_ID,
+  };
+
+  it('rejects a non-UUID institutionId on device registration with 400', async () => {
+    const app = await buildApp(['registrar']);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/attendance/devices',
+      payload: { institutionId: 'school-1', deviceId: DEVICE_ID },
+    });
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it.each([
+    ['institutionId', { institutionId: 'school-1' }],
+    ['studentId', { events: [{ ...event, studentId: 'card-0042' }] }],
+    ['classId', { events: [{ ...event, classId: 'class-7a' }] }],
+    ['academicPeriodId', { events: [{ ...event, academicPeriodId: '2026' }] }],
+  ])('rejects a non-UUID %s on ingest with 400 before device auth', async (_field, patch) => {
+    const app = await buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/attendance/ingest',
+      headers: { 'x-device-api-key': 'any-key' },
+      payload: { deviceId: DEVICE_ID, institutionId: INSTITUTION_ID, events: [event], ...patch },
+    });
+    expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('accepts UUID identifiers (free-form device/event ids) and reaches device auth', async () => {
+    const app = await buildApp(['registrar']);
+    const registered = await app.inject({
+      method: 'POST',
+      url: '/attendance/devices',
+      payload: { institutionId: INSTITUTION_ID, deviceId: DEVICE_ID },
+    });
+    expect(registered.statusCode).toBe(201);
+    const ingest = await app.inject({
+      method: 'POST',
+      url: '/attendance/ingest',
+      headers: { 'x-device-api-key': 'unknown-key' },
+      payload: { deviceId: DEVICE_ID, institutionId: INSTITUTION_ID, events: [event] },
+    });
+    expect(ingest.statusCode).toBe(401);
     await app.close();
   });
 });
