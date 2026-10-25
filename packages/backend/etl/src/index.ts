@@ -12,6 +12,14 @@ export { etlPlugin, type ETLPluginOptions } from './etl-plugin.js';
 
 // Service
 export { ETLService, type ETLServiceConfig } from './etl-service.js';
+// Audit (PRC-L302)
+export {
+  createLogSinkAuditSink,
+  type EtlAuditAction,
+  type EtlAuditContext,
+  type EtlAuditEvent,
+  type EtlAuditSink,
+} from './etl-audit.js';
 
 // Repository
 export type {

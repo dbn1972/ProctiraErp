@@ -17,6 +17,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { listDestinationConnections } from './connectors/connection-registry.js';
 import { hasEtlAccess, hasEtlManageAccess } from './etl-access.js';
+import type { EtlAuditContext } from './etl-audit.js';
 import type { ETLService } from './etl-service.js';
 import {
   CreatePipelineSchema,
@@ -109,6 +110,11 @@ function formatExecutionResponse(entity: PipelineExecution) {
 function canManageEtl(request: FastifyRequest): boolean {
   const user = (request as FastifyRequest & { user?: { permissions?: unknown } }).user;
   return hasEtlManageAccess(getActor(request).roles, user?.permissions);
+}
+
+/** PRC-L302: audit actor = verified JWT subject (never a body/header value). */
+function auditContext(request: FastifyRequest): EtlAuditContext {
+  return { actorId: getActor(request).userId || null };
 }
 
 function getTenantId(request: FastifyRequest): string | undefined {
@@ -224,7 +230,11 @@ export async function registerETLRoutes(
       }
 
       try {
-        const pipeline = await etlService.createPipeline(tenantId, result.data);
+        const pipeline = await etlService.createPipeline(
+          tenantId,
+          result.data,
+          auditContext(request),
+        );
         return reply.status(201).send(formatPipelineResponse(pipeline));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -364,6 +374,7 @@ export async function registerETLRoutes(
           tenantId,
           paramsResult.data.pipelineId,
           bodyResult.data,
+          auditContext(request),
         );
         return reply.status(200).send(formatPipelineResponse(pipeline));
       } catch (error: unknown) {
@@ -405,7 +416,11 @@ export async function registerETLRoutes(
       }
 
       try {
-        await etlService.deletePipeline(tenantId, paramsResult.data.pipelineId);
+        await etlService.deletePipeline(
+          tenantId,
+          paramsResult.data.pipelineId,
+          auditContext(request),
+        );
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -446,7 +461,11 @@ export async function registerETLRoutes(
       }
 
       try {
-        const execution = await etlService.executePipeline(tenantId, paramsResult.data.pipelineId);
+        const execution = await etlService.executePipeline(
+          tenantId,
+          paramsResult.data.pipelineId,
+          auditContext(request),
+        );
         return reply.status(202).send(formatExecutionResponse(execution));
       } catch (error: unknown) {
         if (error instanceof AppError) {

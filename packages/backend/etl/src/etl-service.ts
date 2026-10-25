@@ -10,7 +10,13 @@ import { AppError, ConflictError, NotFoundError, ValidationError } from '@procti
 import { v4 as uuidv4 } from 'uuid';
 
 import { defaultConnectorFactory, type ConnectorFactory } from './connectors/index.js';
-import { ExecutionLogger, type LogSink } from './execution-logger.js';
+import {
+  createLogSinkAuditSink,
+  type EtlAuditAction,
+  type EtlAuditContext,
+  type EtlAuditSink,
+} from './etl-audit.js';
+import { ConsoleLogSink, ExecutionLogger, type LogSink } from './execution-logger.js';
 import { buildExecutionLineage } from './lineage.js';
 import {
   type PipelineEventPublisher,
@@ -59,6 +65,11 @@ export interface ETLServiceConfig {
    * process) and no longer blocks a new run. Default 6 hours.
    */
   runningExecutionStaleMs?: number;
+  /**
+   * PRC-L302: receives one event per pipeline create/update/delete/execute. Defaults to a
+   * structured `audit` entry on `logSink` (a log line, not durable audit storage).
+   */
+  auditSink?: EtlAuditSink;
 }
 
 /** PRC-M226: row errors persisted per run (errorCount still reports the total). */
@@ -84,13 +95,16 @@ export class ETLService {
   private readonly inFlight = new Set<Promise<unknown>>();
 
   private readonly connectors: ConnectorFactory;
+  private readonly auditSink: EtlAuditSink;
   constructor(
     private readonly repository: PipelineRepository,
     private readonly config: ETLServiceConfig,
   ) {
     this.connectors = config.connectorFactory ?? defaultConnectorFactory;
     this.adminNotifier = config.adminNotifier ?? new InMemoryAdminNotifier();
-    this.logger = new ExecutionLogger(config.logSink);
+    const logSink = config.logSink ?? new ConsoleLogSink();
+    this.logger = new ExecutionLogger(logSink);
+    this.auditSink = config.auditSink ?? createLogSinkAuditSink(logSink);
     this.retryExecutor = config.testMode
       ? new TestableRetryExecutor(this.adminNotifier)
       : new RetryExecutor(this.adminNotifier);
@@ -109,6 +123,25 @@ export class ETLService {
     // Wire up scheduler to execute pipelines when due
     this.scheduler.onDue(async (entry) => {
       await this.executePipelineWithRetry(entry.tenantId, entry.pipelineId, true);
+    });
+  }
+
+  /** PRC-L302: emit one audit event after a mutation has succeeded. */
+  private async audit(
+    tenantId: string,
+    ctx: EtlAuditContext,
+    action: EtlAuditAction,
+    pipelineId: string,
+    execution?: PipelineExecution,
+  ): Promise<void> {
+    await this.auditSink({
+      tenantId,
+      actorId: ctx.actorId ?? null,
+      action,
+      pipelineId,
+      executionId: execution?.id ?? null,
+      ...(execution ? { outcome: execution.status } : {}),
+      occurredAt: new Date(),
     });
   }
 
@@ -243,7 +276,11 @@ export class ETLService {
     }
   }
 
-  async createPipeline(tenantId: string, input: CreatePipelineInput): Promise<Pipeline> {
+  async createPipeline(
+    tenantId: string,
+    input: CreatePipelineInput,
+    ctx: EtlAuditContext = {},
+  ): Promise<Pipeline> {
     // PRC-H115: the redaction placeholder is never a valid credential.
     assertNoRedactedSecret(input.source, 'source');
     assertNoRedactedSecret(input.destination, 'destination');
@@ -280,6 +317,7 @@ export class ETLService {
       );
     }
 
+    await this.audit(tenantId, ctx, 'pipeline.create', created.id);
     return created;
   }
 
@@ -290,6 +328,7 @@ export class ETLService {
     tenantId: string,
     pipelineId: string,
     input: UpdatePipelineInput,
+    ctx: EtlAuditContext = {},
   ): Promise<Pipeline> {
     // PRC-M223: reject an invalid cron before anything is written.
     assertValidSchedule(input.schedule);
@@ -350,13 +389,18 @@ export class ETLService {
       }
     }
 
+    await this.audit(tenantId, ctx, 'pipeline.update', updated.id);
     return updated;
   }
 
   /**
    * Delete a pipeline definition.
    */
-  async deletePipeline(tenantId: string, pipelineId: string): Promise<void> {
+  async deletePipeline(
+    tenantId: string,
+    pipelineId: string,
+    ctx: EtlAuditContext = {},
+  ): Promise<void> {
     await this.ensureSchedulesHydrated(tenantId);
     const existing = await this.repository.findById(pipelineId, tenantId);
     if (!existing) {
@@ -374,6 +418,7 @@ export class ETLService {
     }
 
     await this.repository.delete(pipelineId, tenantId);
+    await this.audit(tenantId, ctx, 'pipeline.delete', pipelineId);
   }
 
   /**
@@ -405,13 +450,18 @@ export class ETLService {
    * This is the basic execution without retry logic.
    * W1-ARCH-07: gated — refused after `stopAcceptingAndDrain()`.
    */
-  async executePipeline(tenantId: string, pipelineId: string): Promise<PipelineExecution> {
-    return this.withExecutionGate(() => this.executePipelineUngated(tenantId, pipelineId));
+  async executePipeline(
+    tenantId: string,
+    pipelineId: string,
+    ctx: EtlAuditContext = {},
+  ): Promise<PipelineExecution> {
+    return this.withExecutionGate(() => this.executePipelineUngated(tenantId, pipelineId, ctx));
   }
 
   private async executePipelineUngated(
     tenantId: string,
     pipelineId: string,
+    ctx: EtlAuditContext,
   ): Promise<PipelineExecution> {
     await this.ensureSchedulesHydrated(tenantId);
     const pipeline = await this.getPipeline(tenantId, pipelineId);
@@ -421,7 +471,16 @@ export class ETLService {
     }
 
     const execution = await this.startExecution(pipeline, tenantId);
-    return this.runPipelineExecution(pipeline, tenantId, 0, false, execution);
+    let settled: PipelineExecution;
+    try {
+      settled = await this.runPipelineExecution(pipeline, tenantId, 0, false, execution);
+    } catch (error: unknown) {
+      // PRC-L302: the run row exists and is settled as failed; audit it, then rethrow.
+      await this.audit(tenantId, ctx, 'pipeline.execute', pipeline.id, execution);
+      throw error;
+    }
+    await this.audit(tenantId, ctx, 'pipeline.execute', pipeline.id, settled);
+    return settled;
   }
 
   /**
@@ -462,9 +521,10 @@ export class ETLService {
     tenantId: string,
     pipelineId: string,
     scheduledExecution: boolean = false,
+    ctx: EtlAuditContext = {},
   ): Promise<PipelineExecution> {
     return this.withExecutionGate(() =>
-      this.executePipelineWithRetryUngated(tenantId, pipelineId, scheduledExecution),
+      this.executePipelineWithRetryUngated(tenantId, pipelineId, scheduledExecution, ctx),
     );
   }
 
@@ -472,6 +532,7 @@ export class ETLService {
     tenantId: string,
     pipelineId: string,
     scheduledExecution: boolean,
+    ctx: EtlAuditContext,
   ): Promise<PipelineExecution> {
     await this.ensureSchedulesHydrated(tenantId);
     const pipeline = await this.getPipeline(tenantId, pipelineId);
@@ -485,7 +546,9 @@ export class ETLService {
     const executionId = execution.id;
 
     try {
-      return await this.runWithRetries(pipeline, tenantId, scheduledExecution, execution);
+      const settled = await this.runWithRetries(pipeline, tenantId, scheduledExecution, execution);
+      await this.audit(tenantId, ctx, 'pipeline.execute', pipeline.id, settled);
+      return settled;
     } finally {
       // PRC-M225: retry bookkeeping is per run; drop it once the run is settled.
       this.retryExecutor.clearState(executionId);

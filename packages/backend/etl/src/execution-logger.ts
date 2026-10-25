@@ -9,7 +9,8 @@
 export interface ExecutionLogEntry {
   timestamp: Date;
   level: 'info' | 'warn' | 'error';
-  phase: 'extraction' | 'transformation' | 'load' | 'pipeline';
+  /** `audit` = PRC-L302 default audit sink entries (see etl-audit.ts). */
+  phase: 'extraction' | 'transformation' | 'load' | 'pipeline' | 'audit';
   pipelineId: string;
   executionId: string;
   tenantId: string;
