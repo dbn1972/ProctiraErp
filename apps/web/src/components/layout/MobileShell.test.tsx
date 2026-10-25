@@ -5,23 +5,27 @@
  *
  * Verifies the four mobile-chrome contracts called out in Task 53.2:
  *
- *   1. Bottom-tab navigation renders Home, Attendance, Students, and
- *      Profile with the correct lucide-react icons + visible labels and
- *      the expected `/app/...` hrefs.
+ *   1. Bottom-tab navigation renders Home, Attendance, Students with the
+ *      correct lucide-react icons + visible labels and App Router hrefs.
+ *      The Profile tab is hidden until a self-profile page exists
+ *      (PRC-L259: it used to route every user to /admin/users).
  *   2. The active tab is highlighted via `aria-current="page"` and the
  *      `data-active="true"` flag, derived from `usePathname()`.
  *   3. The hamburger drawer opens and closes — a `<Sheet>` from
  *      `@proctira/ui/components` exposing Settings, Reports, Help, and
- *      Sign out — with each link sized for the 48 px touch-target rule.
+ *      Sign out — with each entry sized for the 48 px touch-target rule.
+ *      Sign out is a button that runs the CSRF-protected POST `signOut()`,
+ *      never a GET link (PRC-L259).
  *   4. The brand logo in the header reads from `useBrand()` and renders
  *      the tenant logo URL plus the tenant name as accessible alt text
  *      (Requirement 43.4).
  *
- * The persistent `<ConnectivityIndicator>` placeholder slot from 53.2 is
- * also asserted so 54.3 can rely on its presence.
+ * The header mounts the live `<ConnectivityIndicator>` (PRC-L259), not
+ * the old aria-hidden placeholder dot.
  *
- * `next/link`, `next/navigation`, and `BrandConfigProvider` are wired via
- * lightweight stubs/mocks so the shell can render in isolation.
+ * `next/link`, `next/navigation`, `next-intl`, `ConnectivityProvider`,
+ * `@/lib/auth` and `BrandConfigProvider` are wired via lightweight
+ * stubs/mocks so the shell can render in isolation.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -36,6 +40,20 @@ vi.mock('@/components/CommandPalette', () => ({
 
 vi.mock('@/components/PageErrorBoundary', () => ({
   PageErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('@/providers/ConnectivityProvider', () => ({
+  useConnectivity: () => ({ status: 'offline' }),
+}));
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => (key === 'offline' ? 'Offline' : key),
+}));
+
+const signOutMock = vi.hoisted(() => vi.fn(async () => undefined));
+
+vi.mock('@/lib/auth', () => ({
+  signOut: signOutMock,
 }));
 
 let currentPathname = '/';
@@ -109,6 +127,7 @@ function renderShell(node: React.ReactNode = <div data-testid="page">page-conten
 
 beforeEach(() => {
   currentPathname = '/';
+  signOutMock.mockClear();
 });
 
 afterEach(() => {
@@ -122,29 +141,33 @@ afterEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('<MobileShell> — bottom-tab navigation (Task 53.2 / Req 41 AC 3)', () => {
-  it('renders all four tabs with the expected labels and hrefs', () => {
+  it('renders the three available tabs with the expected labels and hrefs', () => {
     renderShell();
 
     const home = screen.getByTestId('mobile-shell-tab-home');
     const attendance = screen.getByTestId('mobile-shell-tab-attendance');
     const students = screen.getByTestId('mobile-shell-tab-students');
-    const profile = screen.getByTestId('mobile-shell-tab-profile');
 
     expect(home.getAttribute('href')).toBe('/');
     expect(attendance.getAttribute('href')).toBe('/attendance');
     expect(students.getAttribute('href')).toBe('/students');
-    expect(profile.getAttribute('href')).toBe('/admin/users');
 
     expect(home.textContent).toContain('Home');
     expect(attendance.textContent).toContain('Attendance');
     expect(students.textContent).toContain('Students');
-    expect(profile.textContent).toContain('Profile');
+  });
+
+  it('does not render a "Profile" tab that routes to /admin/users (PRC-L259)', () => {
+    renderShell();
+    expect(screen.queryByTestId('mobile-shell-tab-profile')).toBeNull();
+    const nav = screen.getByRole('navigation', { name: 'Mobile navigation' });
+    expect(nav.querySelector('a[href="/admin/users"]')).toBeNull();
   });
 
   it('paints an SVG icon next to each tab label', () => {
     renderShell();
 
-    for (const key of ['home', 'attendance', 'students', 'profile'] as const) {
+    for (const key of ['home', 'attendance', 'students'] as const) {
       const tab = screen.getByTestId(`mobile-shell-tab-${key}`);
       // lucide-react renders <svg> elements; the icon should sit next to
       // the visible label.
@@ -156,7 +179,7 @@ describe('<MobileShell> — bottom-tab navigation (Task 53.2 / Req 41 AC 3)', ()
     renderShell();
     const nav = screen.getByRole('navigation', { name: 'Mobile navigation' });
     expect(nav.tagName.toLowerCase()).toBe('nav');
-    expect(nav.querySelectorAll('[data-testid^="mobile-shell-tab-"]').length).toBe(4);
+    expect(nav.querySelectorAll('[data-testid^="mobile-shell-tab-"]').length).toBe(3);
   });
 });
 
@@ -180,15 +203,12 @@ describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
     expect(screen.getByTestId('mobile-shell-tab-attendance').getAttribute('data-active')).toBe(
       'false',
     );
-    expect(screen.getByTestId('mobile-shell-tab-profile').getAttribute('data-active')).toBe(
-      'false',
-    );
   });
 
   it('flags no tab as active when the pathname does not match any tab prefix', () => {
     currentPathname = '/admin';
     renderShell();
-    for (const key of ['home', 'attendance', 'students', 'profile'] as const) {
+    for (const key of ['home', 'attendance', 'students'] as const) {
       expect(screen.getByTestId(`mobile-shell-tab-${key}`).getAttribute('data-active')).toBe(
         'false',
       );
@@ -197,8 +217,9 @@ describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
 
   it('exposes a pure helper `getActiveMobileTab` for callers outside the shell', () => {
     expect(getActiveMobileTab('/attendance')?.key).toBe('attendance');
-    expect(getActiveMobileTab('/admin/users')?.key).toBe('profile');
-    expect(getActiveMobileTab('/admin/users/edit')?.key).toBe('profile');
+    // PRC-L259: /admin/users is not anyone's "Profile".
+    expect(getActiveMobileTab('/admin/users')).toBeNull();
+    expect(getActiveMobileTab('/admin/users/edit')).toBeNull();
     expect(getActiveMobileTab('/admin')).toBeNull();
     expect(getActiveMobileTab(null)).toBeNull();
     expect(getActiveMobileTab(undefined)).toBeNull();
@@ -241,9 +262,6 @@ describe('<MobileShell> — hamburger drawer (Task 53.2 / Design §K)', () => {
       '/reports',
     );
     expect(screen.getByTestId('mobile-shell-drawer-link-help').getAttribute('href')).toBe('/help');
-    expect(screen.getByTestId('mobile-shell-drawer-link-signout').getAttribute('href')).toBe(
-      '/api/auth/logout',
-    );
 
     for (const [key, href] of [
       ['fees', '/fees'],
@@ -263,6 +281,28 @@ describe('<MobileShell> — hamburger drawer (Task 53.2 / Design §K)', () => {
     expect(screen.getByTestId('mobile-shell-drawer-link-signout').textContent).toContain(
       'Sign out',
     );
+  });
+
+  it('signs out with a POST button, never a GET /api/auth/logout link (PRC-L259)', async () => {
+    renderShell();
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-shell-hamburger'));
+    });
+
+    const signout = screen.getByTestId('mobile-shell-drawer-link-signout');
+    expect(signout.tagName).toBe('BUTTON');
+    expect(signout.getAttribute('type')).toBe('button');
+    expect(signout.hasAttribute('href')).toBe(false);
+    expect(document.querySelector('a[href="/api/auth/logout"]')).toBeNull();
+    expect(signOutMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.click(signout);
+    });
+
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(signOutMock).toHaveBeenCalledWith('/login');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('closes the drawer on Escape', () => {
@@ -312,14 +352,17 @@ describe('<MobileShell> — brand logo from useBrand() (Task 53.2 / Req 43.4)', 
   });
 });
 
-describe('<MobileShell> — persistent connectivity-indicator slot (Task 53.2 → 54.3 hand-off)', () => {
-  it('mounts a placeholder for the future <ConnectivityIndicator>', () => {
+describe('<MobileShell> — live connectivity indicator (Task 54.3 / PRC-L259)', () => {
+  it('announces the provider connectivity state in the header', () => {
     renderShell();
-    const placeholder = screen.getByTestId('connectivity-indicator-placeholder');
-    expect(placeholder).toBeTruthy();
+    expect(screen.queryByTestId('connectivity-indicator-placeholder')).toBeNull();
+    const indicator = screen.getByTestId('connectivity-indicator');
+    expect(indicator.getAttribute('role')).toBe('status');
+    expect(indicator.getAttribute('aria-label')).toBe('Offline');
+    expect(indicator.getAttribute('data-status')).toBe('offline');
     // The slot is in the header so it stays visible while the page scrolls.
     const header = screen.getByLabelText('Mobile header');
-    expect(header.contains(placeholder)).toBe(true);
+    expect(header.contains(indicator)).toBe(true);
   });
 });
 
