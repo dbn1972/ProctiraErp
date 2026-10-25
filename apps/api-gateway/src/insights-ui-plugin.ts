@@ -18,6 +18,8 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { Type } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -36,6 +38,15 @@ import { PLATFORM_ADMIN_ROLE_IDS } from './rbac-registry.js';
 export type { BoardSummary };
 export { clearBoardSummariesForTests, emptyBoardSummary, seedBoardSummaryForTests };
 
+/**
+ * PRC-L204: import job body, matching DwImportJob and
+ * `insights_ui_import_jobs` (source CHECK, rows INT).
+ */
+const ImportJobBody = Type.Object({
+  source: Type.Union([Type.Literal('EXCEL'), Type.Literal('CSV'), Type.Literal('DATABASE')]),
+  filename: Type.String({ minLength: 1, maxLength: 255 }),
+  rows: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })),
+});
 function resolveTenantId(request: FastifyRequest): string {
   const fromRequest = (request as FastifyRequest & { tenantId?: string }).tenantId;
   if (fromRequest) return fromRequest;
@@ -186,15 +197,13 @@ export const insightsUiPlugin = fp(
         });
       }
       const tenantId = resolveTenantId(request);
-      const body = (request.body ?? {}) as {
-        source?: 'EXCEL' | 'CSV' | 'DATABASE';
-        filename?: string;
-        rows?: number;
-      };
-      if (!body.filename || !body.source) {
+      // PRC-L204: validate against the storage contract before inserting a row.
+      const body: unknown = request.body ?? {};
+      if (!Value.Check(ImportJobBody, body)) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
-          message: 'source and filename are required',
+          message:
+            'source must be EXCEL, CSV or DATABASE; filename must be 1-255 characters; rows, when given, must be a non-negative integer',
           statusCode: 400,
         });
       }

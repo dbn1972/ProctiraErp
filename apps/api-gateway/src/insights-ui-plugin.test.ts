@@ -87,6 +87,46 @@ describe('insightsUiPlugin (memory)', () => {
     expect(body.data.some((j) => j.id === job.id)).toBe(true);
   });
 
+  describe('import job body validation (PRC-L204)', () => {
+    const tenant = 'tenant-insights-l204';
+    it.each([
+      ['unknown source', { source: 'FOO', filename: 'l204-foo.csv' }],
+      ['missing source', { filename: 'l204-missing-source.csv' }],
+      ['empty filename', { source: 'CSV', filename: '' }],
+      ['oversized filename', { source: 'CSV', filename: `l204-${'x'.repeat(256)}` }],
+      ['negative rows', { source: 'CSV', filename: 'l204-negative.csv', rows: -1 }],
+      ['fractional rows', { source: 'CSV', filename: 'l204-fraction.csv', rows: 1.5 }],
+      ['non-numeric rows', { source: 'CSV', filename: 'l204-string.csv', rows: '12' }],
+    ])('rejects %s with 400 and inserts no job', async (_label, payload) => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/data-warehouse/import/jobs',
+        headers: { 'x-tenant-id': tenant },
+        payload,
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject({ code: 'VALIDATION_ERROR', statusCode: 400 });
+      const list = await app.inject({
+        method: 'GET',
+        url: '/data-warehouse/import/jobs',
+        headers: { 'x-tenant-id': tenant },
+      });
+      const jobs = (list.json() as { data: Array<{ filename: string }> }).data;
+      expect(jobs.some((j) => j.filename === payload.filename)).toBe(false);
+    });
+    it('accepts a valid body (rows defaults allowed, zero allowed)', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/data-warehouse/import/jobs',
+        headers: { 'x-tenant-id': tenant },
+        payload: { source: 'DATABASE', filename: 'l204-dump.sql', rows: 0 },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({ status: 'QUEUED', source: 'DATABASE', rows: 0 });
+    });
+  });
   describe('outside demo mode (PRC-M196)', () => {
     it('returns an explicit not-connected empty state, never shared demo rows', async () => {
       const app = await buildApp(undefined, false);
