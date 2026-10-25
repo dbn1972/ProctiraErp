@@ -63,7 +63,6 @@ describe('Assessment Result Routes', () => {
       };
     });
 
-
     await registerAssessmentRoutes(app, { assessmentService });
     await registerResultRoutes(app, { resultService });
     await app.ready();
@@ -246,6 +245,87 @@ describe('Assessment Result Routes', () => {
       });
 
       expect(response.statusCode).toBe(400);
+    });
+
+    // PRC-L079: the import body is schema-validated (UUIDs, row cap, route bodyLimit).
+    it('returns 400 for a non-UUID subjectId', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/results/import',
+        payload: {
+          subjectId: 'not-a-uuid',
+          academicPeriodId,
+          rows: [{ studentId, assessmentItemId: items[0]!.id, score: 75 }],
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.code).toBe('VALIDATION_ERROR');
+      expect(body.errors.some((e: { field: string }) => e.field === 'subjectId')).toBe(true);
+    });
+
+    it('returns 400 when rows exceed the 5000-row cap', async () => {
+      const row = { studentId, assessmentItemId: items[0]!.id, score: 75 };
+      const response = await app.inject({
+        method: 'POST',
+        url: '/results/import',
+        payload: { subjectId, academicPeriodId, rows: Array.from({ length: 5001 }, () => row) },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
+    });
+
+    it('enforces a route-level body limit even when the server allows larger bodies', async () => {
+      const big = Fastify({ bodyLimit: 10 * 1024 * 1024 });
+      big.decorateRequest('user', undefined);
+      big.addHook('onRequest', async (request) => {
+        (request as unknown as { tenantId: string }).tenantId = tenantId;
+        (request as unknown as { user: { sub: string; roles: string[] } }).user = {
+          sub: 'test-user',
+          roles: ['teacher'],
+        };
+      });
+      await registerResultRoutes(big, { resultService });
+      await big.ready();
+      try {
+        const response = await big.inject({
+          method: 'POST',
+          url: '/results/import',
+          headers: { 'content-type': 'application/json' },
+          payload: JSON.stringify({
+            subjectId,
+            academicPeriodId,
+            rows: [],
+            padding: 'x'.repeat(2 * 1024 * 1024),
+          }),
+        });
+        expect(response.statusCode).toBe(413);
+      } finally {
+        await big.close();
+      }
+    });
+
+    it('reports a non-UUID row id as a row-level format error and imports valid rows', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/results/import',
+        payload: {
+          subjectId,
+          academicPeriodId,
+          rows: [
+            { studentId, assessmentItemId: items[0]!.id, score: 75 },
+            { studentId: 'not-a-uuid', assessmentItemId: items[0]!.id, score: 80 },
+          ],
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.successCount).toBe(1);
+      expect(body.errorCount).toBe(1);
+      expect(body.errors[0]).toMatchObject({ row: 1, field: 'format' });
     });
   });
 

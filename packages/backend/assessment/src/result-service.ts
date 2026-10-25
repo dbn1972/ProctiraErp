@@ -33,7 +33,7 @@ import type {
   RowValidationError,
   BulkResultEntryResponse,
 } from './result-schemas.js';
-import { MAX_BULK_RESULT_ROWS } from './result-schemas.js';
+import { MAX_BULK_RESULT_ROWS, RESULT_UUID_RE } from './result-schemas.js';
 import type { GradeThreshold } from './schemas.js';
 
 /** PRC-M164: upper bound for one page of subject-wide grades. */
@@ -489,9 +489,14 @@ export class ResultService {
 
       if (!row.studentId || typeof row.studentId !== 'string') {
         rowErrors.push('studentId is required and must be a string');
+      } else if (!RESULT_UUID_RE.test(row.studentId)) {
+        // PRC-L079: a non-UUID id would fail the uuid cast in Postgres (22P02).
+        rowErrors.push('studentId must be a UUID');
       }
       if (!row.assessmentItemId || typeof row.assessmentItemId !== 'string') {
         rowErrors.push('assessmentItemId is required and must be a string');
+      } else if (!RESULT_UUID_RE.test(row.assessmentItemId)) {
+        rowErrors.push('assessmentItemId must be a UUID');
       }
       if (
         row.score === undefined ||

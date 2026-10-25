@@ -21,6 +21,8 @@ import {
   type EnterSingleResultInput,
   type BulkResultEntryInput,
   type StudentResultsQuery,
+  ImportResultsSchema,
+  RESULTS_IMPORT_BODY_LIMIT_BYTES,
 } from './result-schemas.js';
 import { MAX_GRADE_PAGE_SIZE, type ResultService } from './result-service.js';
 
@@ -151,6 +153,8 @@ export async function registerResultRoutes(
    */
   fastify.post(
     `${resultsPrefix}/import`,
+    // PRC-L079: explicit route body limit (independent of the server default).
+    { bodyLimit: RESULTS_IMPORT_BODY_LIMIT_BYTES },
     async function importResultsHandler(
       request: FastifyRequest<{
         Body: {
@@ -161,19 +165,17 @@ export async function registerResultRoutes(
       }>,
       reply: FastifyReply,
     ) {
-      const body = request.body as {
-        subjectId?: string;
-        academicPeriodId?: string;
-        rows?: Array<{ studentId: string; assessmentItemId: string; score: number }>;
-      };
-
-      if (!body.subjectId || !body.academicPeriodId || !Array.isArray(body.rows)) {
+      // PRC-L079: schema-validate ids and the row cap before any service call.
+      const parsed = validate(ImportResultsSchema, request.body);
+      if (!parsed.success) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
           message: 'Request must include subjectId, academicPeriodId, and rows array',
           statusCode: 400,
+          errors: parsed.errors,
         });
       }
+      const body = request.body;
 
       const tenantId = getTenantId(request);
       if (!tenantId) {

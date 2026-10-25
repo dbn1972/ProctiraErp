@@ -163,3 +163,31 @@ export type StudentResultsQuery = Static<typeof StudentResultsQuerySchema>;
  * Maximum number of result rows per bulk operation.
  */
 export const MAX_BULK_RESULT_ROWS = 5000;
+
+// ─── Excel Import Schema (PRC-L079) ──────────────────────────────────────────
+
+/** Matches the UUID format the result schemas enforce (for row-level checks). */
+export const RESULT_UUID_RE = new RegExp(UUID_PATTERN);
+
+/**
+ * Route body limit for POST /results/import: equals Fastify's default (1 MiB),
+ * which applied implicitly before, so it stays in force even when a host
+ * raises the server-wide limit.
+ */
+export const RESULTS_IMPORT_BODY_LIMIT_BYTES = 1_048_576;
+
+/**
+ * Excel import body. Rows stay loosely typed so a malformed row is reported as
+ * a row-level `format` error by ResultService.importFromExcel rather than
+ * failing the whole request.
+ */
+export const ImportResultsSchema = Type.Object({
+  subjectId: Type.String({ pattern: UUID_PATTERN, description: 'Subject UUID' }),
+  academicPeriodId: Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
+  rows: Type.Array(Type.Object({}, { additionalProperties: true }), {
+    maxItems: MAX_BULK_RESULT_ROWS,
+    description: 'Parsed Excel rows (max 5000 per operation)',
+  }),
+});
+
+export type ImportResultsInput = Static<typeof ImportResultsSchema>;
