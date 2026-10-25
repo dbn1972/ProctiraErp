@@ -1,0 +1,3175 @@
+[
+ {
+  "id": "PRC-L091",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "RLS policy rewrite (forward migration) + EXPLAIN/perf tests",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/095_w1_data_02_rls_safe_deny.sql",
+    "line": "17-18",
+    "excerpt": "USING (tenant_id::text = app_tenant_id()) WITH CHECK (tenant_id::text = app_tenant_id());"
+   },
+   {
+    "file": "db/sql/240_rls_malformed_guc_safe_deny.sql",
+    "line": "27-28",
+    "excerpt": "predicate := '(tenant_id::text = NULLIF(current_setting(''app.tenant_id'', true), ''''))'  (newest policies still text-compare)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "59 migration files still define tenant_id::text = GUC policies; no app_tenant_uuid() helper exists at tip. Perf-motivated RLS rewrite needs a migration."
+ },
+ {
+  "id": "PRC-L092",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "table partitioning migration + retention purge job (data retention policy)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/045_transport_ops_schema.sql",
+    "line": "28",
+    "excerpt": "CREATE TABLE IF NOT EXISTS transport_gps_pings ("
+   },
+   {
+    "file": "db/sql/056_transactional_outbox_schema.sql",
+    "line": "5",
+    "excerpt": "CREATE TABLE IF NOT EXISTS transactional_outbox ("
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No PARTITION BY anywhere in db/sql or Prisma migrations; no purge job for these tables at tip."
+ },
+ {
+  "id": "PRC-L093",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "transactional_outbox.redrive_history shrinkage guard. Deferred: a trigger rejecting redrive_history shrinkage + mirroring into audit_log_entries; relates to the M362 outbox lease work. Left OPEN. wave0-triage-2026-10-25: met: BEFORE UPDATE OF redrive_history trigger rejecting shrink/mutation landed in PR #650 (db/sql/242_outbox_redrive_history_append_only.sql:27,72); unmet steps: mirroring redrive entries into audit_log_entries not implemented; live test packages/shared/database/src/outbox-redrive-history-append-only.live.test.ts needs Postgres and was not run in triage."
+  },
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "audit trail mirroring (forward migration) + live-PG verification",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/242_outbox_redrive_history_append_only.sql",
+    "line": "1,27,72",
+    "excerpt": "PRC-L093 ... CREATE OR REPLACE FUNCTION transactional_outbox_redrive_history_append_only() ... CREATE TRIGGER trg_transactional_outbox_redrive_history_append_only"
+   },
+   {
+    "file": "packages/shared/database/src/outbox-redrive-history-append-only.live.test.ts",
+    "line": "1",
+    "excerpt": "live red/green test (requires DATABASE_URL; not run)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "mirror redrive_history entries into audit_log_entries",
+   "live-PG verification of 242 not executed in triage"
+  ],
+  "rationale": "PR #650 landed after the 2026-10-11 note and the ledger was not reconciled. Append-only guard exists at tip; audit mirroring from the original remediation plan is absent; behaviour proof needs Postgres."
+ },
+ {
+  "id": "PRC-L094",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "financial amount consistency CHECK + backfill reconciliation",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/079_scholarship_program_amount_cents.sql",
+    "line": "7-27",
+    "excerpt": "ADD COLUMN amount_per_recipient_cents ... CHECK (amount_per_recipient_cents >= 0)  (no CHECK tying cents to amount_per_recipient)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Dual-written major/minor amounts still have no consistency CHECK or generated column at tip."
+ },
+ {
+  "id": "PRC-L095",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "tenant-composite FKs (tenant isolation) migration",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/035_students_360_schema.sql",
+    "line": "11,25-26,37,55",
+    "excerpt": "student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE, sibling_id UUID NOT NULL REFERENCES students(id)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Sibling/document FKs remain single-column students(id). Same root cause as M195/M208 but a distinct table set, so not a duplicate."
+ },
+ {
+  "id": "PRC-L098",
+  "severity": "low",
+  "module": "etl",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "event contract (publishing pipeline events onto the bus) + notification/provider integration",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/etl/src/etl-service.ts",
+    "line": "107",
+    "excerpt": "this.eventPublisher = config.eventPublisher ?? new InMemoryEventPublisher();"
+   },
+   {
+    "file": "packages/backend/etl/src/retry-executor.ts",
+    "line": "37-56",
+    "excerpt": "notifyFinalFailure(...) ... public notifications: PipelineFailureNotification[] = [];  (in-memory notifier only)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No real publisher/notifier is wired at tip; defaults remain in-memory. Wiring pipeline events to Kafka creates a new bus event contract and failure notifications need a notification channel decision."
+ },
+ {
+  "id": "PRC-L099",
+  "severity": "low",
+  "module": "etl",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/backend/etl/src/routes.ts",
+   "packages/backend/etl/src/schemas.ts",
+   "packages/backend/etl/src/routes.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/backend/etl/src/routes.ts",
+    "line": "215-239",
+    "excerpt": "fastify.get(prefix, async function listHandler(request: FastifyRequest<{ Querystring: PipelineListQuery }>) ... no schema option; const page = Number(query.page) || 1; const pageSize = Number(query.pageSize) || 20; { search: query.search, enabled: query.enabled }"
+   },
+   {
+    "file": "packages/backend/etl/src/in-memory-repository.ts",
+    "line": "65-66",
+    "excerpt": "results.filter((p) => p.enabled === filter.enabled)  (raw query string 'true' never equals boolean)"
+   },
+   {
+    "file": "packages/backend/etl/src/schemas.ts",
+    "line": "335-340",
+    "excerpt": "PipelineListQuerySchema exists (minimum/maximum) but is not attached to the route"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "PipelineListQuerySchema is defined but not attached, so enabled stays a string and page/pageSize are unvalidated (pageSize unbounded). Fix is route validation + boolean coercion with tests; no protected boundary."
+ },
+ {
+  "id": "PRC-L100",
+  "severity": "low",
+  "module": "etl",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/backend/etl/src/routes.ts",
+   "packages/backend/etl/src/etl-service.ts",
+   "packages/backend/etl/src/routes.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/backend/etl/src/routes.ts",
+    "line": "495-513",
+    "excerpt": "`${prefix}/:pipelineId/executions/:executionId` ... const execution = await etlService.getExecution(tenantId, executionId);  (pipelineId unused)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Handler still ignores :pipelineId; lookup is tenant-scoped so this is a path-consistency check (404 on mismatch), not a tenant-isolation change."
+ },
+ {
+  "id": "PRC-L108",
+  "severity": "low",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI workflow config (scheduled workflows)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/e2e-backend-ready.yml",
+    "line": "-",
+    "excerpt": "scheduled workflows e2e-backend-ready, restore-drill, security-scans, supply-chain have no failure()-notify/issue step; only visual-regression.yml has one"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Shared failure notification + freshness watchdog absent at tip."
+ },
+ {
+  "id": "PRC-L109",
+  "severity": "low",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "release pipeline (image tagging)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/release.yml",
+    "line": "30",
+    "excerpt": "branches: [main, develop, 'release/**']"
+   },
+   {
+    "file": ".github/workflows/release.yml",
+    "line": "110,334-335",
+    "excerpt": "[[ \"${HEAD_BRANCH}\" =~ ^[A-Za-z0-9._/-]+$ ]] (slash allowed) ... tags: | type=raw,value=${{ needs.ci-gate.outputs.head-branch }}"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Raw branch name (with '/') still used as an image tag; no sanitisation or tag-validity test."
+ },
+ {
+  "id": "PRC-L110",
+  "severity": "low",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI workflow config (concurrency)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "23",
+    "excerpt": "group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}"
+   },
+   {
+    "file": ".github/workflows/e2e-backend-ready.yml",
+    "line": "59",
+    "excerpt": "...-${{ github.sha }}"
+   },
+   {
+    "file": ".github/workflows/security-scans.yml",
+    "line": "36",
+    "excerpt": "...-${{ github.sha }}"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "github.sha still in concurrency groups."
+ },
+ {
+  "id": "PRC-L111",
+  "severity": "low",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "dependency update automation (dependabot config)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/dependabot.yml",
+    "line": "66-67",
+    "excerpt": "- package-ecosystem: docker directory: /infrastructure/docker  (only Docker entry)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Single docker directory; no per-app Dockerfiles, compose or Helm image coverage."
+ },
+ {
+  "id": "PRC-L134",
+  "severity": "low",
+  "module": "ops",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "observability alert rules (ops config)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infra/observability/alerts/saturation.yml",
+    "line": "29-34",
+    "excerpt": "alert: ProcessMemoryHigh expr: ( process_resident_memory_bytes / on (service) group_left() (nodejs_heap_size_total_bytes + 1) ) > 0.9"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "RSS / heap-total ratio unchanged."
+ },
+ {
+  "id": "PRC-L147",
+  "severity": "low",
+  "module": "shared-database",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "tenant offboarding/erasure (privacy lifecycle) + locked Prisma migration",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/shared/database/prisma/migrations/20250524_add_tenant_theme_versions/migration.sql",
+    "line": "50,62,72",
+    "excerpt": "ON DELETE RESTRICT ... 'tenant_theme_versions is append-only; UPDATE is not permitted' ... DELETE is not permitted"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Unchanged at tip."
+ },
+ {
+  "id": "PRC-L187",
+  "severity": "low",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "tools/scripts/page-regression-matrix.mjs",
+   "tools/scripts/validate-observability.mjs"
+  ],
+  "evidence": [
+   {
+    "file": "tools/scripts/page-regression-matrix.mjs",
+    "line": "49-55",
+    "excerpt": "function matcher(route) { ... return new RegExp(`['\"\\`]${pattern}(?:[?'\"\\`]|\\$\\{)`); }  (any quoted route string counts, not page.goto)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Matcher still counts any quoted route occurrence as coverage. Script-only fix with a node test; no protected boundary."
+ },
+ {
+  "id": "PRC-L209",
+  "severity": "low",
+  "module": "app-etl-worker",
+  "old_disposition": "OPEN",
+  "triage_result": "STALE",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "FULLY_CLOSED",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "etl is mounted with tenant/auth in the gateway; the standalone worker app lacks an auth/tenant plugin. Adding it is an app-wiring feature not done this PR. OPEN. Found already implemented at tip 4c7fb8fe (apps/etl-worker/src/server.ts:92-108 registers createEtlAuthHook onRequest in the encapsulated /api/v1/pipelines scope; apps/etl-worker/src/auth.ts:110-126 binds request.tenantId only from the verified token's tenantId claim; test `pnpm --filter @proctira/etl-worker exec vitest run src/auth.test.ts src/server.test.ts` exit 0, 26/26) with passing tests; disposition ALREADY_FIXED (STALE finding)."
+  },
+  "eligibility": null,
+  "boundary": null,
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "apps/etl-worker/src/server.ts",
+    "line": "92-108",
+    "excerpt": "// PRC-M030: pipeline routes require a verified platform token; the tenant comes only from its verified tenantId claim ... scope.addHook('onRequest', createEtlAuthHook(auth)); await scope.register(etlPlugin, {... prefix: '/api/v1/pipelines'})"
+   },
+   {
+    "file": "apps/etl-worker/src/auth.ts",
+    "line": "110-126",
+    "excerpt": "Fastify onRequest hook: 401 unless a verified token binds the tenant ... req.tenantId = user.tenantId;"
+   },
+   {
+    "file": "apps/etl-worker/src/auth.test.ts",
+    "line": "88-111,150-170",
+    "excerpt": "returns 401 without a token and with a bad token ... list is tenant-scoped and gated: 401 without a token, 200 with a verified tenant token"
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "pnpm -C <W> --filter @proctira/etl-worker exec vitest run src/auth.test.ts src/server.test.ts",
+    "exit_code": 0,
+    "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L209-etl-worker.log"
+   }
+  ],
+  "unmet_steps": [],
+  "rationale": "Both halves of the title are fixed at tip: the standalone etl-worker now mounts pipeline routes behind an auth hook (authn) that sets request.tenantId from the verified token, so routes no longer return 400 TENANT_REQUIRED for authenticated callers. Code dates from c137e48d (2026-10-06, PRC-M030, not a ledger id) and the 2026-10-11 ledger note predates recognising it. Targeted tests passed (26/26, none skipped)."
+ },
+ {
+  "id": "PRC-L291",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "provider integration / product decision (live mode) + schema CHECK",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/058_fees_reminder_durable_state.sql",
+    "line": "32",
+    "excerpt": "mode TEXT NOT NULL DEFAULT 'sandbox' CHECK (mode = 'sandbox'),"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Intentional sandbox-only guard remains; relaxing depends on a live provider."
+ },
+ {
+  "id": "PRC-L292",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "cryptographic signing / KMS + transcript authenticity CHECK",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/076_transcript_authenticity_complete.sql",
+    "line": "117-129",
+    "excerpt": "checksum_sha256 = CASE ... digest(... 'sha256')  (unkeyed backfill)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "PR #650 only added a comment to 076; the unkeyed backfill and CHECK are unchanged."
+ },
+ {
+  "id": "PRC-L293",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Grade/enrollment audit trigger reads actor/reason from client-settable GUC; grade_entries still 'dml'. grade_change_audit itself is append-only (ledger). Deferred: trusted actor sourcing + making grade_entries append-only is SIS-domain work; 071 is checksum-locked. Left OPEN. wave0-triage-2026-10-25: met: grade audit actor now prefers trusted grade_entries.entered_by over the GUC (PR #650, db/sql/241_actor_reason_trusted_source.sql:1-37); unmet steps: reason still read from client-settable GUC (enrollment trigger db/sql/080_enrollment_grade_audit_harden.sql:144 app.enrollment_history_reason), enrollment actor sourcing unchanged, grade_entries not append-only; live test packages/backend/gradebook/src/grade-change-audit-trusted-actor.live.test.ts not run (needs Postgres)."
+  },
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "audit trigger trust (security) forward migration + live-PG verification",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/241_actor_reason_trusted_source.sql",
+    "line": "1-37",
+    "excerpt": "PRC-L293: grade_change_audit.actor_id must prefer the trusted, server-validated grade_entries.entered_by column ... CREATE OR REPLACE FUNCTION grade_entries_write_change_audit()"
+   },
+   {
+    "file": "db/sql/080_enrollment_grade_audit_harden.sql",
+    "line": "144",
+    "excerpt": "v_reason := NULLIF(current_setting('app.enrollment_history_reason', true), '');"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "reason sourcing from trusted column",
+   "enrollment audit trigger actor/reason sourcing",
+   "grade_entries append-only",
+   "live-PG verification"
+  ],
+  "rationale": "#650 fixed grade actor precedence only; 241's own header lists the GUC fallback as residual. Reason/enrollment halves of the title remain."
+ },
+ {
+  "id": "PRC-L294",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Ten policies cast app.tenant_id::uuid raising 22P02 on malformed. Deferred: rewriting the ten policies to tenant_id::text=app_tenant_id() with ENABLE+FORCE + a CI gate on ::uuid-in-policies is a broad RLS rewrite across checksum-locked files. Left OPEN (shares approach with L091). wave0-triage-2026-10-25: met: 9 residual ::uuid-cast tenant policies rewritten to safe-deny text compare with ENABLE+FORCE and a fail-loud assertion (PR #650, db/sql/240_rls_malformed_guc_safe_deny.sql:1-90); unmet steps: finding cites ten policies but 240 covers nine (tenth not identified); no CI gate rejecting ::uuid casts of the tenant GUC in policies; live test packages/shared/database/src/rls-malformed-guc-safe-deny.live.test.ts not run (needs Postgres)."
+  },
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "RLS policies + CI gate",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/240_rls_malformed_guc_safe_deny.sql",
+    "line": "1-5,31-41,70-87",
+    "excerpt": "PRC-L294: 9 residual tenant_isolation policies raise on a malformed GUC ... specs: fee_credit_notes ... student_merges ... Fail loudly if any policy on these 9 relations still casts"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "identify/fix tenth policy cited by finding",
+   "CI gate on ::uuid-in-policies",
+   "live-PG verification"
+  ],
+  "rationale": "#650 landed after the note; ledger not reconciled. Count mismatch (10 vs 9) and missing CI gate keep this PARTIAL."
+ },
+ {
+  "id": "PRC-L295",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Audit retention has no statutory floor (retention_months>=1 at DB). API bounds exist (ledger). Deferred: raising the DB CHECK/platform-config floor is a compliance/product decision on the minimum; 022 is checksum-locked. Left OPEN. wave0-triage-2026-10-25: met: 12-month audit retention floor at API (packages/backend/audit/src/audit-service.ts:252-262; test `pnpm --filter @proctira/backend-audit exec vitest run src/audit-service.test.ts` exit 0, 30/30) and DB CHECK retention_months >= 12 (db/sql/243_audit_retention_floor.sql:24-25, PR #650); unmet steps: archival enable/destination remain tenant-controlled with no platform bound; DB CHECK not live-verified in triage."
+  },
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "statutory/compliance retention policy (archival window ownership)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/audit/src/audit-service.ts",
+    "line": "252-262",
+    "excerpt": "if (input.retentionMonths < 12) { throw new ValidationError(... field: 'retentionMonths'"
+   },
+   {
+    "file": "db/sql/243_audit_retention_floor.sql",
+    "line": "24-25",
+    "excerpt": "ADD CONSTRAINT audit_retention_configs_retention_months_check CHECK (retention_months >= 12) NOT VALID;"
+   },
+   {
+    "file": "packages/backend/audit/src/audit-service.ts",
+    "line": "274-275",
+    "excerpt": "if (input.archivalEnabled && !input.archivalDestination) ...  (archival is tenant input)"
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "pnpm -C <W> --filter @proctira/backend-audit exec vitest run src/audit-service.test.ts",
+    "exit_code": 0,
+    "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L295-audit-service.log"
+   }
+  ],
+  "unmet_steps": [
+   "platform-controlled archival window",
+   "live-PG verification of 243"
+  ],
+  "rationale": "Minimum now exists (app + DB). Second half of the title (tenant-controlled archival window) is untouched and is a compliance decision."
+ },
+ {
+  "id": "PRC-L296",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "checksum-locked migration 090",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/090_consent_lifecycle_append_only.sql",
+    "line": "132-136",
+    "excerpt": "COMMENT ON COLUMN parent_consents.consent_chain_id IS ... (top-level, unguarded)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Unchanged at tip; file is checksum-locked, so only a migration-policy decision can address it."
+ },
+ {
+  "id": "PRC-L297",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "authorization-derived FK semantics + index migration",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/098_staff_identity_link.sql",
+    "line": "55-57",
+    "excerpt": "CREATE INDEX CONCURRENTLY IF NOT EXISTS staff_user_id_idx ON staff (user_id) WHERE user_id IS NOT NULL;"
+   },
+   {
+    "file": "db/sql/098_staff_identity_link.sql",
+    "line": "77",
+    "excerpt": "FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE NOT VALID;"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "CASCADE and tenant-less lookup index unchanged at tip."
+ },
+ {
+  "id": "PRC-L301",
+  "severity": "low",
+  "module": "eslint-plugin-openemis",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/eslint-plugin-openemis/src/rules/error-envelope.js",
+   "packages/eslint-plugin-openemis/src/rules/error-envelope.test.js"
+  ],
+  "evidence": [
+   {
+    "file": "packages/eslint-plugin-openemis/src/rules/error-envelope.js",
+    "line": "22-23,48",
+    "excerpt": "if (node.type === 'Literal' && typeof node.value === 'number') return node.value; ... if (!objectExpr || objectExpr.type !== 'ObjectExpression') return null;"
+   },
+   {
+    "file": ".eslintrc.json",
+    "line": "82-85",
+    "excerpt": "packages/backend/**/route*.ts: \"proctira/error-envelope\": \"error\""
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Rule still only evaluates literal status codes and inline object payloads. Rule extension + tests; no protected boundary."
+ },
+ {
+  "id": "PRC-L302",
+  "severity": "low",
+  "module": "etl",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/backend/etl/src/etl-service.ts",
+   "packages/backend/etl/src/etl-plugin.ts",
+   "packages/backend/etl/src/etl-service.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/backend/etl/src",
+    "line": "-",
+    "excerpt": "grep -i audit in non-test etl sources only hits doc comments (lineage.ts:5, schemas.ts:369); no audit recorder call for create/update/delete/execute"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No audit events emitted for pipeline lifecycle at tip. Adding audit-recorder calls is additive and does not change authz/tenant policy."
+ },
+ {
+  "id": "PRC-L308",
+  "severity": "low",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI supply-chain verification",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/observability-config.yml",
+    "line": "69-72",
+    "excerpt": "curl -fsSL \".../prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz\" | tar xz ...  (no sha256 -c)"
+   },
+   {
+    "file": ".github/workflows/security-scans.yml",
+    "line": "91-92",
+    "excerpt": "curl -sSfL \".../gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz\""
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No checksum/signature verification of downloaded binaries."
+ },
+ {
+  "id": "PRC-L309",
+  "severity": "low",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI lint/format gate scope",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "172,193",
+    "excerpt": "--changed-files-base ... git diff --name-only --diff-filter=ACMR \"${{ steps.lint-base.outputs.base }}\" HEAD --"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Lint remains changed-files only; baseline confirms 27 packages fail full lint at tip."
+ },
+ {
+  "id": "PRC-L375",
+  "severity": "low",
+  "module": "tools-dod-checks",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "(PRC-L375) Not addressed: ts-ast fail-when-unavailable + safeReadFile throw + reply.send(error) detection deferred. wave0-triage-2026-10-25: met: safeReadFile now throws instead of returning empty (tools/dod-checks/src/lib/fs-utils.mjs:50-55); unmet steps: error-envelope still silently falls back to regex when the TS AST is unavailable (tools/dod-checks/src/checks/error-envelope.mjs:144-149), no reply.send(error) detection."
+  },
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "tools/dod-checks/src/checks/error-envelope.mjs",
+   "tools/dod-checks/src/checks/i18n-readiness.mjs",
+   "tools/dod-checks/src/lib/ts-ast.mjs",
+   "tools/dod-checks/test/runner.mjs"
+  ],
+  "evidence": [
+   {
+    "file": "tools/dod-checks/src/lib/fs-utils.mjs",
+    "line": "50-55",
+    "excerpt": "export async function safeReadFile(path) { try { return await readFile(path, 'utf8'); } catch (err) { throw new Error(`[dod-checks] cannot read ${path}: ...`); } }"
+   },
+   {
+    "file": "tools/dod-checks/src/checks/error-envelope.mjs",
+    "line": "144-149",
+    "excerpt": "const sf = await loadSourceFile(file); if (sf) { await checkViaAst(...) } else { checkViaRegex(await safeReadFile(file), file, report); }"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "fail when ts-ast unavailable",
+   "detect reply.send(error)"
+  ],
+  "rationale": "The 'reads return empty' half was fixed in 4c436323 (2026-10-04) even though the 2026-10-11 note listed it as deferred; the fallback half remains."
+ },
+ {
+  "id": "PRC-L453",
+  "severity": "low",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/backend/data-warehouse/src/data-warehouse-service.ts",
+   "packages/backend/data-warehouse/src/in-memory-repository.ts",
+   "packages/backend/data-warehouse/src/data-warehouse-service.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/in-memory-repository.ts",
+    "line": "49-55",
+    "excerpt": "async deleteWarehouse(id, tenantId) { ... this.warehouses.delete(id); }  (no child cascade/guard)"
+   },
+   {
+    "file": "apps/api-gateway/src/mount-matrix.ts",
+    "line": "479-487",
+    "excerpt": "package: 'data-warehouse' ... notes: 'Unmounted; insights UI owns `/data-warehouse` (G-209).'"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Delete still removes only the warehouse row; package remains unmounted. In-package guard/cascade with tests."
+ },
+ {
+  "id": "PRC-L457",
+  "severity": "low",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "new GIS parsing dependency / PostGIS schema; package parked (mount-matrix G-924)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/gis-schemas.ts",
+    "line": "16",
+    "excerpt": "GISLayerTypeSchema = Type.Union([Type.Literal('shapefile'), Type.Literal('geojson')])"
+   },
+   {
+    "file": "packages/backend/data-warehouse/src/gis-service.ts",
+    "line": "105",
+    "excerpt": "if (input.layerType !== 'shapefile' && input.layerType !== 'geojson')  (no shapefile parsing)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Shapefile still not parsed. Real parsing needs a new dependency and PostGIS/CRS modelling for an unmounted, parked package."
+ },
+ {
+  "id": "PRC-L460",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Local docker-compose publishes 5432 on all interfaces, known password, superuser migrator. This is local-compose only (db/docker-init + docker-compose.yml). docker-compose.yml is outside my assigned scope (db/sql, prisma, packages/shared, tools/*); binding 127.0.0.1 + non-superuser local migrator is a compose change. Left OPEN. wave0-triage-2026-10-25: met: Postgres port bound to ${BIND_ADDRESS:-127.0.0.1} and POSTGRES_PASSWORD required (docker-compose.yml:29,32); unmet steps: db/docker-init/02_local_passwords.sql:12 still resets the migrator role to the known password 'proctira_dev_password', and POSTGRES_USER (proctira) remains the superuser migrator (docker-compose.yml:28)."
+  },
+  "eligibility": "INFRA_BATCH",
+  "boundary": "local compose / DB bootstrap roles",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "docker-compose.yml",
+    "line": "28-32",
+    "excerpt": "POSTGRES_USER: ${POSTGRES_USER:-proctira} ... POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?...} ... - '${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'"
+   },
+   {
+    "file": "db/docker-init/02_local_passwords.sql",
+    "line": "4,12",
+    "excerpt": "ALTER ROLE proctira_app PASSWORD 'proctira_app_dev_password'; ... ALTER ROLE proctira PASSWORD 'proctira_dev_password';"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "stop overriding POSTGRES_PASSWORD with a known password",
+   "non-superuser migrator for local compose"
+  ],
+  "rationale": "Port binding fixed (M311 work); password override and superuser migrator remain. No compose gate test exists."
+ },
+ {
+  "id": "PRC-L461",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Demo seed writes fabricated audit_log_entries outside the hash chain. db/seeds is editable but the seed is demo-only; the fix (write via chained writer or drop + non-demo-DB guard) is a seed-hygiene change. Deferred \u2014 seeds are not applied in the normal runtime path and this is demo data; left OPEN. wave0-triage-2026-10-25: met: demo audit insert now skips with NOTICE when the tenant already has chained audit_log_entries (PR #650, db/seeds/006_sunrise_public_school_demo.sql:1877-1894); unmet steps: rows are still written directly outside the hash chain for fresh tenants (no chained writer, no non-demo-DB guard); no automated test for seeds."
+  },
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "db/seeds/006_sunrise_public_school_demo.sql"
+  ],
+  "evidence": [
+   {
+    "file": "db/seeds/006_sunrise_public_school_demo.sql",
+    "line": "1877-1894",
+    "excerpt": "PRC-L461: these rows are deliberately unchained demo data ... RAISE NOTICE 'Sunrise tenant already has chained audit_log_entries \u2014 skipping unchained demo audit rows'; INSERT INTO audit_log_entries ("
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "write demo audit rows via chained writer or drop them",
+   "non-demo database guard"
+  ],
+  "rationale": "#650 added a skip guard only; fabricated unchained rows are still inserted on a fresh demo tenant."
+ },
+ {
+  "id": "PRC-L462",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Seed hygiene (header says 'does not delete' but deletes; duplicate 004_ prefixes; wrong sector). db/seeds editable but these are demo-seed corrections with no runtime impact; deferred to a seed-hygiene pass. Left OPEN. wave0-triage-2026-10-25: met: duplicate 004_ prefix resolved (db/seeds/004b_sis_master_schedule_demo.sql) and misleading 006 'does not delete' header corrected (PR #650); unmet steps: wrong sector/ownership values and single-use teardown not addressed (no change found at tip)."
+  },
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "db/seeds/006_sunrise_public_school_demo.sql",
+   "db/seeds/002_multi_board_schools_500.sql"
+  ],
+  "evidence": [
+   {
+    "file": "db/seeds/004b_sis_master_schedule_demo.sql",
+    "line": "1",
+    "excerpt": "renamed from 004_sis_master_schedule_demo.sql in PR #650 (git show --stat ffd48b49)"
+   },
+   {
+    "file": "db/seeds/006_sunrise_public_school_demo.sql",
+    "line": "1",
+    "excerpt": "header corrected in PR #650 commit 'docs(db): fix misleading 006 seed header re: delete behavior (PRC-L462)'"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "correct sector/ownership seed values",
+   "re-runnable teardown"
+  ],
+  "rationale": "Two of four listed hygiene items landed in #650; the other two have no evidence at tip."
+ },
+ {
+  "id": "PRC-L463",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "student_merges/search_index_documents/transcript_signing_keys have no application consumer. Wiring mergeDuplicates->student_merges etc. is backend-service work (student-service, gradebook) out of my scope; a CI check for table consumers is tooling. Left OPEN. wave0-triage-2026-10-25: met: student_merges/search_index_documents/transcript_signing_keys now carry a forward-provisioned/no-runtime-consumer comment (PR #650: db/sql/063_student_merge_registry.sql, db/sql/065_search_index_schema.sql, db/sql/076_transcript_authenticity_complete.sql); unmet steps: no application consumer wired and no CI check for table consumers."
+  },
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "product decision: wire consumers (student merge/search/transcript signing services) vs retire tables (schema)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/063_student_merge_registry.sql",
+    "line": "1-8",
+    "excerpt": "forward-provisioned comment added in PR #650 (+4 lines)"
+   },
+   {
+    "file": "db/sql/065_search_index_schema.sql",
+    "line": "1-10",
+    "excerpt": "forward-provisioned comment added in PR #650 (+7 lines)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "wire consumers or drop tables",
+   "CI table-consumer check"
+  ],
+  "rationale": "Disclosure added; the registries still have no consumer."
+ },
+ {
+  "id": "PRC-L467",
+  "severity": "low",
+  "module": "docs",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "docs/multitenant/trace-graph.mjs"
+  ],
+  "evidence": [
+   {
+    "file": "docs/multitenant/trace-graph.mjs",
+    "line": "11,16",
+    "excerpt": "Usage: node tools/trace-graph.mjs [/path/to/proctira] [outDir] ... const ROOT = path.resolve(process.argv[2] || '/home/claude/proctira');"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Hard-coded machine path and wrong self-location remain."
+ },
+ {
+  "id": "PRC-L548",
+  "severity": "low",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "security policy (credential/raw-SQL intake) + import API schema change",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/schemas.ts",
+    "line": "234-235",
+    "excerpt": "password: Type.String({ minLength: 1 }), query: Type.String({ minLength: 1 }),"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Database import body still accepts credentials and raw SQL. Removing/redesigning is a security-policy and API-shape decision (package unmounted)."
+ },
+ {
+  "id": "PRC-L552",
+  "severity": "low",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "tenant isolation (defence-in-depth repository contract)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/warehouse-repository.ts",
+    "line": "33",
+    "excerpt": "deleteWarehouse(id: string, tenantId: string): Promise<void>;  (caller-supplied tenantId contract)"
+   },
+   {
+    "file": "packages/backend/data-warehouse/src/routes.ts",
+    "line": "49",
+    "excerpt": "return (request as FastifyRequest & { tenantId?: string }).tenantId;"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Repository still trusts caller tenantId; no cross-tenant tests. Tenant-isolation boundary."
+ },
+ {
+  "id": "PRC-L553",
+  "severity": "low",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "privacy/consent and authorization policy (publish visibility gate)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/publishing-service.ts",
+    "line": "132,225-246",
+    "excerpt": "timePeriods: input.timePeriods || [] ... snapshot built from indicator/area/period filters with no consent/visibility check"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No consent/visibility gate at tip; adding one is a privacy/authz policy decision."
+ },
+ {
+  "id": "PRC-L554",
+  "severity": "low",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/backend/data-warehouse/src/translation-service.ts",
+   "packages/backend/data-warehouse/src/translation-schemas.ts",
+   "packages/backend/data-warehouse/src/in-memory-translation-repository.ts",
+   "packages/backend/data-warehouse/src/gis-publishing-translation.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/translation-service.ts",
+    "line": "-",
+    "excerpt": "no language-code/field-name validation or uniqueness handling found (grep unique|languageCode|fieldName returned no validation)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Translation validation gaps remain; in-package input validation + linkage on entity delete, unmounted package."
+ },
+ {
+  "id": "PRC-L555",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Seeded CBSE grading bands leave gaps + 'CBSE 9-point' has 8 bands; no EXCLUDE preventing gaps/overlaps. gpa-engine fallback refutes the null-grade impact (ledger). Residual is seed-data correctness + an EXCLUDE constraint (btree_gist); seed-only + needs range modelling. Left OPEN. wave0-triage-2026-10-25: met: CBSE-9PT split into E1/E2 giving 9 contiguous bands (PR #650, db/seeds/003_sis_timetable_board_scales.sql:84-98); unmet steps: no schema constraint preventing band gaps/overlaps; seed not executed in triage."
+  },
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "EXCLUDE/range constraint (btree_gist) migration",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/seeds/003_sis_timetable_board_scales.sql",
+    "line": "84-98",
+    "excerpt": "PRC-L555: CBSE's actual 9-point scale splits the lowest band into E1/E2 ... ('E1', 21.00, 32.99, 0.00, 8), ('E2', 0.00, 20.99, 0.00, 9)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "DB constraint preventing grading band gaps/overlaps"
+  ],
+  "rationale": "Seed data corrected; schema guard absent."
+ },
+ {
+  "id": "PRC-L556",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Cert seeds bind no platform/tenant GUC so under FORCE RLS they skip/fail; no CI row-count assert. db/seeds editable but seeds are demo/cert data not in the runtime path; binding a GUC in every seed + a CI row-count assert is a seed-infra pass. Left OPEN. wave0-triage-2026-10-25: met: cert seeds 003/004/004b/005 bind set_app_tenant_id() and fail loudly on a zero-row RLS no-op (PR #650, db/seeds/003_sis_timetable_board_scales.sql:27,143; db/seeds/004_sis_gradebook_credit_section.sql:27,117; db/seeds/004b_sis_master_schedule_demo.sql:39); unmet steps: colocated db/sql/*b_*_seed.sql seeds not updated; no CI row-count assertion; seeds not executed in triage."
+  },
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "db/sql/006b_transport_seed.sql",
+   "db/sql/007b_communication_seed.sql",
+   "db/sql/008b_hostel_seed.sql",
+   "db/sql/009b_library_seed.sql",
+   "db/sql/010b_parent_portal_seed.sql",
+   "db/sql/077b_guardian_custody_demo_seed.sql"
+  ],
+  "evidence": [
+   {
+    "file": "db/seeds/003_sis_timetable_board_scales.sql",
+    "line": "27,143",
+    "excerpt": "PERFORM set_app_tenant_id(tid::text); ... RAISE EXCEPTION 'PRC-L556 guard: expected grading_scales rows ... (RLS silent no-op?)'"
+   },
+   {
+    "file": "db/seeds/004_sis_gradebook_credit_section.sql",
+    "line": "27,117",
+    "excerpt": "PERFORM set_app_tenant_id(tid::text); ... PRC-L556 guard"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "colocated *b seeds GUC binding",
+   "CI row-count assertion"
+  ],
+  "rationale": "Named cert seeds fixed; the title's '(and colocated *b seeds)' part has no change at tip. Seed files are not schema migrations."
+ },
+ {
+  "id": "PRC-L565",
+  "severity": "low",
+  "module": "infrastructure",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "ops/DNS decision (DNS-01 ClusterIssuer provider + solver secret) recorded in ledger note",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infrastructure/k8s/overlays/production",
+    "line": "-",
+    "excerpt": "reconciled by PR #652 at baseline; no DNS-01 issuer added since"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Ledger already reconciled by #652 (baseline commit); no change since."
+ },
+ {
+  "id": "PRC-L566",
+  "severity": "low",
+  "module": "infrastructure",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "authentication (gateway JWT secret boot guard under staging)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "apps/api-gateway/src/config.ts",
+    "line": "142-148,192-193,314",
+    "excerpt": "resolveJwtSecret(env, raw) ... throw new Error('JWT_SECRET is required when NODE_ENV=production (G-703)') ... isDeployedEnvironment(...) ... const jwtSecret = resolveJwtSecret(env, process.env['JWT_SECRET']);"
+   },
+   {
+    "file": "infrastructure/k8s/overlays/staging/kustomization.yaml",
+    "line": "41",
+    "excerpt": "path: /data/NODE_ENV"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: resolveJwtSecret still keyed on NODE_ENV=production only."
+ },
+ {
+  "id": "PRC-L567",
+  "severity": "low",
+  "module": "infrastructure",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "Kustomize PDB/replica config",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infrastructure/k8s/overlays/development",
+    "line": "-",
+    "excerpt": "reconciled by PR #652; dev minAvailable==replicas and duplicate prod PDB residuals unchanged"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ },
+ {
+  "id": "PRC-M195",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "tenant-composite FKs (tenant isolation) on money/PII edges",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/035_students_360_schema.sql",
+    "line": "11",
+    "excerpt": "student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,"
+   },
+   {
+    "file": "db/sql/113_developer_portal_webhook_signing_secrets.sql",
+    "line": "73-76",
+    "excerpt": "only composite FKs at tip are on 104 (scholarship documents) and 113 (webhook secrets)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No UNIQUE(tenant_id,id) + composite FK hardening migration for students/institutions/invoices at tip."
+ },
+ {
+  "id": "PRC-M196",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "new tenant columns on global tables + background worker (product feature)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "apps/api-gateway/src/insights-ui-plugin.ts",
+    "line": "169-213",
+    "excerpt": "fastify.get('/data-warehouse/indicators' ...), '/data-warehouse/import/jobs', '/data-warehouse/map/features'"
+   },
+   {
+    "file": "db/sql/020_insights_ui_schema.sql",
+    "line": "1",
+    "excerpt": "insights indicators/geo features schema (no tenant_id per note)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No change since the note; no worker drives jobs/runs out of QUEUED."
+ },
+ {
+  "id": "PRC-M197",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "financial constraints + currency default (Decision D1) migration",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/016_scholarships_schema.sql",
+    "line": "17-20",
+    "excerpt": "total_slots INTEGER NOT NULL CHECK (total_slots >= 1), used_slots ... currency TEXT NOT NULL DEFAULT 'USD',"
+   },
+   {
+    "file": "db/sql/108_scholarship_on_approval_disbursement_uidx.sql",
+    "line": "76",
+    "excerpt": "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS scholarship_disbursements_on_approval_uidx"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: DB default still 'USD' (D1 changed app code only), no used<=total or duplicate-application constraint, no amount/cents CHECK."
+ },
+ {
+  "id": "PRC-M198",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "SIS date/score range CHECKs + locked-grade BEFORE UPDATE trigger. Deferred: adding CHECK constraints to large existing SIS tables (grade_entries, academic_periods) requires NOT VALID + validate windows and backfill review; locked-grade protection overlaps grade_change_audit (already trigger-owned per L293). Left OPEN. wave0-triage-2026-10-25: met: grade_entries.numeric_score 0..100 CHECK, academic_periods end_date>=start_date CHECK and locked-grade BEFORE UPDATE guard (PR #650, db/sql/244_sis_range_checks_locked_grade_guard.sql:41-48,111-126); unmet steps: other core SIS tables' date/score ranges not inventoried; live test packages/backend/gradebook/src/grade-entries-range-locked-guard.live.test.ts not run (needs Postgres)."
+  },
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "SIS integrity constraints migration + live-PG verification",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/244_sis_range_checks_locked_grade_guard.sql",
+    "line": "41-48",
+    "excerpt": "ADD CONSTRAINT grade_entries_numeric_score_range_chk CHECK (numeric_score IS NULL OR (numeric_score >= 0 AND numeric_score <= 100)) NOT VALID; ... academic_periods_date_range_chk CHECK (end_date >= start_date)"
+   },
+   {
+    "file": "db/sql/244_sis_range_checks_locked_grade_guard.sql",
+    "line": "111-126",
+    "excerpt": "CREATE OR REPLACE FUNCTION grade_entries_locked_immutable() ... CREATE TRIGGER trg_grade_entries_locked_immutable"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "range checks on remaining core SIS tables (scope unconfirmed without xlsx)",
+   "live-PG verification"
+  ],
+  "rationale": "Key constraints landed in #650 after the note; without xlsx acceptance or a live run this cannot be closed."
+ },
+ {
+  "id": "PRC-M200",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "cryptographic key management (HMAC/KMS) for audit chain",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/audit/src/audit-hash.ts",
+    "line": "10,58",
+    "excerpt": "import { createHash } from 'node:crypto'; ... return createHash('sha256').update(payload, 'utf8').digest('hex');"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Chain remains unkeyed SHA-256 at tip."
+ },
+ {
+  "id": "PRC-M201",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Payroll lines/ledger append-only + deferred balanced-journal triggers. Deferred: balanced-journal trigger needs domain modelling of payroll journal structure; sizable and risk of blocking payroll posting. Left OPEN. wave0-triage-2026-10-25: met: staff_payroll_lines and staff_payroll_ledger_entries reject UPDATE/DELETE via BEFORE triggers (PR #650, db/sql/245_payroll_fee_adjustment_immutability.sql:28-55); unmet steps: no balanced-journal (debits=credits) trigger; live test packages/backend/fees/src/payroll-fee-adjustment-immutability.live.test.ts not run (needs Postgres)."
+  },
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "financial (payroll journal balancing business rule)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/245_payroll_fee_adjustment_immutability.sql",
+    "line": "28-55",
+    "excerpt": "CREATE OR REPLACE FUNCTION staff_payroll_lines_immutable() ... CREATE TRIGGER trg_staff_payroll_ledger_entries_immutable"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "balanced-journal constraint",
+   "live-PG verification"
+  ],
+  "rationale": "Mutability half fixed in #650; 'unbalanced' half remains."
+ },
+ {
+  "id": "PRC-M202",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "fee_credit_notes/fee_write_offs still mutable with no journal_id FK tie. Deferred: journal_id FK + posted-row immutability needs fee-ledger domain modelling; not a safe isolated change. Left OPEN. wave0-triage-2026-10-25: met: fee_credit_notes and fee_write_offs reject UPDATE/DELETE (PR #650, db/sql/245_payroll_fee_adjustment_immutability.sql:60-87); unmet steps: no journal_id FK tie to the fee ledger; refunds and concessions tables not covered; live-PG verification not run in triage."
+  },
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "financial (fee ledger linkage) + schema",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/245_payroll_fee_adjustment_immutability.sql",
+    "line": "60-87",
+    "excerpt": "CREATE OR REPLACE FUNCTION fee_credit_notes_immutable() ... CREATE TRIGGER trg_fee_write_offs_immutable"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "journal_id FK to fee ledger",
+   "refunds/concessions immutability",
+   "live-PG verification"
+  ],
+  "rationale": "Two of four adjustment tables protected; ledger tie absent."
+ },
+ {
+  "id": "PRC-M203",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "privacy/legal-hold policy across PII/PHI tables",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/067_privacy_legal_hold_erasure.sql",
+    "line": "5-11",
+    "excerpt": "ADD COLUMN IF NOT EXISTS legal_hold BOOLEAN ... (students-only guard; no later migration extends it)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No forward migration extends the guard to tenants.legal_hold or other tables at tip."
+ },
+ {
+  "id": "PRC-M204",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "privacy lifecycle (PII redaction, dual control)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/078_privacy_lifecycle_complete.sql",
+    "line": "1",
+    "excerpt": "correction/erasure request tables (no redaction/dual-control change after the note)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No change at tip since the note."
+ },
+ {
+  "id": "PRC-M206",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "unique/EXCLUDE constraints migration with duplicate reconciliation",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/039_library_ops_schema.sql",
+    "line": "65-81",
+    "excerpt": "CREATE TABLE IF NOT EXISTS library_fines (... no UNIQUE(loan_id))"
+   },
+   {
+    "file": "db/sql/222_examination_room_clash_index.sql",
+    "line": "12-22",
+    "excerpt": "this index ... does not by itself enforce no-overlap at the database level ... CREATE INDEX CONCURRENTLY IF NOT EXISTS exam_sessions_room_overlap_idx"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "222 (PR #648, PRC-M231) is a lookup index and explicitly not an EXCLUDE; library_fines and subjects soft-delete uniqueness unchanged."
+ },
+ {
+  "id": "PRC-M207",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Partial unique (tenant_id,month) WHERE status='posted' + advisory lock for payroll runs. Deferred: needs duplicate reconciliation of existing posted runs before a unique index can build; overlaps payroll domain. Left OPEN. wave0-triage-2026-10-25: met: partial UNIQUE INDEX staff_payroll_runs_posted_once_uidx on (tenant_id, month) WHERE status='posted' with duplicate preflight (PR #650, db/sql/246_payroll_posted_once_per_month.sql:78); unmet steps: live-PG verification (packages/backend/staff/src/payroll-posted-once-per-month.live.test.ts) not executed in triage, so closure is not proven here."
+  },
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "payroll uniqueness migration live verification",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/246_payroll_posted_once_per_month.sql",
+    "line": "1,78",
+    "excerpt": "PRC-M207: staff_payroll_runs dropped its plain UNIQUE (tenant_id, month) ... CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS staff_payroll_runs_posted_once_uidx"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "live-PG verification of 246 (requires Postgres)"
+  ],
+  "rationale": "Code appears complete for the title, but the only behavioural test is live-PG; per triage rules a test that cannot run cannot support STALE."
+ },
+ {
+  "id": "PRC-M208",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "tenant-composite FKs (tenant isolation)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/098_staff_identity_link.sql",
+    "line": "77",
+    "excerpt": "FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE NOT VALID;  (id-only)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Shares root cause with M195 but covers staff/institution/fee_structure edges; both rows are surviving OPEN, so not marked duplicate."
+ },
+ {
+  "id": "PRC-M209",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "design decision between 247 trigger+grant and fix/partials-close-back2 event table; runtime grant change",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/247_institution_repair_request_transition_guard.sql",
+    "line": "26,38,55,63",
+    "excerpt": "PRC-M209 reviewer flag: branch fix/partials-close-back2 ... GRANT UPDATE (status) ON TABLE institution_repair_requests TO proctira_app;"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Already PARTIAL with the design conflict disclosed; nothing new at tip. Disposition left as-is."
+ },
+ {
+  "id": "PRC-M211",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STALE",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "FULLY_CLOSED",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "No domain-event producer calls createDelivery; signature still conditional not mandatory-fail-closed. Deferred: webhook delivery producer + mandatory signing is a developer-portal backend feature (packages/backend), out of my scope. Left OPEN. Found already implemented at tip 4c7fb8fe (db/sql/113_developer_portal_webhook_signing_secrets.sql:60-80 envelope-encrypted secrets with tenant-composite FK; packages/backend/developer-portal/src/developer-portal-service.ts:660-673 fanOutEvent creates deliveries, :709-740 mandatory signing fails closed; packages/backend/developer-portal/src/webhook-delivery-worker.ts:98; apps/api-gateway/src/domain-plugins.ts:1791,1819-1833 wiring; tests `pnpm --filter @proctira/backend-developer-portal exec vitest run src/webhook-fanout.wiring.test.ts src/webhook-signing-secrets.test.ts src/webhook-signature.test.ts src/webhook-outbox-delivery.test.ts` exit 0 24/24 and `pnpm --filter @proctira/api-gateway exec vitest run src/webhook-signing-secrets-wiring.test.ts` exit 0 3/3) with passing tests; disposition ALREADY_FIXED (STALE finding). Fan-out is opt-in via WEBHOOK_FANOUT_EVENTS (empty = no fan-out); migration 113 itself not live-applied in triage."
+  },
+  "eligibility": null,
+  "boundary": null,
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/113_developer_portal_webhook_signing_secrets.sql",
+    "line": "1-12,60-80",
+    "excerpt": "PRC-H046: envelope-encrypted webhook signing secrets ... FOREIGN KEY (tenant_id, webhook_id) REFERENCES developer_portal_webhooks (tenant_id, id)"
+   },
+   {
+    "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
+    "line": "660-673",
+    "excerpt": "async fanOutEvent(tenantId, event, payload) ... deliveries.push(await this.createDelivery(webhook.id, event, payload));"
+   },
+   {
+    "file": "packages/backend/developer-portal/src/developer-portal-service.ts",
+    "line": "709-740",
+    "excerpt": "// PRC-M211: signing is mandatory ... A missing resolver, missing/retired row, KMS failure ... fails the attempt permanently (no unsigned delivery)"
+   },
+   {
+    "file": "packages/backend/developer-portal/src/webhook-delivery-worker.ts",
+    "line": "98",
+    "excerpt": "// PRC-M211: the attempt is already recorded as failed (never sent unsigned);"
+   },
+   {
+    "file": "apps/api-gateway/src/domain-plugins.ts",
+    "line": "1791,1819-1833",
+    "excerpt": "PRC-M211: envelope-encrypted signing secrets (113) \u2014 mandatory signing, fail closed ... fanOutEvents: parseWebhookFanOutEvents(process.env['WEBHOOK_FANOUT_EVENTS']) ... signingSecretResolver: webhookSigningSecrets"
+   },
+   {
+    "file": "packages/backend/developer-portal/src/webhook-fanout.wiring.test.ts",
+    "line": "157",
+    "excerpt": "never sends unsigned: a hash-only legacy webhook delivery fails closed (PRC-M211)"
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "pnpm -C <W> --filter @proctira/backend-developer-portal exec vitest run src/webhook-fanout.wiring.test.ts src/webhook-signing-secrets.test.ts src/webhook-signature.test.ts src/webhook-outbox-delivery.test.ts",
+    "exit_code": 0,
+    "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/M211-devportal.log"
+   },
+   {
+    "command": "pnpm -C <W> --filter @proctira/api-gateway exec vitest run src/webhook-signing-secrets-wiring.test.ts",
+    "exit_code": 0,
+    "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/M211-gateway.log"
+   }
+  ],
+  "unmet_steps": [],
+  "rationale": "Title claims (a) secrets only stored as hashes, (b) nothing creates deliveries, (c) nothing signs them. At tip: (a) envelope table 113 + PgWebhookSigningSecretStore (unit-tested with a fake pool); (b) domain-event fan-out subscriber -> fanOutEvent -> createDelivery, wired in the gateway; (c) signing mandatory and fail-closed, tested. Code landed in 4c436323/c137e48d (2026-10-04/06) before the 2026-10-11 note, which looked only at db scope. Caveats recorded in note: fan-out is env opt-in, and 113 was not applied to a live DB here. Reviewer may downgrade to PARTIAL if acceptance requires default-on fan-out."
+ },
+ {
+  "id": "PRC-M212",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "FK + retention migration on developer-portal tables",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/089_developer_portal_durable_state.sql",
+    "line": "38,63",
+    "excerpt": "account_id UUID NOT NULL, ... webhook_id UUID NOT NULL,  (no REFERENCES)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "113 added composite UNIQUE(tenant_id,id) on webhooks for the secrets FK, but deliveries.webhook_id and webhooks.account_id still have no FK and no payload retention."
+ },
+ {
+  "id": "PRC-M213",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "academic_periods/fee_structures overlap via plain SELECT (no lock/EXCLUDE). Deferred: EXCLUDE USING gist needs btree_gist + range modelling; 083 is checksum-locked. Left OPEN. wave0-triage-2026-10-25: met: SELECT-check overlap triggers replaced by EXCLUDE USING gist constraints on academic_periods and fee_structures (PR #650, db/sql/248_academic_fee_overlap_exclusion.sql:111-122); unmet steps: 'header promises close-prior' sub-claim not re-checked against 083; live test packages/shared/database/src/academic-fee-overlap-exclusion.live.test.ts not run (needs Postgres)."
+  },
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "EXCLUDE constraint migration live verification",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/248_academic_fee_overlap_exclusion.sql",
+    "line": "1,111-122",
+    "excerpt": "ADD CONSTRAINT academic_periods_no_overlap_excl EXCLUDE USING gist ( ... ADD CONSTRAINT fee_structures_no_overlap_excl EXCLUDE USING gist ("
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "close-prior header contradiction",
+   "live-PG verification"
+  ],
+  "rationale": "Race fix landed after the note; behaviour proof needs Postgres."
+ },
+ {
+  "id": "PRC-M214",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "privacy (DPDP erasure/anonymisation path)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/090_consent_lifecycle_append_only.sql",
+    "line": "5-8,108,127",
+    "excerpt": "parent_consents / student_consents are append-only versioned rows ... DELETE rejected ... BEFORE DELETE ON parent_consents"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No anonymisation path at tip."
+ },
+ {
+  "id": "PRC-M215",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Scholarship supporting-docs retention/erasure + object cleanup. Deferred: retention_until + purge job (delete object then row) + storage delete calls span scholarship backend + storage; CASCADE\u2192RESTRICT needs review. Left OPEN. wave0-triage-2026-10-25: met: scholarship_application_documents.retention_until column with uploaded_at+7y default trigger (PR #650, db/sql/249_scholarship_document_retention.sql:29-45); unmet steps: no purge/erasure job, no storage object cleanup, CASCADE review not done; retention period is an interim default pending counsel (D5 DRAFT); live test not run."
+  },
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "privacy retention/erasure + object storage deletion",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/249_scholarship_document_retention.sql",
+    "line": "29-45",
+    "excerpt": "ADD COLUMN IF NOT EXISTS retention_until DATE; ... CREATE TRIGGER trg_scholarship_application_documents_default_retention"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "purge/erasure job",
+   "object storage cleanup",
+   "live-PG verification"
+  ],
+  "rationale": "Schema marker only; #650 states schema-only, no purge."
+ },
+ {
+  "id": "PRC-M216",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "FK re-validation migration under FORCE RLS",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/087_cross_domain_fk_prisma_not_valid.sql",
+    "line": "1-9,91",
+    "excerpt": "W1-DATA-15 complete residual \u2014 Prisma FORCE-RLS tables: ADD NOT VALID only ... 'ALTER TABLE %I ADD CONSTRAINT %I %s NOT VALID'"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No forward migration validates 087's FKs at tip."
+ },
+ {
+  "id": "PRC-M255",
+  "severity": "medium",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "supply-chain signing + admission verification (deploy)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/deploy.yml",
+    "line": "-",
+    "excerpt": "grep cosign|provenance|attest in deploy.yml: no match"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Deploy-built images remain unsigned."
+ },
+ {
+  "id": "PRC-M258",
+  "severity": "medium",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "production DR / migration rollout",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/deploy.yml",
+    "line": "389-425,433",
+    "excerpt": "UP-P0-02 \u2014 Apply target migrations before any application rollout ... run: bash tools/scripts/run-target-database-migrations.sh ... needs: [ci-gate, prepare, build-images, migrate-database, runtime-role-gate]  (no pre-migration snapshot step)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No pre-migration backup/snapshot or schema rollback at tip."
+ },
+ {
+  "id": "PRC-M261",
+  "severity": "medium",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "repository governance (CODEOWNERS, branch protection, org teams)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "1450",
+    "excerpt": "PROCTIRA_CODEOWNERS_ALLOW_PERSONAL_INTERIM: ${{ vars.PROCTIRA_CODEOWNERS_ALLOW_PERSONAL_INTERIM || '1' }}"
+   },
+   {
+    "file": ".github/CODEOWNERS",
+    "line": "-",
+    "excerpt": "35 owner entries, all @dbn1972"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Waiver still defaults on; single owner account."
+ },
+ {
+  "id": "PRC-M311",
+  "severity": "medium",
+  "module": "ops",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Not addressed: bind ports to 127.0.0.1 + ${VAR:?} passwords + redis --requirepass + MinIO digest + disable Kafka auto-create; root compose change deferred (dev-topology product decision). wave0-triage-2026-10-25: met: datastore ports bound to ${BIND_ADDRESS:-127.0.0.1} and passwords required via ${VAR:?} (docker-compose.yml:29-32,55-61,93,113-114,131-134,152-157), Redis --requirepass (docker-compose.yml:55-56); unmet steps: MinIO image still minio/minio:latest, not digest-pinned (docker-compose.yml:126); Kafka auto-create still defaults true (docker-compose.yml:91); no compose gate test."
+  },
+  "eligibility": "INFRA_BATCH",
+  "boundary": "local/dev compose topology",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "docker-compose.yml",
+    "line": "29-32",
+    "excerpt": "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?...} ... - '${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'"
+   },
+   {
+    "file": "docker-compose.yml",
+    "line": "55-61",
+    "excerpt": "'--requirepass', '${REDIS_PASSWORD:?...}' ... - '${BIND_ADDRESS:-127.0.0.1}:${REDIS_PORT:-6379}:6379'"
+   },
+   {
+    "file": "docker-compose.yml",
+    "line": "126",
+    "excerpt": "image: minio/minio:latest"
+   },
+   {
+    "file": "docker-compose.yml",
+    "line": "89-91",
+    "excerpt": "# PRC-M311: dev convenience only ... KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS:-true}"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "pin MinIO by digest",
+   "disable Kafka topic auto-create by default"
+  ],
+  "rationale": "Ledger note says not addressed, but c391db53 (PR #581, cites PRC-M311) landed most of it. Two listed sub-steps remain."
+ },
+ {
+  "id": "PRC-M312",
+  "severity": "medium",
+  "module": "ops",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "observability scrape config/alert rules",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infra/observability/alerts/queue_lag.yml",
+    "line": "14,31,48,64,80",
+    "excerpt": "kafka_consumergroup_lag > 1000 ... rabbitmq_queue_messages_ready > 5000 ..."
+   },
+   {
+    "file": "infra/observability/prometheus.yml",
+    "line": "56-120",
+    "excerpt": "job_name: api-gateway, etl, prometheus, kubernetes-pods, kube-state-metrics (no kafka-exporter / rabbitmq 15692 job)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No exporter scrape jobs and no absent() alerts."
+ },
+ {
+  "id": "PRC-M326",
+  "severity": "medium",
+  "module": "providers",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "provider integrations (credentials, new client dependencies, payments)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/providers/src/index.ts",
+    "line": "5,89,116",
+    "excerpt": "W2-INT-03: credentials / PROVIDER_MODE=live alone must NOT report liveReady ... liveReady: false,"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Only sandbox adapters at tip."
+ },
+ {
+  "id": "PRC-M408",
+  "severity": "medium",
+  "module": "tools-dod-checks",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "tools/dod-checks/src/checks/tenant-id.mjs",
+   "tools/dod-checks/src/lib/ts-ast.mjs",
+   "tools/dod-checks/test/runner.mjs"
+  ],
+  "evidence": [
+   {
+    "file": "tools/dod-checks/src/checks/tenant-id.mjs",
+    "line": "1",
+    "excerpt": "name/regex heuristic check (no AST SQL/withTenant predicate analysis)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Analyzer upgrade is tooling only; it does not change runtime tenant policy."
+ },
+ {
+  "id": "PRC-M409",
+  "severity": "medium",
+  "module": "tools-dod-checks",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "tools/dod-checks/src/checks/cross-service-joins.mjs",
+   "tools/dod-checks/src/lib/platform-scope.mjs",
+   "tools/dod-checks/test/runner.mjs"
+  ],
+  "evidence": [
+   {
+    "file": "tools/dod-checks/src/checks/cross-service-joins.mjs",
+    "line": "1",
+    "excerpt": "no pg .query template-string scanning or db/sql table->service registry"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Scanner coverage gap remains; tooling only."
+ },
+ {
+  "id": "PRC-M410",
+  "severity": "medium",
+  "module": "tools-dod-checks",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "tools/dod-checks/src/checks/audit-events.mjs",
+   "tools/dod-checks/test/runner.mjs"
+  ],
+  "evidence": [
+   {
+    "file": "tools/dod-checks/src/checks/audit-events.mjs",
+    "line": "9,31-39",
+    "excerpt": "service file contains audit-trail integration ... /\\baudit(?:Service|Logger|Repo|Repository|Producer|Bus)?\\b/i ... /from\\s+['\"]@proctira\\/(?:backend-)?audit['\"]/"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Still a file-level word match; no per-handler analysis."
+ },
+ {
+  "id": "PRC-M419",
+  "severity": "medium",
+  "module": "tools-migrations",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "tools/migrations/src/generate-uuids.ts",
+   "tools/migrations/src/assign-tenant.ts",
+   "tools/migrations/src/assign-tenant.test.ts",
+   "tools/migrations/vitest.config.ts"
+  ],
+  "evidence": [
+   {
+    "file": "tools/migrations/src",
+    "line": "-",
+    "excerpt": "no generate-uuids test file; no *.live.test.ts in tools/migrations/src"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "DB-backed tests absent. Can follow the repo's existing *.live.test.ts + DATABASE_URL pattern without new dependencies."
+ },
+ {
+  "id": "PRC-M428",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI aggregate topology / path filters",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "ci-aggregate needs",
+    "excerpt": "helm-template static ops gates (check-no-latest-image-tags.sh, check-topology-canonical.sh, check-replica-policy.sh) not in ci-aggregate needs"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Unchanged."
+ },
+ {
+  "id": "PRC-M429",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI gate needing seeded authenticated session",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/check-lighthouse.mjs",
+    "line": "77-79",
+    "excerpt": "performance is advisory for the anonymous `/login` surface ... resumes when LHCI_AUTH_COOKIE unlocks authenticated routes."
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Authenticated/mobile routes still not gated."
+ },
+ {
+  "id": "PRC-M430",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "design-token/brand colour changes (UX/a11y owner) + CI gate policy",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "215",
+    "excerpt": "run: pnpm run check:contrast  (no --strict)"
+   },
+   {
+    "file": "tools/scripts/check-contrast-baseline.json",
+    "line": "24",
+    "excerpt": "\"ratio\": 1.98,  (10 baselined pairs)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Baseline and non-strict CI unchanged; closing needs token changes."
+ },
+ {
+  "id": "PRC-M431",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI evidence gates (gh api verification, CI wiring)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/check-restore-drill-evidence.sh",
+    "line": "112-114",
+    "excerpt": "const runUrl = ...; if (!runUrl.includes(\"github.com\") || !runUrl.includes(\"/actions/runs/\"))  (string check only, no freshness)"
+   },
+   {
+    "file": "tools/scripts/check-dod-evidence.sh",
+    "line": "58-60",
+    "excerpt": "same string-only runUrl check; script not invoked by any workflow"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No freshness window or run verification."
+ },
+ {
+  "id": "PRC-M433",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "forward FK re-validation migration + waiver expiry",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/check-strict-tenant-fks.mjs",
+    "line": "1",
+    "excerpt": "trusts convalidated; waivers carry no expiry"
+   },
+   {
+    "file": "db/sql/087_cross_domain_fk_prisma_not_valid.sql",
+    "line": "1",
+    "excerpt": "NOT VALID FKs still unvalidated (see M216)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Requires the M216 re-validation migration."
+ },
+ {
+  "id": "PRC-M434",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI workflow wiring",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "1548",
+    "excerpt": "tools/scripts/check-i18n.test.mjs  (only the script's unit test runs; check:i18n itself is never invoked)"
+   },
+   {
+    "file": "tools/scripts/check-i18n.mjs",
+    "line": "5",
+    "excerpt": "Walks every JSON file under `apps/web/src/messages/`"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Gate not run in CI; apps/web only."
+ },
+ {
+  "id": "PRC-M435",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "PHI deletion audit trail (privacy/audit chain) under BYPASSRLS role",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/phi-retention-job.mjs",
+    "line": "202-217",
+    "excerpt": "DELETE FROM counselling_sessions WHERE id IN (...) ... DELETE FROM health_special_needs_assessments ...  (no audit_log_entries insert, no tenant attribution)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Unchanged at tip."
+ },
+ {
+  "id": "PRC-M503",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "[D1 N/A: real blocker is PSP/provider integration, not currency; stays OPEN] Fee payments: method DEFAULT 'sandbox'/status DEFAULT 'succeeded', no provider/provider_txn_id column, no DB SUM-payments<=invoice constraint. Overpayment is already guarded in-app (ledger PARTIAL). Deferred: adding provider columns + a payment-sum constraint trigger is fee-domain modelling + a product decision on provider defaults. Left OPEN. wave0-triage-2026-10-25: met: nullable parent_fee_payments.provider_txn_id column (PR #650, db/sql/250_fee_payment_provider_txn_id.sql:19); unmet steps: method DEFAULT 'sandbox' / status DEFAULT 'succeeded' unchanged, no DB payment-sum<=invoice constraint, idempotency still app-only, no PSP integration."
+  },
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "financial (payment defaults, overpayment constraint) + PSP integration",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/250_fee_payment_provider_txn_id.sql",
+    "line": "1,19",
+    "excerpt": "PRC-M503: narrow schema-only column ... ADD COLUMN IF NOT EXISTS provider_txn_id TEXT;"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "provider-aware defaults",
+   "overpayment DB guard",
+   "DB-level idempotency"
+  ],
+  "rationale": "#650 explicitly leaves the core finding open; one sub-step landed."
+ },
+ {
+  "id": "PRC-M506",
+  "severity": "medium",
+  "module": "db",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "column type migrations + EXCLUDE (btree_gist)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/006_transport_schema.sql",
+    "line": "16-17,34-35",
+    "excerpt": "departure_time TEXT, return_time TEXT, ... pickup_time TEXT, dropoff_time TEXT,"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "TEXT times and missing uniqueness/overlap guards unchanged."
+ },
+ {
+  "id": "PRC-M513",
+  "severity": "medium",
+  "module": "github",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "production deploy policy",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/deploy.yml",
+    "line": "21,144-159",
+    "excerpt": "workflow_dispatch: Manual deploy for any ref ... W1-OPS-23: manual deploys must prove the selected SHA passed CI ... require-same-sha-ci.mjs"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Same-SHA CI is required, but no ref==main restriction, staging-before-prod, or auto-rollback."
+ },
+ {
+  "id": "PRC-M522",
+  "severity": "medium",
+  "module": "infrastructure",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "production network policy needs operator datastore location",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infrastructure/k8s/overlays/production",
+    "line": "-",
+    "excerpt": "reconciled by PR #652; egress still public-443 ipBlock only"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged since #652."
+ },
+ {
+  "id": "PRC-M524",
+  "severity": "medium",
+  "module": "infrastructure",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "gateway boot policy (security config guard)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "apps/api-gateway/src/config.ts",
+    "line": "235-239,261,319",
+    "excerpt": "PRC-M524: parse CORS_ORIGINS. A production boot-fail guard ... was deferred ... resolveCorsOrigins(env, process.env['CORS_ORIGINS']) ... parseTrustedProxyCidrs(...)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: boot-fail guard deferred."
+ },
+ {
+  "id": "PRC-M530",
+  "severity": "medium",
+  "module": "ops",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Not addressed: ${VAR:?} admin creds/client secret + ALLOW_SANDBOX_PROVIDERS default 0 + prod override with start; deferred (same root compose as M311). wave0-triage-2026-10-25: met: Keycloak admin password now required via ${KEYCLOAK_ADMIN_PASSWORD:?} (docker-compose.yml:152); unmet steps: ALLOW_SANDBOX_PROVIDERS still defaults to 1 (docker-compose.yml:193), Keycloak still runs start-dev with no production override (docker-compose.yml:149), KEYCLOAK_ADMIN defaults to 'admin' (docker-compose.yml:151)."
+  },
+  "eligibility": "INFRA_BATCH",
+  "boundary": "compose topology / provider defaults",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "docker-compose.yml",
+    "line": "149-152",
+    "excerpt": "command: ['start-dev', '--import-realm'] ... KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin} KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?...}"
+   },
+   {
+    "file": "docker-compose.yml",
+    "line": "193",
+    "excerpt": "ALLOW_SANDBOX_PROVIDERS: ${ALLOW_SANDBOX_PROVIDERS:-1}"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "ALLOW_SANDBOX_PROVIDERS default 0",
+   "production Keycloak override using start",
+   "client secret ${VAR:?}"
+  ],
+  "rationale": "admin/admin is gone (password required); sandbox default and dev-mode Keycloak remain."
+ },
+ {
+  "id": "PRC-M551",
+  "severity": "medium",
+  "module": "tools-dod-checks",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "tools/dod-checks/bin/dod-check.mjs",
+   "tools/dod-checks/test/runner.mjs"
+  ],
+  "evidence": [
+   {
+    "file": "tools/dod-checks/bin/dod-check.mjs",
+    "line": "144,151",
+    "excerpt": "if (err && err.code === 'ENOENT') return null; ... return { ok: true, regressions: [], summary: 'no baseline on disk' };"
+   },
+   {
+    "file": "tools/dod-checks/bin/dod-check.mjs",
+    "line": "338-340",
+    "excerpt": "const failed = args.updateBaseline ? false : absoluteFail || baselineFail; process.exit(failed ? 1 : 0);"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Missing baseline still passes and --update-baseline still exits 0. Gate-script change; CI wiring of a 'never increases' check would be INFRA but the script part is not."
+ },
+ {
+  "id": "PRC-M553",
+  "severity": "medium",
+  "module": "tools-migrations",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "tools/migrations/src/generate-uuids.ts",
+   "tools/migrations/src/transform-schema.ts",
+   "tools/migrations/src/run-generate-uuids.ts"
+  ],
+  "evidence": [
+   {
+    "file": "tools/migrations/src/generate-uuids.ts",
+    "line": "110-123",
+    "excerpt": "Add a temporary legacy_id column if not present ... ADD COLUMN IF NOT EXISTS _legacy_id BIGINT; ... AND m.legacy_id = t._legacy_id::bigint  (never populated)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Unchanged. Migration tooling code, not a schema migration; needs a DB-backed test (see M419)."
+ },
+ {
+  "id": "PRC-M558",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI coverage gate policy",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/coverage-gate-baseline.json",
+    "line": "3-8",
+    "excerpt": "\"lines\": 5, \"statements\": 5, \"functions\": 5, \"branches\": 3"
+   },
+   {
+    "file": "tools/scripts/assert-coverage-gate.mjs",
+    "line": "22-24",
+    "excerpt": "if (env.ALLOW_COVERAGE_SKIP === '1') return false; return env.CI === 'true' || env.CI === '1';"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Floors and bypass unchanged."
+ },
+ {
+  "id": "PRC-M559",
+  "severity": "medium",
+  "module": "tools-scripts",
+  "old_disposition": "OPEN",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Not addressed: psqlScalar throw + single BEGIN..COMMIT + startup role assertion; coupled with M435, deferred. wave0-triage-2026-10-25: met: DELETE failures now throw via psqlExec instead of counting as 0 (tools/scripts/phi-retention-job.mjs:143-152,210-217); unmet steps: psqlScalar still returns null->0 on count errors (tools/scripts/phi-retention-job.mjs:131-140,189-191), deletes are two separate psql sessions (no single BEGIN..COMMIT), no startup role/BYPASSRLS assertion so an RLS-filtered role can still report success deleting nothing."
+  },
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "PHI deletion job semantics + DB role assertion (privacy/RLS)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/phi-retention-job.mjs",
+    "line": "131-140",
+    "excerpt": "function psqlScalar(sql) { ... if (result.status !== 0) { return null; } ..."
+   },
+   {
+    "file": "tools/scripts/phi-retention-job.mjs",
+    "line": "189-191",
+    "excerpt": "const counsellingCount = psqlScalar(...) ?? 0;"
+   },
+   {
+    "file": "tools/scripts/phi-retention-job.mjs",
+    "line": "143-152,210-212",
+    "excerpt": "function psqlExec(sql) { ... throw new Error(result.stderr || 'psql failed'); ... PRC-H107/H259: a failure here must not be swallowed as a zero count"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [
+   "psqlScalar throw",
+   "single transaction",
+   "startup role assertion"
+  ],
+  "rationale": "One of the listed failure modes is closed at tip; the RLS/role silent-zero mode remains."
+ },
+ {
+  "id": "PRC-M592",
+  "severity": "medium",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "new tables + RLS policies; mounting is a product decision (G-924 parked)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "apps/api-gateway/src/mount-matrix.ts",
+    "line": "486-487",
+    "excerpt": "G-924 PARKED (superseded) ... notes: 'Unmounted; insights UI owns `/data-warehouse` (G-209).'"
+   },
+   {
+    "file": "packages/backend/data-warehouse/src/in-memory-repository.ts",
+    "line": "1",
+    "excerpt": "only in-memory repositories exist in the package (no pg-* repository file)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "No persistent repository, SQL or RLS; still unmounted at tip. Needs migration + RLS and an owner decision to mount."
+ },
+ {
+  "id": "PRC-M593",
+  "severity": "medium",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "packages/backend/data-warehouse/src/data-warehouse-service.ts",
+   "packages/backend/data-warehouse/src/publishing-service.ts",
+   "packages/backend/data-warehouse/src/data-warehouse-service.test.ts",
+   "packages/backend/data-warehouse/src/publish-export-caps.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/data-warehouse-service.ts",
+    "line": "940-959",
+    "excerpt": "if (query.timePeriods && query.timePeriods.length > 0) { timePeriodIds = []; for (label ...) if (tp) timePeriodIds.push(tp.id) }  (all-unknown labels -> empty array treated as no filter)"
+   },
+   {
+    "file": "packages/backend/data-warehouse/src/publishing-service.ts",
+    "line": "225-246",
+    "excerpt": "same pattern for publish"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Unknown labels still collapse to an empty id list that downstream treats as unfiltered. Fail-closed (reject or return empty) is an in-package correctness fix with tests; package unmounted."
+ },
+ {
+  "id": "PRC-M599",
+  "severity": "medium",
+  "module": "infrastructure",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "Helm chart render-time guard",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infrastructure/helm/proctira-platform/values-production.yaml",
+    "line": "-",
+    "excerpt": "reconciled by PR #652: image.tag sha-pending pinned; render-time guard still absent"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ },
+ {
+  "id": "PRC-M614",
+  "severity": "medium",
+  "module": "tools-tenant-isolation-tests",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_MEDIUM",
+  "boundary": null,
+  "expected_files": [
+   "tools/tenant-isolation-tests/src/cache/namespace-collision.test.ts",
+   "tools/tenant-isolation-tests/src/report/export-isolation.test.ts",
+   "tools/tenant-isolation-tests/src/unit/query-scoping.test.ts",
+   "tools/tenant-isolation-tests/src/helpers/in-memory-stores.ts"
+  ],
+  "evidence": [
+   {
+    "file": "tools/tenant-isolation-tests/src/cache/namespace-collision.test.ts",
+    "line": "15-23",
+    "excerpt": "import { ... } from '../helpers/index.js';  (in-file/in-helper simulators, not product code)"
+   },
+   {
+    "file": "tools/tenant-isolation-tests/src/report/export-isolation.test.ts",
+    "line": "16-28",
+    "excerpt": "from '../helpers/index.js'"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Test rewiring to product code paths; test-only change, no runtime policy change."
+ },
+ {
+  "id": "PRC-M617",
+  "severity": "medium",
+  "module": "data-warehouse",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "authentication/authorization + tenant binding (mount with tenant/auth plugin)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/backend/data-warehouse/src/routes.ts",
+    "line": "49,110-111",
+    "excerpt": "(request as ...).tenantId; if (!tenantId) return sendTenantRequired(reply);  (no auth/role check)"
+   },
+   {
+    "file": "apps/api-gateway/src/mount-matrix.ts",
+    "line": "487",
+    "excerpt": "Unmounted; insights UI owns `/data-warehouse` (G-209)."
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Routes still rely on an unset request.tenantId with no auth/role check; package unmounted. Auth/tenant boundary."
+ },
+ {
+  "id": "PRC-M623",
+  "severity": "medium",
+  "module": "infrastructure",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "DB role/RLS bypass credential split (owner decision per ledger note)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infrastructure/helm/proctira-platform/values.yaml",
+    "line": "1137",
+    "excerpt": "databaseUrlSecretKey: BACKUP_DATABASE_URL"
+   },
+   {
+    "file": "infrastructure/helm/proctira-platform/templates/dr/phi-retention-cronjob.yaml",
+    "line": "80",
+    "excerpt": "key: {{ .Values.dr.databaseUrlSecretKey }}"
+   },
+   {
+    "file": "infrastructure/helm/proctira-platform/templates/dr/backup-cronjob.yaml",
+    "line": "154",
+    "excerpt": "key: {{ .Values.dr.databaseUrlSecretKey }}"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Shared BYPASSRLS credential unchanged."
+ },
+ {
+  "id": "PRC-M624",
+  "severity": "medium",
+  "module": "infrastructure",
+  "old_disposition": "OPEN",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "DR/retention economics decision (COMPLIANCE-only lock, PITR) per ledger note",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "infrastructure/helm/proctira-platform/templates/dr/backup-cronjob.yaml",
+    "line": "19-21",
+    "excerpt": "if and (ne $lockMode \"GOVERNANCE\") (ne $lockMode \"COMPLIANCE\") ... must be GOVERNANCE or COMPLIANCE"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "GOVERNANCE still accepted; single daily logical dump."
+ },
+ {
+  "id": "PRC-L101",
+  "severity": "low",
+  "module": "etl",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/backend/etl/src/routes.test.ts",
+   "packages/backend/etl/src/pg-pipeline-repository.test.ts",
+   "packages/backend/etl/src/connectors/safe-fetch.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/backend/etl/src/connectors/safe-fetch.test.ts",
+    "line": "1",
+    "excerpt": "SSRF connector tests exist (met part recorded in existing PARTIAL)"
+   },
+   {
+    "file": "packages/backend/etl/src",
+    "line": "-",
+    "excerpt": "grep for cross-tenant/tenantB/other tenant across packages/backend/etl/src/*.test.ts returns no match"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: connector SSRF/LFI tests exist, no dedicated authz or cross-tenant repository tests at tip. Test-only addition; disposition left as-is."
+ },
+ {
+  "id": "PRC-L176",
+  "severity": "low",
+  "module": "tools-load-test",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI workflow wiring + live stack for k6",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/load-test/k6-script.js",
+    "line": "8-23",
+    "excerpt": "No tenant can read another tenant's student ... At least two tenants ... PRC-L176: reads must return 200 (404 on a seeded id is a failure)"
+   },
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "1480",
+    "excerpt": "run: node --test tools/load-test/lib.test.mjs ...  (unit test only; k6 never run in CI)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: scenario fidelity fixed in script, no k6 CI run against a live stack."
+ },
+ {
+  "id": "PRC-L290",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "migration apply posture default (tools/scripts/apply-sql.sh) + checksum-locked base DDL",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/apply-sql.sh",
+    "line": "69-76",
+    "excerpt": "if [[ -z \"${APPLY_STRICT_FKS+x}\" ]]; then if [[ \"${CI:-}\" == \"true\" || \"${NODE_ENV:-}\" == \"production\" ]]; then APPLY_STRICT_FKS=1 else APPLY_STRICT_FKS=0"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: strict tenant FKs still default OFF outside CI/production and stay NOT VALID-first. Disposition left as-is."
+ },
+ {
+  "id": "PRC-L300",
+  "severity": "low",
+  "module": "eslint-plugin-openemis",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "apps/web/.eslintrc.json"
+  ],
+  "evidence": [
+   {
+    "file": "apps/web/.eslintrc.json",
+    "line": "30",
+    "excerpt": "\"proctira/no-hardcoded-brand-strings\": \"warn\""
+   },
+   {
+    "file": "packages/eslint-plugin-openemis/src/rules/no-hardcoded-brand-strings.js",
+    "line": "69",
+    "excerpt": "Trailing boundary: a brand at the end of prose (rule fix already landed)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: rule fixed, apps/web severity still 'warn' pending migration of existing brand strings to useBrand()."
+ },
+ {
+  "id": "PRC-L307",
+  "severity": "low",
+  "module": "github",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI aggregate/release gating topology",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows/ci.yml",
+    "line": "ci-aggregate needs",
+    "excerpt": "needs: detect-changes, lint, typecheck, ... security-scans, secondary-apps-e2e, mobile-flutter (no e2e-backend-ready, helm-template, actionlint, supply-chain workflows)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ },
+ {
+  "id": "PRC-L335",
+  "severity": "low",
+  "module": "ops",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "compose service config",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "docker-compose.yml",
+    "line": "343-446",
+    "excerpt": "registration-portal, public-website, admin-console, developer-portal, install-wizard services have no healthcheck (last healthcheck at line 334 for web)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ },
+ {
+  "id": "PRC-L350",
+  "severity": "low",
+  "module": "shared-database",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "column type migration (float->numeric) in examination domain",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "packages/shared/database/prisma/migrations/20260612_add_examination_assessment_staff_assignments/migration.sql",
+    "line": "294,389-390,437",
+    "excerpt": "\"score\" DOUBLE PRECISION NOT NULL ... \"min_value\" DOUBLE PRECISION ... \"weight\" DOUBLE PRECISION"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ },
+ {
+  "id": "PRC-L351",
+  "severity": "low",
+  "module": "shared-database",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI workflow gate for Prisma-only deploy FORCE RLS",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/tenant-isolation-tests/src/integration/rls-live.test.ts",
+    "line": "87-93",
+    "excerpt": "NOT c.relrowsecurity OR NOT c.relforcerowsecurity ... (live check on the standard apply path)"
+   },
+   {
+    "file": "packages/shared/database/prisma/migrations/20260908_wave7_rls_hardening/migration.sql",
+    "line": "1",
+    "excerpt": "wave7 FORCEs a subset of tables"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: standard apply safe via 051, no gate for a Prisma-only deploy path."
+ },
+ {
+  "id": "PRC-L376",
+  "severity": "low",
+  "module": "tools-migrations",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "tools/migrations/src/sql-safety.ts",
+   "tools/migrations/src/config.ts",
+   "tools/migrations/src/config-safety.test.ts"
+  ],
+  "evidence": [
+   {
+    "file": "tools/migrations/src/sql-safety.ts",
+    "line": "1",
+    "excerpt": "allowlist + identifier guard (no quote_ident/%L/%I helper)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: creds/SSL required; quoting helper not added."
+ },
+ {
+  "id": "PRC-L380",
+  "severity": "low",
+  "module": "tools-scripts",
+  "old_disposition": "PARTIAL",
+  "triage_result": "PARTIAL_CONFIRMED",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "PARTIAL",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Not changed here: pg_advisory_lock + APPLY_SEEDS prod refusal. Shipped path already mitigated by run-target-database-migrations.sh (APPLY_SEEDS=0, serialised deploys). Residual non-CI concurrency risk. wave0-triage-2026-10-25: met: cross-process pg_try_advisory_lock held for the whole run (tools/scripts/apply-sql.sh:320-345) and APPLY_SEEDS=1 refused under NODE_ENV/ENVIRONMENT=production (tools/scripts/apply-sql.sh:207-213); test `pnpm exec vitest run tools/scripts/__tests__/apply-sql-guards.test.ts` exit 0 (5/5); unmet steps: strict-FK files still default OFF outside CI/NODE_ENV=production (tools/scripts/apply-sql.sh:69-76)."
+  },
+  "eligibility": "INFRA_BATCH",
+  "boundary": "migration apply default posture (strict FK default)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/apply-sql.sh",
+    "line": "207-213",
+    "excerpt": "PRC-L380: demo seeds must never reach a production database by env mistake ... APPLY_SEEDS=1 refused with NODE_ENV/ENVIRONMENT=production"
+   },
+   {
+    "file": "tools/scripts/apply-sql.sh",
+    "line": "320-345",
+    "excerpt": "PRC-L380: one apply-sql run per database ... SELECT pg_try_advisory_lock(hashtext('%s'))"
+   },
+   {
+    "file": "tools/scripts/apply-sql.sh",
+    "line": "69-76",
+    "excerpt": "APPLY_STRICT_FKS=1 only when CI=true or NODE_ENV=production, else 0"
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "pnpm -C <W> exec vitest run tools/scripts/__tests__/apply-sql-guards.test.ts",
+    "exit_code": 0,
+    "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L380-apply-sql-guards.log"
+   }
+  ],
+  "unmet_steps": [
+   "strict-FK default outside CI/production"
+  ],
+  "rationale": "Ledger note says lock/seed guard not changed, but tip has both (4c436323, 2026-10-04) with passing tests. Strict-FK default (shared with L290) remains."
+ },
+ {
+  "id": "PRC-L383",
+  "severity": "low",
+  "module": "tools-scripts",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "backup/DR pipeline (helm env assertion, post-upload decrypt)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/backup-crypto.sh",
+    "line": "9,14-26",
+    "excerpt": "umask 077 ... backup_encrypt_if_configured() (met part already recorded)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: helm-template env assertion and post-upload test-decrypt absent."
+ },
+ {
+  "id": "PRC-L389",
+  "severity": "low",
+  "module": "tools-scripts",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STALE",
+  "twin_id": null,
+  "proposed": {
+   "disposition": "FULLY_CLOSED",
+   "latest_wave": "wave0-triage-2026-10-25",
+   "notes": "Not changed here: invert default to require-live. CI already passes E2E_REQUIRE_LIVE=1 (hard gate on PR/schedule); fail-open only for non-CI callers. Found already implemented at tip 4c7fb8fe (tools/scripts/run-e2e-backend-ready.sh:24-28,59-63,124-130 fail-closed by default: missing DATABASE_URL exits 1 unless E2E_ALLOW_SKIP=1, E2E_REQUIRE_LIVE=1 overrides; test `node --test tools/scripts/run-e2e-backend-ready.test.mjs` exit 0, 6/6) with passing tests; disposition ALREADY_FIXED (STALE finding)."
+  },
+  "eligibility": null,
+  "boundary": null,
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/scripts/run-e2e-backend-ready.sh",
+    "line": "24-28",
+    "excerpt": "E2E_ALLOW_SKIP   PRC-L389: the harness is fail-closed by default \u2014 a missing DATABASE_URL, missing psql or unhealthy gateway exits 1."
+   },
+   {
+    "file": "tools/scripts/run-e2e-backend-ready.sh",
+    "line": "59-63",
+    "excerpt": "# PRC-L389: live is required unless the caller explicitly allows a skip. LIVE_REQUIRED=1 if [[ \"${E2E_ALLOW_SKIP:-0}\" == \"1\" && \"${E2E_REQUIRE_LIVE:-0}\" != \"1\" ]]; then LIVE_REQUIRED=0"
+   },
+   {
+    "file": "tools/scripts/run-e2e-backend-ready.sh",
+    "line": "124-130",
+    "excerpt": "if [[ -z \"${DATABASE_URL:-}\" ]]; then if [[ \"$LIVE_REQUIRED\" == \"1\" ]]; then echo \"error: DATABASE_URL is required ...\" >&2; exit 1"
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "node --test tools/scripts/run-e2e-backend-ready.test.mjs (env -u CI -u DATABASE_URL)",
+    "exit_code": 0,
+    "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L389-run-e2e.log"
+   }
+  ],
+  "unmet_steps": [],
+  "rationale": "Default inverted to require-live in 4c436323 (2026-10-04); the 2026-10-11 note predates recognising it. Tests cover default fail-closed, explicit skip, REQUIRE_LIVE override and loopback bind. --skip-stack remains an explicit opt-in scaffolding exit, not a default."
+ },
+ {
+  "id": "PRC-L497",
+  "severity": "low",
+  "module": "shared-testing",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/shared/testing/src/index.ts",
+   "packages/shared/testing/src/live-database.ts"
+  ],
+  "evidence": [
+   {
+    "file": "packages/shared/testing/src/index.ts",
+    "line": "45-48",
+    "excerpt": "// PRC-L497: in-memory multi-board fixture (never persists to a database) seedMultiBoardSchools, assertMultiBoardSeedInvariants"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: exported, still in-memory only."
+ },
+ {
+  "id": "PRC-L557",
+  "severity": "low",
+  "module": "db",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "SCHEMA_BATCH",
+  "boundary": "view recreation over RLS table (forward migration)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "db/sql/003_sis_timetable_schedule_schema.sql",
+    "line": "151",
+    "excerpt": "CREATE OR REPLACE VIEW periods AS  (no security_invoker; no later migration sets it)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ },
+ {
+  "id": "PRC-L581",
+  "severity": "low",
+  "module": "shared-database",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "ELIGIBLE_LOW",
+  "boundary": null,
+  "expected_files": [
+   "packages/eslint-plugin-openemis/src/index.js",
+   "packages/eslint-plugin-openemis/package.json"
+  ],
+  "evidence": [
+   {
+    "file": "packages/eslint-plugin-openemis/src/index.js",
+    "line": "1",
+    "excerpt": "plugin rules at tip: error-envelope, icon-only-button, img-requires-dimensions, no-hardcoded-brand-strings, no-hardcoded-i18n-message, no-physical-margin-padding (no document-store scope rule)"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged. Residual is a static lint rule forbidding unscoped PgDocumentCollection call sites (new rule + test under packages/eslint-plugin-openemis); it adds enforcement without changing runtime tenant policy."
+ },
+ {
+  "id": "PRC-M423",
+  "severity": "medium",
+  "module": "tools-migrations",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "new dependency (mysql2) + legacy source access",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/migrations/src/parallel-operation.ts",
+    "line": "93-102",
+    "excerpt": "Checks health of the legacy MySQL system (via staging schema in PG for this implementation)."
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ },
+ {
+  "id": "PRC-M425",
+  "severity": "medium",
+  "module": "tools-migrations",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "INFRA_BATCH",
+  "boundary": "CI workflow job for @proctira/migrations",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": ".github/workflows",
+    "line": "-",
+    "excerpt": "grep tools/migrations|@proctira/migrations in .github/workflows: no match"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: unit tests exist, no CI job."
+ },
+ {
+  "id": "PRC-M552",
+  "severity": "medium",
+  "module": "tools-migrations",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "new dependency (kafkajs) + live Kafka/MySQL; event contract",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/migrations/src/cdc-sync.ts",
+    "line": "4,12,259-266",
+    "excerpt": "Implements Kafka-based CDC ... Publishes change events to Kafka topics ... determineOperation(...) { ... return 'UPDATE'; }"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged: header still claims Kafka; operation always UPDATE."
+ },
+ {
+  "id": "PRC-M557",
+  "severity": "medium",
+  "module": "tools-migrations",
+  "old_disposition": "PARTIAL",
+  "triage_result": "STILL_OPEN",
+  "twin_id": null,
+  "proposed": null,
+  "eligibility": "BLOCKED_FOR_APPROVAL",
+  "boundary": "privacy/retention decision (default-on PII purge)",
+  "expected_files": [],
+  "evidence": [
+   {
+    "file": "tools/migrations/src/run-full-migration.ts",
+    "line": "229-257",
+    "excerpt": "PRC-M557 \u2014 opt-in purge of the staging schema (raw legacy PII). Only runs when MIGRATION_PURGE_STAGING is truthy ... DROP SCHEMA IF EXISTS"
+   }
+  ],
+  "tests_run": [],
+  "unmet_steps": [],
+  "rationale": "Existing PARTIAL unchanged."
+ }
+]

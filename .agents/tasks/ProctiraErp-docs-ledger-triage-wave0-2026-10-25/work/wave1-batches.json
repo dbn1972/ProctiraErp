@@ -1,0 +1,492 @@
+{
+ "batches": [
+  {
+   "branch": "fix/app-web-batch1",
+   "scope": "apps/web: route-area UI fixes, dead-client removal, gateway proxy streaming, test-only gaps",
+   "size": 12,
+   "items": [
+    {
+     "id": "PRC-L228",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "No component tests for gradebook workflow, EntitySearchSelect, import wizard, health/staff/students pages",
+     "unmet_first": "no component tests for the staff and students list pages (app/(dashboard)/staff/page.tsx, app/(dashboard)/students/page.tsx); only e2e coverage via page-regression-matrix",
+     "rationale": "Most named targets now have passing component tests (added in #536 before the w3 note); staff/students page tests are the remaining test-only gap (register re-triage: codeable).",
+     "expected_files": [
+      "apps/web/src/app/(dashboard)/staff/page.test.tsx",
+      "apps/web/src/app/(dashboard)/students/page.test.tsx"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L240",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Fees and health forms: status shown by colour only, unlabeled raw selects and no field-level errors",
+     "unmet_first": "fees create forms (new-fee-plan-form.tsx, new-invoice-form.tsx) have no field-level errors / aria-invalid",
+     "rationale": "Remaining a11y gap is field-level errors on two live fees forms; UI-only.",
+     "expected_files": [
+      "apps/web/src/app/(dashboard)/fees/_components/new-fee-plan-form.tsx",
+      "apps/web/src/app/(dashboard)/fees/_components/new-invoice-form.tsx",
+      "apps/web/src/app/(dashboard)/fees/_components/new-fee-plan-form.test.tsx"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L253",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Service worker classifier is duplicated by hand; sw.js is untested and blocked in all Playwright runs",
+     "unmet_first": "classifier is still hand-duplicated (drift detected, not generated)",
+     "rationale": "sw.js is now tested; SW-enabled Playwright project remains (register re-triage lists L253 as codeable).",
+     "expected_files": [
+      "apps/web/playwright.config.ts",
+      "apps/web/e2e/service-worker.spec.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L255",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Edit-facility form is not prefilled and does not follow the selected facility; room/facility saves do not refresh",
+     "unmet_first": null,
+     "rationale": "Form-state refactor on a live component; no protected boundary.",
+     "expected_files": [
+      "apps/web/src/components/institutions/facility-editor.tsx",
+      "apps/web/src/components/institutions/facility-editor.test.tsx",
+      "apps/web/src/app/(dashboard)/institutions/[id]/infrastructure/actions.ts",
+      "apps/web/src/app/(dashboard)/institutions/[id]/infrastructure/page.tsx"
+     ],
+     "extra_files_source": "salvage commit 05591952a on fix/web-lows-L255 (orphan-branches.json SALVAGE_CANDIDATE)"
+    },
+    {
+     "id": "PRC-L270",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Scholarship document panel/slots: Preview identical to Download, unconfirmed Remove, reject reason detached, English-only",
+     "unmet_first": "Preview calls the same download() as Download (application-documents-panel.tsx:150-160)",
+     "rationale": "Preview/Remove fixes are local UI work; i18n part follows register \u00a74.",
+     "expected_files": [
+      "apps/web/src/features/scholarships/components/application-documents-panel.tsx",
+      "apps/web/src/features/scholarships/components/document-upload-slots.tsx",
+      "apps/web/src/features/scholarships/components/application-documents-panel.test.tsx"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L413",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Screenshot/mock-gateway scripts mint SUPER_ADMIN JWTs with the default dev secret and return 200 for every write",
+     "unmet_first": "HMAC dev secret still hard-coded (apps/web/scripts/capture-institutions-timetable.mjs:49 'dev-secret-change-in-production'); not read from env only",
+     "rationale": "Dev-tooling only; env-sourced secret is a scripts change.",
+     "expected_files": [
+      "apps/web/scripts/capture-institutions-timetable.mjs",
+      "apps/web/scripts/mock-gateway.mjs"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L435",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Disbursement screen: hard-coded USD, placeholder application column, UTC paid date, no payment reference",
+     "unmet_first": "payment date formatted without a timeZone (page.tsx:74-82), not tenant timezone",
+     "rationale": "Remaining items are display-only; tenant tz helper already exists (resolveTenantTimezone used by dashboard).",
+     "expected_files": [
+      "apps/web/src/app/(dashboard)/scholarships/disbursements/page.tsx",
+      "apps/web/src/app/(dashboard)/scholarships/disbursements/page.test.tsx"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L530",
+     "severity": "low",
+     "module": "app-web",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Official transcript issuance takes a pasted ID and has no confirmation; component is unreferenced",
+     "unmet_first": null,
+     "rationale": "Dead component still present and unreferenced; D6 (ACCEPTED) authorises deleting unreachable web code, so removal is codeable. Live IssueTranscriptByName path unaffected.",
+     "expected_files": [
+      "apps/web/src/components/gradebook/issue-transcript-form.tsx"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-M134",
+     "severity": "medium",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_MEDIUM",
+     "title": "Server-side proxies call the gateway with no timeout, buffer whole bodies, and leave gateway errors unhandled",
+     "unmet_first": "request.arrayBuffer() buffers the full body before the cap (gateway-proxy.ts:81)",
+     "rationale": "Streaming byte counter keeps the existing cap semantics; no auth/contract change.",
+     "expected_files": [
+      "apps/web/src/lib/api/gateway-proxy.ts",
+      "apps/web/src/lib/api/gateway-proxy.test.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-M144",
+     "severity": "medium",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "updateTenantGeneralSettings sends PATCH /tenant/settings; backend only exposes PUT with a different shape",
+     "unmet_first": "dead PATCH client updateTenantGeneralSettings still exported from apps/web/src/lib/api/admin.ts:578-587 (zero callers)",
+     "rationale": "Remaining fix is deleting the dead PATCH client (D6 authorises removing unreachable code).",
+     "expected_files": [
+      "apps/web/src/lib/api/admin.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-M147",
+     "severity": "medium",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Dashboard 'Enrollment' radar axis is a fabricated log-scale score, and clock times use the viewer's browser timezone",
+     "unmet_first": "dead client apps/web/src/lib/api/dashboards.ts still contains the fabricated log-scale enrollment score (:668, :756-759) and browser-local formatClock (:762-770); delete the unreachable module",
+     "rationale": "User-facing defect gone; code-level defect remains in an unreachable module (D6 authorises removal). Not closed while the code exists.",
+     "expected_files": [
+      "apps/web/src/lib/api/dashboards.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-M489",
+     "severity": "medium",
+     "module": "app-web",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "No unit tests for the money, exam-results and RBAC-admin clients; gateway.test does not cover auth-fallback paths",
+     "unmet_first": "no dedicated suites for lib/api/examinations.ts, lib/api/admin.server.ts, lib/api/health.ts",
+     "rationale": "Gateway auth-fallback (the notes' blocker) is already covered; remaining is test-only.",
+     "expected_files": [
+      "apps/web/src/lib/api/examinations.test.ts",
+      "apps/web/src/lib/api/admin.server.test.ts",
+      "apps/web/src/lib/api/health.test.ts"
+     ],
+     "extra_files_source": null
+    }
+   ],
+   "files": [
+    "apps/web/e2e/service-worker.spec.ts",
+    "apps/web/playwright.config.ts",
+    "apps/web/scripts/capture-institutions-timetable.mjs",
+    "apps/web/scripts/mock-gateway.mjs",
+    "apps/web/src/app/(dashboard)/fees/_components/new-fee-plan-form.test.tsx",
+    "apps/web/src/app/(dashboard)/fees/_components/new-fee-plan-form.tsx",
+    "apps/web/src/app/(dashboard)/fees/_components/new-invoice-form.tsx",
+    "apps/web/src/app/(dashboard)/institutions/[id]/infrastructure/actions.ts",
+    "apps/web/src/app/(dashboard)/institutions/[id]/infrastructure/page.tsx",
+    "apps/web/src/app/(dashboard)/scholarships/disbursements/page.test.tsx",
+    "apps/web/src/app/(dashboard)/scholarships/disbursements/page.tsx",
+    "apps/web/src/app/(dashboard)/staff/page.test.tsx",
+    "apps/web/src/app/(dashboard)/students/page.test.tsx",
+    "apps/web/src/components/gradebook/issue-transcript-form.tsx",
+    "apps/web/src/components/institutions/facility-editor.test.tsx",
+    "apps/web/src/components/institutions/facility-editor.tsx",
+    "apps/web/src/features/scholarships/components/application-documents-panel.test.tsx",
+    "apps/web/src/features/scholarships/components/application-documents-panel.tsx",
+    "apps/web/src/features/scholarships/components/document-upload-slots.tsx",
+    "apps/web/src/lib/api/admin.server.test.ts",
+    "apps/web/src/lib/api/admin.ts",
+    "apps/web/src/lib/api/dashboards.ts",
+    "apps/web/src/lib/api/examinations.test.ts",
+    "apps/web/src/lib/api/gateway-proxy.test.ts",
+    "apps/web/src/lib/api/gateway-proxy.ts",
+    "apps/web/src/lib/api/health.test.ts",
+    "docs/audits/remediation/app_web_batch1_DISPOSITIONS_2026-10-25.csv"
+   ]
+  },
+  {
+   "branch": "fix/ui-packages-batch1",
+   "scope": "packages/ui/* + custom-field (only custom-field rows are eligible)",
+   "size": 2,
+   "items": [
+    {
+     "id": "PRC-L447",
+     "severity": "low",
+     "module": "custom-field",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Custom-field list query is not validated: pageSize uncapped and isActive string breaks filter",
+     "unmet_first": null,
+     "rationale": "Query is cast, not validated; isActive arrives as a string.",
+     "expected_files": [
+      "packages/backend/custom-field/src/routes.ts",
+      "packages/backend/custom-field/src/routes.test.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L448",
+     "severity": "low",
+     "module": "custom-field",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Definition update can strip dropdown options / rules, and date validator accepts impossible dates",
+     "unmet_first": null,
+     "rationale": "Unchanged.",
+     "expected_files": [
+      "packages/backend/custom-field/src/custom-field-validator.ts",
+      "packages/backend/custom-field/src/custom-field-service.ts",
+      "packages/backend/custom-field/src/custom-field-validator.test.ts",
+      "packages/backend/custom-field/src/custom-field-service.test.ts"
+     ],
+     "extra_files_source": null
+    }
+   ],
+   "files": [
+    "docs/audits/remediation/ui_packages_batch1_DISPOSITIONS_2026-10-25.csv",
+    "packages/backend/custom-field/src/custom-field-service.test.ts",
+    "packages/backend/custom-field/src/custom-field-service.ts",
+    "packages/backend/custom-field/src/custom-field-validator.test.ts",
+    "packages/backend/custom-field/src/custom-field-validator.ts",
+    "packages/backend/custom-field/src/routes.test.ts",
+    "packages/backend/custom-field/src/routes.ts"
+   ]
+  },
+  {
+   "branch": "fix/platform-services-batch1",
+   "scope": "etl, data-warehouse, notification, survey backend packages",
+   "size": 10,
+   "items": [
+    {
+     "id": "PRC-L099",
+     "severity": "low",
+     "module": "etl",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "List filter enabled=true/false never matches; page/pageSize not validated",
+     "unmet_first": null,
+     "rationale": "PipelineListQuerySchema is defined but not attached, so enabled stays a string and page/pageSize are unvalidated (pageSize unbounded). Fix is route validation + boolean coercion with tests; no protected boundary.",
+     "expected_files": [
+      "packages/backend/etl/src/routes.ts",
+      "packages/backend/etl/src/schemas.ts",
+      "packages/backend/etl/src/routes.test.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L100",
+     "severity": "low",
+     "module": "etl",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "GET execution ignores :pipelineId in the path",
+     "unmet_first": null,
+     "rationale": "Handler still ignores :pipelineId; lookup is tenant-scoped so this is a path-consistency check (404 on mismatch), not a tenant-isolation change.",
+     "expected_files": [
+      "packages/backend/etl/src/routes.ts",
+      "packages/backend/etl/src/etl-service.ts",
+      "packages/backend/etl/src/routes.test.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L302",
+     "severity": "low",
+     "module": "etl",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "No audit events for pipeline create/update/delete/execute",
+     "unmet_first": null,
+     "rationale": "No audit events emitted for pipeline lifecycle at tip. Adding audit-recorder calls is additive and does not change authz/tenant policy.",
+     "expected_files": [
+      "packages/backend/etl/src/etl-service.ts",
+      "packages/backend/etl/src/etl-plugin.ts",
+      "packages/backend/etl/src/etl-service.test.ts",
+      "packages/backend/etl/src/etl-audit.ts",
+      "packages/backend/etl/src/etl-audit.test.ts",
+      "packages/backend/etl/src/execution-logger.ts",
+      "packages/backend/etl/src/index.ts"
+     ],
+     "extra_files_source": "fix/platform-services-batch1 plan.md (in-flight)"
+    },
+    {
+     "id": "PRC-L101",
+     "severity": "low",
+     "module": "etl",
+     "disposition_after_wave0": "PARTIAL",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Connectors, SSRF/authz and cross-tenant repository paths have no tests",
+     "unmet_first": null,
+     "rationale": "Existing PARTIAL unchanged: connector SSRF/LFI tests exist, no dedicated authz or cross-tenant repository tests at tip. Test-only addition; disposition left as-is.",
+     "expected_files": [
+      "packages/backend/etl/src/routes.test.ts",
+      "packages/backend/etl/src/pg-pipeline-repository.test.ts",
+      "packages/backend/etl/src/connectors/safe-fetch.test.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L333",
+     "severity": "low",
+     "module": "notification",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "getDeliveryCapabilities is hard-coded to sandbox regardless of env; retry attempts off-by-one vs configured maximum",
+     "unmet_first": null,
+     "rationale": "Capabilities still hard-coded sandbox; retry comparison unchanged.",
+     "expected_files": [
+      "packages/backend/notification/src/notification-service.ts",
+      "packages/backend/notification/src/notification-service.test.ts",
+      "packages/backend/notification/src/routes.test.ts",
+      "packages/backend/notification/src/channel-sender-factory.ts",
+      "packages/backend/notification/src/sandbox-sms-sender.test.ts"
+     ],
+     "extra_files_source": "fix/platform-services-batch1 plan.md (in-flight)"
+    },
+    {
+     "id": "PRC-M593",
+     "severity": "medium",
+     "module": "data-warehouse",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_MEDIUM",
+     "title": "Query/publish with unknown time-period labels silently returns ALL data (empty filter treated as no filter)",
+     "unmet_first": null,
+     "rationale": "Unknown labels still collapse to an empty id list that downstream treats as unfiltered. Fail-closed (reject or return empty) is an in-package correctness fix with tests; package unmounted.",
+     "expected_files": [
+      "packages/backend/data-warehouse/src/data-warehouse-service.ts",
+      "packages/backend/data-warehouse/src/publishing-service.ts",
+      "packages/backend/data-warehouse/src/data-warehouse-service.test.ts",
+      "packages/backend/data-warehouse/src/publish-export-caps.test.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L453",
+     "severity": "low",
+     "module": "data-warehouse",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "deleteWarehouse does not cascade or guard: child indicators, data records, GIS layers, translations are orphaned",
+     "unmet_first": null,
+     "rationale": "Delete still removes only the warehouse row; package remains unmounted. In-package guard/cascade with tests.",
+     "expected_files": [
+      "packages/backend/data-warehouse/src/data-warehouse-service.ts",
+      "packages/backend/data-warehouse/src/in-memory-repository.ts",
+      "packages/backend/data-warehouse/src/data-warehouse-service.test.ts",
+      "packages/backend/data-warehouse/src/warehouse-repository.ts",
+      "packages/backend/data-warehouse/src/gis-repository.ts",
+      "packages/backend/data-warehouse/src/in-memory-gis-repository.ts",
+      "packages/backend/data-warehouse/src/translation-repository.ts",
+      "packages/backend/data-warehouse/src/in-memory-translation-repository.ts"
+     ],
+     "extra_files_source": "fix/platform-services-batch1 plan.md (in-flight)"
+    },
+    {
+     "id": "PRC-L554",
+     "severity": "low",
+     "module": "data-warehouse",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Translation values: unique key excludes empty-string values, language codes and field names unvalidated, delete of translations not linked to entity deletion",
+     "unmet_first": null,
+     "rationale": "Translation validation gaps remain; in-package input validation + linkage on entity delete, unmounted package.",
+     "expected_files": [
+      "packages/backend/data-warehouse/src/translation-service.ts",
+      "packages/backend/data-warehouse/src/translation-schemas.ts",
+      "packages/backend/data-warehouse/src/in-memory-translation-repository.ts",
+      "packages/backend/data-warehouse/src/gis-publishing-translation.test.ts"
+     ],
+     "extra_files_source": null
+    },
+    {
+     "id": "PRC-L164",
+     "severity": "low",
+     "module": "survey",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Survey validation gaps: question.validation.pattern never enforced; table/repeater cell values unvalidated; minLength 0 ignored",
+     "unmet_first": null,
+     "rationale": "No validation.pattern enforcement in survey-service.ts; minLength uses a truthy check; table/repeater cells unvalidated. Reuse a safe-regex guard (custom-field/safe-regex-guard.ts) to avoid ReDoS.",
+     "expected_files": [
+      "packages/backend/survey/src/survey-service.ts",
+      "packages/backend/survey/src/survey-service.test.ts",
+      "packages/backend/survey/src/safe-regex-guard.ts"
+     ],
+     "extra_files_source": "fix/platform-services-batch1 plan.md (in-flight)"
+    },
+    {
+     "id": "PRC-L165",
+     "severity": "low",
+     "module": "survey",
+     "disposition_after_wave0": "OPEN",
+     "eligibility": "ELIGIBLE_LOW",
+     "title": "Survey submit and reminders are non-atomic: submission then distribution update; reminder publish before count update in sequential loop",
+     "unmet_first": null,
+     "rationale": "Submit and reminders unchanged; package parked and in-memory only.",
+     "expected_files": [
+      "packages/backend/survey/src/survey-service.ts",
+      "packages/backend/survey/src/survey-repository.ts",
+      "packages/backend/survey/src/in-memory-repository.ts",
+      "packages/backend/survey/src/survey-service.test.ts"
+     ],
+     "extra_files_source": null
+    }
+   ],
+   "files": [
+    "docs/audits/remediation/platform_services_batch1_DISPOSITIONS_2026-10-25.csv",
+    "packages/backend/data-warehouse/src/data-warehouse-service.test.ts",
+    "packages/backend/data-warehouse/src/data-warehouse-service.ts",
+    "packages/backend/data-warehouse/src/gis-publishing-translation.test.ts",
+    "packages/backend/data-warehouse/src/gis-repository.ts",
+    "packages/backend/data-warehouse/src/in-memory-gis-repository.ts",
+    "packages/backend/data-warehouse/src/in-memory-repository.ts",
+    "packages/backend/data-warehouse/src/in-memory-translation-repository.ts",
+    "packages/backend/data-warehouse/src/publish-export-caps.test.ts",
+    "packages/backend/data-warehouse/src/publishing-service.ts",
+    "packages/backend/data-warehouse/src/translation-repository.ts",
+    "packages/backend/data-warehouse/src/translation-schemas.ts",
+    "packages/backend/data-warehouse/src/translation-service.ts",
+    "packages/backend/data-warehouse/src/warehouse-repository.ts",
+    "packages/backend/etl/src/connectors/safe-fetch.test.ts",
+    "packages/backend/etl/src/etl-audit.test.ts",
+    "packages/backend/etl/src/etl-audit.ts",
+    "packages/backend/etl/src/etl-plugin.ts",
+    "packages/backend/etl/src/etl-service.test.ts",
+    "packages/backend/etl/src/etl-service.ts",
+    "packages/backend/etl/src/execution-logger.ts",
+    "packages/backend/etl/src/index.ts",
+    "packages/backend/etl/src/pg-pipeline-repository.test.ts",
+    "packages/backend/etl/src/routes.test.ts",
+    "packages/backend/etl/src/routes.ts",
+    "packages/backend/etl/src/schemas.ts",
+    "packages/backend/notification/src/channel-sender-factory.ts",
+    "packages/backend/notification/src/notification-service.test.ts",
+    "packages/backend/notification/src/notification-service.ts",
+    "packages/backend/notification/src/routes.test.ts",
+    "packages/backend/notification/src/sandbox-sms-sender.test.ts",
+    "packages/backend/survey/src/in-memory-repository.ts",
+    "packages/backend/survey/src/safe-regex-guard.ts",
+    "packages/backend/survey/src/survey-repository.ts",
+    "packages/backend/survey/src/survey-service.test.ts",
+    "packages/backend/survey/src/survey-service.ts"
+   ]
+  }
+ ],
+ "pairwise_overlap": false,
+ "problems": [],
+ "duplicate_ids": []
+}

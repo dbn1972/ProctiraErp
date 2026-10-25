@@ -1,0 +1,786 @@
+{
+  "claimed": [
+    {
+      "id": "PRC-L120",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Configurable facility condition options cannot be used: values must be in a hard-coded list AND the tenant list",
+      "notes": "NEEDS OWNER DECISION. Confirm configurable facility condition options are usable (not gated by a hard-coded list AND tenant list).",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L122",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Academic year windows may overlap and terms stay active when their year is archived/inactive",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Confirm academic year windows cannot overlap and terms deactivate when their year is archived.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L124",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Calendar events can be deleted from archived periods and repair requests can never be closed",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Marker present; archived-period event-delete and repair-request-close behaviour not fully re-confirmed this pass.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L127",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Soft-deleted rows still occupy (tenant_id, code) unique slot; findByNameInArea ignores that; no dele",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Soft-deleted (tenant_id, code) slot still occupied at DB level. A partial unique index WHERE deleted_at IS NULL requires a migration on an existing table (my range 160-169, 102 CONCURRENTLY pattern) + live-PG verification; not completed within budget. App-level checks already filter deletedAt:null.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L135",
+      "severity": "low",
+      "module": "parent-portal",
+      "disposition": "PARTIAL",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "getActorId falls back to the shared literal 'anonymous' when the JWT has no sub",
+      "notes": "Not changed this part: getActorId still returns 'anonymous' fallback; service guard already prevents data collision. Making a sub-less token a hard 401 at getActorId risks other routes; left PARTIAL.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-L174",
+      "severity": "low",
+      "module": "timetable",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Role allow-list contains roles that do not exist in the gateway role registry and omits tenant/platform admin",
+      "notes": "NEEDS OWNER DECISION. timetable role allow-list alignment (dead roles, tenant/board/platform admin) not added. Not addressed in this part (scope/time); carried forward at its re-audit status. Root cause unchanged from the re-audit evidence.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (commit)"
+      ]
+    },
+    {
+      "id": "PRC-L237",
+      "severity": "low",
+      "module": "app-web",
+      "disposition": "OPEN",
+      "latest_wave": "w3_web_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Examination dashboard gate is read-level (includes students), so management pages render to read-only roles",
+      "notes": "examination.manage gate on write pages + server-action defence-in-depth is a permissions/RBAC catalogue change. Class C (backend/permission).",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
+      ]
+    },
+    {
+      "id": "PRC-L276",
+      "severity": "low",
+      "module": "attendance",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Approver/writer role names include roles absent from the Keycloak realm; guardians cannot request leave",
+      "notes": "NEEDS OWNER DECISION. Fails closed; realm role-vocabulary alignment + guardian own-child leave route not added. Not addressed in this part (scope/time); carried forward at its re-audit status. Root cause unchanged from the re-audit evidence.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (commit)"
+      ]
+    },
+    {
+      "id": "PRC-L321",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "AcademicPeriodService.supersede is unreachable and update() forbids date/code changes, so a wrong period window cannot be corrected via the API",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Marker present; supersede reachability + wrong-period correction via API not fully re-confirmed this pass.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L322",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Read-check-write in deactivate/reactivate/update is not atomic; no optimistic lock (lost updates, do",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Optimistic locking (version column) on deactivate/reactivate/update not added — needs a schema change + conditional writes across institution services; not completed within budget. (Area create/move are now transactional, see PRC-M282.)",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L323",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Deactivate does not enforce documented rules: active enrollments/staff not checked, staff count is a",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Confirm deactivate enforces active-enrollment/staff checks.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L324",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Tenant-bound Prisma runs each operation in its own transaction and passes $transaction through unbou",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: tenant-bound-prisma wraps each op in its own tenant tx; bounding $transaction passthrough / multi-op tx is a shared-pattern change; not completed. (Area hierarchy now uses $transaction for multi-row rewrites.)",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L325",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Tenant context taken from request.user.tenantId fallback and captured once at onRequest; hook only r",
+      "notes": "NEEDS OWNER DECISION. tenant-context captures tenant at onRequest; confirming JWT-only (no request.user fallback) + per-request re-resolve not completed within budget.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L326",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Status-change audit is best-effort: failure swallowed and skipped when no auditService/user",
+      "notes": "NEEDS OWNER DECISION. Status-change audit remains best-effort; making it mandatory (fail op / queue) changes failure semantics and needs an audit sink guarantee; not completed within budget.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L347",
+      "severity": "low",
+      "module": "scholarship",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Scholarship staff roles absent from the shipped Keycloak realm; applicant role names mismatch",
+      "notes": "NEEDS OWNER DECISION. Fails closed; granular scholarship role realm alignment + alias narrowing + contract-test role not added. Not addressed in this part (scope/time); carried forward at its re-audit status. Root cause unchanged from the re-audit evidence.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (commit)"
+      ]
+    },
+    {
+      "id": "PRC-L391",
+      "severity": "low",
+      "module": "transport",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Transport RBAC role names mostly do not exist in the Keycloak realm; coarse read/write/ops all map to the same set",
+      "notes": "NEEDS OWNER DECISION. Transport role names existing in the Keycloak realm is infra/realm config, not verifiable from backend code. Differentiating read/write/ops sets is a RBAC decision; not completed.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (commit)"
+      ]
+    },
+    {
+      "id": "PRC-L476",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "In-memory Prisma look-alike diverges: no staff delegate, no classTeacher include, isolated enrollment table",
+      "notes": "NEEDS OWNER DECISION. in-memory Prisma look-alike still diverges (no staff delegate / classTeacher include / isolated enrollment table). Aligning or restricting it to tests is a sizeable shim cleanup; not completed within budget.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L570",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Two divergent \"is period active\" checks; the date window uses the UTC calendar day, and the exported validator ignores dates",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Unify the two is-period-active checks; make the exported validator date-aware.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L571",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Prisma repository has no non-skipped tests; live tests skip without DATABASE_URL and only cover crea",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Live tests skip without DATABASE_URL; adding non-skipped Prisma repo tests beyond create + CI DATABASE_URL not completed within budget.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-L572",
+      "severity": "low",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Standalone server readiness never checks DB and start() promise is unhandled",
+      "notes": "NEEDS OWNER DECISION. Standalone server has no DB readiness check and start() is unhandled. Same entrypoint change as PRC-M289/NEW-011; not completed within budget to avoid altering a deploy entrypoint without the integrator.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M015",
+      "severity": "medium",
+      "module": "app-api-gateway",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Gateway RBAC and UI role checks use role names that the Keycloak realm never defines",
+      "notes": "Not addressed: a shared role catalogue + realm-parity test + hyphen/underscore normalization spanning gateway rbac-registry, keycloak/roles.ts and health-ui-plugin is cross-cutting; keycloak/roles.ts already drops unknown roles (fail-closed) so no privilege leak, but the drift/parity test is not added.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (commit)"
+      ]
+    },
+    {
+      "id": "PRC-M182",
+      "severity": "medium",
+      "module": "auth",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Invite flow is create-only: no accept/redeem endpoint, no role assignment; roleId is a UUID that never maps to Keycloak roles",
+      "notes": "Not addressed: adding an invite accept/redeem endpoint + role assignment + mapping roleId to Keycloak roles + email sending is a new feature flow needing product decisions; deferred.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
+      ]
+    },
+    {
+      "id": "PRC-M237",
+      "severity": "medium",
+      "module": "examination",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Domain role vocabulary does not exist in the IdP: exam-officer roles and 'moderator' can never be granted, effectively admin/principal only",
+      "notes": "NEEDS OWNER DECISION. exam-officer/moderator role vocabulary alignment to Keycloak realm/rbac registry not done (needs realm + registry change outside module). Not addressed in this part (scope/time); carried forward at its re-audit status. Root cause unchanged from the re-audit evidence. blocked on PR #633 (role catalogue) merging to main",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (commit)"
+      ]
+    },
+    {
+      "id": "PRC-M262",
+      "severity": "medium",
+      "module": "github",
+      "disposition": "OPEN",
+      "latest_wave": "w2_data_infra_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "E2E gate authenticates only with self-signed HS256 cookies; the Keycloak/OIDC login path has no live",
+      "notes": "Not addressed: live Keycloak/OIDC CI job + tenant-scoped smoke/negative; needs infra bring-up, deferred.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
+      ]
+    },
+    {
+      "id": "PRC-M284",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Soft-deleting periods, grades, subjects, classes and unlinking subjects ignores dependent rows",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Confirm soft-delete of periods/grades/subjects/classes and subject-unlink check dependent rows.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M285",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Class sections and institution names rely on app-level duplicate checks with no DB unique constraint (ClassService checks nothing)",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: App-level duplicate checks remain. DB unique constraints for class sections and institution names require migrations on existing tables (my range 160-169) with the 102 CONCURRENTLY pattern + privilege/registry updates and live-PG verification; not completed within budget.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M286",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "institutionId in infrastructure, repair requests and calendar events is never verified against the tenant's institutions",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Verify institutionId in infrastructure/repair requests/calendar events belongs to the tenant's institutions.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M287",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Institution code uniqueness is documented and implemented as global in memory but per-tenant in Postgres",
+      "notes": "NEEDS OWNER DECISION. Prisma repo enforces per-tenant uniqueness. Aligning the historical in-memory repo (global) to per-tenant is a shim-divergence cleanup (see PRC-L476); left PARTIAL.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M288",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Every update/deactivate/reactivate wipes non-profile keys in institutions.custom_data",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Confirm update/deactivate/reactivate preserve non-profile keys in institutions.custom_data.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M289",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "PARTIAL",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Standalone institution server uses in-memory repo, ignores DATABASE_URL, and has no auth/tenant sour",
+      "notes": "NEEDS OWNER DECISION. Standalone institution server still hardcodes InMemoryInstitutionRepository and ignores DATABASE_URL. Wiring repository-factory + auth/tenant plugins + start() handling is the same work as PRC-L572/NEW-011 and risks changing a deploy entrypoint; left PARTIAL (fail-closed: entrypoint not used by the gateway).",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M290",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Schema requires UUIDs for typeId/sectorId/ownershipId but data stores free-text codes; no lookup or",
+      "notes": "NEEDS OWNER DECISION. Confirm schema UUID requirement matches stored free-text codes (add lookup or relax schema).",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M315",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Consent decide/withdraw/supersede and fallback pay perform close+insert as separate transactions (races, orphaned closed versions)",
+      "notes": "Not addressed: single-transaction appendConsentVersion (close+insert) with WHERE valid_to IS NULL and 23505->409 requires a repo-level transactional method + pg store work (and live DB tests). Deferred.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M316",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Missing-table/column errors in academic reads are swallowed and shown as empty data",
+      "notes": "Not addressed: stop swallowing 42P01/42703 as empty 200 (log+metric+meta.degraded, never swallow 42703) needs pg store changes + readiness check; deferred.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M318",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Withdraw reason is validated then dropped; consent withdrawal stores no reason or channel",
+      "notes": "Not addressed: persisting withdrawal reason/decided_via needs new columns on parent_consents (a migration in my 180-189 range + repo + live tests). Deferred to keep scope focused and avoid an under-tested migration.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M319",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "No API to provision households, custody or restrictions, and no staff messaging endpoints; fail-closed model unusable without SQL seeds",
+      "notes": "Not addressed: exposing household/custody/restriction provisioning + staff messaging routes is a sizeable new API surface; service methods exist but routes/product shape need definition. Deferred.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M521",
+      "severity": "medium",
+      "module": "hostel",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Hostel roles (warden, hostel_*, bursar, accountant) do not exist in the IdP realm",
+      "notes": "NEEDS OWNER DECISION. hostel-access.ts allowlist defines the roles; whether warden/hostel_*/bursar/accountant exist in the Keycloak realm is realm config (infra), not verifiable from backend code in this part.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (commit)"
+      ]
+    },
+    {
+      "id": "PRC-M525",
+      "severity": "medium",
+      "module": "institution",
+      "disposition": "OPEN",
+      "latest_wave": "w3_backend_a_DISPOSITIONS_2026-10-12.csv",
+      "evidence": "",
+      "title": "Year rollover writes classes/enrollments/graduations non-atomically; concurrent runs duplicate rows",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: Confirm year rollover writes classes/enrollments/graduations atomically with a concurrency guard.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#654 fix/audit-institution-batch (commit+body)",
+      "claim_all_sources": [
+        "PR#654 fix/audit-institution-batch (commit+body)",
+        "module-rule:institution (in-flight PR#654)"
+      ]
+    },
+    {
+      "id": "PRC-M532",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "PARTIAL",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Parent 'pay' accepts client-chosen method (cash/upi/card) and settles via always-succeeding sandbox adapter; fallback path never verifies funds",
+      "notes": "Payer-chosen method already fixed: PayInvoiceSchema only allows Type.Literal('sandbox') (cash/upi/card rejected as 400) and idempotencyKey is forwarded; production provider mode fails closed. Residual: confirming the in-package fallback settle path is fully removed was not re-verified end-to-end this part.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M533",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "PARTIAL",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "No mutation in the parent portal emits an audit event (consents, links, invoice void, payments, messages)",
+      "notes": "Not changed this part: gateway global onSend audit already records parent-portal mutations and fails closed for 'parent'. Domain-level same-txn before/after audit (inject AuditPort) not added. Remains PARTIAL.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M534",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Attendance percentage computed from only the latest 30 rows and counts excused as non-attended",
+      "notes": "Not addressed: compute attendance % in SQL over the academic period (COUNT FILTER) and align excused handling needs pg store rework + live tests; deferred.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M535",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "PARTIAL",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Guardian offer list/accept keyed on unverified JWT email claim; client-supplied paymentRef forwarded unchecked",
+      "notes": "Not changed this part: guardian offer accept still keys on JWT email without requiring email_verified===true at this layer. Requiring email_verified is a small change but intersects registration H079/M538 and IdP claim shape; left PARTIAL pending that cross-check.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)",
+      "claim_all_sources": [
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)",
+        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
+      ]
+    },
+    {
+      "id": "PRC-M536",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "List queries unbounded (invoices, payments, receipts, plans, threads, messages, consents) and every repository call awaits ensureSchema",
+      "notes": "Not addressed: adding limit/cursor caps to all list queries (repo + route schemas) is broad; deferred.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+      "claim_all_sources": [
+        "branch fix/audit-parent-portal-batch (commit, no PR yet)",
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    },
+    {
+      "id": "PRC-M586",
+      "severity": "medium",
+      "module": "auth",
+      "disposition": "OPEN",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "Local-auth stack (registerAuthRoutes, Prisma session/refresh stores, lockout) and external IdP routes are exported but not mounted by the gateway",
+      "notes": "Not addressed: mounting (or formally removing/experimental-flagging) the local-auth + external IdP stack is a gateway wiring + product decision; left OPEN. Note M585/L444 fixes still land in that code path.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
+      "claim_all_sources": [
+        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
+      ]
+    },
+    {
+      "id": "PRC-M601",
+      "severity": "medium",
+      "module": "parent-portal",
+      "disposition": "PARTIAL",
+      "latest_wave": "w2_backend_b_DISPOSITIONS_2026-10-11.csv",
+      "evidence": "",
+      "title": "No route-level tests for role separation on fee/consent/messaging routes; tests exercise the service directly with in-memory repo",
+      "notes": "A route-level role-separation suite for messaging is now added (covers M314). A full fee/consent cross-tenant inject suite + consent concurrency live tests are not fully built out. Remains PARTIAL.",
+      "fix_steps": null,
+      "acceptance": null,
+      "needs": null,
+      "claim_source": "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)",
+      "claim_all_sources": [
+        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
+      ]
+    }
+  ],
+  "needs_decision": [],
+  "needs_decision_note": "Empty because the xlsx Needs column is unavailable (file absent at this SHA); this is not evidence that no row needs a decision."
+}
