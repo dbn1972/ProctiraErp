@@ -40,16 +40,22 @@ describe('PRC-L572 standalone-server start() rejection handling', () => {
     // a fixed number of microtask ticks is enough: under CI load the event
     // loop can take longer than two zero-delay `setTimeout`s to get back to
     // this chain, which previously made this test flaky (timed out at the
-    // outer 5000ms test timeout despite the assertion being correct).
+    // outer 5000ms default test timeout despite the assertion being
+    // correct). A prior fix bumped the inner `waitFor` to 4000ms but left
+    // almost no margin inside the 5000ms outer timeout — under the heavier
+    // contention of the full Integration Tests job (real Postgres
+    // containers running concurrently) this still timed out. Raise both:
+    // the test's own timeout to 15000ms, and the inner poll window to
+    // 12000ms, so the outer bound is never the thing that fires first.
     await vi.waitFor(
       () => {
         expect(exitSpy).toHaveBeenCalledWith(1);
       },
-      { timeout: 4000, interval: 10 },
+      { timeout: 12_000, interval: 10 },
     );
 
     expect(errorSpy).toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it('exports start() directly so it can be invoked and awaited without relying on module side effects', async () => {
     const { start } = await import('./standalone-server.js');
