@@ -35,8 +35,22 @@ import {
   TransitionGradeEntrySchema,
   UpsertCommentsBankSchema,
   UpsertGradeEntrySchema,
+  UUID_PATTERN,
 } from './schemas.js';
 import { isTranscriptSigningKeyMissingError } from './signed-download.js';
+
+const UUID_RE = new RegExp(UUID_PATTERN);
+
+/** PRC-M515: query filters compared against UUID columns by the repositories. */
+const UUID_QUERY_FIELDS = [
+  'institutionId',
+  'academicPeriodId',
+  'sectionId',
+  'studentId',
+  'subjectId',
+  'gradeEntryId',
+  'boardId',
+] as const;
 
 export interface GradebookStudentBindingPort {
   listReadableStudentIds(tenantId: string, actorUserId: string): Promise<string[]>;
@@ -191,6 +205,35 @@ export async function registerGradebookRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/gradebook';
   const { service, studentBinding } = options;
+
+  // PRC-M515: `:id` and the id query filters below are bound to UUID columns;
+  // a malformed value is a 400 here instead of a Postgres 22P02 -> 500. An
+  // empty query value still means "no filter".
+  const routePrefix = `${fastify.prefix}${prefix}/`;
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!(request.routeOptions.url ?? '').startsWith(routePrefix)) return;
+    const errors: Array<{ field: string; rule: string; message: string }> = [];
+    const params = (request.params ?? {}) as Record<string, unknown>;
+    if (params.id !== undefined && !UUID_RE.test(String(params.id))) {
+      errors.push({ field: 'id', rule: 'format', message: 'id must be a UUID' });
+    }
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    for (const field of UUID_QUERY_FIELDS) {
+      const value = query[field];
+      if (value === undefined || value === '') continue;
+      if (typeof value !== 'string' || !UUID_RE.test(value)) {
+        errors.push({ field, rule: 'format', message: `${field} must be a UUID` });
+      }
+    }
+    if (errors.length > 0) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors,
+      });
+    }
+  });
 
   fastify.get(`${prefix}/sections`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
