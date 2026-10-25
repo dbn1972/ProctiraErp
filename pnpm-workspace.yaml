@@ -10,3 +10,10 @@ packages:
   - 'themes/*'
   - 'tools/*'
   - 'workers/*'
+
+# CI trigger note (PR #652): this branch only touches docs/audits/**, which
+# is excluded by .github/workflows/e2e-backend-ready.yml's paths-ignore, so
+# the required "E2E backend-ready live gate (G-401 / G-706)" check never
+# posts a status and GitHub's ruleset blocks the merge indefinitely. This
+# comment-only line forces the workflow to run once so the required check
+# resolves; safe to remove after merge.
