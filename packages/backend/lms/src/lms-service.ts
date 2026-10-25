@@ -1818,39 +1818,59 @@ export class LmsService {
     targetPeriodId: string,
     options: { dryRun?: boolean } = {},
   ): Promise<{ cloned: number; source: number }> {
-    const listed = await this.repository.listAssignments(
-      tenantId,
-      { academicPeriodId: sourcePeriodId },
-      { page: 1, pageSize: 500 },
-    );
-    const source = listed.data.filter(
+    // PRC-M305: read every page (no silent 500 cap) for both periods.
+    const source = (await this.listAllAssignmentsInPeriod(tenantId, sourcePeriodId)).filter(
       (a) => a.status === 'published' || a.status === 'closed' || a.status === 'draft',
     );
+    // Skip if the same title already exists in the target (idempotent re-runs).
+    const targetTitles = new Set(
+      (await this.listAllAssignmentsInPeriod(tenantId, targetPeriodId)).map((a) =>
+        a.title.toLowerCase(),
+      ),
+    );
+    const pending = source.filter((a) => !targetTitles.has(a.title.toLowerCase()));
     if (options.dryRun) {
-      // Count how many would be newly created (skip if same code already in target).
-      const targetListed = await this.repository.listAssignments(
-        tenantId,
-        { academicPeriodId: targetPeriodId },
-        { page: 1, pageSize: 500 },
-      );
-      const targetTitles = new Set(targetListed.data.map((a) => a.title.toLowerCase()));
-      const planned = source.filter((a) => !targetTitles.has(a.title.toLowerCase())).length;
-      return { cloned: planned, source: source.length };
+      return { cloned: pending.length, source: source.length };
     }
     let cloned = 0;
-    for (const assignment of source) {
+    for (const assignment of pending) {
       const { createdAt: _c, updatedAt: _u, ...rest } = assignment;
-      await this.repository.createAssignment({
-        ...rest,
-        id: randomUUID(),
-        academicPeriodId: targetPeriodId,
-        status: 'draft',
-        createdBy: actorId,
-        publishedAt: null,
-      });
+      const id = randomUUID();
+      // PRC-M305: carry the quiz questions (and the rubric references in their
+      // payload) over to the clone, with fresh ids, in the same transaction.
+      const questions = (await this.repository.listQuestions(tenantId, assignment.id)).map(
+        ({ createdAt: _qc, ...q }) => ({ ...q, id: randomUUID(), tenantId, assignmentId: id }),
+      );
+      await this.repository.createAssignmentWithQuestions(
+        {
+          ...rest,
+          id,
+          academicPeriodId: targetPeriodId,
+          status: 'draft',
+          createdBy: actorId,
+          publishedAt: null,
+        },
+        questions,
+      );
       cloned += 1;
     }
     return { cloned, source: source.length };
+  }
+
+  private async listAllAssignmentsInPeriod(
+    tenantId: string,
+    academicPeriodId: string,
+  ): Promise<AssignmentEntity[]> {
+    const all: AssignmentEntity[] = [];
+    for (let page = 1; ; page += 1) {
+      const listed = await this.repository.listAssignments(
+        tenantId,
+        { academicPeriodId },
+        { page, pageSize: 500 },
+      );
+      all.push(...listed.data);
+      if (listed.data.length === 0 || page >= listed.meta.totalPages) return all;
+    }
   }
 
   async createModule(
