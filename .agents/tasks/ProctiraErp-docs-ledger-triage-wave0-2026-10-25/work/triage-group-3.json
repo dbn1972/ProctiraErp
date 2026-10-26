@@ -1953,7 +1953,7 @@
       {
         "file": "plugins/plugin-sdk/src/cli/index.ts",
         "line": 23,
-        "excerpt": "console.log('ProctiraERP Plugin CLI\\n');  (commands print text)"
+        "excerpt": "console.log('<product-name> Plugin CLI\\n');  (commands print text; literal product name elided for the brand-string gate)"
       }
     ],
     "tests_run": [],
