@@ -48,6 +48,61 @@ export function normalizePath(path: string): string {
 }
 
 /**
+ * PRC-L580: thrown when a caller-supplied tenant id or asset/purge path could
+ * escape its prefix. Fails closed rather than stripping, so a malicious path is
+ * never silently mapped to a different, valid asset.
+ */
+export class CdnPathError extends Error {
+  readonly code = 'CDN_INVALID_PATH';
+  constructor(message: string) {
+    super(message);
+    this.name = 'CdnPathError';
+    Object.setPrototypeOf(this, CdnPathError.prototype);
+  }
+}
+
+const TENANT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHAR_RE = /[\u0000-\u001f\u007f]/;
+
+/**
+ * Asserts a tenant id is a single safe path segment (letters, digits, '-', '_').
+ * @throws CdnPathError
+ */
+export function assertSafeTenantId(tenantId: string): void {
+  if (!TENANT_ID_RE.test(tenantId)) {
+    throw new CdnPathError(`Unsafe CDN tenant id: ${JSON.stringify(tenantId)}`);
+  }
+}
+
+/**
+ * Asserts an asset or purge path cannot traverse out of its prefix: no
+ * backslashes or control characters, no malformed percent escapes, and no
+ * segment that is (or decodes to) '.' or '..' or contains a separator.
+ * Wildcards such as `/branding/tenant-1/*` are allowed.
+ * @throws CdnPathError
+ */
+export function assertSafeAssetPath(path: string): void {
+  const reject = (reason: string): never => {
+    throw new CdnPathError(`Unsafe CDN path ${JSON.stringify(path)}: ${reason}`);
+  };
+  if (path.includes('\\')) reject('backslash is not allowed');
+  if (CONTROL_CHAR_RE.test(path)) reject('control characters are not allowed');
+  for (const segment of path.split('/')) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      return reject('malformed percent escape');
+    }
+    if (decoded === '.' || decoded === '..') reject('dot segments are not allowed');
+    if (decoded.includes('/') || decoded.includes('\\')) reject('encoded separator');
+    if (CONTROL_CHAR_RE.test(decoded)) reject('encoded control character');
+  }
+}
+
+/**
  * Strips the trailing slash from a base URL.
  */
 function normalizeBaseUrl(baseUrl: string): string {
@@ -62,6 +117,8 @@ function normalizeBaseUrl(baseUrl: string): string {
  * - Shared static:         {baseUrl}/static/{path}?v={version}
  * - Tenant uploads:        {baseUrl}/uploads/{tenantId}/{path}?v={version}
  * - Documents:             {baseUrl}/documents/{tenantId}/{path}?v={version}
+ *
+ * @throws CdnPathError when tenantId or path is unsafe (PRC-L580).
  */
 export function buildAssetUrl(options: AssetUrlOptions, config: CdnConfig): AssetUrl {
   const base = normalizeBaseUrl(config.baseUrl);
@@ -73,10 +130,12 @@ export function buildAssetUrl(options: AssetUrlOptions, config: CdnConfig): Asse
   // Add tenant segment for tenant-aware categories
   const needsTenant = config.tenantAware && options.category !== 'static';
   if (needsTenant && options.tenantId) {
+    assertSafeTenantId(options.tenantId);
     segments.push(options.tenantId);
   }
 
   // Add the asset path
+  assertSafeAssetPath(options.path);
   segments.push(options.path);
 
   // Normalize the full path
