@@ -342,6 +342,33 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return this.createMeeting(candidate);
   }
 
+  /** PRC-M550(b): all-or-nothing; restores the meetings map on any failure. */
+  async createMeetingsAtomic(
+    tenantId: string,
+    candidates: SectionMeetingEntity[],
+    clashCheck: (
+      existing: SectionMeetingEntity[],
+      candidate: SectionMeetingEntity,
+    ) => void | Promise<void>,
+  ): Promise<SectionMeetingEntity[]> {
+    const snapshot = new Map(this.meetings);
+    try {
+      const out: SectionMeetingEntity[] = [];
+      for (const candidate of candidates) {
+        out.push(
+          await this.createMeetingAtomic(tenantId, candidate, (existing) =>
+            clashCheck(existing, candidate),
+          ),
+        );
+      }
+      return out;
+    } catch (error) {
+      this.meetings.clear();
+      for (const [id, row] of snapshot) this.meetings.set(id, row);
+      throw error;
+    }
+  }
+
   /** PRC-M397: all-or-nothing; restores both maps on any failure. */
   async insertClonedTimetable(
     tenantId: string,
