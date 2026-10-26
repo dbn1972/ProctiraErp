@@ -101,11 +101,15 @@ describe('TransportService', () => {
         operatingDays: ['monday'],
       });
 
-      await service.createStudentAssignment(tenantId, {
-        studentId: uuidv4(),
-        routeId: route.id,
-        startDate: '2024-01-01',
-      });
+      await service.createStudentAssignment(
+        tenantId,
+        {
+          studentId: uuidv4(),
+          routeId: route.id,
+          startDate: '2024-01-01',
+        },
+        'test-actor',
+      );
 
       await expect(service.deleteRoute(tenantId, route.id)).rejects.toThrow(
         'active student assignments',
@@ -369,11 +373,15 @@ describe('TransportService', () => {
         operatingDays: ['monday'],
       });
 
-      const assignment = await service.createStudentAssignment(tenantId, {
-        studentId: uuidv4(),
-        routeId: route.id,
-        startDate: '2024-01-15',
-      });
+      const assignment = await service.createStudentAssignment(
+        tenantId,
+        {
+          studentId: uuidv4(),
+          routeId: route.id,
+          startDate: '2024-01-15',
+        },
+        'test-actor',
+      );
 
       expect(assignment.id).toBeDefined();
       expect(assignment.routeId).toBe(route.id);
@@ -382,11 +390,15 @@ describe('TransportService', () => {
 
     it('should reject assignment to non-existent route', async () => {
       await expect(
-        service.createStudentAssignment(tenantId, {
-          studentId: uuidv4(),
-          routeId: uuidv4(),
-          startDate: '2024-01-15',
-        }),
+        service.createStudentAssignment(
+          tenantId,
+          {
+            studentId: uuidv4(),
+            routeId: uuidv4(),
+            startDate: '2024-01-15',
+          },
+          'test-actor',
+        ),
       ).rejects.toThrow('not found');
     });
 
@@ -400,11 +412,15 @@ describe('TransportService', () => {
       await service.updateRoute(tenantId, route.id, { status: 'inactive' });
 
       await expect(
-        service.createStudentAssignment(tenantId, {
-          studentId: uuidv4(),
-          routeId: route.id,
-          startDate: '2024-01-15',
-        }),
+        service.createStudentAssignment(
+          tenantId,
+          {
+            studentId: uuidv4(),
+            routeId: route.id,
+            startDate: '2024-01-15',
+          },
+          'test-actor',
+        ),
       ).rejects.toThrow('inactive');
     });
 
@@ -422,11 +438,15 @@ describe('TransportService', () => {
       };
 
       await expect(
-        service.createStudentAssignment(tenantId, {
-          studentId: uuidv4(),
-          routeId: route.id,
-          startDate: '2024-01-15',
-        }),
+        service.createStudentAssignment(
+          tenantId,
+          {
+            studentId: uuidv4(),
+            routeId: route.id,
+            startDate: '2024-01-15',
+          },
+          'test-actor',
+        ),
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
@@ -439,18 +459,26 @@ describe('TransportService', () => {
       });
 
       const studentId = uuidv4();
-      await service.createStudentAssignment(tenantId, {
-        studentId,
-        routeId: route.id,
-        startDate: '2024-01-15',
-      });
-
-      await expect(
-        service.createStudentAssignment(tenantId, {
+      await service.createStudentAssignment(
+        tenantId,
+        {
           studentId,
           routeId: route.id,
-          startDate: '2024-02-01',
-        }),
+          startDate: '2024-01-15',
+        },
+        'test-actor',
+      );
+
+      await expect(
+        service.createStudentAssignment(
+          tenantId,
+          {
+            studentId,
+            routeId: route.id,
+            startDate: '2024-02-01',
+          },
+          'test-actor',
+        ),
       ).rejects.toThrow('already has an active');
     });
 
@@ -475,12 +503,16 @@ describe('TransportService', () => {
       });
 
       await expect(
-        service.createStudentAssignment(tenantId, {
-          studentId: uuidv4(),
-          routeId: route1.id,
-          stopId: stop.id,
-          startDate: '2024-01-15',
-        }),
+        service.createStudentAssignment(
+          tenantId,
+          {
+            studentId: uuidv4(),
+            routeId: route1.id,
+            stopId: stop.id,
+            startDate: '2024-01-15',
+          },
+          'test-actor',
+        ),
       ).rejects.toThrow('does not belong');
     });
 
@@ -492,11 +524,15 @@ describe('TransportService', () => {
         operatingDays: ['monday'],
       });
 
-      const assignment = await service.createStudentAssignment(tenantId, {
-        studentId: uuidv4(),
-        routeId: route.id,
-        startDate: '2024-01-15',
-      });
+      const assignment = await service.createStudentAssignment(
+        tenantId,
+        {
+          studentId: uuidv4(),
+          routeId: route.id,
+          startDate: '2024-01-15',
+        },
+        'test-actor',
+      );
 
       const updated = await service.updateStudentAssignment(tenantId, assignment.id, {
         isActive: false,

@@ -451,18 +451,22 @@ export class PgHostelRepository implements HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<HostelLeaveEntity, 'status'>>,
+    expectedStatus?: LeaveStatus,
   ): Promise<HostelLeaveEntity | null> {
     await this.ensureSchema();
     if (data.status === undefined) {
       return this.findLeaveById(id, tenantId);
     }
+    // PRC-L116: compare-and-set on the status the caller read.
+    const values: unknown[] = [data.status, id, tenantId];
+    if (expectedStatus !== undefined) values.push(expectedStatus);
     const result = await this.query(
       tenantId,
       `UPDATE hostel_leaves
        SET status = $1, updated_at = now()
-       WHERE id = $2 AND tenant_id = $3
+       WHERE id = $2 AND tenant_id = $3${expectedStatus !== undefined ? ' AND status = $4' : ''}
        RETURNING *`,
-      [data.status, id, tenantId],
+      values,
     );
     if (!result.rows[0]) return null;
     return mapLeave(result.rows[0] as Record<string, unknown>);
@@ -515,18 +519,22 @@ export class PgHostelRepository implements HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<HostelVisitorEntity, 'status'>>,
+    expectedStatus?: VisitorStatus,
   ): Promise<HostelVisitorEntity | null> {
     await this.ensureSchema();
     if (data.status === undefined) {
       return this.findVisitorById(id, tenantId);
     }
+    // PRC-L116: compare-and-set on the status the caller read.
+    const values: unknown[] = [data.status, id, tenantId];
+    if (expectedStatus !== undefined) values.push(expectedStatus);
     const result = await this.query(
       tenantId,
       `UPDATE hostel_visitors
        SET status = $1, updated_at = now()
-       WHERE id = $2 AND tenant_id = $3
+       WHERE id = $2 AND tenant_id = $3${expectedStatus !== undefined ? ' AND status = $4' : ''}
        RETURNING *`,
-      [data.status, id, tenantId],
+      values,
     );
     if (!result.rows[0]) return null;
     return mapVisitor(result.rows[0] as Record<string, unknown>);
@@ -822,6 +830,7 @@ export class PgHostelRepository implements HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>>,
+    expectedStatus?: GatePassStatus,
   ): Promise<GatePassEntity | null> {
     await this.ensureSchema();
     const sets: string[] = [];
@@ -846,10 +855,16 @@ export class PgHostelRepository implements HostelRepository {
     if (sets.length === 0) return this.findGatePassById(id, tenantId);
     sets.push(`updated_at = now()`);
     values.push(id, tenantId);
+    let where = `id = $${i++} AND tenant_id = $${i++}`;
+    // PRC-L116: compare-and-set on the status the caller read.
+    if (expectedStatus !== undefined) {
+      where += ` AND status = $${i}`;
+      values.push(expectedStatus);
+    }
     const result = await this.query(
       tenantId,
       `UPDATE gate_passes SET ${sets.join(', ')}
-       WHERE id = $${i++} AND tenant_id = $${i} RETURNING *`,
+       WHERE ${where} RETURNING *`,
       values,
     );
     if (!result.rows[0]) return null;

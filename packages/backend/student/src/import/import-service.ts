@@ -367,13 +367,7 @@ export class ImportService {
       parseResult = await parseExcelBuffer(fileBuffer);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Excel parse failed';
-      await this.queue.updateProgress(tenantId, jobId, {
-        status: 'failed',
-        progressPercent: 100,
-        errorMessage: message,
-        completedAt: new Date().toISOString(),
-      });
-      return {
+      const failed: ImportResult = {
         totalRows: 0,
         successCount: 0,
         errorCount: 1,
@@ -388,6 +382,15 @@ export class ImportService {
         ],
         duplicates: [],
       };
+      // PRC-M635: keep the result on the progress record too.
+      await this.queue.updateProgress(tenantId, jobId, {
+        status: 'failed',
+        progressPercent: 100,
+        errorMessage: message,
+        result: failed,
+        completedAt: new Date().toISOString(),
+      });
+      return failed;
     }
 
     if (parseResult.headerErrors.length > 0) {
@@ -404,9 +407,12 @@ export class ImportService {
         })),
         duplicates: [],
       };
+      // PRC-M635: record why the import failed, not just that it did.
       await this.queue.updateProgress(tenantId, jobId, {
         status: 'failed',
         progressPercent: 100,
+        errorMessage: parseResult.headerErrors.join('; '),
+        result: failed,
         completedAt: new Date().toISOString(),
       });
       return failed;
@@ -417,12 +423,26 @@ export class ImportService {
       progressPercent: 10,
     });
 
-    const result = await this.processRows(tenantId, parseResult.rows, options);
+    let result: ImportResult;
+    try {
+      result = await this.processRows(tenantId, parseResult.rows, options);
+    } catch (error: unknown) {
+      // PRC-M635: never leave the job stuck in `processing`; rethrow so the
+      // durable worker / in-process runner keep their retry and logging.
+      await this.queue.updateProgress(tenantId, jobId, {
+        status: 'failed',
+        progressPercent: 100,
+        errorMessage: error instanceof Error ? error.message : 'Import failed',
+        completedAt: new Date().toISOString(),
+      });
+      throw error;
+    }
 
     await this.queue.updateProgress(tenantId, jobId, {
       status: 'completed',
       processedRows: result.totalRows,
       progressPercent: 100,
+      result,
       completedAt: new Date().toISOString(),
     });
 

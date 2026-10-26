@@ -28,17 +28,25 @@ async function seedAssignment(service: TransportService) {
     operatingDays: ['monday'],
     departureTime: '07:30',
   });
-  await service.createTransportFeeStructure(TENANT, {
-    name: 'Flat',
-    routeId: route.id,
-    amountCents: 1000,
-    currency: 'INR',
-  });
-  await service.createStudentAssignment(TENANT, {
-    studentId: uuidv4(),
-    routeId: route.id,
-    startDate: '2026-06-01',
-  });
+  await service.createTransportFeeStructure(
+    TENANT,
+    {
+      name: 'Flat',
+      routeId: route.id,
+      amountCents: 1000,
+      currency: 'INR',
+    },
+    'test-actor',
+  );
+  await service.createStudentAssignment(
+    TENANT,
+    {
+      studentId: uuidv4(),
+      routeId: route.id,
+      startDate: '2026-06-01',
+    },
+    'test-actor',
+  );
 }
 
 describe('transport fee link outbox (PRC-M439)', () => {
@@ -53,18 +61,18 @@ describe('transport fee link outbox (PRC-M439)', () => {
     expect(await service.countPendingFeeLinks(TENANT)).toBe(1);
 
     // Still failing: stays pending and the lease is released with the error.
-    expect((await service.retryPendingFeeLinks(TENANT)).stillPending).toBe(1);
+    expect((await service.retryPendingFeeLinks(TENANT, 'test-actor')).stillPending).toBe(1);
     expect((await repo.listFeeLinks(TENANT))[0]?.reason).toBe('fees unavailable');
 
     state.failing = false;
     const [a, b] = await Promise.all([
-      service.retryPendingFeeLinks(TENANT),
-      service.retryPendingFeeLinks(TENANT),
+      service.retryPendingFeeLinks(TENANT, 'test-actor'),
+      service.retryPendingFeeLinks(TENANT, 'test-actor'),
     ]);
     expect(a.invoiced + b.invoiced).toBe(1);
     expect(state.invoices).toBe(1);
     expect((await repo.listFeeLinks(TENANT))[0]?.status).toBe('invoiced');
-    expect((await service.retryPendingFeeLinks(TENANT)).claimed).toBe(0);
+    expect((await service.retryPendingFeeLinks(TENANT, 'test-actor')).claimed).toBe(0);
     expect(state.invoices).toBe(1);
   });
 
