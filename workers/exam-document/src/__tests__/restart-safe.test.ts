@@ -137,6 +137,9 @@ describe('exam-document worker restart-safe spine', () => {
     const crashWorker = createExamDocumentWorker({
       queue: crashAdapter,
       topic: EXAM_DOCUMENT_CONSUME_TOPIC,
+      // PRC-M508: stop() drains in-flight work first; a short bound models
+      // "drain timed out, then crash semantics" for this hung handler.
+      drainTimeoutMs: 50,
       processor: {
         processJob: async () => {
           firstAttempts += 1;
@@ -177,6 +180,43 @@ describe('exam-document worker restart-safe spine', () => {
 
     hangResolve();
     await resumeWorker.stop();
+    await publishAdapter.disconnect();
+  });
+  it('graceful stop acks the in-flight job instead of redelivering (PRC-M508)', async () => {
+    const publishAdapter = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
+    await publishAdapter.connect();
+    const service = new DocumentGenerationService(
+      examRepo,
+      docRepo,
+      new SimplePdfGenerator(),
+      new QueueDocumentTaskQueue(publishAdapter),
+    );
+    await service.requestGeneration(tenantId, 'exam-spine', { documentType: 'admit_card' });
+    expect(store.pendingCount).toBe(1);
+    let release!: () => void;
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    let attempts = 0;
+    const workerAdapter = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
+    const worker = createExamDocumentWorker({
+      queue: workerAdapter,
+      topic: EXAM_DOCUMENT_CONSUME_TOPIC,
+      processor: {
+        processJob: async () => {
+          attempts += 1;
+          await held;
+        },
+      },
+    });
+    await worker.start();
+    await waitUntil(() => store.inFlightCount === 1);
+    const stopped = worker.stop();
+    release();
+    await stopped;
+    expect(attempts).toBe(1);
+    expect(store.pendingCount).toBe(0);
+    expect(store.inFlightCount).toBe(0);
     await publishAdapter.disconnect();
   });
 });

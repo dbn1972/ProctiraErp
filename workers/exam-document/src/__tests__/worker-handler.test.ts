@@ -119,4 +119,83 @@ describe('exam-document worker handler', () => {
     expect(worker.running).toBe(false);
     expect(adapter.disconnectCalls).toBeGreaterThanOrEqual(1);
   });
+  describe('graceful drain on stop() (PRC-M508)', () => {
+    function deferred(): { promise: Promise<void>; resolve: () => void } {
+      let resolve!: () => void;
+      const promise = new Promise<void>((r) => {
+        resolve = r;
+      });
+      return { promise, resolve };
+    }
+    const flush = () => new Promise<void>((r) => setImmediate(r));
+    const PENDING = Symbol('pending');
+    async function isPending(p: Promise<unknown>): Promise<boolean> {
+      const winner = await Promise.race([p.then(() => 'settled'), Promise.resolve(PENDING)]);
+      return winner === PENDING;
+    }
+    it('stop() waits for an in-flight job before disconnecting', async () => {
+      const hold = deferred();
+      processJob.mockImplementation(() => hold.promise);
+      const worker = createExamDocumentWorker({ queue: adapter, processor, logger });
+      await worker.start();
+      const handled = adapter.handler!(makeMessage({}));
+      const stopped = worker.stop();
+      await flush();
+      expect(adapter.disconnectCalls).toBe(0);
+      expect(worker.running).toBe(true);
+      hold.resolve();
+      await expect(handled).resolves.toBeUndefined();
+      await stopped;
+      expect(adapter.disconnectCalls).toBe(1);
+      expect(worker.running).toBe(false);
+    });
+    it('messages delivered after stop() begins are not processed', async () => {
+      const hold = deferred();
+      processJob.mockImplementation(() => hold.promise);
+      const worker = createExamDocumentWorker({ queue: adapter, processor, logger });
+      await worker.start();
+      const first = adapter.handler!(makeMessage({}));
+      const stopped = worker.stop();
+      await flush();
+      const second = adapter.handler!(makeMessage({ id: 'msg-2', payload: { jobId: 'job-2' } }));
+      await flush();
+      expect(processJob).toHaveBeenCalledTimes(1);
+      // Left unacked/un-nacked so the broker redelivers it after disconnect.
+      expect(await isPending(second)).toBe(true);
+      hold.resolve();
+      await first;
+      await stopped;
+      expect(processJob).toHaveBeenCalledTimes(1);
+      expect(await isPending(second)).toBe(true);
+    });
+    it('drain is bounded by drainTimeoutMs', async () => {
+      processJob.mockImplementation(() => new Promise(() => {}));
+      const worker = createExamDocumentWorker({
+        queue: adapter,
+        processor,
+        logger,
+        drainTimeoutMs: 20,
+      });
+      await worker.start();
+      void adapter.handler!(makeMessage({}));
+      await worker.stop();
+      expect(adapter.disconnectCalls).toBe(1);
+      expect(worker.running).toBe(false);
+      expect(errorLog.some((e) => e.msg.includes('drain timed out'))).toBe(true);
+    });
+    it('concurrent stop() calls share one drain', async () => {
+      const hold = deferred();
+      processJob.mockImplementation(() => hold.promise);
+      const worker = createExamDocumentWorker({ queue: adapter, processor, logger });
+      await worker.start();
+      const handled = adapter.handler!(makeMessage({}));
+      const a = worker.stop();
+      const b = worker.stop();
+      hold.resolve();
+      await handled;
+      await Promise.all([a, b]);
+      expect(adapter.disconnectCalls).toBe(1);
+      expect(worker.running).toBe(false);
+    });
+  });
 });
