@@ -313,6 +313,34 @@ describe('POST /attendance/ingest contract (G-919)', () => {
     await app.close();
   });
 
+  it('PRC-L277: dedups a repeated eventId inside one batch (one write, one duplicate)', async () => {
+    const repo = new InMemoryAttendanceRepository();
+    const ops = new AttendanceOpsService(new InMemoryAttendanceOpsStore(), repo);
+    const { apiKey } = await ops.registerDevice(
+      TENANT_ID,
+      { institutionId: INSTITUTION_ID, deviceId: 'gate-1' },
+      { userId: 'admin', roles: ['admin'] },
+    );
+    const event = {
+      eventId: 'evt-repeat',
+      studentId: STUDENT_ID,
+      punchedAt: '2024-06-15T03:00:00.000Z',
+      type: 'IN' as const,
+      classId: CLASS_ID,
+      academicPeriodId: PERIOD_ID,
+    };
+    const result = await ops.ingest(TENANT_ID, apiKey, {
+      deviceId: 'gate-1',
+      institutionId: INSTITUTION_ID,
+      events: [event, { ...event }],
+    });
+    expect(result.accepted).toBe(1);
+    expect(result.duplicates).toBe(1);
+    expect(result.written).toBe(1);
+    expect(result.events.map((e) => e.duplicate)).toEqual([false, true]);
+    expect(repo.getStudentAttendanceRecords()).toHaveLength(1);
+  });
+
   describe('AttendanceOpsService device punch timezone + precedence (PRC-H041)', () => {
     const DEVICE = { institutionId: INSTITUTION_ID, deviceId: 'gate-1' };
 

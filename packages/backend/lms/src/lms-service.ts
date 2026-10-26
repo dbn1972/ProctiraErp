@@ -302,6 +302,16 @@ function bankToQuizQuestion(
   };
 }
 
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    const list = grouped.get(key(item)) ?? [];
+    list.push(item);
+    grouped.set(key(item), list);
+  }
+  return grouped;
+}
+
 function toBankLike(q: QuizQuestionEntity) {
   return {
     id: q.id,
@@ -449,31 +459,33 @@ export class LmsService {
     const maxScore = input.maxScore ?? (input.kind === 'quiz' && quizPoints > 0 ? quizPoints : 100);
     const now = new Date();
 
-    const assignment = await this.repository.createAssignment({
-      id,
-      tenantId,
-      scope: input.scope,
-      boardId: input.scope === 'board' ? input.boardId! : null,
-      institutionId: input.scope === 'school' ? input.institutionId! : null,
-      kind: input.kind,
-      title: input.title.trim(),
-      description: input.description ?? null,
-      subject: input.subject.trim(),
-      gradeLevel: input.gradeLevel ?? null,
-      sectionId: input.sectionId ?? null,
-      academicPeriodId: input.academicPeriodId ?? null,
-      skillIds,
-      maxScore,
-      dueAt: input.dueAt ? new Date(input.dueAt) : null,
-      timeLimitMinutes: input.timeLimitMinutes ?? null,
-      allowLate: input.allowLate ?? true,
-      status: publish ? 'published' : 'draft',
-      createdBy: uuidOrNull(actor.userId),
-      publishedAt: publish ? now : null,
-    });
-    const savedQuestions =
-      normalised.length > 0 ? await this.repository.replaceQuestions(tenantId, id, normalised) : [];
-    return { ...assignment, questions: savedQuestions };
+    // PRC-M300: the assignment row and its questions are written all-or-nothing.
+    const created = await this.repository.createAssignmentWithQuestions(
+      {
+        id,
+        tenantId,
+        scope: input.scope,
+        boardId: input.scope === 'board' ? input.boardId! : null,
+        institutionId: input.scope === 'school' ? input.institutionId! : null,
+        kind: input.kind,
+        title: input.title.trim(),
+        description: input.description ?? null,
+        subject: input.subject.trim(),
+        gradeLevel: input.gradeLevel ?? null,
+        sectionId: input.sectionId ?? null,
+        academicPeriodId: input.academicPeriodId ?? null,
+        skillIds,
+        maxScore,
+        dueAt: input.dueAt ? new Date(input.dueAt) : null,
+        timeLimitMinutes: input.timeLimitMinutes ?? null,
+        allowLate: input.allowLate ?? true,
+        status: publish ? 'published' : 'draft',
+        createdBy: uuidOrNull(actor.userId),
+        publishedAt: publish ? now : null,
+      },
+      normalised,
+    );
+    return { ...created.assignment, questions: created.questions };
   }
 
   async updateAssignment(
@@ -503,17 +515,28 @@ export class LmsService {
       }
     }
 
-    let questions = await this.repository.listQuestions(tenantId, id);
-    if (input.questions) {
-      questions = await this.repository.replaceQuestions(
-        tenantId,
-        id,
-        normaliseQuestions(tenantId, id, input.questions),
-      );
-    }
+    // PRC-M300: validate everything before any write, then persist the row and
+    // the questions in one repository call (one transaction in Postgres).
+    const replacement = input.questions ? normaliseQuestions(tenantId, id, input.questions) : null;
     const targetStatus = input.status ?? existing.status;
-    if (targetStatus === 'published' && existing.kind === 'quiz' && questions.length === 0) {
-      throw new BusinessRuleError('A quiz needs at least one question before it is published');
+    if (targetStatus === 'published' && existing.kind === 'quiz') {
+      const questionCount =
+        replacement?.length ?? (await this.repository.listQuestions(tenantId, id)).length;
+      if (questionCount === 0) {
+        throw new BusinessRuleError('A quiz needs at least one question before it is published');
+      }
+    }
+    if (replacement) {
+      // Submission answers reference question ids; replacing them would orphan
+      // every recorded answer and break grading/analytics.
+      const submissions = await this.repository.listSubmissions(
+        tenantId,
+        { assignmentId: id },
+        { page: 1, pageSize: 1 },
+      );
+      if (submissions.meta.totalItems > 0) {
+        throw new ConflictError('Questions cannot be edited once submissions exist');
+      }
     }
 
     const patch: Parameters<LmsRepository['updateAssignment']>[2] = {};
@@ -531,9 +554,14 @@ export class LmsService {
       patch.status = input.status;
       if (input.status === 'published' && !existing.publishedAt) patch.publishedAt = new Date();
     }
-    const updated = await this.repository.updateAssignment(tenantId, id, patch);
+    const updated = await this.repository.updateAssignmentWithQuestions(
+      tenantId,
+      id,
+      patch,
+      replacement,
+    );
     if (!updated) throw new NotFoundError('Assignment not found');
-    return { ...updated, questions };
+    return { ...updated.assignment, questions: updated.questions };
   }
 
   private assertTransition(from: AssignmentEntity['status'], to: AssignmentEntity['status']) {
@@ -652,6 +680,7 @@ export class LmsService {
     let autoGraded = false;
     let gradedAt: Date | null = null;
     const answers = input.answers ?? [];
+    let palResults: ReturnType<typeof gradeObjectiveQuiz>['results'] = [];
 
     if (assignment.kind === 'quiz') {
       const questions = await this.repository.listQuestions(tenantId, assignmentId);
@@ -670,24 +699,16 @@ export class LmsService {
         autoGraded = true;
         gradedAt = now;
       }
-      for (const r of graded.results) {
-        if (!r.skillId) continue;
-        await this.applyPalAttempt(tenantId, input.studentId, r.skillId, {
-          correct: r.correct,
-          source: 'quiz',
-          sourceId: assignmentId,
-          institutionId: input.institutionId ?? assignment.institutionId,
-          now,
-        });
-      }
+      palResults = graded.results;
     } else if (answers.length > 0) {
       throw new ValidationError('Only quizzes accept answers', [
         { field: 'answers', rule: 'kind', message: 'answers are only valid for quizzes' },
       ]);
     }
 
+    let saved: SubmissionEntity;
     try {
-      return await this.repository.createSubmission({
+      saved = await this.repository.createSubmission({
         id: randomUUID(),
         tenantId,
         assignmentId,
@@ -710,6 +731,20 @@ export class LmsService {
       }
       throw error;
     }
+
+    // PRC-M295: PAL mastery moves only once the submission is stored, so a
+    // duplicate or failed insert never double-counts attempts.
+    for (const r of palResults) {
+      if (!r.skillId) continue;
+      await this.applyPalAttempt(tenantId, input.studentId, r.skillId, {
+        correct: r.correct,
+        source: 'quiz',
+        sourceId: assignmentId,
+        institutionId: input.institutionId ?? assignment.institutionId,
+        now,
+      });
+    }
+    return saved;
   }
 
   async grade(
@@ -739,8 +774,11 @@ export class LmsService {
     if (!updated) throw new NotFoundError('Submission not found');
 
     // Homework/assignment grades feed the PAL ledger for the linked skills:
-    // ≥ 60 % counts as a correct attempt.
-    if (assignment.skillIds.length > 0 && assignment.maxScore > 0) {
+    // ≥ 60 % counts as a correct attempt. PRC-M296: only on the submission's
+    // first grading — re-grades and overrides of auto-graded quizzes (already
+    // fed by submit) never re-count attempts.
+    const firstGrading = submission.gradedAt == null;
+    if (firstGrading && assignment.skillIds.length > 0 && assignment.maxScore > 0) {
       const correct = input.score / assignment.maxScore >= 0.6;
       for (const skillId of assignment.skillIds) {
         await this.applyPalAttempt(tenantId, submission.studentId, skillId, {
@@ -1620,15 +1658,20 @@ export class LmsService {
     const students = new Set<string>();
     const scores: number[] = [];
     const skillHits = new Map<string, { label: string; correct: number; attempts: number }>();
+    // PRC-L330: two batched reads instead of two queries per assignment.
+    const assignmentIds = assignments.map((a) => a.id);
+    const [allSubmissions, allQuestions] = await Promise.all([
+      this.repository.listSubmissionsForAssignments(tenantId, assignmentIds),
+      this.repository.listQuestionsForAssignments(tenantId, assignmentIds),
+    ]);
+    const submissionsByAssignment = groupBy(allSubmissions, (s) => s.assignmentId);
+    const questionsByAssignment = groupBy(allQuestions, (q) => q.assignmentId);
     for (const assignment of assignments) {
-      const submissions = await this.repository.listSubmissions(
-        tenantId,
-        { assignmentId: assignment.id },
-        { page: 1, pageSize: 500 },
-      );
-      submissionCount += submissions.data.length;
-      const questions = await this.repository.listQuestions(tenantId, assignment.id);
-      for (const sub of submissions.data) {
+      // Same per-assignment window as before (newest 500 submissions).
+      const submissions = (submissionsByAssignment.get(assignment.id) ?? []).slice(0, 500);
+      submissionCount += submissions.length;
+      const questions = questionsByAssignment.get(assignment.id) ?? [];
+      for (const sub of submissions) {
         students.add(sub.studentId);
         if (sub.score != null) scores.push(sub.score);
         const graded = gradeObjectiveQuiz(questions.map(toBankLike), sub.answers);
@@ -1800,39 +1843,59 @@ export class LmsService {
     targetPeriodId: string,
     options: { dryRun?: boolean } = {},
   ): Promise<{ cloned: number; source: number }> {
-    const listed = await this.repository.listAssignments(
-      tenantId,
-      { academicPeriodId: sourcePeriodId },
-      { page: 1, pageSize: 500 },
-    );
-    const source = listed.data.filter(
+    // PRC-M305: read every page (no silent 500 cap) for both periods.
+    const source = (await this.listAllAssignmentsInPeriod(tenantId, sourcePeriodId)).filter(
       (a) => a.status === 'published' || a.status === 'closed' || a.status === 'draft',
     );
+    // Skip if the same title already exists in the target (idempotent re-runs).
+    const targetTitles = new Set(
+      (await this.listAllAssignmentsInPeriod(tenantId, targetPeriodId)).map((a) =>
+        a.title.toLowerCase(),
+      ),
+    );
+    const pending = source.filter((a) => !targetTitles.has(a.title.toLowerCase()));
     if (options.dryRun) {
-      // Count how many would be newly created (skip if same code already in target).
-      const targetListed = await this.repository.listAssignments(
-        tenantId,
-        { academicPeriodId: targetPeriodId },
-        { page: 1, pageSize: 500 },
-      );
-      const targetTitles = new Set(targetListed.data.map((a) => a.title.toLowerCase()));
-      const planned = source.filter((a) => !targetTitles.has(a.title.toLowerCase())).length;
-      return { cloned: planned, source: source.length };
+      return { cloned: pending.length, source: source.length };
     }
     let cloned = 0;
-    for (const assignment of source) {
+    for (const assignment of pending) {
       const { createdAt: _c, updatedAt: _u, ...rest } = assignment;
-      await this.repository.createAssignment({
-        ...rest,
-        id: randomUUID(),
-        academicPeriodId: targetPeriodId,
-        status: 'draft',
-        createdBy: actorId,
-        publishedAt: null,
-      });
+      const id = randomUUID();
+      // PRC-M305: carry the quiz questions (and the rubric references in their
+      // payload) over to the clone, with fresh ids, in the same transaction.
+      const questions = (await this.repository.listQuestions(tenantId, assignment.id)).map(
+        ({ createdAt: _qc, ...q }) => ({ ...q, id: randomUUID(), tenantId, assignmentId: id }),
+      );
+      await this.repository.createAssignmentWithQuestions(
+        {
+          ...rest,
+          id,
+          academicPeriodId: targetPeriodId,
+          status: 'draft',
+          createdBy: actorId,
+          publishedAt: null,
+        },
+        questions,
+      );
       cloned += 1;
     }
     return { cloned, source: source.length };
+  }
+
+  private async listAllAssignmentsInPeriod(
+    tenantId: string,
+    academicPeriodId: string,
+  ): Promise<AssignmentEntity[]> {
+    const all: AssignmentEntity[] = [];
+    for (let page = 1; ; page += 1) {
+      const listed = await this.repository.listAssignments(
+        tenantId,
+        { academicPeriodId },
+        { page, pageSize: 500 },
+      );
+      all.push(...listed.data);
+      if (listed.data.length === 0 || page >= listed.meta.totalPages) return all;
+    }
   }
 
   async createModule(

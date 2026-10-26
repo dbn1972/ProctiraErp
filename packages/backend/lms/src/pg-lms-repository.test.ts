@@ -174,4 +174,61 @@ describe('PgLmsRepository', () => {
       expect(await repo.listMastery(tenantB, { studentId })).toEqual([]);
     },
   );
+
+  it.skipIf(!isPgLmsEnabled())(
+    'PRC-M300: createAssignmentWithQuestions rolls back the assignment when a question insert fails',
+    async () => {
+      const pool = getSharedLmsPool();
+      expect(pool).not.toBeNull();
+      const repo = new PgLmsRepository(pool!);
+      const tenantId = randomUUID();
+      const assignmentId = randomUUID();
+      const questionId = randomUUID();
+      const question = {
+        id: questionId,
+        tenantId,
+        assignmentId,
+        position: 0,
+        prompt: 'Q',
+        options: ['A', 'B'],
+        correctOptionIndex: 0,
+        points: 1,
+        skillId: null,
+        explanation: null,
+        questionType: 'mcq' as const,
+        bankId: null,
+        payload: {},
+      };
+      await expect(
+        repo.createAssignmentWithQuestions(
+          {
+            id: assignmentId,
+            tenantId,
+            scope: 'school',
+            boardId: null,
+            institutionId: randomUUID(),
+            kind: 'quiz',
+            title: 'Atomic quiz',
+            description: null,
+            subject: 'Maths',
+            gradeLevel: null,
+            sectionId: null,
+            academicPeriodId: null,
+            skillIds: [],
+            maxScore: 2,
+            dueAt: null,
+            timeLimitMinutes: null,
+            allowLate: true,
+            status: 'draft',
+            createdBy: null,
+            publishedAt: null,
+          },
+          // Same primary key twice → the second INSERT violates the PK.
+          [question, { ...question, position: 1 }],
+        ),
+      ).rejects.toThrow();
+      expect(await repo.findAssignmentById(tenantId, assignmentId)).toBeNull();
+      expect(await repo.listQuestions(tenantId, assignmentId)).toEqual([]);
+    },
+  );
 });

@@ -158,6 +158,21 @@ function sendError(reply: FastifyReply, error: unknown) {
   throw error;
 }
 
+/**
+ * PRC-M528: RFC 6266/5987 Content-Disposition — quote-safe ASCII fallback plus
+ * UTF-8 `filename*`, so a user-chosen filename can neither inject header
+ * parameters nor break the header with non-Latin1 characters (ERR_INVALID_CHAR).
+ * Same algorithm as the students-360 export route (PRC-L367).
+ */
+function attachmentDisposition(fileName: string): string {
+  const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'download';
+  const encoded = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
 export async function registerLmsRoutes(
   fastify: FastifyInstance,
   options: LmsRoutesOptions,
@@ -676,7 +691,8 @@ export async function registerLmsRoutes(
       const bytes = await getLmsFile(file.storageKey);
       return reply
         .header('Content-Type', file.mimeType)
-        .header('Content-Disposition', `attachment; filename="${file.filename}"`)
+        .header('Content-Disposition', attachmentDisposition(file.filename))
+        .header('X-Content-Type-Options', 'nosniff')
         .send(bytes);
     } catch (error) {
       return sendError(reply, error);
