@@ -6,9 +6,12 @@
  * tenant-shaped JSON for /api/v1/* : list endpoints as { data, meta }, detail
  * endpoints as the entity. Permissive CORS + accepts any bearer token.
  *
- *   node scripts/mock-gateway.mjs            # listens on :3000
+ * PRC-L413: loopback-only (binds 127.0.0.1) and read-only. Non-GET/HEAD
+ * requests get 405 MOCK_READ_ONLY unless MOCK_GATEWAY_ALLOW_WRITES=1.
  *
- * Point the web app at it with NEXT_PUBLIC_GATEWAY_URL=http://localhost:3000.
+ *   node scripts/mock-gateway.mjs            # listens on 127.0.0.1:3000
+ *
+ * Point the web app at it with NEXT_PUBLIC_GATEWAY_URL=http://127.0.0.1:3000.
  */
 import { createServer } from 'node:http';
 
@@ -576,6 +579,18 @@ function json(res, status, body) {
 
 const server = createServer((req, res) => {
   if (req.method === 'OPTIONS') return json(res, 204, {});
+  if (
+    req.method !== 'GET' &&
+    req.method !== 'HEAD' &&
+    process.env.MOCK_GATEWAY_ALLOW_WRITES !== '1'
+  ) {
+    return json(res, 405, {
+      error: {
+        code: 'MOCK_READ_ONLY',
+        message: 'mock gateway is read-only; set MOCK_GATEWAY_ALLOW_WRITES=1 to opt in',
+      },
+    });
+  }
   const url = new URL(req.url, `http://localhost:${PORT}`);
   let p = url.pathname.replace(/^\/api\/v1/, '').replace(/\/+$/, '');
   if (p === '') p = '/';
@@ -654,4 +669,6 @@ const server = createServer((req, res) => {
   return json(res, 404, { error: { code: 'NOT_FOUND', message: p } });
 });
 
-server.listen(PORT, () => console.log(`mock-gateway listening on http://localhost:${PORT}`));
+server.listen(PORT, '127.0.0.1', () =>
+  console.log(`mock-gateway listening on http://127.0.0.1:${PORT}`),
+);

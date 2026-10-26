@@ -13,7 +13,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3001';
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
 const MAYUR = '00000000-0000-4000-8000-00000000a551';
-const SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
+// PRC-L413: sign only with the local gateway's secret from the environment.
+const SECRET = process.env.JWT_SECRET?.trim();
+if (!SECRET) {
+  console.error(
+    'JWT_SECRET is required (same value as the local gateway); refusing to sign with a default secret.',
+  );
+  process.exit(1);
+}
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900 },
