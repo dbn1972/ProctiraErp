@@ -27,6 +27,42 @@
       }
     ],
     "proctira/icon-only-button-requires-aria-label": "error",
-    "proctira/no-hardcoded-brand-strings": "warn"
-  }
+    "proctira/no-hardcoded-brand-strings": "error"
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/app/(auth)/_components/auth-shell.tsx",
+        "src/app/(auth)/login/page.tsx",
+        "src/app/(auth)/signup/signup-form.tsx",
+        "src/app/(dashboard)/students/import/page.tsx",
+        "src/app/layout.tsx",
+        "src/components/DocumentTitle.test.tsx",
+        "src/components/layout/MarketingLayout.test.tsx",
+        "src/components/layout/MobileShell.test.tsx",
+        "src/components/layout/sidebar.keyboard.test.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/features/auth/MFASetup.test.tsx",
+        "src/features/auth/MFASetup.tsx",
+        "src/features/legal/PrivacyPolicy.tsx",
+        "src/features/legal/TermsOfService.tsx",
+        "src/lib/api/auth.ts",
+        "src/lib/draft/storage.ts",
+        "src/lib/sync/syncQueue.ts",
+        "src/lib/tenant-theme/server.test.ts",
+        "src/lib/tenant-theme/server.ts",
+        "src/lib/theme/boot-script.ts",
+        "src/middleware.ts",
+        "src/providers/BrandConfigProvider.test.tsx",
+        "src/providers/BrandConfigProvider.tsx",
+        "src/providers/LanguageProvider.test.tsx",
+        "src/providers/LanguageProvider.tsx",
+        "src/providers/ThemeProvider.test.tsx",
+        "src/providers/ThemeProvider.tsx"
+      ],
+      "rules": {
+        "proctira/no-hardcoded-brand-strings": "warn"
+      }
+    }
+  ]
 }
