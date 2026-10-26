@@ -11,7 +11,8 @@ describe('G-404 MobileShell route audit', () => {
   it('exposes only available tab + drawer destinations', () => {
     const tabs = availableDestinations(MOBILE_TAB_DESTINATIONS);
     const drawer = availableDestinations(MOBILE_DRAWER_DESTINATIONS);
-    expect(tabs.map((t) => t.key)).toEqual(['home', 'attendance', 'students', 'profile']);
+    // PRC-L259: Profile is hidden until a self-profile page exists.
+    expect(tabs.map((t) => t.key)).toEqual(['home', 'attendance', 'students']);
     expect(drawer.map((d) => d.key)).toEqual([
       'fees',
       'hostel',
@@ -36,6 +37,15 @@ describe('G-404 MobileShell route audit', () => {
     expect(byKey.home).toBe('/');
     expect(byKey.attendance).toBe('/attendance');
     expect(byKey.students).toBe('/students');
-    expect(byKey.profile).toBe('/admin/users');
+  });
+
+  it('never points Profile at /admin/users or sign-out at a GET API link (PRC-L259)', () => {
+    const profile = MOBILE_TAB_DESTINATIONS.find((d) => d.key === 'profile');
+    expect(profile?.available).toBe(false);
+    const signout = MOBILE_DRAWER_DESTINATIONS.find((d) => d.key === 'signout');
+    expect(signout?.href).toBe('/logout');
+    const all = [...MOBILE_TAB_DESTINATIONS, ...MOBILE_DRAWER_DESTINATIONS];
+    expect(all.filter((d) => d.available && d.href.startsWith('/api/'))).toEqual([]);
+    expect(all.filter((d) => d.available && d.href === '/admin/users')).toEqual([]);
   });
 });

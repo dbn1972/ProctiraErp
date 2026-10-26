@@ -557,13 +557,6 @@ export interface TenantGeneralSettings {
   tenantTimezone: string;
 }
 
-/**
- * Patch payload for `PATCH /api/v1/tenant/settings`. Every field is
- * optional so the page can submit only the values the user actually
- * changed; the server merges with the existing record.
- */
-export type TenantGeneralSettingsPatch = Partial<TenantGeneralSettings>;
-
 export async function getTenantGeneralSettings(
   options: AdminClientOptions = {},
 ): Promise<TenantGeneralSettings> {
@@ -573,15 +566,4 @@ export async function getTenantGeneralSettings(
     options,
   );
   return result;
-}
-
-export async function updateTenantGeneralSettings(
-  patch: TenantGeneralSettingsPatch,
-  options: AdminClientOptions = {},
-): Promise<TenantGeneralSettings> {
-  return adminFetch<TenantGeneralSettings>(
-    ADMIN_API_ENDPOINTS.TENANT_SETTINGS,
-    { method: 'PATCH', body: JSON.stringify(patch) },
-    options,
-  );
 }

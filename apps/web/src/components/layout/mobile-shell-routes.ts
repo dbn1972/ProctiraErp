@@ -18,8 +18,12 @@ export const MOBILE_TAB_DESTINATIONS: readonly MobileShellDestination[] = [
   { key: 'home', label: 'Home', href: '/', available: true },
   { key: 'attendance', label: 'Attendance', href: '/attendance', available: true },
   { key: 'students', label: 'Students', href: '/students', available: true },
-  /** Profile → admin users (no dedicated /me/profile App Router page yet). */
-  { key: 'profile', label: 'Profile', href: '/admin/users', available: true },
+  /**
+   * Hidden (PRC-L259): there is no self-profile App Router page yet, and
+   * /admin/users is the tenant user-management screen, not the viewer's
+   * profile. Re-enable once a dedicated /me/profile page ships.
+   */
+  { key: 'profile', label: 'Profile', href: '/admin/users', available: false },
 ] as const;
 
 /**
@@ -41,7 +45,12 @@ export const MOBILE_DRAWER_DESTINATIONS: readonly MobileShellDestination[] = [
    * page so the link resolves; keep available=true once that page exists.
    */
   { key: 'help', label: 'Help', href: '/help', available: true },
-  { key: 'signout', label: 'Sign out', href: '/api/auth/logout', available: true },
+  /**
+   * Rendered as a button that runs the CSRF-protected POST `signOut()`
+   * (PRC-L259), never as a GET link. `/logout` is the App Router sign-out
+   * page, kept here only as the registry's canonical destination.
+   */
+  { key: 'signout', label: 'Sign out', href: '/logout', available: true },
 ] as const;
 
 export function availableDestinations(

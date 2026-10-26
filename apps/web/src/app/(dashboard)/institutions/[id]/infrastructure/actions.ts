@@ -74,12 +74,21 @@ export async function createRoomAction(input: {
 export async function updateFacilityAction(input: {
   institutionId: string;
   id: string;
-  name: string;
-  capacity: number;
-  condition: 'Good' | 'Fair' | 'Needs repair' | 'Unknown';
+  name?: string;
+  capacity?: number;
+  condition?: 'Good' | 'Fair' | 'Needs repair' | 'Unknown';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const v = updateFacilitySchema.safeParse(input);
   if (!v.success) return { ok: false, error: firstIssue(v.error) };
+  // PRC-L255: forward only the fields the user changed. The backend PUT treats
+  // every field as optional, so omitted values are left untouched.
+  const { name, capacity, condition } = v.data;
+  const changes = {
+    ...(name !== undefined && { name }),
+    ...(capacity !== undefined && { capacity }),
+    ...(condition !== undefined && { condition }),
+  };
+  if (Object.keys(changes).length === 0) return { ok: true };
   try {
     const result = await gatewayFetch(
       // PRC-H022: scope the mutation to the route institution; the gateway
@@ -88,7 +97,7 @@ export async function updateFacilityAction(input: {
       `/infrastructure/${encodeURIComponent(v.data.id)}?institutionId=${encodeURIComponent(v.data.institutionId)}`,
       {
         method: 'PUT',
-        json: { name: v.data.name, capacity: v.data.capacity, condition: v.data.condition },
+        json: changes,
         throwOnError: false,
         cache: 'no-store',
       },

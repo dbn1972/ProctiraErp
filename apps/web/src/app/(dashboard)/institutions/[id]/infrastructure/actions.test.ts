@@ -82,6 +82,21 @@ describe('infrastructure actions (PRC-L411)', () => {
     expect(url).toContain(`institutionId=${INST}`);
   });
 
+  it('updateFacilityAction forwards only the provided fields (PRC-L255)', async () => {
+    gatewayFetch.mockResolvedValue({ ok: true });
+    const res = await updateFacilityAction({ institutionId: INST, id: FAC, capacity: 45 });
+    expect(res.ok).toBe(true);
+    const init = gatewayFetch.mock.calls[0]![1] as { method: string; json: unknown };
+    expect(init.method).toBe('PUT');
+    expect(init.json).toEqual({ capacity: 45 });
+  });
+
+  it('updateFacilityAction makes no gateway call when nothing changed (PRC-L255)', async () => {
+    const res = await updateFacilityAction({ institutionId: INST, id: FAC });
+    expect(res).toEqual({ ok: true });
+    expect(gatewayFetch).not.toHaveBeenCalled();
+  });
+
   it('updateFacilityAction rejects a non-uuid facility id', async () => {
     const res = await updateFacilityAction({
       institutionId: INST,
