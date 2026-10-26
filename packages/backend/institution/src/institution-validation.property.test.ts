@@ -134,7 +134,8 @@ describe('Property 8: Institution Validation Without Persistence', () => {
             expect((error as ConflictError).message).toContain(sharedCode);
           }
 
-          // The code is globally unique, so it must always throw
+          // The code is unique per tenant (PRC-M287), and both creates use
+          // the same tenantId, so it must always throw.
           expect(threw).toBe(true);
 
           // Verify no data was persisted — count should remain the same

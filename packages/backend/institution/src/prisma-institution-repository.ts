@@ -53,6 +53,7 @@ interface InstitutionRow {
   ownership: string;
   status: string;
   customData: unknown;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -84,7 +85,18 @@ function extractProfile(customData: unknown): {
   };
 }
 
-function buildCustomData(entity: Partial<InstitutionEntity>): Record<string, unknown> {
+/**
+ * PRC-M288: `userCustomData` is the non-profile keys already stored on the
+ * row (extracted via {@link extractProfile} from the existing `custom_data`
+ * read), not a field on `InstitutionEntity` itself (it has none). Passing it
+ * explicitly keeps keys a tenant-specific extension wrote directly (e.g.
+ * `boardCode`) intact across update/deactivate/reactivate instead of being
+ * clobbered down to only the profile envelope.
+ */
+function buildCustomData(
+  entity: Partial<InstitutionEntity>,
+  userCustomData: Record<string, unknown>,
+): Record<string, unknown> {
   const profile: ProfileEnvelope = {
     latitude: entity.latitude ?? null,
     longitude: entity.longitude ?? null,
@@ -93,10 +105,7 @@ function buildCustomData(entity: Partial<InstitutionEntity>): Record<string, unk
     contactEmail: entity.contactEmail ?? null,
     deactivationReason: entity.deactivationReason ?? null,
   };
-  // `customData` on the entity is not part of InstitutionEntity, but callers may
-  // pass extra keys; preserve anything already present minus the reserved key.
-  const extra = (entity as { customData?: Record<string, unknown> }).customData ?? {};
-  return { ...extra, [PROFILE_KEY]: profile };
+  return { ...userCustomData, [PROFILE_KEY]: profile };
 }
 
 /** PRC-L125: API sortBy → Prisma column (directory handled separately). */
@@ -124,6 +133,7 @@ function toEntity(row: InstitutionRow): InstitutionEntity {
     contactPhone: profile.contactPhone,
     contactEmail: profile.contactEmail,
     deactivationReason: profile.deactivationReason,
+    version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -147,17 +157,28 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           sector: data.sectorId,
           ownership: data.ownershipId,
           status: data.status,
-          customData: buildCustomData(data) as Prisma.InputJsonValue,
+          customData: buildCustomData(data, {}) as Prisma.InputJsonValue,
         },
       })) as InstitutionRow;
       return toEntity(row);
     });
   }
 
+  /**
+   * PRC-L322: when `expectedVersion` is provided, the write is a
+   * compare-and-swap (`updateMany` scoped by `id`, `tenantId`, and
+   * `version = expectedVersion`, incrementing `version` on success) —
+   * returns `null` on no match (version mismatch) instead of throwing, so
+   * the caller can tell "modified concurrently" apart from "not found" by
+   * the earlier existence check already having passed. When
+   * `expectedVersion` is omitted, behavior is unchanged (plain update, no
+   * version check, other call sites unaffected).
+   */
   async update(
     id: string,
     tenantId: string,
     data: Partial<InstitutionEntity>,
+    expectedVersion?: number,
   ): Promise<InstitutionEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const existing = (await tx.institution.findFirst({
@@ -165,19 +186,30 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
       })) as InstitutionRow | null;
       if (!existing) return null;
 
+      const { userCustomData } = extractProfile(existing.customData);
       const current = toEntity(existing);
       const merged: InstitutionEntity = { ...current };
       const mergedRecord = merged as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries(data)) {
         if (value === undefined) continue;
-        if (key === 'id' || key === 'tenantId' || key === 'createdAt' || key === 'updatedAt') {
+        if (
+          key === 'id' ||
+          key === 'tenantId' ||
+          key === 'createdAt' ||
+          key === 'updatedAt' ||
+          key === 'version'
+        ) {
           continue;
         }
         mergedRecord[key] = value;
       }
 
-      const row = (await tx.institution.update({
-        where: { id },
+      const updateWhere: Record<string, unknown> = { id };
+      if (expectedVersion !== undefined) {
+        updateWhere['version'] = expectedVersion;
+      }
+      const result = await tx.institution.updateMany({
+        where: updateWhere as Prisma.InstitutionWhereInput,
         data: {
           name: merged.name,
           code: merged.code,
@@ -186,8 +218,19 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           sector: merged.sectorId,
           ownership: merged.ownershipId,
           status: merged.status,
-          customData: buildCustomData(merged) as Prisma.InputJsonValue,
+          customData: buildCustomData(merged, userCustomData) as Prisma.InputJsonValue,
+          version: { increment: 1 },
         },
+      });
+      if (result.count === 0) {
+        // Either the row vanished between findFirst and here, or (when
+        // expectedVersion was passed) the version no longer matches — a
+        // concurrent writer won the race.
+        return null;
+      }
+
+      const row = (await tx.institution.findFirst({
+        where: { id, tenantId },
       })) as InstitutionRow;
       return toEntity(row);
     });
@@ -203,11 +246,12 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
   }
 
   /**
-   * Not supported under RLS (no tenant context in the signature). The database
-   * `@@unique([tenantId, code])` constraint is the authoritative duplicate guard;
-   * a duplicate create surfaces as a P2002 conflict.
+   * PRC-M287: `tenantId` is accepted (and ignored) for interface parity with
+   * the in-memory double; this still always returns `null` under RLS. The
+   * database `@@unique([tenantId, code])` constraint remains the
+   * authoritative duplicate guard — a duplicate create surfaces as P2002.
    */
-  async findByCode(_code: string): Promise<InstitutionEntity | null> {
+  async findByCode(_code: string, _tenantId: string): Promise<InstitutionEntity | null> {
     return null;
   }
 

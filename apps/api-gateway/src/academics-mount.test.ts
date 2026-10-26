@@ -130,7 +130,25 @@ describe('G-901 academics mount', () => {
   });
 
   it('serves /infrastructure/hierarchy/:institutionId', async () => {
-    const institutionId = '880e8400-e29b-41d4-a716-446655440006';
+    // PRC-M286: createLand now requires institutionId to belong to a real,
+    // same-tenant institution, so seed one instead of using a bare UUID
+    // (mirrors the fix already applied to the package-level
+    // academics-plugin.test.ts for the same reason).
+    const institution = await app.inject({
+      method: 'POST',
+      url: '/api/v1/institutions',
+      headers: adminHeaders(),
+      payload: {
+        name: 'Infra Gateway School',
+        code: `INFRA-${Date.now()}`,
+        areaId: '770e8400-e29b-41d4-a716-446655440012',
+        typeId: '770e8400-e29b-41d4-a716-446655440013',
+        sectorId: '770e8400-e29b-41d4-a716-446655440014',
+        ownershipId: '770e8400-e29b-41d4-a716-446655440015',
+      },
+    });
+    expect(institution.statusCode).toBe(201);
+    const institutionId = institution.json().id as string;
     const land = await app.inject({
       method: 'POST',
       url: '/api/v1/infrastructure/lands',
