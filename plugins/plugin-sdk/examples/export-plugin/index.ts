@@ -5,13 +5,22 @@
  * and data transformation capabilities.
  *
  * This plugin:
- * - Hooks into the 'export' extension point to add a custom CSV format
- * - Subscribes to 'report.generated' events for post-processing
- * - Provides a UI slot for export configuration in the reports section
+ * - Hooks into the 'export.before-generate' extension point to add a custom CSV format
+ * - Subscribes to 'export.completed' events for post-processing
+ * - Provides a 'settings.panel' UI slot for export configuration
+ *
+ * Extension point, event and UI slot ids must exist in the platform catalogue
+ * (`BUILT_IN_EXTENSION_POINTS`, `BUILT_IN_EVENT_DEFINITIONS`, `BUILT_IN_UI_SLOTS`
+ * in `@proctira/backend-plugin`); `validateManifest` rejects unknown ids (PRC-L483).
  */
 import { definePlugin, defineHook, defineEventHandler, defineUISlot } from '../../src/index.js';
 import type { HookResult } from '../../src/index.js';
 
+/**
+ * Payload this example reads from the 'export.before-generate' hook. The catalogue
+ * payloadSchema declares `reportType`, `format` and `filters`; the host threads the
+ * rows to export and report metadata alongside them.
+ */
 interface ExportPayload {
   entityId: string;
   entityType: string;
@@ -44,8 +53,15 @@ export default definePlugin({
     owner: 'proctira-official',
     version: '1.0.0',
     supportedProductVersions: '>=1.0.0 <2.0.0',
-    requiredPermissions: ['report.read', 'export.write', 'student.read', 'institution.read'],
-    requiredExtensionPoints: ['report.export'],
+    requiredPermissions: [
+      'report.read',
+      'export.write',
+      'student.read',
+      'institution.read',
+      'admin.settings',
+      'ui.settings',
+    ],
+    requiredExtensionPoints: ['export.before-generate'],
     configSchema: {
       type: 'object',
       properties: {
@@ -85,7 +101,7 @@ export default definePlugin({
 
   hooks: [
     defineHook<ExportPayload, ExportResult>(
-      'report.export',
+      'export.before-generate',
       async (payload, _context): Promise<HookResult<ExportResult>> => {
         // Only handle our custom format
         if (payload.format !== 'custom-csv') {
@@ -172,7 +188,7 @@ export default definePlugin({
   ],
 
   uiSlots: [
-    defineUISlot('report-section.export-options', 'custom-csv-export-config', {
+    defineUISlot('settings.panel', 'custom-csv-export-config', {
       label: 'Custom CSV Export',
       icon: 'file-csv',
       order: 50,

@@ -149,4 +149,15 @@ export class InMemoryTranslationRepository implements TranslationRepository {
       this.translations.delete(id);
     }
   }
+
+  async deleteTranslationsForWarehouse(warehouseId: string, tenantId: string): Promise<number> {
+    let deleted = 0;
+    for (const [id, t] of this.translations) {
+      if (t.warehouseId === warehouseId && t.tenantId === tenantId) {
+        this.translations.delete(id);
+        deleted += 1;
+      }
+    }
+    return deleted;
+  }
 }

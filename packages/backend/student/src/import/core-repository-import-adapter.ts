@@ -5,6 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { admissionNoOf } from '../admission-number.js';
 import type {
   StudentEntity,
   StudentRepository as CoreStudentRepository,
@@ -100,8 +101,11 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
     const bulk = core.bulkWrite?.bind(core);
     if (bulk) {
       this.bulkImport = async (tenantId, ops) => {
+        // PRC-M547: sequential so admission numbers follow row order.
+        const creates = [];
+        for (const data of ops.creates) creates.push(await this.toNewEntity(tenantId, data));
         const result = await bulk(tenantId, {
-          creates: ops.creates.map((data) => this.toNewEntity(tenantId, data)),
+          creates,
           updates: ops.updates.map(({ id, data }) => ({ id, data: toEntityPatch(data) })),
         });
         return { createdIds: result.created.map((e) => e.id) };
@@ -109,11 +113,17 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
     }
   }
 
-  private toNewEntity(
+  private async toNewEntity(
     tenantId: string,
     data: Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>,
   ) {
     const patch = toEntityPatch(data);
+    // PRC-M547: issue an admission number like StudentService.create (W2-SIS-01).
+    const customData: Record<string, unknown> = { ...(patch.customData ?? {}) };
+    const admissionNo =
+      admissionNoOf(customData) ?? (await this.core.allocateAdmissionNumber(tenantId));
+    customData['admissionNo'] = admissionNo;
+    customData['admissionNumber'] = admissionNo;
     return {
       id: randomUUID(),
       tenantId,
@@ -126,7 +136,7 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
       contacts: patch.contacts ?? [],
       guardians: patch.guardians ?? [],
       identityDocuments: [],
-      customData: patch.customData ?? {},
+      customData,
     };
   }
 
@@ -166,7 +176,7 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
     tenantId: string,
     data: Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>,
   ): Promise<StudentRecord> {
-    const entity = await this.core.create(this.toNewEntity(tenantId, data));
+    const entity = await this.core.create(await this.toNewEntity(tenantId, data));
     return toRecord(entity);
   }
 

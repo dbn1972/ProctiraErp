@@ -8,6 +8,7 @@ import { ConflictError, NotFoundError, ValidationError } from '@proctira/common'
 import { v4 as uuidv4 } from 'uuid';
 
 import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
+import type { GISRepository } from './gis-repository.js';
 import { importDataRecords, parseCsvImport, parseExcelDesImport } from './import-service.js';
 import type {
   Warehouse,
@@ -33,6 +34,7 @@ import type {
   ImportFormat,
   ImportRowError,
 } from './schemas.js';
+import type { TranslationRepository } from './translation-repository.js';
 import type { WarehouseRepository, ListFilter } from './warehouse-repository.js';
 
 export interface DataWarehouseServiceConfig {
@@ -75,10 +77,16 @@ function assertChildLevel(parent: Area, level: number): void {
 export interface DataWarehouseServiceOptions {
   /** Receives one event per successful mutation (PRC-L452). */
   auditSink?: DataWarehouseAuditSink | null;
+  /** PRC-L453: GIS layers are deleted with their warehouse when provided. */
+  gisRepository?: GISRepository | null;
+  /** PRC-L453: translations are deleted with their warehouse / entity when provided. */
+  translationRepository?: TranslationRepository | null;
 }
 
 export class DataWarehouseService {
   private readonly audit: AuditEmitter;
+  private readonly gisRepository: GISRepository | null;
+  private readonly translationRepository: TranslationRepository | null;
 
   constructor(
     private readonly repository: WarehouseRepository,
@@ -86,6 +94,8 @@ export class DataWarehouseService {
     options: DataWarehouseServiceOptions = {},
   ) {
     this.audit = new AuditEmitter(options.auditSink ?? null);
+    this.gisRepository = options.gisRepository ?? null;
+    this.translationRepository = options.translationRepository ?? null;
   }
 
   // ─── Warehouse Operations ───────────────────────────────────────────────────
@@ -158,7 +168,12 @@ export class DataWarehouseService {
         resourceType: 'warehouse',
         resourceId: warehouseId,
       },
-      () => this.repository.deleteWarehouse(warehouseId, tenantId),
+      async () => {
+        // PRC-L453: cascade — warehouse dimensions/data, then GIS layers and translations.
+        await this.repository.deleteWarehouse(warehouseId, tenantId);
+        await this.gisRepository?.deleteLayersForWarehouse(warehouseId, tenantId);
+        await this.translationRepository?.deleteTranslationsForWarehouse(warehouseId, tenantId);
+      },
     );
   }
 
@@ -267,7 +282,16 @@ export class DataWarehouseService {
         resourceType: 'indicator',
         resourceId: indicatorId,
       },
-      () => this.repository.deleteIndicator(indicatorId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteIndicator(indicatorId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'indicator',
+          indicatorId,
+        );
+      },
     );
   }
 
@@ -369,7 +393,16 @@ export class DataWarehouseService {
     await this.audit.wrap(
       ctx,
       { tenantId, warehouseId, action: 'unit.delete', resourceType: 'unit', resourceId: unitId },
-      () => this.repository.deleteUnit(unitId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteUnit(unitId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'unit',
+          unitId,
+        );
+      },
     );
   }
 
@@ -475,7 +508,16 @@ export class DataWarehouseService {
         resourceType: 'subgroup',
         resourceId: subgroupId,
       },
-      () => this.repository.deleteSubgroup(subgroupId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteSubgroup(subgroupId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'subgroup',
+          subgroupId,
+        );
+      },
     );
   }
 
@@ -746,7 +788,16 @@ export class DataWarehouseService {
     await this.audit.wrap(
       ctx,
       { tenantId, warehouseId, action: 'area.delete', resourceType: 'area', resourceId: areaId },
-      () => this.repository.deleteArea(areaId, warehouseId, tenantId),
+      async () => {
+        await this.repository.deleteArea(areaId, warehouseId, tenantId);
+        // PRC-L554: translations describe the entity — delete them with it.
+        await this.translationRepository?.deleteTranslationsForEntity(
+          warehouseId,
+          tenantId,
+          'area',
+          areaId,
+        );
+      },
     );
   }
 
@@ -945,6 +996,10 @@ export class DataWarehouseService {
         if (tp) {
           timePeriodIds.push(tp.id);
         }
+      }
+      // PRC-M593: a requested filter that matches no period must not widen to all data.
+      if (timePeriodIds.length === 0) {
+        return { data: [], total: 0 };
       }
     }
 

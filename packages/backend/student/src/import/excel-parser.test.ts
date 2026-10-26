@@ -91,3 +91,95 @@ describe('parseExcelBuffer', () => {
     expect(parsed.headerErrors.join(' ')).toMatch(/first_name/);
   });
 });
+
+/**
+ * PRC-L589: a minimal one-entry zip whose central directory declares the given
+ * uncompressed size (stored, no data). Enough for the archive pre-check.
+ */
+function craftedZip(declaredUncompressed: number): Buffer {
+  const name = Buffer.from('xl/worksheets/sheet1.xml');
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt32LE(declaredUncompressed, 22);
+  local.writeUInt16LE(name.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt32LE(declaredUncompressed, 24);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt32LE(0, 42);
+  const cdOffset = local.length + name.length;
+  const cdSize = central.length + name.length;
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(1, 8);
+  eocd.writeUInt16LE(1, 10);
+  eocd.writeUInt32LE(cdSize, 12);
+  eocd.writeUInt32LE(cdOffset, 16);
+  return Buffer.concat([local, name, central, name, eocd]);
+}
+
+async function workbookBuffer(rows: unknown[][], edit?: (sheet: unknown) => void) {
+  const workbook = await createExcelWorkbook();
+  const sheet = workbook.addWorksheet('Students');
+  for (const row of rows) sheet.addRow(row);
+  edit?.(sheet);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+describe('parseExcelBuffer bounds and cell types (PRC-L589)', () => {
+  it('rejects an archive whose declared uncompressed size is over the cap, without throwing', async () => {
+    const parsed = await parseExcelBuffer(craftedZip(0x7fffffff));
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.headerErrors.join(' ')).toMatch(/uncompressed/i);
+  });
+
+  it('rejects an archive with more entries than allowed', async () => {
+    const buffer = await workbookBuffer([['first_name', 'last_name', 'date_of_birth']]);
+    const parsed = await parseExcelBuffer(buffer, { maxEntries: 2 });
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.headerErrors.join(' ')).toMatch(/entries/i);
+  });
+
+  it('caps the number of data rows', async () => {
+    const buffer = await workbookBuffer([
+      ['first_name', 'last_name', 'date_of_birth'],
+      ['A', 'One', '2010-01-01'],
+      ['B', 'Two', '2010-01-02'],
+      ['C', 'Three', '2010-01-03'],
+      ['D', 'Four', '2010-01-04'],
+    ]);
+    const parsed = await parseExcelBuffer(buffer, { maxRows: 3 });
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.headerErrors.join(' ')).toMatch(/4 data rows.*maximum is 3/);
+    expect((await parseExcelBuffer(buffer, { maxRows: 4 })).rows).toHaveLength(4);
+  });
+
+  it('reads formula results, rich text and hyperlink text as plain strings', async () => {
+    const buffer = await workbookBuffer(
+      [
+        ['first_name', 'last_name', 'date_of_birth', 'contact_email'],
+        ['', '', '2010-01-01', ''],
+      ],
+      (sheet) => {
+        const row = (
+          sheet as { getRow(n: number): { getCell(c: number): { value: unknown } } }
+        ).getRow(2);
+        row.getCell(1).value = { formula: 'CONCAT("A","da")', result: 'Ada' };
+        row.getCell(2).value = { richText: [{ text: 'Love' }, { text: 'lace' }] };
+        row.getCell(4).value = { text: 'ada@example.edu', hyperlink: 'mailto:ada@example.edu' };
+      },
+    );
+    const parsed = await parseExcelBuffer(buffer);
+    expect(parsed.headerErrors).toEqual([]);
+    expect(parsed.rows).toEqual([
+      expect.objectContaining({
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        contactEmail: 'ada@example.edu',
+      }),
+    ]);
+  });
+});

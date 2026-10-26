@@ -130,6 +130,18 @@ export class PgReportStore implements ReportStore {
     });
   }
 
+  /** PRC-L143: one tenant transaction and one query for a page of run artifacts. */
+  async getArtifactsByIds(tenantId: string, ids: string[]): Promise<ReportArtifactRecord[]> {
+    if (ids.length === 0) return [];
+    return this.tenant(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT * FROM report_artifacts WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+        [tenantId, ids],
+      );
+      return (rows as Record<string, unknown>[]).map(mapArtifact);
+    });
+  }
+
   async listArtifacts(tenantId: string, reportKey?: string): Promise<ReportArtifactRecord[]> {
     return this.tenant(tenantId, async (client) => {
       const { rows } = reportKey

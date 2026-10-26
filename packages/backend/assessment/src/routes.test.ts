@@ -154,6 +154,29 @@ describe('Assessment Routes', () => {
       expect(body.data).toHaveLength(2);
       expect(body.meta.totalItems).toBe(2);
     });
+
+    // PRC-L081: the list query is validated against GradingSchemeListQuerySchema.
+    it.each(['pageSize=1000', 'page=0', 'pageSize=abc', 'type=bogus'])(
+      'rejects an invalid list query (%s) with 400',
+      async (qs) => {
+        const response = await app.inject({ method: 'GET', url: `/grading-schemes?${qs}` });
+        expect(response.statusCode).toBe(400);
+        const body = JSON.parse(response.body);
+        expect(body.code).toBe('VALIDATION_ERROR');
+        expect(Array.isArray(body.errors)).toBe(true);
+      },
+    );
+
+    it('applies valid page/pageSize/type from the query string', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/grading-schemes?page=2&pageSize=5&type=letter',
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.meta.page).toBe(2);
+      expect(body.meta.pageSize).toBe(5);
+    });
   });
 
   describe('GET /grading-schemes/:id', () => {

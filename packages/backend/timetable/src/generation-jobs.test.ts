@@ -148,4 +148,221 @@ describe('generation jobs (PRC-M401)', () => {
     expect(meetings).toHaveLength(2);
     expect(meetings.every((m) => m.subjectId === null)).toBe(true);
   });
+
+  /**
+   * PRC-M550(c): executeGenerationJob's `this.repo.listRooms(...)` call had no status filter,
+   * so an inactive room was as eligible as an active one — ListRoomsFilter did not even have a
+   * `status` field to pass. Seed one active + one inactive room with equal capacity; across
+   * repeated generation runs the inactive room's id must never be chosen.
+   */
+  it('never assigns an inactive room (PRC-M550c)', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'M550C',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    const activeRoom = await service.createRoom(tenantId, {
+      institutionId,
+      code: 'ACTIVE-1',
+      name: 'Active Room',
+      capacity: 30,
+      roomType: 'CLASSROOM',
+      status: 'active',
+    });
+    await service.createRoom(tenantId, {
+      institutionId,
+      code: 'INACTIVE-1',
+      name: 'Inactive Room',
+      capacity: 30,
+      roomType: 'CLASSROOM',
+      status: 'inactive',
+    });
+    for (let i = 0; i < 5; i += 1) {
+      const job = await service.runGenerationJob(
+        tenantId,
+        {
+          institutionId,
+          academicPeriodId,
+          bellScheduleId: schedule.id,
+          demands: [
+            {
+              ...demandInput.demands[0]!,
+              sectionId: crypto.randomUUID(),
+              enrollmentCount: 20,
+              periodsPerWeek: 1,
+            },
+          ],
+        },
+        null,
+      );
+      expect(job.status).toBe('done');
+      const assignedRoomIds = (
+        (job.result as { assignments?: Array<{ roomId: string | null }> }).assignments ?? []
+      ).map((a) => a.roomId);
+      expect(assignedRoomIds.every((id) => id === null || id === activeRoom.id)).toBe(true);
+    }
+  });
+
+  /**
+   * PRC-L374 part 2: generateTimetable's `remaining.set(demand.id, ...)` silently collapsed two
+   * input demands sharing the same client-supplied id (last one wins), undercounting assigned
+   * periods with no error. Two demands sharing one id must fail the job with a message
+   * mentioning the duplicate, matching this file's "validation failures keep their message"
+   * convention (ValidationError -> failed job record, not a thrown rejection).
+   */
+  it('rejects duplicate demand ids with a failed job (PRC-L374 part 2)', async () => {
+    const service = new TimetableService(new InMemoryTimetableRepository());
+    const job = await service.runGenerationJob(
+      tenantId,
+      {
+        ...demandInput,
+        demands: [
+          { ...demandInput.demands[0]!, id: 'dup-1' },
+          { ...demandInput.demands[0]!, id: 'dup-1', sectionId: crypto.randomUUID() },
+        ],
+      },
+      null,
+    );
+    expect(job.status).toBe('failed');
+    expect(job.errorMessage).toMatch(/duplicate/i);
+  });
+
+  /**
+   * PRC-L503: persistMeetings: true drives createMeeting, which (since PRC-M396(b)) calls
+   * repo.createMeetingAtomic instead of a separate pre-check + insert. Spy on
+   * createMeetingAtomic (standing in for the live-PG atomic path, no live infra needed here)
+   * to assert persistMeetings actually reaches it once per assignment and persisted/assignedCount
+   * agree.
+   */
+  it('persistMeetings drives repo.createMeetingAtomic once per assignment (mocked atomic path)', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'L503',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    let atomicCalls = 0;
+    const originalAtomic = repo.createMeetingAtomic.bind(repo);
+    repo.createMeetingAtomic = async (t, candidate, clashCheck) => {
+      atomicCalls += 1;
+      return originalAtomic(t, candidate, clashCheck);
+    };
+    const job = await service.runGenerationJob(
+      tenantId,
+      {
+        institutionId,
+        academicPeriodId,
+        bellScheduleId: schedule.id,
+        persistMeetings: true,
+        demands: [{ ...demandInput.demands[0]!, periodsPerWeek: 1 }],
+      },
+      null,
+    );
+    expect(job.status).toBe('done');
+    expect(job.assignedCount).toBe(1);
+    expect(atomicCalls).toBe(1);
+    expect((job.stats as { persisted?: number }).persisted).toBe(1);
+  });
+
+  /**
+   * PRC-M550(b): persistMeetings is all-or-nothing. A booking committed by a concurrent
+   * writer after the generator was seeded makes one generated meeting clash at persist time;
+   * the job must fail and persist none of its meetings (previously: `done`, 1 persisted,
+   * `persistSkipped: 1`, i.e. a silently partial timetable).
+   */
+  it('a persist-time clash fails the job and persists no generated meeting (PRC-M550b)', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'M550B',
+      dayPattern: '1',
+      status: 'active',
+    });
+    const period = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    const staffA = '55555555-5555-4555-8555-55555555aaaa';
+    const staffB = '55555555-5555-4555-8555-55555555bbbb';
+    const injectedId = crypto.randomUUID();
+
+    // Simulate a concurrent writer: right after the generator's seeding read, another
+    // request books staffB into the only slot (day 1, P1).
+    const originalList = repo.listMeetings.bind(repo);
+    let injected = false;
+    repo.listMeetings = async (t, filter) => {
+      const rows = await originalList(t, filter);
+      if (!injected && filter?.academicPeriodId && filter.dayOfWeek === undefined) {
+        injected = true;
+        const now = new Date().toISOString();
+        await repo.createMeeting({
+          id: injectedId,
+          tenantId,
+          institutionId,
+          academicPeriodId,
+          sectionId: crypto.randomUUID(),
+          subjectId: null,
+          staffId: staffB,
+          periodId: period.id,
+          roomId: null,
+          dayOfWeek: 1,
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      return rows;
+    };
+
+    const job = await service.runGenerationJob(
+      tenantId,
+      {
+        institutionId,
+        academicPeriodId,
+        bellScheduleId: schedule.id,
+        daysOfWeek: [1],
+        persistMeetings: true,
+        demands: [
+          { ...demandInput.demands[0]!, sectionId: crypto.randomUUID(), staffId: staffA },
+          { ...demandInput.demands[0]!, sectionId: crypto.randomUUID(), staffId: staffB },
+        ],
+      },
+      null,
+    );
+
+    expect(injected).toBe(true);
+    expect(job.status).toBe('failed');
+    expect(job.errorMessage).toMatch(/clash/i);
+    const meetings = await originalList(tenantId, { institutionId });
+    expect(meetings.map((m) => m.id)).toEqual([injectedId]);
+  });
 });

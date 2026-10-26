@@ -72,15 +72,8 @@ async function start() {
     repository,
   });
 
-  try {
-    await app.listen({ port: PORT, host: HOST });
-    app.log.info(`${SERVICE_NAME} service listening on ${HOST}:${PORT}`);
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-
   // W1-ARCH-07: ordered close — HTTP (plugin onClose) → DB pools → exit.
+  // PRC-L397: registered before listen so a SIGTERM during startup is handled.
   registerGracefulShutdown({
     logger: {
       info: (obj, msg) => app.log.info(obj, msg),
@@ -100,6 +93,14 @@ async function start() {
       },
     ],
   });
+
+  try {
+    await app.listen({ port: PORT, host: HOST });
+    app.log.info(`${SERVICE_NAME} service listening on ${HOST}:${PORT}`);
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
+  }
 }
 
 start();

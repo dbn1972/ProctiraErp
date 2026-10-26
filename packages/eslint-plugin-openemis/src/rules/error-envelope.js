@@ -5,7 +5,9 @@
  * Charter §6 (API Standards) and §32 (Definition of Done) require every
  * 4xx/5xx response payload to include `code`, `message`, and `statusCode`.
  * Spreads (`...envelope`) and re-thrown errors are exempt because they
- * delegate to the global error handler.
+ * delegate to the global error handler. A status or payload passed as an
+ * identifier bound by a single `const` is resolved to its initializer
+ * (PRC-L301); other bindings are presumed compliant.
  *
  * Mirrors the static check in tools/dod-checks/src/checks/error-envelope.mjs
  * so the same violation surfaces both at edit time (here) and at release
@@ -61,6 +63,34 @@ function findMissingFields(objectExpr) {
   return REQUIRED_FIELDS.filter((f) => !present.has(f));
 }
 
+/**
+ * PRC-L301: resolve an Identifier to the `init` of a single `const`
+ * declaration in scope. Returns `null` (presumed compliant) for anything
+ * else: let/var, parameters, imports, or no binding. With `soleRead`, the
+ * binding must have no other reads than `node` so a payload mutated or
+ * passed elsewhere after declaration is not judged by its initializer.
+ */
+function resolveConstInit(context, node, { soleRead = false } = {}) {
+  if (!node || node.type !== 'Identifier') return node;
+  const sourceCode = context.sourceCode ?? context.getSourceCode();
+  let scope = sourceCode.getScope ? sourceCode.getScope(node) : context.getScope();
+  let variable = null;
+  while (scope && !variable) {
+    variable = scope.set.get(node.name) ?? null;
+    scope = scope.upper;
+  }
+  if (!variable || variable.defs.length !== 1) return null;
+  const def = variable.defs[0];
+  if (def.type !== 'Variable' || def.parent?.kind !== 'const') return null;
+  if (def.node.type !== 'VariableDeclarator' || def.node.id.type !== 'Identifier') return null;
+  if (!def.node.init) return null;
+  if (soleRead) {
+    const reads = variable.references.filter((r) => !r.init);
+    if (reads.length !== 1 || reads[0].identifier !== node) return null;
+  }
+  return def.node.init;
+}
+
 /** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
@@ -85,9 +115,9 @@ module.exports = {
       CallExpression(node) {
         if (!isReplySendCall(node)) return;
         const inner = node.callee.object;
-        const status = readStatusArg(inner.arguments[0]);
+        const status = readStatusArg(resolveConstInit(context, inner.arguments[0]));
         if (status == null || status < 400) return;
-        const arg = node.arguments[0];
+        const arg = resolveConstInit(context, node.arguments[0], { soleRead: true });
         const missing = findMissingFields(arg);
         if (!missing || missing.length === 0) return;
         context.report({

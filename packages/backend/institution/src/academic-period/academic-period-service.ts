@@ -57,6 +57,28 @@ export class AcademicPeriodService {
       endDate,
     });
 
+    // PRC-L122: a tenant's academic years must not overlap — ambiguous
+    // "which year is this date in" questions break rollover, attendance
+    // period-scoping, and reporting. Check against every other live
+    // top-level year in the tenant.
+    if (kind === 'year') {
+      const existingYears = await this.prisma.academicPeriod.findMany({
+        where: { tenantId, kind: 'year', deletedAt: null, parentId: null },
+      });
+      for (const existingYear of existingYears) {
+        if (
+          isEffectiveOn(existingYear.startDate, existingYear.endDate, startDate) ||
+          isEffectiveOn(existingYear.startDate, existingYear.endDate, endDate) ||
+          isEffectiveOn(startDate, endDate, existingYear.startDate)
+        ) {
+          throw new ConflictError(
+            `Academic year window overlaps existing year '${existingYear.name}' ` +
+              `(${toUtcDateOnly(existingYear.startDate)}..${toUtcDateOnly(existingYear.endDate)})`,
+          );
+        }
+      }
+    }
+
     return this.prisma.academicPeriod.create({
       data: {
         tenantId,
@@ -187,7 +209,7 @@ export class AcademicPeriodService {
       );
     }
 
-    return this.prisma.academicPeriod.update({
+    const updated = await this.prisma.academicPeriod.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -195,6 +217,19 @@ export class AcademicPeriodService {
         ...(hierarchyTouched && { kind, parentId }),
       },
     });
+
+    // PRC-L122: archiving a year must cascade to its still-active child
+    // terms — otherwise an "active" term can survive under an archived
+    // year, which active-period validation and rollover both assume cannot
+    // happen.
+    if (dto.status === 'archived' && currentKind === 'year') {
+      await this.prisma.academicPeriod.updateMany({
+        where: { tenantId, parentId: id, deletedAt: null, status: { not: 'archived' } },
+        data: { status: 'archived' },
+      });
+    }
+
+    return updated;
   }
 
   /**
@@ -228,9 +263,11 @@ export class AcademicPeriodService {
       ]);
     }
 
-    if (isEffectiveOn(prior.startDate, prior.endDate, startDate) ||
-        isEffectiveOn(prior.startDate, prior.endDate, endDate) ||
-        isEffectiveOn(startDate, endDate, prior.startDate)) {
+    if (
+      isEffectiveOn(prior.startDate, prior.endDate, startDate) ||
+      isEffectiveOn(prior.startDate, prior.endDate, endDate) ||
+      isEffectiveOn(startDate, endDate, prior.startDate)
+    ) {
       throw new ConflictError(
         `Successor window overlaps prior version ${toUtcDateOnly(prior.startDate)}..${toUtcDateOnly(prior.endDate)}`,
       );

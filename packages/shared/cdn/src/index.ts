@@ -26,7 +26,13 @@ export { CdnConfigSchema } from './types.js';
 export { createCdnAdapter, CdnError } from './cdn-adapter.js';
 
 // URL Builder (exposed for direct use without adapter)
-export { buildAssetUrl, normalizePath } from './url-builder.js';
+export {
+  buildAssetUrl,
+  normalizePath,
+  CdnPathError,
+  assertSafeAssetPath,
+  assertSafeTenantId,
+} from './url-builder.js';
 
 // Adapters
 export { CloudFrontCdnAdapter } from './adapters/cloudfront.js';

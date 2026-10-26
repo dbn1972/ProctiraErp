@@ -25,8 +25,29 @@ ingress:
     enabled: true
     secretName: proctira-staging-tls
 
+# PRC-M523: staging previously had no NetworkPolicy (Helm default off).
+networkPolicy:
+  enabled: true
+  ingressNamespaces:
+    - ingress-nginx
+  egressCIDRs:
+    - cidr: 0.0.0.0/0
+      except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 443
+
+# PRC-M599: pin a real image.tag (see values-production.yaml's comment for
+# the full rationale); sha-pending matches the Kustomize placeholder
+# convention and is rewritten by CI/CD.
 apiGateway:
   replicaCount: 2
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -37,6 +58,8 @@ apiGateway:
 
 web:
   replicaCount: 2
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -47,6 +70,8 @@ web:
 
 etlWorker:
   replicaCount: 1
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 1
@@ -54,6 +79,8 @@ etlWorker:
 
 examDocumentWorker:
   replicaCount: 1
+  image:
+    tag: sha-pending
   autoscaling:
     enabled: true
     minReplicas: 1
@@ -61,15 +88,23 @@ examDocumentWorker:
 
 registrationPortal:
   replicaCount: 2
+  image:
+    tag: sha-pending
 
 publicWebsite:
   replicaCount: 2
+  image:
+    tag: sha-pending
 
 adminConsole:
   replicaCount: 1
+  image:
+    tag: sha-pending
 
 developerPortal:
   replicaCount: 1
+  image:
+    tag: sha-pending
 
 # -- Backend domain services (staging overrides)
 institutionService:
@@ -157,7 +192,11 @@ config:
     webUrl: ''
 
 # W1-OPS-19 — sandbox: explicit dry-run (RETENTION_DRY_RUN=1); never inherit unset.
+# PRC-M599: pin a real image.tag; deploy-platform-helm.sh overrides it with
+# the CI-built sha at deploy time.
 dr:
   enabled: true
+  image:
+    tag: sha-pending
   phiRetention:
     apply: false

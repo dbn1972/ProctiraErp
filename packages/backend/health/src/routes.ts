@@ -24,7 +24,7 @@
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import { AppError } from '@proctira/common';
 import type { PgQueryable } from '@proctira/database';
-import { validate } from '@proctira/validation';
+import { resolvePaginationQuery, validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { HealthService, HealthAccessContext } from './health-service.js';
@@ -78,6 +78,32 @@ function getAccessContext(request: FastifyRequest): HealthAccessContext {
   if (user) return user;
   // Default: no access (will be overridden by auth middleware in production)
   return { userId: '', roles: [], guardianOfStudentIds: [] };
+}
+
+/**
+ * PRC-L114: replaces the inline `{ page: Number(query.page) || 1, pageSize:
+ * Number(query.pageSize) || 20 }` that silently accepted any value (including
+ * pageSize:99999 or page:-1) with the shared, already-tested
+ * resolvePaginationQuery helper. Returns a 400-shaped error object on failure
+ * (caller sends it directly); returns the resolved { page, pageSize } on
+ * success.
+ */
+function resolveListPagination(
+  request: FastifyRequest,
+):
+  | { page: number; pageSize: number }
+  | { statusCode: 400; code: string; message: string; errors: unknown } {
+  const result = resolvePaginationQuery(request.query as Record<string, unknown>);
+  if (!result.success) {
+    return {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Invalid pagination parameters',
+      errors: result.errors,
+    };
+  }
+  const data = result.data as { page: number; pageSize: number };
+  return { page: data.page, pageSize: data.pageSize };
 }
 
 /** Same Symbol.for key as api-gateway mutation-audit (W1-SEC-10 COMPLETE). */
@@ -224,11 +250,16 @@ function buildNurseIncidentAuditBinder(request: FastifyRequest, tenantId: string
   });
 }
 
-function buildCounsellingSessionAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildCounsellingSessionAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/counselling/sessions',
     regulated: 'health.counselling_session',
     idField: 'counsellingSessionId',
+    operation,
   });
 }
 
@@ -248,27 +279,43 @@ function buildDiagnosisAuditBinder(request: FastifyRequest, tenantId: string) {
   });
 }
 
-function buildReferralAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildReferralAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/special-needs/referrals',
     regulated: 'health.referral',
     idField: 'referralId',
+    operation,
   });
 }
 
-function buildAccommodationPlanAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildAccommodationPlanAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/special-needs/accommodation-plans',
     regulated: 'health.accommodation_plan',
     idField: 'accommodationPlanId',
+    operation,
   });
 }
 
-function buildBreakGlassAuditBinder(request: FastifyRequest, tenantId: string) {
+/** PRC-M519/L115: break-glass approve/deny had no audit binder at all. */
+function buildBreakGlassAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/break-glass',
     regulated: 'health.break_glass',
     idField: 'breakGlassId',
+    operation,
   });
 }
 
@@ -336,12 +383,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listMeasurements(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -471,12 +519,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listAllergies(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -601,12 +650,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listConditions(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -745,12 +795,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listVaccinations(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -880,12 +931,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listInsurance(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1015,12 +1067,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listAssessments(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1082,12 +1135,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listDiagnoses(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1149,12 +1203,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listReferrals(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1196,6 +1251,7 @@ export async function registerHealthRoutes(
           params.data.id,
           body.data,
           getAccessContext(request),
+          buildReferralAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
       } catch (error) {
@@ -1256,12 +1312,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listAccommodationPlans(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1303,6 +1360,7 @@ export async function registerHealthRoutes(
           params.data.id,
           body.data,
           getAccessContext(request),
+          buildAccommodationPlanAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
       } catch (error) {
@@ -1363,12 +1421,13 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = await healthService.listCounsellingSessions(
           tenantId,
           params.data.studentId,
-          { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 },
+          pagination,
           getAccessContext(request),
         );
         return reply.status(200).send(result);
@@ -1410,6 +1469,7 @@ export async function registerHealthRoutes(
           params.data.id,
           body.data,
           getAccessContext(request),
+          buildCounsellingSessionAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
       } catch (error) {
@@ -1442,6 +1502,7 @@ export async function registerHealthRoutes(
         const entity = await healthService.createScreeningProgram(
           tenantId,
           result.data,
+          getAccessContext(request),
           buildScreeningProgramAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);
@@ -1461,12 +1522,22 @@ export async function registerHealthRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
-      const query = request.query as { page?: string; pageSize?: string; gradeLevel?: string };
-      const pagination = { page: Number(query.page) || 1, pageSize: Number(query.pageSize) || 20 };
+      const query = request.query as { gradeLevel?: string };
+      const pagination = resolveListPagination(request);
+      if ('statusCode' in pagination) return reply.status(400).send(pagination);
       try {
         const result = query.gradeLevel
-          ? await healthService.listScreeningProgramsByGrade(tenantId, query.gradeLevel, pagination)
-          : await healthService.listScreeningPrograms(tenantId, pagination);
+          ? await healthService.listScreeningProgramsByGrade(
+              tenantId,
+              query.gradeLevel,
+              pagination,
+              getAccessContext(request),
+            )
+          : await healthService.listScreeningPrograms(
+              tenantId,
+              pagination,
+              getAccessContext(request),
+            );
         return reply.status(200).send(result);
       } catch (error) {
         return sendError(reply, error);
@@ -1493,7 +1564,11 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       try {
-        const entity = await healthService.getScreeningProgram(tenantId, params.data.id);
+        const entity = await healthService.getScreeningProgram(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+        );
         return reply.status(200).send(entity);
       } catch (error) {
         return sendError(reply, error);
@@ -1532,6 +1607,7 @@ export async function registerHealthRoutes(
           tenantId,
           params.data.id,
           body.data,
+          getAccessContext(request),
           buildScreeningProgramAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
@@ -1564,6 +1640,7 @@ export async function registerHealthRoutes(
         await healthService.deleteScreeningProgram(
           tenantId,
           params.data.id,
+          getAccessContext(request),
           buildScreeningProgramAuditBinder(request, tenantId, 'DELETE'),
         );
         return reply.status(204).send();
@@ -1708,6 +1785,7 @@ export async function registerHealthRoutes(
           tenantId,
           params.data.id,
           getAccessContext(request),
+          buildBreakGlassAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(grant);
       } catch (error) {
@@ -1741,6 +1819,7 @@ export async function registerHealthRoutes(
           tenantId,
           params.data.id,
           getAccessContext(request),
+          buildBreakGlassAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(grant);
       } catch (error) {

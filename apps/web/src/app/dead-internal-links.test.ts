@@ -339,6 +339,18 @@ describe('legacy SPA is unreachable', () => {
     expect(existsSync(join(WEB_SRC, 'RootRouter.tsx'))).toBe(false);
   });
 
+  it('has removed the dead pasted-ID transcript form (PRC-L530)', () => {
+    // Unreferenced; the live flow is IssueTranscriptByName on /students/records (D6).
+    expect(existsSync(join(WEB_SRC, 'components/gradebook/issue-transcript-form.tsx'))).toBe(false);
+  });
+
+  it('has removed the unreachable dashboards client with the fabricated radar axis (PRC-M147)', () => {
+    // lib/api/dashboards.ts computed an 'Enrollment' score as log10(students)/7 and
+    // formatted clock times in the browser timezone. The live dashboard uses the
+    // tenant timezone and has no radar; the dead client must not return.
+    expect(existsSync(join(WEB_SRC, 'lib/api/dashboards.ts'))).toBe(false);
+  });
+
   it('pulls exactly the 10 live feature files into the App Router closure', () => {
     const closure = appRouterClosure();
     const reachableFeatures = [...closure]

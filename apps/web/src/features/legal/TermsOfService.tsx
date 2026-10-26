@@ -17,7 +17,7 @@ import { LegalDocumentChrome } from '@/components/layout/LegalDocumentChrome';
 import { MarketingLayout } from '@/components/layout/MarketingLayout';
 import { useLanguage } from '@/providers/LanguageProvider';
 
-const LAST_UPDATED = 'June 1, 2024';
+const LAST_UPDATED = 'October 25, 2026';
 
 /**
  * @param chrome `'marketing'` keeps the original `<MarketingLayout>` wrapper, which the
@@ -47,6 +47,25 @@ export default function TermsOfService({
           </p>
         </header>
 
+        {/* PRC-L262 / Decision D5 guardrail: visible draft marker; no claim of legal compliance. */}
+        <p
+          role="note"
+          data-testid="legal-draft-notice"
+          className="rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
+        >
+          <strong>Draft — pending legal review.</strong> These terms are a working draft and have
+          not been reviewed by counsel.
+        </p>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-foreground">
+            Terms of use for institutions (draft summary)
+          </h2>
+          <p className="text-base leading-relaxed text-foreground">
+            Acceptable use, institution-owned data, service availability, and limitation of
+            liability terms for institutions: [counsel to supply jurisdiction-specific terms].
+          </p>
+        </section>
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-foreground">1. Acceptance of terms</h2>
           <p className="text-base leading-relaxed text-foreground">

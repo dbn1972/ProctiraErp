@@ -185,7 +185,11 @@ export function evaluateTransportAlerts(input: EvaluateAlertsInput): AlertDraft[
           routeId: assignment.routeId,
           studentId: assignment.studentId,
           message: `Student missed pickup (absent after ${rule.threshold} min)`,
-          payload: { threshold: rule.threshold, stopId: assignment.stopId },
+          payload: {
+            threshold: rule.threshold,
+            stopId: assignment.stopId,
+            tripDate: input.tripDate,
+          },
         });
       }
     }

@@ -11,6 +11,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'journey_attendance_sync_conflict_test.dart' as attendance_sync_conflict;
 import 'journey_notification_deep_link_test.dart' as notifications;
 import 'journey_tenant_cache_scoping_test.dart' as tenants;
 import 'journey_tenant_selection_test.dart' as tenant_selection;
@@ -22,4 +23,8 @@ void main() {
   group('notification deep-link', notifications.main);
   group('tenant cache scoping + contract', tenants.main);
   group('workspace selection', tenant_selection.main);
+  group(
+    'attendance sync conflict/permanent failure',
+    attendance_sync_conflict.main,
+  );
 }

@@ -125,4 +125,251 @@ describe('PgInstitutionRepository', () => {
       expect(otherList.meta.totalItems).toBe(0);
     },
   );
+
+  // PRC-M288: update() must preserve non-profile custom_data keys (e.g. a
+  // tenant-set `boardCode`) instead of clobbering them with only the profile
+  // envelope. Failing-first: the raw-SQL-set key disappears before the fix.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'preserves non-profile custom_data keys across update (PRC-M288)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantId = randomUUID();
+      const areaId = randomUUID();
+      await seedTenantAndArea(tenantId, areaId);
+
+      const institutionId = randomUUID();
+      await repo.create({
+        id: institutionId,
+        tenantId,
+        name: 'M288 School',
+        code: `SCH-${institutionId.slice(0, 8)}`,
+        areaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: institutionId, tenantId, areaId });
+
+      const pool = getSharedPgPool();
+      expect(pool).not.toBeNull();
+      // Simulate a tenant-set custom_data key alongside the existing profile
+      // envelope (as a tenant-specific extension would write it).
+      await withPgTenant(pool!, tenantId, async (client) => {
+        await client.query(
+          `UPDATE institutions
+             SET custom_data = custom_data || '{"boardCode": "ICSE"}'::jsonb
+           WHERE id = $1 AND tenant_id = $2`,
+          [institutionId, tenantId],
+        );
+      });
+
+      await repo.update(institutionId, tenantId, { name: 'M288 School Renamed' });
+
+      const { rows } = await withPgTenant(pool!, tenantId, (client) =>
+        client.query(`SELECT custom_data FROM institutions WHERE id = $1 AND tenant_id = $2`, [
+          institutionId,
+          tenantId,
+        ]),
+      );
+      const customData = rows[0]?.custom_data as Record<string, unknown>;
+      expect(customData?.boardCode).toBe('ICSE');
+    },
+  );
+
+  // PRC-L127: once a row is soft-deleted (deleted_at set), its (tenant_id,
+  // code) slot must free up for re-use — a plain unique constraint on
+  // (tenant_id, code) blocks a legitimate re-create with the same code even
+  // though the old row is no longer "live". No app path sets deleted_at on
+  // institutions today, so this simulates a future soft-delete directly via
+  // raw SQL to prove the DB-level guard.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'allows re-using a code after the prior row is soft-deleted (PRC-L127)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantId = randomUUID();
+      const areaId = randomUUID();
+      await seedTenantAndArea(tenantId, areaId);
+      const code = `SOFT-DEL-${randomUUID().slice(0, 8)}`;
+
+      const firstId = randomUUID();
+      await repo.create({
+        id: firstId,
+        tenantId,
+        name: 'First Institution',
+        code,
+        areaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: firstId, tenantId, areaId });
+
+      const pool = getSharedPgPool();
+      expect(pool).not.toBeNull();
+      // Simulate a future soft-delete directly (no app path does this yet).
+      await withPgTenant(pool!, tenantId, async (client) => {
+        await client.query(
+          `UPDATE institutions SET deleted_at = now() WHERE id = $1 AND tenant_id = $2`,
+          [firstId, tenantId],
+        );
+      });
+
+      // A separate area so this row's cleanup (which deletes its own
+      // geographic_areas row) cannot race the still-physically-present
+      // (soft-deleted, not hard-deleted) first row's FK to the shared area.
+      const secondAreaId = randomUUID();
+      await seedTenantAndArea(tenantId, secondAreaId);
+      const secondId = randomUUID();
+      // Before the migration: this throws P2002/23505 (blocked — the plain
+      // unique constraint still occupies the (tenant_id, code) slot). After
+      // the migration: it succeeds (the partial unique index excludes the
+      // soft-deleted row).
+      await repo.create({
+        id: secondId,
+        tenantId,
+        name: 'Second Institution (same code, reused after soft-delete)',
+        code,
+        areaId: secondAreaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: secondId, tenantId, areaId: secondAreaId });
+
+      const found = await repo.findById(secondId, tenantId);
+      expect(found?.code).toBe(code);
+    },
+  );
+
+  // PRC-L571: add non-skipped-when-DB-available coverage for
+  // findByNameInArea (same-tenant hit, cross-tenant miss) — previously the
+  // only live test exercised create(), not this lookup.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'findByNameInArea finds a same-tenant match and misses across tenants (PRC-L571)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      const areaA = randomUUID();
+      const areaB = randomUUID();
+      await Promise.all([seedTenantAndArea(tenantA, areaA), seedTenantAndArea(tenantB, areaB)]);
+
+      const institutionId = randomUUID();
+      const name = `L571 School ${institutionId.slice(0, 8)}`;
+      await repo.create({
+        id: institutionId,
+        tenantId: tenantA,
+        name,
+        code: `SCH-${institutionId.slice(0, 8)}`,
+        areaId: areaA,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: institutionId, tenantId: tenantA, areaId: areaA });
+
+      const hit = await repo.findByNameInArea(name, areaA, tenantA);
+      expect(hit?.id).toBe(institutionId);
+
+      // Cross-tenant: same name/area values scoped to a different tenant's
+      // transaction must not see tenant A's row.
+      const miss = await repo.findByNameInArea(name, areaA, tenantB);
+      expect(miss).toBeNull();
+    },
+  );
+
+  // PRC-L571: add non-skipped-when-DB-available coverage for
+  // list({ sortBy: 'directory' }) — active-then-inactive ordering by code.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'list sortBy=directory orders active institutions before inactive ones (PRC-L571)',
+    async () => {
+      const repo = createInstitutionRepository();
+      const tenantId = randomUUID();
+      const activeAreaId = randomUUID();
+      const inactiveAreaId = randomUUID();
+      // PRC-L571: separate areas per row — cleanupInstitution() deletes its
+      // own geographic_areas row by areaId, which would violate the FK
+      // against the still-live sibling row if both shared one area.
+      await Promise.all([
+        seedTenantAndArea(tenantId, activeAreaId),
+        seedTenantAndArea(tenantId, inactiveAreaId),
+      ]);
+
+      const activeId = randomUUID();
+      const activeCode = `ZACT-${activeId.slice(0, 8)}`;
+      await repo.create({
+        id: activeId,
+        tenantId,
+        name: 'Active School',
+        code: activeCode,
+        areaId: activeAreaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'ACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: activeId, tenantId, areaId: activeAreaId });
+
+      const inactiveId = randomUUID();
+      const inactiveCode = `AINA-${inactiveId.slice(0, 8)}`;
+      await repo.create({
+        id: inactiveId,
+        tenantId,
+        name: 'Inactive School',
+        code: inactiveCode,
+        areaId: inactiveAreaId,
+        typeId: 'primary',
+        sectorId: 'public',
+        ownershipId: 'government',
+        status: 'INACTIVE',
+        latitude: null,
+        longitude: null,
+        address: null,
+        contactPhone: null,
+        contactEmail: null,
+        deactivationReason: null,
+      });
+      created.push({ id: inactiveId, tenantId, areaId: inactiveAreaId });
+
+      const result = await repo.list(tenantId, {}, { page: 1, pageSize: 20, sortBy: 'directory' });
+      const ids = result.data.map((row) => row.id);
+      // Active school sorts before the inactive one despite its code
+      // ('Z...' vs 'A...') sorting later within an unordered-by-status list.
+      expect(ids.indexOf(activeId)).toBeLessThan(ids.indexOf(inactiveId));
+    },
+  );
 });

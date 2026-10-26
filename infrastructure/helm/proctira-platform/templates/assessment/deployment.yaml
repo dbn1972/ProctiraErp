@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/name: assessment-service
     app.kubernetes.io/component: backend
 spec:
+  {{- if not .Values.assessmentService.autoscaling.enabled }}
   replicas: {{ .Values.assessmentService.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

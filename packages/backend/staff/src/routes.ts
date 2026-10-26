@@ -5,7 +5,7 @@
  * PUT    /staff/:id          - Update a staff record
  * GET    /staff              - List staff (paginated, filterable, searchable)
  * GET    /staff/:id          - Get a single staff record
- * DELETE /staff/:id          - Delete a staff record
+ * DELETE /staff/:id          - Soft-delete (archive) a staff record; it is no longer returned by reads
  * POST   /staff/:id/offboard - Thin offboard status stub (P1-HR)
  * GET    /staff/:id/offboard - Read thin offboard status
  */
@@ -443,7 +443,7 @@ export async function registerStaffRoutes(
 
   /**
    * DELETE /staff/:id
-   * Delete a staff record.
+   * Soft-delete (archive) a staff record; it is no longer returned by reads (PRC-L157).
    */
   fastify.delete(
     `${prefix}/:id`,

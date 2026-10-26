@@ -357,8 +357,17 @@ export async function registerThemeRoutes(
       }
 
       const bodyResult = validate(PublishThemeSchema, request.body ?? {});
+      // PRC-L172: an invalid body is a client error, not a silently dropped commit message.
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
       const actor = getActor(request);
-      const commitMessage = bodyResult.success ? bodyResult.data.commitMessage : undefined;
+      const commitMessage = bodyResult.data.commitMessage;
 
       try {
         const revision = await themeService.publish(

@@ -136,7 +136,7 @@ class _ProgramCard extends StatelessWidget {
   final String studentId;
 
   Future<void> _open(BuildContext context) async {
-    if (!program.acceptsApplications) {
+    if (!program.acceptsApplications()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -165,12 +165,12 @@ class _ProgramCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final int? daysLeft = program.daysUntilDeadline;
+    final int? daysLeft = program.daysUntilDeadline();
     final bool urgent = daysLeft != null && daysLeft >= 0 && daysLeft <= 7;
     final bool passed = daysLeft != null && daysLeft < 0;
 
     // Status chip derived from real model fields.
-    final bool closed = !program.acceptsApplications;
+    final bool closed = !program.acceptsApplications();
     final ({Color color, String label}) chip = closed
         ? (color: const Color(0xFF64748B), label: 'Closed')
         : urgent

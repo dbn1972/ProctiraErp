@@ -199,7 +199,6 @@ void main() {
       academicPeriodId: 'period-1',
       date: '2026-01-05',
       status: AttendanceStatus.present,
-      recordedBy: 'teacher-1',
     );
     final AttendanceSubmitSummary offline = await ctx.repo.submitPending();
     expect(offline.stillQueued, 1);

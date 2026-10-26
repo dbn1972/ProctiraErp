@@ -34,7 +34,8 @@
  * Requirements: 1.2 (Transport_Module)
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { resolvePaginationQuery, validate, validateQuery } from '@proctira/validation';
+import type { TSchema } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
@@ -50,6 +51,10 @@ import {
   UpdateStudentAssignmentSchema,
   TransportParamsSchema,
   RouteParamsSchema,
+  TransportListQuerySchema,
+  TransportRouteListQuerySchema,
+  TransportDriverAssignmentListQuerySchema,
+  TransportStudentAssignmentListQuerySchema,
   type CreateTransportRouteInput,
   type UpdateTransportRouteInput,
   type CreateRouteStopInput,
@@ -102,8 +107,44 @@ function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
-function getActorId(request: FastifyRequest): string {
-  return (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'transport';
+/**
+ * PRC-L392: actor attribution comes only from the verified principal's `sub`.
+ * There is no literal fallback; a principal without `sub` gets 401.
+ */
+function requireActorId(request: FastifyRequest, reply: FastifyReply): string | undefined {
+  const sub = (request as FastifyRequest & { user?: { sub?: unknown } }).user?.sub;
+  if (typeof sub === 'string' && sub.trim() !== '') return sub;
+  void reply.status(401).send({
+    code: 'UNAUTHORIZED',
+    message: 'Authenticated user context is required',
+    statusCode: 401,
+  });
+  return undefined;
+}
+
+/**
+ * PRC-L390: validates a list querystring (platform pagination bounds plus the
+ * endpoint's filter schema). Sends 400 and returns undefined on failure.
+ */
+function parseListQuery(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  schema: TSchema,
+): { page: number; pageSize: number } | undefined {
+  const query = (request.query ?? {}) as Record<string, unknown>;
+  const paging = resolvePaginationQuery(query);
+  const result = paging.success ? validateQuery(schema, query) : paging;
+  if (!paging.success || !result.success) {
+    void reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'Validation failed',
+      statusCode: 400,
+      errors: result.success ? [] : result.errors,
+    });
+    return undefined;
+  }
+  const data = paging.data as { page: number; pageSize: number };
+  return { page: data.page, pageSize: data.pageSize };
 }
 
 function tenantMissing(reply: FastifyReply) {
@@ -253,9 +294,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportRouteListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -676,9 +718,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -915,9 +958,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportDriverAssignmentListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -971,11 +1015,13 @@ export async function registerTransportRoutes(
         });
       }
 
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
         const assignment = await transportService.createStudentAssignment(
           tenantId,
           result.data,
-          getActorId(request),
+          actorId,
         );
         return reply.status(201).send({
           ...assignment,
@@ -1074,9 +1120,10 @@ export async function registerTransportRoutes(
         });
       }
 
+      const paging = parseListQuery(request, reply, TransportStudentAssignmentListQuerySchema);
+      if (!paging) return reply;
+      const { page, pageSize } = paging;
       const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
@@ -1414,12 +1461,10 @@ export async function registerTransportRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
-        const row = await transportService.upsertTripAttendance(
-          tenantId,
-          bodyResult.data,
-          getActorId(request),
-        );
+        const row = await transportService.upsertTripAttendance(tenantId, bodyResult.data, actorId);
         return reply.status(200).send(serializeDates(row as unknown as Record<string, unknown>));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -1563,11 +1608,13 @@ export async function registerTransportRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
         const alert = await transportService.acknowledgeAlert(
           tenantId,
           paramsResult.data.id,
-          getActorId(request),
+          actorId,
         );
         return reply.status(200).send(serializeDates(alert as unknown as Record<string, unknown>));
       } catch (error: unknown) {
@@ -1596,11 +1643,13 @@ export async function registerTransportRoutes(
       }
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
         const band = await transportService.createTransportFeeStructure(
           tenantId,
           bodyResult.data,
-          getActorId(request),
+          actorId,
         );
         return reply.status(201).send(serializeDates(band as unknown as Record<string, unknown>));
       } catch (error: unknown) {
@@ -1645,8 +1694,10 @@ export async function registerTransportRoutes(
     async function retryFeeLinksHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      const actorId = requireActorId(request, reply);
+      if (!actorId) return reply;
       try {
-        const result = await transportService.retryPendingFeeLinks(tenantId, getActorId(request));
+        const result = await transportService.retryPendingFeeLinks(tenantId, actorId);
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {

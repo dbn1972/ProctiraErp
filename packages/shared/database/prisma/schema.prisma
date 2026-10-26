@@ -268,6 +268,8 @@ model Institution {
   ownership  String  @db.VarChar(50)
   status     String  @default("active") @db.VarChar(20)
   customData Json?   @default("{}") @map("custom_data") @db.JsonB
+  /// PRC-L322: optimistic-lock version, incremented on every update.
+  version    Int     @default(1)
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -280,7 +282,13 @@ model Institution {
   enrollments Enrollment[]
   classes     Class[]
 
-  @@unique([tenantId, code])
+  // PRC-L127: the authoritative uniqueness guard is the partial unique index
+  // `idx_institutions_tenant_code_active` (db/sql/251_...sql), which excludes
+  // soft-deleted rows — Prisma cannot express a `WHERE deleted_at IS NULL`
+  // partial filter, so this stays a plain non-unique index for query-planner
+  // use only (mirrors the documented pattern for 065_enrollment_active_
+  // uniqueness.sql's Enrollment model).
+  @@index([tenantId, code])
   @@index([tenantId, areaId])
   @@index([tenantId, boardId])
   @@index([tenantId, status])
@@ -333,6 +341,9 @@ model Staff {
   identityNumber String                   @map("identity_number") @db.VarChar(50)
   customData     Json?                    @default("{}") @map("custom_data") @db.JsonB
   searchVector   Unsupported("tsvector")? @map("search_vector")
+  /// Authenticated principal (auth.users document id) linked to this staff member —
+  /// db/sql/098_staff_identity_link.sql. Nullable: most staff have no login.
+  userId         String?                  @map("user_id") @db.Uuid
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

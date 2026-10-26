@@ -161,4 +161,96 @@ describe('timetable generator properties (G-917)', () => {
     expect(result.unassigned).toEqual([]);
     expect(result.assignments).toHaveLength(7);
   });
+
+  /**
+   * PRC-M550(a): executeGenerationJob previously called generateTimetable without telling it
+   * about meetings already committed to the DB for this institution/period, so the generator
+   * happily assigned the same slot a real meeting already occupies — the clash was only caught
+   * later at persist time (createMeeting throws, persistSkipped increments), silently dropping
+   * that demand period instead of placing it elsewhere. existingAssignments seeds the
+   * generator's occupancy before the greedy fill loop starts, so canPlaceHard rejects it up
+   * front and the demand is placed elsewhere (or lands in unassigned), never double-booked.
+   */
+  it('never re-assigns a slot seeded via existingAssignments (PRC-M550a)', () => {
+    const periods: GeneratorPeriod[] = [
+      { id: 'p1', periodOrder: 1, startTime: '08:00', endTime: '08:45' },
+    ];
+    const rooms: GeneratorRoom[] = [{ id: 'r1', capacity: 40 }];
+    const seededAssignment = {
+      demandId: 'existing:seed',
+      sectionId: 'other-section',
+      subjectId: 'other-subject',
+      staffId: 't1',
+      roomId: null,
+      periodId: 'p1',
+      dayOfWeek: 1,
+    };
+    const input: GenerateInput = {
+      daysOfWeek: [1],
+      periods,
+      rooms,
+      demands: [
+        {
+          id: 'd1',
+          sectionId: 's1',
+          subjectId: 'math',
+          staffId: 't1',
+          periodsPerWeek: 1,
+        },
+      ],
+      existingAssignments: [seededAssignment],
+    };
+    const result = generateTimetable(input);
+    expect(result.hardClashCount).toBe(0);
+    // The only slot (day 1, p1) is taken by the seeded assignment; d1 cannot be placed there,
+    // so it must be left unassigned rather than double-booking staffId t1's existing meeting.
+    expect(result.assignments).toHaveLength(0);
+    expect(result.unassigned).toEqual([{ demandId: 'd1', remaining: 1 }]);
+  });
+
+  /**
+   * PRC-L374 part 1: teacherMaxPeriodsPerDay was scoring-only (softScore penalizes exceeding
+   * it, but the repair loop's displace-and-retry cycle could still leave the output over the
+   * cap after MAX_REPAIR_PASSES). canPlaceHard now rejects placing a teacher beyond the cap on
+   * any single day, so the excess always lands in unassigned instead. This is a hard-constraint
+   * finding, so failing-first proof is required: on the pre-fix code, with periodsPerWeek(5) >
+   * teacherMaxPeriodsPerDay(2) and only one day's worth of slots offered, some day in the output
+   * can exceed the cap.
+   */
+  it('never places more than teacherMaxPeriodsPerDay periods for one staff on one day', () => {
+    const periods: GeneratorPeriod[] = [
+      { id: 'p1', periodOrder: 1, startTime: '08:00', endTime: '08:45' },
+      { id: 'p2', periodOrder: 2, startTime: '09:00', endTime: '09:45' },
+      { id: 'p3', periodOrder: 3, startTime: '10:00', endTime: '10:45' },
+      { id: 'p4', periodOrder: 4, startTime: '11:00', endTime: '11:45' },
+      { id: 'p5', periodOrder: 5, startTime: '12:00', endTime: '12:45' },
+    ];
+    const input: GenerateInput = {
+      daysOfWeek: [1],
+      periods,
+      rooms: [],
+      demands: [
+        {
+          id: 'd1',
+          sectionId: 's1',
+          subjectId: 'math',
+          staffId: 't1',
+          periodsPerWeek: 5,
+        },
+      ],
+      teacherMaxPeriodsPerDay: 2,
+    };
+    const result = generateTimetable(input);
+    expect(result.hardClashCount).toBe(0);
+    const byDay = new Map<number, number>();
+    for (const a of result.assignments) {
+      byDay.set(a.dayOfWeek, (byDay.get(a.dayOfWeek) ?? 0) + 1);
+    }
+    for (const count of byDay.values()) {
+      expect(count).toBeLessThanOrEqual(2);
+    }
+    const leftover = result.unassigned.reduce((s, u) => s + u.remaining, 0);
+    expect(result.assignments.length + leftover).toBe(5);
+    expect(leftover).toBeGreaterThan(0);
+  });
 });

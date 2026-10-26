@@ -52,6 +52,8 @@ export interface ReportRunRecord {
 export interface ReportStore {
   insertArtifact(record: ReportArtifactRecord): Promise<ReportArtifactRecord>;
   getArtifact(tenantId: string, id: string): Promise<ReportArtifactRecord | null>;
+  /** PRC-L143: fetch several artifacts in one lookup (missing ids are simply absent). */
+  getArtifactsByIds(tenantId: string, ids: string[]): Promise<ReportArtifactRecord[]>;
   listArtifacts(tenantId: string, reportKey?: string): Promise<ReportArtifactRecord[]>;
 
   insertSchedule(record: ReportScheduleRecord): Promise<ReportScheduleRecord>;
@@ -118,6 +120,13 @@ export class InMemoryReportStore implements ReportStore {
   async getArtifact(tenantId: string, id: string): Promise<ReportArtifactRecord | null> {
     const found = this.artifacts.find((a) => a.id === id && a.tenantId === tenantId);
     return found ? { ...found } : null;
+  }
+
+  async getArtifactsByIds(tenantId: string, ids: string[]): Promise<ReportArtifactRecord[]> {
+    const wanted = new Set(ids);
+    return this.artifacts
+      .filter((a) => a.tenantId === tenantId && wanted.has(a.id))
+      .map((a) => ({ ...a }));
   }
 
   async listArtifacts(tenantId: string, reportKey?: string): Promise<ReportArtifactRecord[]> {

@@ -13,7 +13,10 @@ import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/com
 
 import { InMemoryExaminationRepository } from './in-memory-repository.js';
 import { InMemoryDocumentRepository } from './in-memory-document-repository.js';
+import { InMemoryExamOpsStore } from './ops-store.js';
+import type { ExamSessionRecord } from './ops-store.js';
 import { SimplePdfGenerator } from './pdf-generator.js';
+import type { ExaminationInfo } from './pdf-generator.js';
 import {
   DocumentGenerationService,
   MAX_BATCH_SIZE,
@@ -531,6 +534,150 @@ describe('DocumentGenerationService', () => {
           documentType: 'result_certificate',
         }),
       ).rejects.toThrow(ValidationError);
+    });
+  });
+
+  describe('PRC-M510: admit cards before any marks exist', () => {
+    it('resolves the registered student name instead of printing the raw studentId UUID', async () => {
+      const exam = createScheduledExamination();
+      await examinationRepository.create(exam);
+      // No documentRepository.seedCandidates: resolveCandidates falls back to
+      // candidate registrations (G-902 — admit cards straight after
+      // registration, before any examination_candidates row exists).
+      await examinationRepository.createCandidateRegistration({
+        id: 'reg-001',
+        tenantId,
+        examinationId: 'exam-001',
+        studentId: 'student-001',
+        centerId: 'center-001',
+        subjectIds: ['sub-001', 'sub-002'],
+        status: 'REGISTERED',
+        registeredAt: new Date(),
+      });
+      examinationRepository.setStudentName('student-001', 'Asha Verma');
+
+      let seenCandidates: DocumentCandidate[] = [];
+      const spyPdfGenerator = {
+        ...pdfGenerator,
+        async generateAdmitCards(examInfo: unknown, candidates: DocumentCandidate[]) {
+          seenCandidates = candidates;
+          return pdfGenerator.generateAdmitCards(examInfo as never, candidates);
+        },
+      };
+      const spyService = new DocumentGenerationService(
+        examinationRepository,
+        documentRepository,
+        spyPdfGenerator,
+        taskQueue,
+      );
+
+      const job = await spyService.requestGeneration(tenantId, 'exam-001', {
+        documentType: 'admit_card',
+      });
+      const result = await spyService.processJob(tenantId, job.id);
+
+      expect(result.status).toBe('completed');
+      expect(seenCandidates).toHaveLength(1);
+      expect(seenCandidates[0]!.studentName).toBe('Asha Verma');
+      expect(seenCandidates[0]!.studentName).not.toBe('student-001');
+    });
+  });
+
+  describe('PRC-M232: admit cards prefer ops-table sessions over legacy JSONB sessions', () => {
+    it('reflects the ops session when both an ops session and a legacy JSONB session exist', async () => {
+      const exam = createScheduledExamination();
+      await examinationRepository.create(exam);
+      const candidates = createCandidates(1);
+      documentRepository.seedCandidates('exam-001', candidates);
+
+      const opsStore = new InMemoryExamOpsStore();
+      const opsSession: ExamSessionRecord = {
+        id: 'ops-sess-001',
+        tenantId,
+        examinationId: 'exam-001',
+        subjectId: 'sub-001',
+        date: '2099-06-01',
+        startTime: '14:00',
+        endTime: '16:00',
+        roomId: 'HALL-OPS',
+        centerId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await opsStore.createSession(opsSession);
+
+      let seenExamInfo: ExaminationInfo | undefined;
+      const spyPdfGenerator = {
+        ...pdfGenerator,
+        async generateAdmitCards(examInfo: ExaminationInfo, docCandidates: DocumentCandidate[]) {
+          seenExamInfo = examInfo;
+          return pdfGenerator.generateAdmitCards(examInfo, docCandidates);
+        },
+      };
+      const serviceWithOps = new DocumentGenerationService(
+        examinationRepository,
+        documentRepository,
+        spyPdfGenerator,
+        taskQueue,
+        undefined,
+        undefined,
+        { sessionSource: (t, e) => opsStore.listSessions(t, e) },
+      );
+
+      const job = await serviceWithOps.requestGeneration(tenantId, 'exam-001', {
+        documentType: 'admit_card',
+      });
+      const result = await serviceWithOps.processJob(tenantId, job.id);
+
+      expect(result.status).toBe('completed');
+      expect(seenExamInfo).toBeDefined();
+      expect(seenExamInfo!.sessions).toHaveLength(1);
+      expect(seenExamInfo!.sessions[0]).toMatchObject({
+        subjectName: 'Mathematics',
+        date: '2099-06-01',
+        startTime: '14:00',
+        endTime: '16:00',
+      });
+      // The legacy JSONB session's times (09:00-12:00 / different dates from
+      // createScheduledExamination) must not appear once the ops session wins.
+      expect(seenExamInfo!.sessions.some((s) => s.startTime === '09:00')).toBe(false);
+    });
+
+    it('falls back to the legacy JSONB sessions unchanged when no ops sessions exist', async () => {
+      const exam = createScheduledExamination();
+      await examinationRepository.create(exam);
+      const candidates = createCandidates(1);
+      documentRepository.seedCandidates('exam-001', candidates);
+
+      const opsStore = new InMemoryExamOpsStore();
+
+      let seenExamInfo: ExaminationInfo | undefined;
+      const spyPdfGenerator = {
+        ...pdfGenerator,
+        async generateAdmitCards(examInfo: ExaminationInfo, docCandidates: DocumentCandidate[]) {
+          seenExamInfo = examInfo;
+          return pdfGenerator.generateAdmitCards(examInfo, docCandidates);
+        },
+      };
+      const serviceWithOps = new DocumentGenerationService(
+        examinationRepository,
+        documentRepository,
+        spyPdfGenerator,
+        taskQueue,
+        undefined,
+        undefined,
+        { sessionSource: (t, e) => opsStore.listSessions(t, e) },
+      );
+
+      const job = await serviceWithOps.requestGeneration(tenantId, 'exam-001', {
+        documentType: 'admit_card',
+      });
+      const result = await serviceWithOps.processJob(tenantId, job.id);
+
+      expect(result.status).toBe('completed');
+      expect(seenExamInfo).toBeDefined();
+      expect(seenExamInfo!.sessions).toHaveLength(2);
+      expect(seenExamInfo!.sessions.map((s) => s.startTime)).toEqual(['09:00', '09:00']);
     });
   });
 });

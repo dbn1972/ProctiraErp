@@ -26,7 +26,8 @@
     "fastify-plugin": "^4.5.0",
     "pg": "^8.23.1",
     "uuid": "^14.0.2",
-    "@aws-sdk/client-kms": "^3.1146.0"
+    "@aws-sdk/client-kms": "^3.1146.0",
+    "@smithy/node-http-handler": "4.12.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

@@ -452,4 +452,58 @@ describe('ImportService', () => {
       expect(progress!.progressPercent).toBe(50);
     });
   });
+
+  // PRC-M635: the async path records the outcome (result / failure) on progress.
+  describe('processQueuedImport progress outcome', () => {
+    async function xlsx(header: string[], rows: string[][]): Promise<Buffer> {
+      const workbook = await createExcelWorkbook();
+      const sheet = workbook.addWorksheet('Students');
+      sheet.addRow(header);
+      for (const row of rows) sheet.addRow(row);
+      return Buffer.from(await workbook.xlsx.writeBuffer());
+    }
+    const header = ['first_name', 'last_name', 'date_of_birth', 'national_id'];
+    const validRows = [
+      ['Ada', 'Lovelace', '2008-12-10', 'NID-Q1'],
+      ['Alan', 'Turing', '2007-06-23', 'NID-Q2'],
+    ];
+
+    it('stores the result on completion', async () => {
+      const buffer = await xlsx(header, validRows);
+      await service.processQueuedImport(TENANT_ID, 'job-ok', buffer, {
+        duplicateResolution: 'skip',
+      });
+      const progress = await service.getImportProgress(TENANT_ID, 'job-ok');
+      expect(progress).toMatchObject({ status: 'completed', progressPercent: 100 });
+      expect(progress!.result?.successCount).toBe(2);
+    });
+
+    it('stores errorMessage and result when headers are invalid', async () => {
+      const buffer = await xlsx(['last_name', 'date_of_birth'], [['Lovelace', '2008-12-10']]);
+      await service.processQueuedImport(TENANT_ID, 'job-header', buffer, {
+        duplicateResolution: 'skip',
+      });
+      const progress = await service.getImportProgress(TENANT_ID, 'job-header');
+      expect(progress!.status).toBe('failed');
+      expect(progress!.errorMessage).toMatch(/first_name/);
+      expect(progress!.result?.errorCount).toBeGreaterThanOrEqual(1);
+    });
+
+    it('records a processRows failure as failed (and still rethrows for retry)', async () => {
+      repository.bulkImport = async () => {
+        throw new Error('database unavailable');
+      };
+      const buffer = await xlsx(header, validRows);
+      await expect(
+        service.processQueuedImport(TENANT_ID, 'job-throw', buffer, {
+          duplicateResolution: 'skip',
+        }),
+      ).rejects.toThrow();
+      const progress = await service.getImportProgress(TENANT_ID, 'job-throw');
+      expect(progress!.status).toBe('failed');
+      expect(progress!.progressPercent).toBe(100);
+      expect(progress!.errorMessage).toMatch(/database unavailable/);
+      expect(progress!.completedAt).toBeDefined();
+    });
+  });
 });

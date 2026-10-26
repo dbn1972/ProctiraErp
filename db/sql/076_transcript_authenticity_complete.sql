@@ -18,6 +18,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ---------------------------------------------------------------------------
 -- 1. Rotated KMS/PKI-backed signing key registry (refs only — never raw secrets)
 -- ---------------------------------------------------------------------------
+-- PRC-L463: confirmed via grep (packages/backend/*/src/*.ts) this registry
+-- has no application read/write consumer as of this writing — the signing
+-- service (signed-download.ts) derives key material from env/KMS refs
+-- directly, not from this table. Forward-provisioned with no current
+-- runtime consumer.
 CREATE TABLE IF NOT EXISTS transcript_signing_keys (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id        UUID NOT NULL REFERENCES tenants(id),

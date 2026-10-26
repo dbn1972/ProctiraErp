@@ -605,7 +605,7 @@ export class TransportService {
   async createStudentAssignment(
     tenantId: string,
     input: CreateStudentAssignmentInput,
-    actorId = 'transport',
+    actorId: string,
   ): Promise<StudentRouteAssignmentEntity> {
     // Validate route exists and is active
     const route = await this.repository.findRouteById(input.routeId, tenantId);
@@ -898,11 +898,7 @@ export class TransportService {
     };
   }
 
-  async upsertTripAttendance(
-    tenantId: string,
-    input: UpsertBusAttendanceInput,
-    actorId = 'transport',
-  ) {
+  async upsertTripAttendance(tenantId: string, input: UpsertBusAttendanceInput, actorId: string) {
     await this.getRouteById(tenantId, input.routeId);
     if (input.stopId) {
       const stop = await this.repository.findStopById(input.stopId, tenantId);
@@ -997,13 +993,25 @@ export class TransportService {
         .filter((d) => d.routeId)
         .map((d) => [d.vehicleId, d.routeId as string]),
     );
-    const attendance = input.routeId
-      ? await this.repository.listBusAttendanceTrip(tenantId, {
-          routeId: input.routeId,
-          tripDate,
-          direction: 'pickup',
-        })
-      : [];
+    // PRC-M441: without a routeId, load pickup attendance for every assigned route so
+    // boarded students are not reported as missed. Skipped when no missed_pickup rule is active.
+    const needsAttendance = rules.some((r) => r.isActive && r.kind === 'missed_pickup');
+    const attendanceRouteIds = !needsAttendance
+      ? []
+      : input.routeId
+        ? [input.routeId]
+        : [...new Set(assignments.data.map((a) => a.routeId))];
+    const attendance = (
+      await Promise.all(
+        attendanceRouteIds.map((routeId) =>
+          this.repository.listBusAttendanceTrip(tenantId, {
+            routeId,
+            tripDate,
+            direction: 'pickup',
+          }),
+        ),
+      )
+    ).flat();
     const drafts = evaluateTransportAlerts({
       now,
       tripDate,
@@ -1041,8 +1049,29 @@ export class TransportService {
       })),
       routeDeparture: Object.fromEntries(routes.data.map((r) => [r.id, r.departureTime])),
     });
+    // PRC-M441: one missed_pickup alert per (rule, route, student, trip date). Sequential
+    // runs are de-duplicated here; concurrent runs would need a DB unique index.
+    const missedKey = (a: {
+      ruleId: string;
+      routeId: string | null;
+      studentId: string | null;
+      payload: Record<string, unknown>;
+    }) => `${a.ruleId}|${a.routeId ?? ''}|${a.studentId ?? ''}|${String(a.payload.tripDate ?? '')}`;
+    const hasMissedPickup = drafts.some((d) => d.kind === 'missed_pickup');
+    const seenMissed = new Set(
+      hasMissedPickup
+        ? (await this.repository.listAlerts(tenantId))
+            .filter((a) => a.kind === 'missed_pickup')
+            .map(missedKey)
+        : [],
+    );
     const created = [];
     for (const draft of drafts) {
+      if (draft.kind === 'missed_pickup') {
+        const key = missedKey(draft);
+        if (seenMissed.has(key)) continue;
+        seenMissed.add(key);
+      }
       const alert = await this.repository.createAlert({
         id: uuidv4(),
         tenantId,
@@ -1076,7 +1105,7 @@ export class TransportService {
   async createTransportFeeStructure(
     tenantId: string,
     input: CreateTransportFeeStructureInput,
-    actorId = 'transport',
+    actorId: string,
   ) {
     if (input.routeId) await this.getRouteById(tenantId, input.routeId);
     if (input.stopId) {
@@ -1265,7 +1294,7 @@ export class TransportService {
    */
   async retryPendingFeeLinks(
     tenantId: string,
-    actorId = 'transport',
+    actorId: string,
     options: { limit?: number; leaseMs?: number } = {},
   ): Promise<{ claimed: number; invoiced: number; stillPending: number; pendingCount: number }> {
     if (!this.fees) {

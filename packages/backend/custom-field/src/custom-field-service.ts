@@ -21,11 +21,29 @@ import type {
   CustomFieldValue,
   CustomFieldValueRepository,
 } from './custom-field-repository.js';
+import { validateCustomFieldValue } from './custom-field-validator.js';
 import type {
   CreateCustomFieldDefinitionInput,
   UpdateCustomFieldDefinitionInput,
 } from './schemas.js';
-import { validateCustomFieldValue } from './custom-field-validator.js';
+
+/**
+ * Dropdown fields must always have at least one option. Shared by create and
+ * update so the two paths cannot drift.
+ *
+ * @throws ValidationError if options is missing or empty
+ */
+function assertDropdownHasOptions(options: readonly string[] | undefined): void {
+  if (!options || options.length === 0) {
+    throw new ValidationError('Dropdown fields must have at least one option defined', [
+      {
+        field: 'validationRules.options',
+        message: 'Dropdown fields must have at least one option defined',
+        rule: 'required',
+      },
+    ]);
+  }
+}
 
 /**
  * Service handling custom field business logic.
@@ -66,16 +84,7 @@ export class CustomFieldService {
 
     // Validate dropdown fields have options
     if (input.fieldType === 'dropdown') {
-      const options = input.validationRules?.options;
-      if (!options || options.length === 0) {
-        throw new ValidationError('Dropdown fields must have at least one option defined', [
-          {
-            field: 'validationRules.options',
-            message: 'Dropdown fields must have at least one option defined',
-            rule: 'required',
-          },
-        ]);
-      }
+      assertDropdownHasOptions(input.validationRules?.options);
     }
 
     const definition: Omit<CustomFieldDefinition, 'createdAt' | 'updatedAt'> = {
@@ -107,6 +116,12 @@ export class CustomFieldService {
     const existing = await this.definitionRepository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Custom field definition with id '${id}' not found`);
+    }
+
+    // validationRules replaces the stored rules wholesale, so re-check the
+    // create-time dropdown invariant (PRC-L448). fieldType is immutable on update.
+    if (existing.fieldType === 'dropdown' && input.validationRules !== undefined) {
+      assertDropdownHasOptions(input.validationRules.options);
     }
 
     const updateData: Partial<CustomFieldDefinition> = {};

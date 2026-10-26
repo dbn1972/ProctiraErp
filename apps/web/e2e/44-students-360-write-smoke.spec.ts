@@ -8,7 +8,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
-import { uniqueGradeOrder } from './fixtures/test-data';
+import { ensureSharedAcademicYear, uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -167,20 +167,11 @@ test.describe('Students 360 — live chain (E2E_BACKEND_READY)', () => {
     await page.getByRole('button', { name: /save incident/i }).click();
     await expect(page.getByTestId('discipline-row')).toBeVisible({ timeout: 30_000 });
 
-    const yearStart = shiftIso(-40);
-    const yearEnd = shiftIso(40);
-    const period = await request.post(`${GATEWAY_URL}/api/v1/academic-periods`, {
-      headers: headers(),
-      data: {
-        name: `G914 ${stamp()}`,
-        code: `G914-${stamp()}`,
-        startDate: yearStart,
-        endDate: yearEnd,
-        status: 'active',
-      },
-    });
-    expect(period.status(), await period.text()).toBe(201);
-    const periodId = (await period.json()).id as string;
+    // PRC-L122: academic years are overlap-checked per tenant, so every spec
+    // sharing TENANT_A reuses one "current year" instead of each creating
+    // its own now-centered window (see ensureSharedAcademicYear's doc comment).
+    const period = await ensureSharedAcademicYear(request, GATEWAY_URL, headers());
+    const periodId = period.id;
 
     const grade = await request.post(`${GATEWAY_URL}/api/v1/grades`, {
       headers: headers(),

@@ -10,7 +10,9 @@ metadata:
     app.kubernetes.io/component: worker
 spec:
   # PRC-H051: durable queue consumer for exam document generation jobs.
+  {{- if not .Values.examDocumentWorker.autoscaling.enabled }}
   replicas: {{ .Values.examDocumentWorker.replicaCount }}
+  {{- end }}
   revisionHistoryLimit: 5
   selector:
     matchLabels:

@@ -32,6 +32,13 @@ export function endedFields(
 
 export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
   private assignments: Map<string, StaffAssignmentEntity> = new Map();
+  /** PRC-M172: staffId -> principalId, additive test-only link (staff has no `userId` field). */
+  private readonly principalLinks = new Map<string, string>();
+
+  /** Test helper: link a staff id to the principal (`staff.user_id`) that maps to it. */
+  linkPrincipalToStaff(principalId: string, staffId: string): void {
+    this.principalLinks.set(staffId, principalId);
+  }
 
   private forStaff(tenantId: string, staffId: string): StaffAssignmentEntity[] {
     return [...this.assignments.values()].filter(
@@ -110,6 +117,30 @@ export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
   ): Promise<boolean> {
     const active = await this.findActiveByStaffId(staffId, tenantId);
     return active.some((entity) => entity.institutionId === institutionId);
+  }
+
+  /** PRC-M172: staff ids linked to any of `principalIds` with an active assignment to `classId`. */
+  async listActiveStaffIdsForClass(
+    tenantId: string,
+    classId: string,
+    principalIds: readonly string[],
+  ): Promise<string[]> {
+    const wanted = new Set(principalIds.filter(Boolean));
+    const today = new Date().toISOString().slice(0, 10);
+    return [
+      ...new Set(
+        [...this.assignments.values()]
+          .filter(
+            (a) =>
+              a.tenantId === tenantId &&
+              a.classId === classId &&
+              a.status === 'ACTIVE' &&
+              (a.endDate === null || a.endDate >= today) &&
+              wanted.has(this.principalLinks.get(a.staffId) ?? ''),
+          )
+          .map((a) => a.staffId),
+      ),
+    ];
   }
 
   async findOverlapping(

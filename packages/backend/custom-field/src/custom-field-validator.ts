@@ -231,9 +231,10 @@ function validateDate(value: unknown, fieldPath: string, label: string): FieldEr
     return errors;
   }
 
-  // Verify it's a real date
+  // Verify it's a real date. Date-only ISO strings parse as UTC, and JS rolls
+  // impossible days over (2026-02-31 -> 2026-03-03), so round-trip the value.
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
     errors.push({
       field: fieldPath,
       message: `${label} must be a valid date`,

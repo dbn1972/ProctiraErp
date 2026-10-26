@@ -99,7 +99,7 @@ void main() {
       expect(merit.currency, 'INR');
       expect(merit.deadline, '2099-03-31');
       expect(merit.isOpen, isTrue);
-      expect(merit.acceptsApplications, isTrue);
+      expect(merit.acceptsApplications(), isTrue);
       expect(merit.requiredDocuments, <String>[
         'transcript',
         'income_certificate',
@@ -108,7 +108,7 @@ void main() {
       final ScholarshipProgram sports = programs[1];
       expect(sports.isOpen, isFalse);
       expect(sports.amount, 10000.5);
-      expect(sports.acceptsApplications, isFalse);
+      expect(sports.acceptsApplications(), isFalse);
     });
 
     test('parent payload parses', () {

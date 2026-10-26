@@ -15,16 +15,21 @@
  *         Reject future dates with an error message.
  */
 import {
+  AppError,
   BusinessRuleError,
+  ForbiddenError,
   NotFoundError,
   ValidationError,
   AttendanceStatus,
+  isProductionLike,
 } from '@proctira/common';
 import type { FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { hasInstitutionWideAttendanceWriteRole } from './attendance-access.js';
 import { MAX_ATTENDANCE_RANGE_DAYS } from './attendance-repository.js';
 import type {
+  AttendanceClassMembershipCheck,
   AttendanceRepository,
   AttendanceWriteOp,
   StudentAttendanceEntity,
@@ -63,6 +68,24 @@ function assertRangeWithinCap(startDate: string, endDate: string): void {
     ]);
   }
 }
+
+/** PRC-M496: calendar date (YYYY-MM-DD) of `instant` in an IANA timezone. */
+export function calendarDateInZone(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Resolves the institution/tenant IANA timezone used for attendance 'today' comparisons. */
+export type AttendanceTimeZoneResolver = (
+  tenantId: string,
+  institutionId?: string,
+) => string | Promise<string>;
 
 /**
  * Result of recording bulk attendance.
@@ -116,13 +139,102 @@ export interface AbsenceThresholdExceededEvent {
 }
 
 /**
+ * PRC-M172: the authenticated caller of an attendance write. Routes pass `request.user`; the
+ * class-ownership check runs whenever an actor is supplied. Internal/system callers that pass
+ * no actor (tests, workers) keep the legacy unscoped behaviour.
+ */
+export type AttendanceWriteActor = {
+  id?: string;
+  sub?: string;
+  roles?: unknown;
+};
+
+export interface AttendanceServiceOptions {
+  /** Default 'UTC' (or ATTENDANCE_DEFAULT_TIMEZONE). */
+  timeZone?: string | AttendanceTimeZoneResolver;
+  /** Injectable clock for tests. */
+  now?: () => Date;
+  /**
+   * PRC-M172: teacher-class assignment lookup for attendance writes. An injectable function
+   * (Charter §32 — attendance does not own `staff_assignments`/`staff`, so it cannot query them
+   * itself), mirroring gradebook's `StaffActiveAssignmentCheck` pattern.
+   */
+  classMembership?: AttendanceClassMembershipCheck | null;
+  /** Defaults to `process.env.NODE_ENV`; production-like envs fail closed without membership. */
+  nodeEnv?: string;
+}
+
+/**
  * Service handling attendance business logic.
  */
 export class AttendanceService {
+  private readonly classMembership: AttendanceClassMembershipCheck | null;
+  private readonly nodeEnv: string | undefined;
+
   constructor(
     private readonly repository: AttendanceRepository,
     private readonly eventPublisher?: AttendanceEventPublisher,
-  ) {}
+    private readonly options: AttendanceServiceOptions = {},
+  ) {
+    this.classMembership = options.classMembership ?? null;
+    this.nodeEnv = 'nodeEnv' in options ? options.nodeEnv : process.env.NODE_ENV;
+  }
+
+  /**
+   * PRC-M172: authorise an attendance write against `classId`.
+   *  - Institution-wide roles (admin/principal/registrar/attendance_officer/...) bypass.
+   *  - Otherwise the actor must be linked (`staff.user_id`) to a staff row with an active
+   *    `staff_assignments` row for `classId`; no match -> 403 FORBIDDEN.
+   *  - No membership lookup configured: fail closed (503) in production-like envs, no-op
+   *    otherwise (dev/test convenience, mirrors gradebook's documented behaviour).
+   */
+  private async assertClassWriteScope(
+    tenantId: string,
+    actor: AttendanceWriteActor,
+    classId: string,
+  ): Promise<void> {
+    if (hasInstitutionWideAttendanceWriteRole(actor.roles)) return;
+
+    const membership = this.classMembership;
+    if (!membership) {
+      if (isProductionLike(this.nodeEnv)) {
+        throw new AppError(
+          'Attendance class-write scope lookup is not configured; attendance writes are unavailable',
+          'SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+      return;
+    }
+
+    const principalIds = [actor.id, actor.sub].filter(
+      (id): id is string => typeof id === 'string' && id.length > 0,
+    );
+    const staffIds = principalIds.length ? await membership(tenantId, classId, principalIds) : [];
+    if (staffIds.length === 0) {
+      throw new ForbiddenError('Forbidden: you are not an assigned teacher of this class');
+    }
+  }
+
+  /**
+   * PRC-M496: institution-local calendar date for "today" comparisons,
+   * mirroring TimetableServiceOptions/ExaminationServiceOptions's
+   * `localDate()` pattern exactly. Falls back to UTC on an invalid/unresolved
+   * timezone.
+   */
+  private async localDate(tenantId: string, institutionId?: string): Promise<string> {
+    const configured = this.options.timeZone;
+    let zone =
+      typeof configured === 'function'
+        ? await configured(tenantId, institutionId)
+        : (configured ?? process.env.ATTENDANCE_DEFAULT_TIMEZONE ?? 'UTC');
+    try {
+      Intl.DateTimeFormat('en-CA', { timeZone: zone });
+    } catch {
+      zone = 'UTC';
+    }
+    return calendarDateInZone(this.options.now?.() ?? new Date(), zone);
+  }
 
   /** Update op whose audit row is written only when the status changes (PRC-M168). */
   private auditedUpdateOp(
@@ -159,7 +271,13 @@ export class AttendanceService {
     tenantId: string,
     input: RecordStudentAttendanceInput,
     recordedBy: string,
+    actor?: AttendanceWriteActor,
   ): Promise<StudentAttendanceEntity> {
+    // PRC-M172: teacher must own the class, unless institution-wide or no actor supplied.
+    if (actor) {
+      await this.assertClassWriteScope(tenantId, actor, input.classId);
+    }
+
     // Validate academic period is active
     const period = await this.repository.getAcademicPeriodById(tenantId, input.academicPeriodId);
     if (!period) {
@@ -173,7 +291,13 @@ export class AttendanceService {
     }
 
     // Validate attendance date (Req 9.7)
-    this.validateAttendanceDate(input.date, period.startDate, period.endDate);
+    await this.validateAttendanceDate(
+      input.date,
+      period.startDate,
+      period.endDate,
+      tenantId,
+      input.institutionId,
+    );
 
     // Validate recording mode
     const config = await this.repository.getInstitutionAttendanceConfig(
@@ -235,7 +359,13 @@ export class AttendanceService {
     tenantId: string,
     input: RecordBulkStudentAttendanceInput,
     recordedBy: string,
+    actor?: AttendanceWriteActor,
   ): Promise<BulkAttendanceResult> {
+    // PRC-M172: teacher must own the class, unless institution-wide or no actor supplied.
+    if (actor) {
+      await this.assertClassWriteScope(tenantId, actor, input.classId);
+    }
+
     // Validate academic period is active
     const period = await this.repository.getAcademicPeriodById(tenantId, input.academicPeriodId);
     if (!period) {
@@ -249,7 +379,13 @@ export class AttendanceService {
     }
 
     // Validate attendance date (Req 9.7)
-    this.validateAttendanceDate(input.date, period.startDate, period.endDate);
+    await this.validateAttendanceDate(
+      input.date,
+      period.startDate,
+      period.endDate,
+      tenantId,
+      input.institutionId,
+    );
 
     // Validate recording mode
     const config = await this.repository.getInstitutionAttendanceConfig(
@@ -385,12 +521,9 @@ export class AttendanceService {
       }
     }
 
-    // Validate date is not in the future
-    const attendanceDate = new Date(input.date + 'T00:00:00Z');
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-
-    if (attendanceDate > today) {
+    // Validate date is not in the future (PRC-M496: institution-local "today").
+    const today = await this.localDate(tenantId, input.institutionId);
+    if (input.date > today) {
       throw new BusinessRuleError(
         'Future attendance cannot be recorded. Please select the current date or a past date.',
       );
@@ -487,21 +620,36 @@ export class AttendanceService {
    * Requirement 9.7: Accept only the current date or past dates within the active
    * academic period. Reject future dates with an error message.
    *
+   * PRC-M496: "current date" is evaluated in the institution's local
+   * timezone (via `tenantId`/`institutionId`), not naive UTC — e.g. a
+   * 23:30 UTC instant on `2026-09-13` is already `2026-09-14` in
+   * `Asia/Kolkata` and must be accepted as "today" for that institution.
+   * `tenantId`/`institutionId` are optional so existing direct unit-test
+   * call sites that pass only (date, periodStart, periodEnd) keep working
+   * against the UTC default.
+   *
    * @throws BusinessRuleError if date is in the future or outside the academic period
    */
-  validateAttendanceDate(date: string, periodStart: Date, periodEnd: Date): void {
-    const attendanceDate = new Date(date + 'T00:00:00Z');
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+  async validateAttendanceDate(
+    date: string,
+    periodStart: Date,
+    periodEnd: Date,
+    tenantId?: string,
+    institutionId?: string,
+  ): Promise<void> {
+    const today = tenantId
+      ? await this.localDate(tenantId, institutionId)
+      : calendarDateInZone(this.options.now?.() ?? new Date(), 'UTC');
 
     // Reject future dates
-    if (attendanceDate > today) {
+    if (date > today) {
       throw new BusinessRuleError(
         'Future attendance cannot be recorded. Please select the current date or a past date.',
       );
     }
 
     // Validate date is within academic period bounds
+    const attendanceDate = new Date(date + 'T00:00:00Z');
     const periodStartDate = new Date(periodStart);
     periodStartDate.setUTCHours(0, 0, 0, 0);
     const periodEndDate = new Date(periodEnd);

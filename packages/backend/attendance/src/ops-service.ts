@@ -76,6 +76,32 @@ function weekdayDates(from: string, to: string): string[] {
   return out;
 }
 
+/** `Date` -> `YYYY-MM-DD` (UTC calendar date), for comparing against the string date fields on records. */
+function dateOnlyStr(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * PRC-M173: resolver for the institution/tenant's holiday calendar, used to
+ * skip EXCUSED writes on non-school days inside an approved leave range.
+ * Optional — when unset, no dates are filtered (today's behavior unchanged).
+ * Gateway wiring (apps/api-gateway/src/domain-plugins.ts) is an intentional
+ * follow-up, not part of this fix.
+ */
+export type AttendanceHolidayLookup = (
+  tenantId: string,
+  institutionId: string,
+  fromDate: string,
+  toDate: string,
+) => Promise<Set<string>>;
+
+export interface AttendanceOpsServiceOptions {
+  /** Injectable clock for tests (PRC-M173 future-date cap). Defaults to `() => new Date()`. */
+  now?: () => Date;
+  /** PRC-M173: optional holiday-calendar filter for the leave-approval EXCUSED range. */
+  holidayLookup?: AttendanceHolidayLookup;
+}
+
 /**
  * PRC-H041: resolve the local date (YYYY-MM-DD) and hour (0-23) of a punch in a
  * given IANA timezone, so IST institutions classify and date-stamp punches by
@@ -107,6 +133,14 @@ function localPunchParts(iso: string, timeZone: string): { date: string; hour: n
   }
 }
 
+/**
+ * PRC-M173: `Date` -> `YYYY-MM-DD` in an IANA timezone; falls back to the UTC
+ * calendar date when the timezone is invalid.
+ */
+function localDateStr(d: Date, timeZone: string): string {
+  return localPunchParts(d.toISOString(), timeZone)?.date ?? dateOnlyStr(d);
+}
+
 /** Patch that re-opens a claimed request when its attendance write fails. */
 const REOPEN = {
   status: 'requested' as const,
@@ -130,6 +164,8 @@ export class AttendanceOpsService {
       defaultTimeZone?: string;
       dismissalHour?: number;
     } = {},
+    /** PRC-M173: injectable clock + optional holiday-calendar filter for leave approval. */
+    private readonly options: AttendanceOpsServiceOptions = {},
   ) {}
 
   /** PRC-H041: statuses a device punch must never silently overwrite. */
@@ -353,10 +389,50 @@ export class AttendanceOpsService {
       await this.withClaimRollback(
         () => this.store.updateLeave(tenantId, id, REOPEN, decision),
         async () => {
+          // PRC-M173: bound the EXCUSED-marking range to the academic period
+          // and to today-or-earlier before computing weekday dates, so an
+          // approval can never pre-mark attendance past the period end or
+          // into the future.
+          const period = await this.attendance.getAcademicPeriodById(
+            tenantId,
+            row.academicPeriodId,
+          );
+          // PRC-M173: "today" is the institution-local calendar date (same
+          // timezone resolution as device punches), not the UTC date — an IST
+          // approval between 00:00 and 05:30 must still cover local today.
+          const timeZone =
+            (await this.punchConfig.resolveTimeZone?.(tenantId, row.institutionId)) ??
+            this.punchConfig.defaultTimeZone ??
+            'Asia/Kolkata';
+          const today = localDateStr(this.options.now?.() ?? new Date(), timeZone);
+          let fromDate = row.fromDate;
+          let toDate = row.toDate;
+          if (period) {
+            const periodStart = dateOnlyStr(period.startDate);
+            const periodEnd = dateOnlyStr(period.endDate);
+            if (fromDate < periodStart) fromDate = periodStart;
+            if (toDate > periodEnd) toDate = periodEnd;
+          }
+          if (toDate > today) toDate = today;
+
+          const holidays =
+            fromDate <= toDate
+              ? ((await this.options.holidayLookup?.(
+                  tenantId,
+                  row.institutionId,
+                  fromDate,
+                  toDate,
+                )) ?? null)
+              : null;
+
           // PRC-M168: every leave day (+ its audit row) commits in ONE transaction.
           const ops: AttendanceWriteOp[] = [];
-          for (const date of weekdayDates(row.fromDate, row.toDate)) {
-            ops.push(await this.excusedDayOp(tenantId, row, date, actor.userId));
+          if (fromDate <= toDate) {
+            for (const date of weekdayDates(fromDate, toDate)) {
+              if (holidays?.has(date)) continue;
+              const op = await this.excusedDayOp(tenantId, row, date, actor.userId);
+              if (op) ops.push(op);
+            }
           }
           if (ops.length > 0) await this.attendance.applyStudentAttendanceWrites(tenantId, ops);
         },
@@ -365,12 +441,18 @@ export class AttendanceOpsService {
     return next;
   }
 
+  /** Statuses an approved-leave EXCUSED write must never overwrite (PRC-M173: data integrity). */
+  private static readonly LEAVE_PROTECTED_STATUSES: ReadonlySet<string> = new Set([
+    AttendanceStatus.PRESENT,
+    AttendanceStatus.LATE,
+  ]);
+
   private async excusedDayOp(
     tenantId: string,
     row: LeaveRequestRecord,
     date: string,
     actorId: string,
-  ): Promise<AttendanceWriteOp> {
+  ): Promise<AttendanceWriteOp | null> {
     const audit = {
       id: uuidv4(),
       previousStatus: null,
@@ -387,6 +469,11 @@ export class AttendanceOpsService {
       null,
     );
     if (existing) {
+      // PRC-M173: a confirmed in-person record (PRESENT/LATE) must never be
+      // silently overwritten to EXCUSED by a later-approved leave.
+      if (AttendanceOpsService.LEAVE_PROTECTED_STATUSES.has(existing.status)) {
+        return null;
+      }
       return {
         kind: 'update',
         id: existing.id,

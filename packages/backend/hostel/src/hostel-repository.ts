@@ -212,6 +212,8 @@ export interface HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<HostelLeaveEntity, 'status'>>,
+    /** PRC-L116: only update when the current status still equals this (else null). */
+    expectedStatus?: LeaveStatus,
   ): Promise<HostelLeaveEntity | null>;
 
   createVisitor(
@@ -223,6 +225,8 @@ export interface HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<HostelVisitorEntity, 'status'>>,
+    /** PRC-L116: only update when the current status still equals this (else null). */
+    expectedStatus?: VisitorStatus,
   ): Promise<HostelVisitorEntity | null>;
 
   createBlock(data: Omit<HostelBlockEntity, 'createdAt' | 'updatedAt'>): Promise<HostelBlockEntity>;
@@ -255,6 +259,8 @@ export interface HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>>,
+    /** PRC-L116: only update when the current status still equals this (else null). */
+    expectedStatus?: GatePassStatus,
   ): Promise<GatePassEntity | null>;
 
   createFeeStructure(data: NewHostelFeeStructure): Promise<HostelFeeStructureEntity>;

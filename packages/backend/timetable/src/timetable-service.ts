@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  appendAuditEntryOnClient,
+  PgAuditRepository,
+  toCreateAuditLogInput,
+  type AuditLogQueryResult,
+} from '@proctira/backend-audit';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
+import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 import {
   detectMeetingClashes,
@@ -16,6 +23,7 @@ import {
 import {
   generateTimetable,
   type GenerateInput,
+  type GeneratorAssignment,
   type GeneratorDemand,
   type GeneratorPeriod,
   type GeneratorRoom,
@@ -87,6 +95,8 @@ const UUID_RE = new RegExp(UUID_PATTERN);
 /** Client-safe failure text: domain validation messages pass through, internals do not. */
 function sanitizeGenerationError(error: unknown): string {
   if (error instanceof AppError && error.statusCode < 500) return error.message;
+  // PRC-M550(b): a persist-time clash fails the run; say so instead of "internal error".
+  if (isTimetableClashError(error)) return error.message;
   return 'Generation failed due to an internal error';
 }
 
@@ -120,6 +130,22 @@ export interface TimetableServiceOptions {
   now?: () => Date;
   /** PRC-M101: when set, meetings/substitutions reject staff of another institution. */
   staffBelongsToInstitution?: StaffInstitutionMembership;
+  /**
+   * PRC-L373: when set, recordAudit additionally persists to the shared, hash-chained
+   * audit_log_entries table (via @proctira/backend-audit) against this pool, on top of the
+   * existing in-memory push kept for listAudits()/test compatibility. Omitted (default): the
+   * in-memory-only behavior of every prior release is unchanged.
+   */
+  auditPool?: PgQueryable;
+}
+
+/** PRC-L373: this package's audit action strings -> the durable store's 3-state operation. */
+function mapActionToOperation(action: string): 'CREATE' | 'UPDATE' | 'DELETE' {
+  if (action.endsWith('.delete') || action.endsWith('.withdraw')) return 'DELETE';
+  if (action.endsWith('.create') || action.endsWith('.enroll') || action === 'generation.run') {
+    return 'CREATE';
+  }
+  return 'UPDATE';
 }
 
 function slugCode(name: string, fallback: string): string {
@@ -197,12 +223,63 @@ export class TimetableService {
     return this.auditLog.filter((row) => row.tenantId === tenantId);
   }
 
-  private recordAudit(entry: Omit<TimetableAuditEntry, 'id' | 'at'>): void {
+  /**
+   * PRC-L373 item 17: GET /timetable/audits reads the durable store (not the in-memory
+   * array, which is per-process and lost on restart). Returns null when no auditPool is
+   * configured — the route maps that to 503, same convention as TimetableSchemaMissingError.
+   */
+  async listDurableAudits(
+    tenantId: string,
+    page: { limit: number; offset: number },
+  ): Promise<AuditLogQueryResult | null> {
+    const auditPool = this.options.auditPool;
+    if (!auditPool) return null;
+    const repo = new PgAuditRepository(auditPool);
+    return repo.query({
+      tenantId,
+      page: Math.floor(page.offset / page.limit) + 1,
+      pageSize: page.limit,
+      sortOrder: 'desc',
+    });
+  }
+
+  /**
+   * PRC-L373: pushes to the in-memory array first (unchanged, keeps listAudits()/existing test
+   * assertions working), then — only when `auditPool` is configured — also appends a durable
+   * row to audit_log_entries via the shared hash-chained writer.
+   *
+   * Documented residual: this durable write is a SEPARATE statement/transaction from the
+   * domain mutation's own `withPgTenant` call (each repository method opens and closes its
+   * own transaction), so it is NOT atomic with the domain write the way
+   * `runRegulatedMutationInTxn` is for scholarship/fees (W1-SEC-10 pattern). A crash between the
+   * domain commit and this audit insert could leave a domain change with no audit row. Closing
+   * that gap would mean restructuring every repository mutation method to accept an
+   * already-open client, which is a larger refactor out of scope for this batch — tracked as a
+   * follow-up, not claimed as full atomicity here.
+   */
+  private async recordAudit(entry: Omit<TimetableAuditEntry, 'id' | 'at'>): Promise<void> {
     this.auditLog.push({
       id: randomUUID(),
       at: nowIso(),
       ...entry,
     });
+    const auditPool = this.options.auditPool;
+    if (!auditPool) return;
+    await withPgTenant(auditPool, entry.tenantId, (client) =>
+      appendAuditEntryOnClient(
+        client,
+        toCreateAuditLogInput({
+          tenantId: entry.tenantId,
+          entityType: entry.entityType,
+          entityId: entry.entityId,
+          operation: mapActionToOperation(entry.action),
+          userId: entry.actorId ?? 'system',
+          userName: entry.actorId ?? 'system',
+          ipAddress: 'internal',
+          metadata: { action: entry.action, ...entry.details },
+        }),
+      ),
+    );
   }
 
   listBellSchedules(tenantId: string, filter?: ListBellSchedulesFilter) {
@@ -213,7 +290,11 @@ export class TimetableService {
     return this.repo.getBellSchedule(tenantId, id);
   }
 
-  async createBellSchedule(tenantId: string, input: BellScheduleInput) {
+  async createBellSchedule(
+    tenantId: string,
+    input: BellScheduleInput,
+    actorId: string | null = null,
+  ) {
     const now = nowIso();
     const code = input.code?.trim() || slugCode(input.name, 'BELL');
     const row = await this.repo.createBellSchedule({
@@ -226,12 +307,12 @@ export class TimetableService {
       createdAt: now,
       updatedAt: now,
     });
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'bell_schedule.create',
       entityType: 'bell_schedule',
       entityId: row.id,
-      actorId: null,
+      actorId,
       details: { code: row.code, institutionId: row.institutionId },
     });
     return row;
@@ -242,32 +323,33 @@ export class TimetableService {
     id: string,
     patch: Partial<BellScheduleInput>,
     opts?: UpdateConcurrencyOpts,
+    actorId: string | null = null,
   ) {
     await this.assertBellScheduleUnlocked(tenantId, id);
     const row = await this.repo.updateBellSchedule(tenantId, id, patch, opts);
     if (row) {
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'bell_schedule.update',
         entityType: 'bell_schedule',
         entityId: id,
-        actorId: null,
+        actorId,
         details: { patchKeys: Object.keys(patch) },
       });
     }
     return row;
   }
 
-  async deleteBellSchedule(tenantId: string, id: string) {
+  async deleteBellSchedule(tenantId: string, id: string, actorId: string | null = null) {
     await this.assertBellScheduleUnlocked(tenantId, id);
     const ok = await this.repo.deleteBellSchedule(tenantId, id);
     if (ok) {
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'bell_schedule.delete',
         entityType: 'bell_schedule',
         entityId: id,
-        actorId: null,
+        actorId,
         details: {},
       });
     }
@@ -278,7 +360,7 @@ export class TimetableService {
     return this.repo.listPeriods(tenantId, bellScheduleId);
   }
 
-  async createPeriod(tenantId: string, input: PeriodInput) {
+  async createPeriod(tenantId: string, input: PeriodInput, actorId: string | null = null) {
     const schedule = await this.repo.getBellSchedule(tenantId, input.bellScheduleId);
     if (!schedule) {
       throw new NotFoundError(`Bell schedule ${input.bellScheduleId} not found`);
@@ -295,12 +377,12 @@ export class TimetableService {
       createdAt: now,
       updatedAt: now,
     });
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'period.create',
       entityType: 'period',
       entityId: row.id,
-      actorId: null,
+      actorId,
       details: { bellScheduleId: row.bellScheduleId, periodOrder: row.periodOrder },
     });
     return row;
@@ -332,6 +414,7 @@ export class TimetableService {
     id: string,
     patch: Partial<PeriodInput>,
     opts?: UpdateConcurrencyOpts,
+    actorId: string | null = null,
   ) {
     const existing = await this.repo.getPeriod(tenantId, id);
     if (!existing) return null;
@@ -349,30 +432,30 @@ export class TimetableService {
     }
     const row = await this.repo.updatePeriod(tenantId, id, patch, opts);
     if (row) {
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'period.update',
         entityType: 'period',
         entityId: id,
-        actorId: null,
+        actorId,
         details: { patchKeys: Object.keys(patch) },
       });
     }
     return row;
   }
 
-  async deletePeriod(tenantId: string, id: string) {
+  async deletePeriod(tenantId: string, id: string, actorId: string | null = null) {
     const existing = await this.repo.getPeriod(tenantId, id);
     if (!existing) return false;
     await this.assertPeriodsUnlocked(tenantId, existing.bellScheduleId, [id]);
     const ok = await this.repo.deletePeriod(tenantId, id);
     if (ok) {
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'period.delete',
         entityType: 'period',
         entityId: id,
-        actorId: null,
+        actorId,
         details: {},
       });
     }
@@ -383,9 +466,9 @@ export class TimetableService {
     return this.repo.listRooms(tenantId, filter);
   }
 
-  createRoom(tenantId: string, input: RoomInput) {
+  async createRoom(tenantId: string, input: RoomInput, actorId: string | null = null) {
     const now = nowIso();
-    return this.repo.createRoom({
+    const row = await this.repo.createRoom({
       id: randomUUID(),
       tenantId,
       ...input,
@@ -394,6 +477,15 @@ export class TimetableService {
       createdAt: now,
       updatedAt: now,
     });
+    await this.recordAudit({
+      tenantId,
+      action: 'room.create',
+      entityType: 'room',
+      entityId: row.id,
+      actorId,
+      details: { code: row.code, institutionId: row.institutionId },
+    });
+    return row;
   }
 
   listSections(tenantId: string, filter?: ListSectionsFilter) {
@@ -404,10 +496,10 @@ export class TimetableService {
     return this.repo.getSection(tenantId, id);
   }
 
-  createSection(tenantId: string, input: SectionInput) {
+  async createSection(tenantId: string, input: SectionInput, actorId: string | null = null) {
     const now = nowIso();
     const code = input.code?.trim() || slugCode(input.name, 'SEC');
-    return this.repo.createSection({
+    const row = await this.repo.createSection({
       id: randomUUID(),
       tenantId,
       institutionId: input.institutionId,
@@ -423,6 +515,15 @@ export class TimetableService {
       createdAt: now,
       updatedAt: now,
     });
+    await this.recordAudit({
+      tenantId,
+      action: 'section.create',
+      entityType: 'section',
+      entityId: row.id,
+      actorId,
+      details: { code: row.code, institutionId: row.institutionId },
+    });
+    return row;
   }
 
   async updateSection(
@@ -430,29 +531,57 @@ export class TimetableService {
     id: string,
     patch: Partial<SectionInput>,
     opts?: UpdateConcurrencyOpts,
+    actorId: string | null = null,
   ) {
     const existing = await this.repo.getSection(tenantId, id);
     if (!existing) return null;
     if (existing.status === 'PUBLISHED') {
       throw new ValidationError('Published sections are locked; unpublish before editing');
     }
-    return this.repo.updateSection(tenantId, id, patch, opts);
+    const row = await this.repo.updateSection(tenantId, id, patch, opts);
+    if (row) {
+      await this.recordAudit({
+        tenantId,
+        action: 'section.update',
+        entityType: 'section',
+        entityId: id,
+        actorId,
+        details: { patchKeys: Object.keys(patch) },
+      });
+    }
+    return row;
   }
 
-  async deleteSection(tenantId: string, id: string) {
+  async deleteSection(tenantId: string, id: string, actorId: string | null = null) {
     const existing = await this.repo.getSection(tenantId, id);
     if (!existing) return false;
     if (existing.status === 'PUBLISHED') {
       throw new ValidationError('Cannot delete a published section; archive or unpublish first');
     }
-    return this.repo.deleteSection(tenantId, id);
+    const ok = await this.repo.deleteSection(tenantId, id);
+    if (ok) {
+      await this.recordAudit({
+        tenantId,
+        action: 'section.delete',
+        entityType: 'section',
+        entityId: id,
+        actorId,
+        details: {},
+      });
+    }
+    return ok;
   }
 
   listEnrollments(tenantId: string, sectionId: string) {
     return this.repo.listEnrollments(tenantId, sectionId);
   }
 
-  async enrollStudent(tenantId: string, sectionId: string, studentId: string) {
+  async enrollStudent(
+    tenantId: string,
+    sectionId: string,
+    studentId: string,
+    actorId: string | null = null,
+  ) {
     const section = await this.repo.getSection(tenantId, sectionId);
     if (!section) {
       throw new NotFoundError(`Section ${sectionId} not found`);
@@ -469,6 +598,14 @@ export class TimetableService {
     switch (result.outcome) {
       case 'enrolled':
       case 'already_enrolled':
+        await this.recordAudit({
+          tenantId,
+          action: 'enrollment.enroll',
+          entityType: 'section_enrollment',
+          entityId: result.enrollment.id,
+          actorId,
+          details: { sectionId, studentId, outcome: result.outcome },
+        });
         return result.enrollment;
       case 'section_missing':
         throw new NotFoundError(`Section ${sectionId} not found`);
@@ -481,7 +618,12 @@ export class TimetableService {
     }
   }
 
-  async withdrawStudent(tenantId: string, sectionId: string, studentId: string) {
+  async withdrawStudent(
+    tenantId: string,
+    sectionId: string,
+    studentId: string,
+    actorId: string | null = null,
+  ) {
     const enrollment = await this.repo.getEnrollment(tenantId, sectionId, studentId);
     if (!enrollment) {
       throw new NotFoundError(`Enrollment for student ${studentId} not found`);
@@ -490,10 +632,21 @@ export class TimetableService {
       return enrollment;
     }
     const section = await this.repo.getSection(tenantId, sectionId);
-    return this.repo.updateEnrollment(tenantId, enrollment.id, {
+    const row = await this.repo.updateEnrollment(tenantId, enrollment.id, {
       status: 'WITHDRAWN',
       withdrawnAt: await this.localDate(tenantId, section?.institutionId),
     });
+    if (row) {
+      await this.recordAudit({
+        tenantId,
+        action: 'enrollment.withdraw',
+        entityType: 'section_enrollment',
+        entityId: enrollment.id,
+        actorId,
+        details: { sectionId, studentId },
+      });
+    }
+    return row;
   }
 
   /**
@@ -504,6 +657,7 @@ export class TimetableService {
     tenantId: string,
     sectionId: string,
     studentIds: string[],
+    actorId: string | null = null,
   ): Promise<{
     enrolled: SectionEnrollmentEntity[];
     failed: Array<{ studentId: string; code: string; message: string }>;
@@ -514,7 +668,7 @@ export class TimetableService {
 
     for (const studentId of unique) {
       try {
-        const row = await this.enrollStudent(tenantId, sectionId, studentId);
+        const row = await this.enrollStudent(tenantId, sectionId, studentId, actorId);
         if (!row) {
           failed.push({
             studentId,
@@ -536,12 +690,12 @@ export class TimetableService {
       }
     }
 
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'section.bulk_enroll',
       entityType: 'section',
       entityId: sectionId,
-      actorId: null,
+      actorId,
       details: {
         requested: unique.length,
         enrolled: enrolled.length,
@@ -675,7 +829,7 @@ export class TimetableService {
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'section.publish',
       entityType: 'section',
@@ -710,7 +864,7 @@ export class TimetableService {
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'section.unpublish',
       entityType: 'section',
@@ -729,24 +883,40 @@ export class TimetableService {
     return this.repo.getMeeting(tenantId, id);
   }
 
-  async createMeeting(tenantId: string, input: MeetingInput) {
+  async createMeeting(tenantId: string, input: MeetingInput, actorId: string | null = null) {
     await this.assertSectionEditable(tenantId, input.sectionId);
-    await this.assertStaffAtInstitution(tenantId, input.staffId, input.institutionId);
-    await this.assertNoMeetingClash(tenantId, input);
-    const now = nowIso();
-    const row = await this.repo.createMeeting({
-      id: randomUUID(),
+    // PRC-M396(a): the section's real institution is authoritative; a client-supplied
+    // institutionId that disagrees could otherwise scope the clash scan (below) at a
+    // near-empty "institution B" and hide a real clash at the section's actual institution.
+    const institutionId = await this.resolveMeetingInstitutionId(
       tenantId,
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    });
-    this.recordAudit({
+      input.sectionId,
+      input.institutionId,
+    );
+    const candidate: MeetingInput = { ...input, institutionId };
+    await this.assertStaffAtInstitution(tenantId, candidate.staffId, institutionId);
+    const now = nowIso();
+    // PRC-M396(b)/PRC-M550(b): a separate pre-check (assertNoMeetingClash) followed by a later,
+    // separate repo.createMeeting() left a race window — two concurrent calls for the identical
+    // slot could both pass the check and both insert. createMeetingAtomic re-runs the clash
+    // check inside the same transaction as the insert, under a per-slot advisory lock.
+    const row = await this.repo.createMeetingAtomic(
+      tenantId,
+      {
+        id: randomUUID(),
+        tenantId,
+        ...candidate,
+        createdAt: now,
+        updatedAt: now,
+      },
+      (existing) => this.assertNoClashAgainst(tenantId, existing, candidate),
+    );
+    await this.recordAudit({
       tenantId,
       action: 'meeting.create',
       entityType: 'section_meeting',
       entityId: row.id,
-      actorId: null,
+      actorId,
       details: {
         sectionId: row.sectionId,
         periodId: row.periodId,
@@ -757,11 +927,81 @@ export class TimetableService {
     return row;
   }
 
+  /**
+   * PRC-M550(b): persist a generation run's meetings all-or-nothing. The per-meeting
+   * preconditions of createMeeting run first (once per section / staff member), then one
+   * repository transaction clash-checks and inserts every meeting; a clash with a booking
+   * made after the generator was seeded rolls the whole batch back and fails the job.
+   */
+  private async persistGeneratedMeetings(
+    tenantId: string,
+    input: CreateGenerationJobInput,
+    assignments: GeneratorAssignment[],
+  ): Promise<SectionMeetingEntity[]> {
+    const sectionInstitution = new Map<string, string>();
+    const staffChecked = new Set<string>();
+    const now = nowIso();
+    const candidates: SectionMeetingEntity[] = [];
+    for (const assignment of assignments) {
+      let institutionId = sectionInstitution.get(assignment.sectionId);
+      if (institutionId === undefined) {
+        await this.assertSectionEditable(tenantId, assignment.sectionId);
+        institutionId = await this.resolveMeetingInstitutionId(
+          tenantId,
+          assignment.sectionId,
+          input.institutionId,
+        );
+        sectionInstitution.set(assignment.sectionId, institutionId);
+      }
+      const staffKey = `${assignment.staffId}|${institutionId}`;
+      if (!staffChecked.has(staffKey)) {
+        await this.assertStaffAtInstitution(tenantId, assignment.staffId, institutionId);
+        staffChecked.add(staffKey);
+      }
+      candidates.push({
+        id: randomUUID(),
+        tenantId,
+        institutionId,
+        academicPeriodId: input.academicPeriodId,
+        sectionId: assignment.sectionId,
+        // Review #554: a demand subject may be a code; meetings keep only real subject ids.
+        subjectId: UUID_RE.test(assignment.subjectId) ? assignment.subjectId : null,
+        staffId: assignment.staffId,
+        periodId: assignment.periodId,
+        roomId: assignment.roomId,
+        dayOfWeek: assignment.dayOfWeek,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    const rows = await this.repo.createMeetingsAtomic(tenantId, candidates, (existing, candidate) =>
+      this.assertNoClashAgainst(tenantId, existing, candidate),
+    );
+    for (const row of rows) {
+      await this.recordAudit({
+        tenantId,
+        action: 'meeting.create',
+        entityType: 'section_meeting',
+        entityId: row.id,
+        actorId: null,
+        details: {
+          sectionId: row.sectionId,
+          periodId: row.periodId,
+          dayOfWeek: row.dayOfWeek,
+          staffId: row.staffId,
+        },
+      });
+    }
+    return rows;
+  }
+
   async updateMeeting(
     tenantId: string,
     id: string,
     patch: Partial<MeetingInput>,
     opts?: UpdateConcurrencyOpts,
+    actorId: string | null = null,
   ) {
     const existing = await this.repo.getMeeting(tenantId, id);
     if (!existing) return null;
@@ -770,10 +1010,18 @@ export class TimetableService {
     if (patch.sectionId && patch.sectionId !== existing.sectionId) {
       await this.assertSectionEditable(tenantId, patch.sectionId);
     }
+    const sectionId = patch.sectionId ?? existing.sectionId;
+    // PRC-M396(a): re-resolve from the (possibly new) section rather than trusting
+    // patch.institutionId, same rationale as createMeeting.
+    const institutionId = await this.resolveMeetingInstitutionId(
+      tenantId,
+      sectionId,
+      patch.institutionId ?? existing.institutionId,
+    );
     const candidate: MeetingInput = {
-      institutionId: patch.institutionId ?? existing.institutionId,
+      institutionId,
       academicPeriodId: patch.academicPeriodId ?? existing.academicPeriodId,
-      sectionId: patch.sectionId ?? existing.sectionId,
+      sectionId,
       subjectId: patch.subjectId !== undefined ? patch.subjectId : existing.subjectId,
       staffId: patch.staffId ?? existing.staffId,
       periodId: patch.periodId ?? existing.periodId,
@@ -785,32 +1033,32 @@ export class TimetableService {
       await this.assertStaffAtInstitution(tenantId, candidate.staffId, candidate.institutionId);
     }
     await this.assertNoMeetingClash(tenantId, candidate, id);
-    const row = await this.repo.updateMeeting(tenantId, id, patch, opts);
+    const row = await this.repo.updateMeeting(tenantId, id, { ...patch, institutionId }, opts);
     if (row) {
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'meeting.update',
         entityType: 'section_meeting',
         entityId: id,
-        actorId: null,
+        actorId,
         details: { patchKeys: Object.keys(patch) },
       });
     }
     return row;
   }
 
-  async deleteMeeting(tenantId: string, id: string) {
+  async deleteMeeting(tenantId: string, id: string, actorId: string | null = null) {
     const existing = await this.repo.getMeeting(tenantId, id);
     if (!existing) return false;
     await this.assertSectionEditable(tenantId, existing.sectionId);
     const ok = await this.repo.deleteMeeting(tenantId, id);
     if (ok) {
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'meeting.delete',
         entityType: 'section_meeting',
         entityId: id,
-        actorId: null,
+        actorId,
         details: { sectionId: existing.sectionId },
       });
     }
@@ -825,7 +1073,11 @@ export class TimetableService {
     return this.repo.getSubstitution(tenantId, id);
   }
 
-  async createSubstitution(tenantId: string, input: SubstitutionInput) {
+  async createSubstitution(
+    tenantId: string,
+    input: SubstitutionInput,
+    actorId: string | null = null,
+  ) {
     const meeting = await this.repo.getMeeting(tenantId, input.sectionMeetingId);
     if (!meeting) {
       throw new NotFoundError(`Section meeting ${input.sectionMeetingId} not found`);
@@ -930,12 +1182,12 @@ export class TimetableService {
       createdAt: now,
       updatedAt: now,
     });
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'substitution.create',
       entityType: 'substitution',
       entityId: row.id,
-      actorId: null,
+      actorId,
       details: {
         sectionMeetingId: row.sectionMeetingId,
         substituteStaffId: row.substituteStaffId,
@@ -1036,8 +1288,41 @@ export class TimetableService {
     });
 
     try {
+      // PRC-L374 part 2: generateTimetable's `remaining.set(demand.id, ...)` silently collapses
+      // two input demands sharing the same client-supplied id (last one wins), undercounting
+      // assigned periods with no error. Fail the job the same way other validation failures do
+      // (ValidationError -> caught below -> job record ends 'failed' with the message).
+      const seenDemandIds = new Set<string>();
+      for (const demand of input.demands) {
+        if (!demand.id) continue;
+        if (seenDemandIds.has(demand.id)) {
+          throw new ValidationError(`Duplicate demand id: ${demand.id}`);
+        }
+        seenDemandIds.add(demand.id);
+      }
       const periods = await this.resolvePeriods(tenantId, input);
-      const rooms = await this.repo.listRooms(tenantId, { institutionId: input.institutionId });
+      // PRC-M550(c): only active rooms are candidates for a new generation run.
+      const rooms = await this.repo.listRooms(tenantId, {
+        institutionId: input.institutionId,
+        status: 'active',
+      });
+      // PRC-M550(a): fold already-committed meetings into the generator's starting occupancy
+      // so it never double-books a slot the DB has already taken for this institution/period.
+      const existingMeetings = await this.repo.listMeetings(tenantId, {
+        institutionId: input.institutionId,
+        academicPeriodId: input.academicPeriodId,
+      });
+      const existingAssignments: GeneratorAssignment[] = existingMeetings
+        .filter((m) => m.status === 'active')
+        .map((m) => ({
+          demandId: `existing:${m.id}`,
+          sectionId: m.sectionId,
+          subjectId: m.subjectId ?? '',
+          staffId: m.staffId,
+          roomId: m.roomId,
+          periodId: m.periodId,
+          dayOfWeek: m.dayOfWeek,
+        }));
       const generateInput: GenerateInput = {
         daysOfWeek: input.daysOfWeek ?? [1, 2, 3, 4, 5],
         periods,
@@ -1053,35 +1338,17 @@ export class TimetableService {
         })),
         unavailable: input.unavailable,
         teacherMaxPeriodsPerDay: input.teacherMaxPeriodsPerDay ?? 6,
+        existingAssignments,
       };
       const generated = generateTimetable(generateInput);
 
       let persisted = 0;
-      let persistSkipped = 0;
-      if (input.persistMeetings) {
-        for (const assignment of generated.assignments) {
-          try {
-            await this.createMeeting(tenantId, {
-              institutionId: input.institutionId,
-              academicPeriodId: input.academicPeriodId,
-              sectionId: assignment.sectionId,
-              // Review #554: a demand subject may be a code; meetings keep only real subject ids.
-              subjectId: UUID_RE.test(assignment.subjectId) ? assignment.subjectId : null,
-              staffId: assignment.staffId,
-              periodId: assignment.periodId,
-              roomId: assignment.roomId,
-              dayOfWeek: assignment.dayOfWeek,
-              status: 'active',
-            });
-            persisted += 1;
-          } catch (error) {
-            if (isTimetableClashError(error)) {
-              persistSkipped += 1;
-              continue;
-            }
-            throw error;
-          }
-        }
+      // PRC-M550(b): persist is all-or-nothing, so nothing is ever skipped; the key stays
+      // in `stats` so the job record shape is unchanged.
+      const persistSkipped = 0;
+      if (input.persistMeetings && generated.assignments.length > 0) {
+        const rows = await this.persistGeneratedMeetings(tenantId, input, generated.assignments);
+        persisted = rows.length;
       }
 
       const updated = await this.ops.updateJob(tenantId, job.id, {
@@ -1101,7 +1368,7 @@ export class TimetableService {
         },
         finishedAt: nowIso(),
       });
-      this.recordAudit({
+      await this.recordAudit({
         tenantId,
         action: 'generation.run',
         entityType: 'generation_job',
@@ -1150,7 +1417,7 @@ export class TimetableService {
       staffId: input.staffId,
       date: input.absenceDate,
     });
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'teacher_absence.create',
       entityType: 'teacher_absence',
@@ -1164,13 +1431,30 @@ export class TimetableService {
   async listAffectedPeriods(
     tenantId: string,
     filter: { institutionId: string; staffId: string; date: string },
-  ) {
+  ): Promise<Array<SectionMeetingEntity & { hasSubstitute: boolean }>> {
     const dayOfWeek = isoWeekday(filter.date);
     const meetings = await this.repo.listMeetings(tenantId, {
       institutionId: filter.institutionId,
       staffId: filter.staffId,
     });
-    return meetings.filter((m) => m.dayOfWeek === dayOfWeek && m.status !== 'cancelled');
+    const affected = meetings.filter((m) => m.dayOfWeek === dayOfWeek && m.status !== 'cancelled');
+    // PRC-L175 part 2: a period already covered by a SCHEDULED/COMPLETED substitution for this
+    // exact date still showed as "needs a substitute" because listAffectedPeriods never looked
+    // at substitutions at all. Additive flag (never filters rows out, which would be a visible
+    // behavior change): hasSubstitute lets the UI still show covered periods, just annotated.
+    const substitutions = await this.repo.listSubstitutions(tenantId, {
+      institutionId: filter.institutionId,
+      fromDate: filter.date,
+      toDate: filter.date,
+    });
+    const covered = new Set(
+      substitutions
+        .filter(
+          (s) => s.status.toUpperCase() === 'SCHEDULED' || s.status.toUpperCase() === 'COMPLETED',
+        )
+        .map((s) => s.sectionMeetingId),
+    );
+    return affected.map((m) => ({ ...m, hasSubstitute: covered.has(m.id) }));
   }
 
   private async resolvePeriods(
@@ -1250,6 +1534,30 @@ export class TimetableService {
     );
   }
 
+  /**
+   * PRC-M396(a): the section is the source of truth for a meeting's institution. A client
+   * that names a sectionId belonging to institution A but claims institutionId B would
+   * otherwise have its clash scan and persisted row scoped to institution B (near-empty),
+   * silently hiding a real clash against institution A's grid. Reject disagreement instead
+   * of trusting the client value.
+   */
+  private async resolveMeetingInstitutionId(
+    tenantId: string,
+    sectionId: string,
+    claimedInstitutionId: string,
+  ): Promise<string> {
+    const section = await this.repo.getSection(tenantId, sectionId);
+    // Allow opaque section ids that predate WS2 (see assertSectionEditable's same comment);
+    // live PG still FK-fails a bogus sectionId.
+    if (!section) return claimedInstitutionId;
+    if (claimedInstitutionId !== section.institutionId) {
+      throw new ValidationError(
+        `institutionId ${claimedInstitutionId} does not match section ${sectionId}'s institution`,
+      );
+    }
+    return section.institutionId;
+  }
+
   private async assertSectionEditable(tenantId: string, sectionId: string): Promise<void> {
     const section = await this.repo.getSection(tenantId, sectionId);
     if (!section) {
@@ -1280,18 +1588,41 @@ export class TimetableService {
     candidate: MeetingInput,
     excludeMeetingId?: string,
   ): Promise<void> {
-    // PRC-M398: only meetings of the same academic period can collide.
     // PRC-M407: fetch only candidate-relevant rows (same institution, period and weekday).
     const sameDay = await this.repo.listMeetings(tenantId, {
       institutionId: candidate.institutionId,
       academicPeriodId: candidate.academicPeriodId,
       dayOfWeek: candidate.dayOfWeek,
     });
+    await this.assertNoClashAgainst(tenantId, sameDay, candidate, excludeMeetingId);
+  }
+
+  /**
+   * PRC-M396(b): the clash-detection core, usable against either a fresh repo.listMeetings()
+   * read (assertNoMeetingClash's pre-check) or an `existing` array already fetched inside the
+   * same transaction as the pending insert (createMeetingAtomic's clashCheck callback) — so the
+   * atomic path re-validates against same-transaction data instead of the earlier read.
+   */
+  private async assertNoClashAgainst(
+    tenantId: string,
+    existing: SectionMeetingEntity[],
+    candidate: MeetingInput,
+    excludeMeetingId?: string,
+  ): Promise<void> {
+    // PRC-M398: only meetings of the same academic period can collide.
+    const sameAcademicPeriod = existing.filter(
+      (m) => m.academicPeriodId === candidate.academicPeriodId,
+    );
     const periodTimes = await this.loadPeriodTimes(tenantId, [
       candidate.periodId,
-      ...sameDay.map((m) => m.periodId),
+      ...sameAcademicPeriod.map((m) => m.periodId),
     ]);
-    const conflicts = detectMeetingClashes(sameDay, candidate, excludeMeetingId, periodTimes);
+    const conflicts = detectMeetingClashes(
+      sameAcademicPeriod,
+      candidate,
+      excludeMeetingId,
+      periodTimes,
+    );
     if (conflicts.length > 0) {
       const reasons = [...new Set(conflicts.map((c) => c.reason))].join(', ');
       throw new TimetableClashError(
@@ -1318,19 +1649,30 @@ export class TimetableService {
     tenantId: string,
     sourcePeriodId: string,
     targetPeriodId: string,
-    options: { dryRun?: boolean; actorId?: string | null } = {},
+    options: { dryRun?: boolean; actorId?: string | null; institutionId?: string } = {},
   ): Promise<{ sectionsCloned: number; meetingsCloned: number }> {
     if (sourcePeriodId === targetPeriodId) {
       throw new ValidationError('Source and target academic periods must differ');
     }
-    const sections = await this.repo.listSections(tenantId, { academicPeriodId: sourcePeriodId });
+    // PRC-M549: cloneForAcademicPeriod previously filtered listSections/listMeetings only by
+    // academicPeriodId, with no institutionId at all — any institution's sections sharing that
+    // academicPeriodId cloned together, so a caller scoped to one institution (per the gateway's
+    // institution-scope hook) could pull another institution's schedule data as long as both
+    // shared an academicPeriodId. Thread institutionId through both the source and target reads.
+    const institutionId = options.institutionId;
+    const sections = await this.repo.listSections(tenantId, {
+      academicPeriodId: sourcePeriodId,
+      institutionId,
+    });
     const existingTarget = await this.repo.listSections(tenantId, {
       academicPeriodId: targetPeriodId,
+      institutionId,
     });
     const keyOf = (s: SectionEntity) => `${s.institutionId}|${s.code}`.toLowerCase();
     const targetByKey = new Map(existingTarget.map((s) => [keyOf(s), s]));
     const targetMeetings = await this.repo.listMeetings(tenantId, {
       academicPeriodId: targetPeriodId,
+      institutionId,
     });
     const targetSectionsWithMeetings = new Set(targetMeetings.map((m) => m.sectionId));
 
@@ -1358,7 +1700,7 @@ export class TimetableService {
     }
 
     const sourceMeetings = (
-      await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId })
+      await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId, institutionId })
     ).filter((m) => sectionIdMap.has(m.sectionId));
     const mapPeriod = await this.buildPeriodMapper(tenantId, targetPeriodId);
     const unmapped: string[] = [];
@@ -1406,7 +1748,7 @@ export class TimetableService {
     if (options.dryRun) return result;
 
     await this.repo.insertClonedTimetable(tenantId, newSections, newMeetings);
-    this.recordAudit({
+    await this.recordAudit({
       tenantId,
       action: 'timetable.clone_period',
       entityType: 'academic_period',

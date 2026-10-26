@@ -13,8 +13,12 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { AttendanceRepository } from './attendance-repository.js';
+import type {
+  AttendanceClassMembershipCheck,
+  AttendanceRepository,
+} from './attendance-repository.js';
 import { AttendanceService } from './attendance-service.js';
+import type { AttendanceTimeZoneResolver } from './attendance-service.js';
 import { registerAttendanceOpsRoutes } from './ops-routes.js';
 import { AttendanceOpsService } from './ops-service.js';
 import type { AttendanceOpsStore } from './ops-store.js';
@@ -38,8 +42,23 @@ export interface AttendancePluginOptions {
     defaultTimeZone?: string;
     dismissalHour?: number;
   };
+  /**
+   * PRC-M496: institution/tenant IANA timezone for "today" date-validation
+   * comparisons in AttendanceService (validateAttendanceDate,
+   * recordStaffAttendance's future-date check). Defaults to UTC when
+   * omitted. The gateway reuses the SAME resolver instance already
+   * constructed for `punchConfig` rather than building a second one.
+   */
+  timeZone?: string | AttendanceTimeZoneResolver;
   /** Route prefix for attendance (default: '/attendance') */
   prefix?: string;
+  /**
+   * PRC-M172 (Charter §32): teacher-class assignment lookup for attendance writes, injected by
+   * the gateway composition root (`@proctira/backend-staff`'s `listActiveStaffIdsForClass`,
+   * mirroring gradebook's `staffHasActiveAssignmentAt` wiring). When none is available,
+   * production-like envs fail closed (503) on attendance writes made with an actor.
+   */
+  classMembership?: AttendanceClassMembershipCheck | null;
 }
 
 // Extend Fastify types
@@ -57,7 +76,10 @@ export const attendancePlugin = fp(
     const { repository, prefix = '/attendance' } = options;
 
     // Create attendance service instance
-    const attendanceService = new AttendanceService(repository);
+    const attendanceService = new AttendanceService(repository, undefined, {
+      timeZone: options.timeZone,
+      classMembership: options.classMembership ?? null,
+    });
     const opsStore = options.opsStore ?? createAttendanceOpsStore();
     const opsService = new AttendanceOpsService(opsStore, repository, options.punchConfig ?? {});
 

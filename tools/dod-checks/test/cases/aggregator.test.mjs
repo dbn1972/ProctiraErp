@@ -5,15 +5,18 @@
  * We run the aggregator out-of-process so this also serves as a CLI test.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { resolveExitCode } from '../../src/lib/baseline-gate.mjs';
 
 export const title = 'aggregator: end-to-end CLI smoke';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cli = resolve(here, '../../bin/dod-check.mjs');
+const repoBaseline = resolve(here, '../../reports/baseline.json');
 
 export async function run() {
   const results = [];
@@ -104,6 +107,94 @@ export async function run() {
       ok: withReason.status === 0,
       message: `exit=${withReason.status} stdout=${withReason.stdout.slice(-300)}`,
     });
+
+    // PRC-M551: a missing baseline fails closed instead of passing.
+    const missing = spawnSync(
+      process.execPath,
+      [
+        cli,
+        '--only=table-naming',
+        `--report=${reportPath}`,
+        `--baseline=${resolve(dir, 'absent.json')}`,
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    );
+    results.push({
+      name: 'PRC-M551: missing baseline exits 2',
+      ok: missing.status === 2 && /baseline missing/.test(missing.stderr),
+      message: `exit=${missing.status} stderr=${missing.stderr.slice(-300)}`,
+    });
+
+    // PRC-M551: --update-baseline must not pass when it absorbs error debt
+    // without a reason. api-schema has baselined (reasoned) errors in the repo.
+    const update = (baselinePath) =>
+      spawnSync(
+        process.execPath,
+        [
+          cli,
+          '--only=api-schema',
+          `--report=${reportPath}`,
+          `--baseline=${baselinePath}`,
+          '--update-baseline',
+        ],
+        { cwd: dir, encoding: 'utf8' },
+      );
+    const repoApiSchemaErrors =
+      JSON.parse(readFileSync(repoBaseline, 'utf8')).checks.find((c) => c.check === 'api-schema')
+        ?.errorCount ?? 0;
+    results.push({
+      name: 'PRC-M551: fixture precondition — repo baseline has api-schema error debt',
+      ok: repoApiSchemaErrors > 0,
+      message: `api-schema baseline errors=${repoApiSchemaErrors}`,
+    });
+    const fresh = update(resolve(dir, 'new-baseline.json'));
+    results.push({
+      name: 'PRC-M551: --update-baseline with unreasoned new error debt exits 1',
+      ok: fresh.status === 1 && /without a reason/.test(fresh.stderr),
+      message: `exit=${fresh.status} stderr=${fresh.stderr.slice(-300)}`,
+    });
+    const carriedPath = resolve(dir, 'carried.json');
+    copyFileSync(repoBaseline, carriedPath);
+    const carried = update(carriedPath);
+    results.push({
+      name: 'PRC-M551: --update-baseline with every error reasoned exits 0',
+      ok: carried.status === 0,
+      message: `exit=${carried.status} stderr=${carried.stderr.slice(-300)}`,
+    });
+
+    // PRC-M551: exit-code decision matrix.
+    const totals = (totalErrors, totalWarnings = 0) => ({ totalErrors, totalWarnings });
+    const base = {
+      noBaseline: false,
+      updateBaseline: false,
+      strict: false,
+      totals: totals(0),
+      comparison: { ok: true },
+      baselineMissing: false,
+      unreasonedAfterUpdate: 0,
+    };
+    const matrix = [
+      ['missing baseline', { baselineMissing: true, comparison: null }, 2],
+      ['update absorbing unreasoned errors', { updateBaseline: true, unreasonedAfterUpdate: 3 }, 1],
+      ['update fully reasoned', { updateBaseline: true, totals: totals(5) }, 0],
+      ['within baseline', { totals: totals(5) }, 0],
+      ['regression beyond baseline', { comparison: { ok: false } }, 1],
+      ['--no-baseline with errors', { noBaseline: true, totals: totals(1), comparison: null }, 1],
+      ['--no-baseline clean', { noBaseline: true, comparison: null }, 0],
+      [
+        '--no-baseline --strict with warnings',
+        { noBaseline: true, strict: true, totals: totals(0, 1), comparison: null },
+        1,
+      ],
+    ];
+    for (const [label, overrides, expected] of matrix) {
+      const got = resolveExitCode({ ...base, ...overrides });
+      results.push({
+        name: `PRC-M551: resolveExitCode — ${label} → ${expected}`,
+        ok: got === expected,
+        message: `got ${got}`,
+      });
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

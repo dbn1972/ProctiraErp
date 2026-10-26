@@ -1092,11 +1092,24 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const attendanceTimeZone = createTenantTimeZoneResolver({
         sources: pgTenantTimeZoneSources(),
       });
+      const attendanceRepository = createAttendanceRepository();
       await scope.register(attendancePlugin, {
-        repository: createAttendanceRepository(),
+        repository: attendanceRepository,
+        // PRC-M172 (Charter §32): teacher-only roles must own the class (active
+        // staff_assignments row, staff.user_id link) to write its attendance.
+        // staff_assignments/staff are owned by the staff service, so the lookup is injected
+        // from the shared staff-assignment repository (same pattern as gradebook's
+        // staffHasActiveAssignmentAt) rather than queried from inside attendance. Without a
+        // membership lookup, production-like envs fail closed (503).
+        classMembership: (tenantId, classId, principalIds) =>
+          sharedAssignmentRepository().listActiveStaffIdsForClass(tenantId, classId, principalIds),
         punchConfig: {
           resolveTimeZone: (tenantId) => attendanceTimeZone(tenantId),
         },
+        // PRC-M496: reuse the SAME resolver instance as punchConfig above
+        // for date-validation "today" comparisons, rather than constructing
+        // a second one.
+        timeZone: (tenantId) => attendanceTimeZone(tenantId),
         prefix: '/attendance',
       });
       type HeatmapDay = { date: string; status: string };

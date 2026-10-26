@@ -101,20 +101,28 @@ describe('TransportService ops (G-920)', () => {
   it('marks trip attendance and returns summary counts', async () => {
     const { route, stop } = await seededRoute();
     const studentId = uuidv4();
-    await service.createStudentAssignment(TENANT, {
-      studentId,
-      routeId: route.id,
-      stopId: stop.id,
-      startDate: '2026-09-09',
-    });
-    await service.upsertTripAttendance(TENANT, {
-      routeId: route.id,
-      tripDate: '2026-09-09',
-      direction: 'pickup',
-      studentId,
-      stopId: stop.id,
-      status: 'boarded',
-    });
+    await service.createStudentAssignment(
+      TENANT,
+      {
+        studentId,
+        routeId: route.id,
+        stopId: stop.id,
+        startDate: '2026-09-09',
+      },
+      'test-actor',
+    );
+    await service.upsertTripAttendance(
+      TENANT,
+      {
+        routeId: route.id,
+        tripDate: '2026-09-09',
+        direction: 'pickup',
+        studentId,
+        stopId: stop.id,
+        status: 'boarded',
+      },
+      'test-actor',
+    );
     const trip = await service.getTripAttendance(TENANT, {
       routeId: route.id,
       tripDate: '2026-09-09',
@@ -128,19 +136,27 @@ describe('TransportService ops (G-920)', () => {
     const invoices: { id: string }[] = [];
     service = new TransportService(repo, undefined, feesPort(invoices));
     const { route, stop } = await seededRoute();
-    await service.createTransportFeeStructure(TENANT, {
-      name: 'Oak Street band',
-      stopId: stop.id,
-      routeId: route.id,
-      amountCents: 150000,
-      currency: 'INR',
-    });
-    const assignment = await service.createStudentAssignment(TENANT, {
-      studentId: uuidv4(),
-      routeId: route.id,
-      stopId: stop.id,
-      startDate: '2026-09-09',
-    });
+    await service.createTransportFeeStructure(
+      TENANT,
+      {
+        name: 'Oak Street band',
+        stopId: stop.id,
+        routeId: route.id,
+        amountCents: 150000,
+        currency: 'INR',
+      },
+      'test-actor',
+    );
+    const assignment = await service.createStudentAssignment(
+      TENANT,
+      {
+        studentId: uuidv4(),
+        routeId: route.id,
+        stopId: stop.id,
+        startDate: '2026-09-09',
+      },
+      'test-actor',
+    );
     const links = await service.listFeeLinks(TENANT);
     expect(links[0]!.assignmentId).toBe(assignment.id);
     expect(links[0]!.status).toBe('invoiced');
@@ -168,19 +184,27 @@ describe('TransportService ops (G-920)', () => {
     };
     service = new TransportService(repo, undefined, port);
     const { route, stop } = await seededRoute();
-    await service.createTransportFeeStructure(TENANT, {
-      name: 'Oak Street band',
-      stopId: stop.id,
-      routeId: route.id,
-      amountCents: 150000,
-      currency: 'INR',
-    });
-    const assignment = await service.createStudentAssignment(TENANT, {
-      studentId: uuidv4(),
-      routeId: route.id,
-      stopId: stop.id,
-      startDate: '2026-09-09',
-    });
+    await service.createTransportFeeStructure(
+      TENANT,
+      {
+        name: 'Oak Street band',
+        stopId: stop.id,
+        routeId: route.id,
+        amountCents: 150000,
+        currency: 'INR',
+      },
+      'test-actor',
+    );
+    const assignment = await service.createStudentAssignment(
+      TENANT,
+      {
+        studentId: uuidv4(),
+        routeId: route.id,
+        stopId: stop.id,
+        startDate: '2026-09-09',
+      },
+      'test-actor',
+    );
     // No fallback invoice must have been created.
     expect(createInvoiceCalls).toHaveLength(0);
     const links = await service.listFeeLinks(TENANT);
@@ -192,17 +216,25 @@ describe('TransportService ops (G-920)', () => {
   it('records a pending fee link when FeesService is not injected', async () => {
     service = new TransportService(repo);
     const { route, stop } = await seededRoute();
-    await service.createTransportFeeStructure(TENANT, {
-      name: 'Oak Street band',
-      stopId: stop.id,
-      amountCents: 90000,
-    });
-    await service.createStudentAssignment(TENANT, {
-      studentId: uuidv4(),
-      routeId: route.id,
-      stopId: stop.id,
-      startDate: '2026-09-09',
-    });
+    await service.createTransportFeeStructure(
+      TENANT,
+      {
+        name: 'Oak Street band',
+        stopId: stop.id,
+        amountCents: 90000,
+      },
+      'test-actor',
+    );
+    await service.createStudentAssignment(
+      TENANT,
+      {
+        studentId: uuidv4(),
+        routeId: route.id,
+        stopId: stop.id,
+        startDate: '2026-09-09',
+      },
+      'test-actor',
+    );
     const links = await service.listFeeLinks(TENANT);
     expect(links[0]!.status).toBe('pending');
   });

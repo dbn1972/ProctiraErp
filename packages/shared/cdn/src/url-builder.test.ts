@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildAssetUrl, normalizePath } from './url-builder.js';
+import { NginxCdnAdapter } from './adapters/nginx.js';
+import { buildAssetUrl, CdnPathError, normalizePath } from './url-builder.js';
 import type { CdnConfig, AssetUrlOptions } from './types.js';
 
 function createConfig(overrides: Partial<CdnConfig> = {}): CdnConfig {
@@ -230,4 +231,74 @@ describe('buildAssetUrl', () => {
       expect(result.url).toBe('https://cdn.proctira.org/static/images/icons/favicon.ico');
     });
   });
+});
+describe('path safety (PRC-L580)', () => {
+  const config = createConfig();
+  it.each([
+    '../other/logo.png',
+    'a/../../b',
+    'a/%2e%2e/b',
+    'a/%2E%2e/b',
+    'a\\..\\b',
+    'a/./b',
+    'a/%zz/b',
+    'a/%2f/b',
+    'a/\u0000/b',
+  ])('rejects unsafe asset path %j', (path) => {
+    expect(() => buildAssetUrl({ path, category: 'upload', tenantId: 'tenant-1' }, config)).toThrow(
+      CdnPathError,
+    );
+  });
+  it.each(['../t2', 't/2', 't%2F2', '..', 't 2'])('rejects unsafe tenant id %j', (tenantId) => {
+    expect(() => buildAssetUrl({ path: 'logo.png', category: 'upload', tenantId }, config)).toThrow(
+      CdnPathError,
+    );
+  });
+  it.each(['tenant-abc', 'ministry-edu', 'district-1', '550e8400-e29b-41d4-a716-446655440000'])(
+    'accepts tenant id %j',
+    (tenantId) => {
+      const result = buildAssetUrl({ path: 'logo.png', category: 'branding', tenantId }, config);
+      expect(result.path).toBe(`/branding/${tenantId}/logo.png`);
+    },
+  );
+  it.each(['reports/annual-2024.pdf', '..config', 'v1.2/app.js', 'a..b/c.png'])(
+    'accepts dotted but non-traversal path %j',
+    (path) => {
+      const result = buildAssetUrl({ path, category: 'static' }, config);
+      expect(result.path).toBe(`/static/${path}`);
+    },
+  );
+  it('fails closed with a typed error code', () => {
+    try {
+      buildAssetUrl({ path: '../x', category: 'static' }, config);
+      expect.unreachable('expected CdnPathError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(CdnPathError);
+      expect((error as CdnPathError).code).toBe('CDN_INVALID_PATH');
+    }
+  });
+});
+describe('NginxCdnAdapter.invalidate path safety (PRC-L580)', () => {
+  const adapter = new NginxCdnAdapter(
+    createConfig({ adapter: 'nginx', baseUrl: 'https://cdn.example.org/' }),
+  );
+  it('rejects a traversal purge path', async () => {
+    const result = await adapter.invalidate({ paths: ['/uploads/../../etc/passwd'] });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('/uploads/../../etc/passwd');
+  });
+  it('reports failure when any path in the batch is unsafe', async () => {
+    const result = await adapter.invalidate({
+      paths: ['/static/css/main.css', 'branding/%2e%2e/tenant-2/*'],
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('branding/%2e%2e/tenant-2/*');
+  });
+  it.each([['/branding/tenant-1/*'], ['static/css/main.css'], ['/uploads/*']])(
+    'accepts safe purge path %j',
+    async (path) => {
+      const result = await adapter.invalidate({ paths: [path] });
+      expect(result.success).toBe(true);
+    },
+  );
 });

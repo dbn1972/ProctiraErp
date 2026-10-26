@@ -150,6 +150,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     const rows = [...this.rooms.values()].filter((row) => {
       if (row.tenantId !== tenantId) return false;
       if (filter?.institutionId && row.institutionId !== filter.institutionId) return false;
+      if (filter?.status && row.status !== filter.status) return false;
       return true;
     });
     return applyPage(rows, filter);
@@ -318,6 +319,54 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   async createMeeting(row: SectionMeetingEntity) {
     this.meetings.set(row.id, row);
     return row;
+  }
+
+  /**
+   * PRC-M396(b)/PRC-M550(b): the in-memory store has no concurrent writers (no await between
+   * read and write), so this is just clashCheck-then-insert against a synchronous read — but it
+   * keeps the same call shape as the PG-backed atomic path so TimetableService can call one
+   * method regardless of repository.
+   */
+  async createMeetingAtomic(
+    tenantId: string,
+    candidate: SectionMeetingEntity,
+    clashCheck: (existing: SectionMeetingEntity[]) => void | Promise<void>,
+  ): Promise<SectionMeetingEntity> {
+    const existing = [...this.meetings.values()].filter(
+      (row) =>
+        row.tenantId === tenantId &&
+        row.institutionId === candidate.institutionId &&
+        row.dayOfWeek === candidate.dayOfWeek,
+    );
+    await clashCheck(existing);
+    return this.createMeeting(candidate);
+  }
+
+  /** PRC-M550(b): all-or-nothing; restores the meetings map on any failure. */
+  async createMeetingsAtomic(
+    tenantId: string,
+    candidates: SectionMeetingEntity[],
+    clashCheck: (
+      existing: SectionMeetingEntity[],
+      candidate: SectionMeetingEntity,
+    ) => void | Promise<void>,
+  ): Promise<SectionMeetingEntity[]> {
+    const snapshot = new Map(this.meetings);
+    try {
+      const out: SectionMeetingEntity[] = [];
+      for (const candidate of candidates) {
+        out.push(
+          await this.createMeetingAtomic(tenantId, candidate, (existing) =>
+            clashCheck(existing, candidate),
+          ),
+        );
+      }
+      return out;
+    } catch (error) {
+      this.meetings.clear();
+      for (const [id, row] of snapshot) this.meetings.set(id, row);
+      throw error;
+    }
   }
 
   /** PRC-M397: all-or-nothing; restores both maps on any failure. */

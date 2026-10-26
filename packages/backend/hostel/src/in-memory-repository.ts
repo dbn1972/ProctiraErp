@@ -4,6 +4,7 @@
 import {
   BedAssignmentConflictError,
   type GatePassEntity,
+  type GatePassStatus,
   type HostelAssignmentEntity,
   type HostelAttendanceEntity,
   type HostelBedEntity,
@@ -14,6 +15,7 @@ import {
   type HostelRepository,
   type HostelRoomEntity,
   type HostelVisitorEntity,
+  type LeaveStatus,
   type MessMenuItemEntity,
   type MessPlanEntity,
   type MessSubscriptionEntity,
@@ -23,6 +25,7 @@ import {
   type NewMessMenuItem,
   type NewMessPlan,
   type NewMessSubscription,
+  type VisitorStatus,
 } from './hostel-repository.js';
 
 export class InMemoryHostelRepository implements HostelRepository {
@@ -138,9 +141,12 @@ export class InMemoryHostelRepository implements HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<HostelLeaveEntity, 'status'>>,
+    expectedStatus?: LeaveStatus,
   ): Promise<HostelLeaveEntity | null> {
     const index = this.leaves.findIndex((l) => l.id === id && l.tenantId === tenantId);
     if (index === -1) return null;
+    // PRC-L116: compare-and-set (no await between check and write).
+    if (expectedStatus !== undefined && this.leaves[index]!.status !== expectedStatus) return null;
     const updated: HostelLeaveEntity = {
       ...this.leaves[index]!,
       ...data,
@@ -171,9 +177,14 @@ export class InMemoryHostelRepository implements HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<HostelVisitorEntity, 'status'>>,
+    expectedStatus?: VisitorStatus,
   ): Promise<HostelVisitorEntity | null> {
     const index = this.visitors.findIndex((v) => v.id === id && v.tenantId === tenantId);
     if (index === -1) return null;
+    // PRC-L116: compare-and-set (no await between check and write).
+    if (expectedStatus !== undefined && this.visitors[index]!.status !== expectedStatus) {
+      return null;
+    }
     const updated: HostelVisitorEntity = {
       ...this.visitors[index]!,
       ...data,
@@ -313,9 +324,14 @@ export class InMemoryHostelRepository implements HostelRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>>,
+    expectedStatus?: GatePassStatus,
   ): Promise<GatePassEntity | null> {
     const index = this.gatePasses.findIndex((g) => g.id === id && g.tenantId === tenantId);
     if (index === -1) return null;
+    // PRC-L116: compare-and-set (no await between check and write).
+    if (expectedStatus !== undefined && this.gatePasses[index]!.status !== expectedStatus) {
+      return null;
+    }
     const updated: GatePassEntity = {
       ...this.gatePasses[index]!,
       ...data,

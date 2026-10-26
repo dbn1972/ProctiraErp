@@ -200,6 +200,20 @@ export interface ProcessReportCardJobOptions {
 export const DEFAULT_STALE_PROCESSING_MS = 15 * 60 * 1000;
 
 /**
+ * PRC-M166: a job still generating the same card (same template + institution;
+ * callers match student/period) — `queued`, or `processing` and not abandoned.
+ */
+function isInFlightJobFor(
+  job: ReportCardJobEntity,
+  templateId: string,
+  institutionId: string,
+  staleBefore: Date,
+): boolean {
+  if (job.templateId !== templateId || job.institutionId !== institutionId) return false;
+  return job.status === 'queued' || (job.status === 'processing' && job.updatedAt >= staleBefore);
+}
+
+/**
  * PRC-M165: client / data errors (4xx AppErrors) will not succeed on retry;
  * everything else (DB, store, network) is treated as transient.
  */
@@ -396,18 +410,31 @@ export class ReportCardService {
       }
     }
 
-    // Create job record (durable source of truth — W2-JOB-02)
-    const job = await this.jobRepo.create({
-      id: uuidv4(),
-      tenantId,
-      studentId: input.studentId,
-      academicPeriodId: input.academicPeriodId,
-      templateId,
-      institutionId: input.institutionId,
-      status: 'queued',
-      errorMessage: null,
-      outputUrl: null,
-    });
+    // PRC-M166: reuse an in-flight job for the same card instead of duplicating it.
+    const staleBefore = this.staleBefore();
+    const inFlight = (
+      await this.jobRepo.findByStudentAndPeriod(tenantId, input.studentId, input.academicPeriodId)
+    ).find((existing) => isInFlightJobFor(existing, templateId, input.institutionId, staleBefore));
+    if (inFlight?.status === 'processing') {
+      return inFlight;
+    }
+
+    // Create job record (durable source of truth — W2-JOB-02). A reused `queued`
+    // job is dispatched again below (as reclaimQueuedJobs does) so a job whose
+    // earlier publish failed still progresses; the claim CAS dedupes delivery.
+    const job =
+      inFlight ??
+      (await this.jobRepo.create({
+        id: uuidv4(),
+        tenantId,
+        studentId: input.studentId,
+        academicPeriodId: input.academicPeriodId,
+        templateId,
+        institutionId: input.institutionId,
+        status: 'queued',
+        errorMessage: null,
+        outputUrl: null,
+      }));
 
     // Publish to durable queue for background processing. On publish failure the
     // job row stays `queued` so reclaimQueuedJobs / worker start can recover
@@ -471,18 +498,40 @@ export class ReportCardService {
 
     const jobs: ReportCardJobEntity[] = [];
 
+    // PRC-M166: in-flight jobs for this period/template/institution, by student.
+    const staleBefore = this.staleBefore();
+    const inFlightByStudent = new Map<string, ReportCardJobEntity>();
+    for (const status of ['queued', 'processing'] as const) {
+      for (const existing of await this.jobRepo.listByStatus(tenantId, status)) {
+        if (
+          existing.academicPeriodId === input.academicPeriodId &&
+          isInFlightJobFor(existing, templateId, input.institutionId, staleBefore)
+        ) {
+          inFlightByStudent.set(existing.studentId, existing);
+        }
+      }
+    }
+
     for (const studentId of input.studentIds) {
-      const job = await this.jobRepo.create({
-        id: uuidv4(),
-        tenantId,
-        studentId,
-        academicPeriodId: input.academicPeriodId,
-        templateId,
-        institutionId: input.institutionId,
-        status: 'queued',
-        errorMessage: null,
-        outputUrl: null,
-      });
+      const inFlight = inFlightByStudent.get(studentId);
+      if (inFlight?.status === 'processing') {
+        jobs.push(inFlight);
+        continue;
+      }
+      // A reused `queued` job is dispatched again, as in the single-job path.
+      const job =
+        inFlight ??
+        (await this.jobRepo.create({
+          id: uuidv4(),
+          tenantId,
+          studentId,
+          academicPeriodId: input.academicPeriodId,
+          templateId,
+          institutionId: input.institutionId,
+          status: 'queued',
+          errorMessage: null,
+          outputUrl: null,
+        }));
 
       // Publish to durable queue (W2-JOB-02: publish failure leaves job queued)
       if (this.taskQueuePublisher) {

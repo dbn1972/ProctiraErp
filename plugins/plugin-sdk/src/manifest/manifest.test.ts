@@ -23,6 +23,27 @@ describe('validateManifest', () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it('rejects an extension point that is not in the platform catalogue (PRC-L483)', () => {
+    const result = validateManifest({
+      ...validManifest,
+      requiredExtensionPoints: ['student.after-create', 'report.export'],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual({
+      path: '/requiredExtensionPoints/1',
+      message: "Unknown extension point or UI slot 'report.export'",
+      severity: 'error',
+    });
+  });
+
+  it('accepts catalogue UI slot ids in requiredExtensionPoints (PRC-L483)', () => {
+    const result = validateManifest({
+      ...validManifest,
+      requiredExtensionPoints: ['student.after-create', 'dashboard.widget'],
+    });
+    expect(result.valid).toBe(true);
+  });
+
   it('should fail for null input', () => {
     const result = validateManifest(null);
     expect(result.valid).toBe(false);

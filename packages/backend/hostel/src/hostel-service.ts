@@ -165,10 +165,19 @@ export class HostelService {
     if (status !== 'approved' && status !== 'rejected') {
       throw new BusinessRuleError('Leave decision must be approved or rejected');
     }
-    const updated = await this.repository.updateLeave(leaveId, tenantId, {
-      status: status as LeaveStatus,
-    });
-    return updated!;
+    const updated = await this.repository.updateLeave(
+      leaveId,
+      tenantId,
+      { status: status as LeaveStatus },
+      leave.status,
+    );
+    if (!updated) {
+      // PRC-L116: lost the compare-and-set to a concurrent decision.
+      const current = await this.repository.findLeaveById(leaveId, tenantId);
+      if (!current) throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+      throw new ConflictError(`Leave is already ${current.status}`);
+    }
+    return updated;
   }
 
   async createVisitor(tenantId: string, input: CreateVisitorInput) {
@@ -204,8 +213,19 @@ export class HostelService {
       throw new ConflictError(`Cannot transition visitor from ${visitor.status} to ${status}`);
     }
 
-    const updated = await this.repository.updateVisitor(visitorId, tenantId, { status });
-    return updated!;
+    const updated = await this.repository.updateVisitor(
+      visitorId,
+      tenantId,
+      { status },
+      visitor.status,
+    );
+    if (!updated) {
+      // PRC-L116: lost the compare-and-set to a concurrent transition.
+      const current = await this.repository.findVisitorById(visitorId, tenantId);
+      if (!current) throw new NotFoundError(`Visitor with id '${visitorId}' not found`);
+      throw new ConflictError(`Cannot transition visitor from ${current.status} to ${status}`);
+    }
+    return updated;
   }
 
   async createBlock(tenantId: string, input: CreateBlockInput) {
@@ -367,13 +387,19 @@ export class HostelService {
     if (next === 'in') {
       patch.inAt = new Date();
     }
-    const updated = await this.repository.updateGatePass(id, tenantId, patch);
+    const updated = await this.repository.updateGatePass(id, tenantId, patch, pass.status);
+    if (!updated) {
+      // PRC-L116: lost the compare-and-set to a concurrent transition.
+      const current = await this.repository.findGatePassById(id, tenantId);
+      if (!current) throw new NotFoundError(`Gate pass with id '${id}' not found`);
+      throw new ConflictError(`Cannot transition gate pass from ${current.status} to ${next}`);
+    }
     return {
-      ...updated!,
+      ...updated,
       overdueReturn: isOverdueReturn(
-        updated!.status,
-        updated!.expectedInAt,
-        updated!.inAt ?? new Date(),
+        updated.status,
+        updated.expectedInAt,
+        updated.inAt ?? new Date(),
       ),
     };
   }

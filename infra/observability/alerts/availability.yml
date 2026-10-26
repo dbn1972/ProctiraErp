@@ -66,6 +66,29 @@ groups:
           runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#service-down'
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 
+      # PRC-L473: pg-backup / phi-retention run as Kubernetes CronJobs with no
+      # HTTP surface, so the HTTP-based alerts above never see a failed run.
+      # kube_job_failed comes from kube-state-metrics (see prometheus.yml's
+      # kube-state-metrics scrape job); this fires once a failed backup or
+      # retention Job's condition is reported.
+      - alert: DrCronJobFailed
+        expr: kube_job_failed{job_name=~"proctira-.*(pg-backup|phi-retention).*"} == 1
+        for: 0m
+        labels:
+          severity: critical
+          team: ops
+          slo: availability
+        annotations:
+          summary: 'DR CronJob {{ $labels.job_name }} failed'
+          description: |
+            The disaster-recovery Job {{ $labels.job_name }} (pg-backup or
+            phi-retention) reported a failed condition. This alert depends on
+            kube-state-metrics being scraped in the target cluster (see the
+            kube-state-metrics job in prometheus.yml); without it the Job can
+            fail silently with no page.
+          runbook_url: 'https://runbooks.proctira.org/services/dr-jobs.md#cronjob-failed'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
+
       - alert: ServiceErrorRateCritical
         expr: |
           (

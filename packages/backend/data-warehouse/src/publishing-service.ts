@@ -235,6 +235,10 @@ export class PublishingService {
           timePeriodIds.push(tp.id);
         }
       }
+      // PRC-M593: a requested filter that matches no period must not publish all data.
+      if (timePeriodIds.length === 0) {
+        return [];
+      }
     }
 
     // Page through every matching record (no silent truncation).

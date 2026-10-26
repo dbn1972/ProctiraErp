@@ -198,6 +198,13 @@ export class CatalogueService {
     return artifact;
   }
 
+  /** PRC-L143: batch artifact lookup for run listings (no per-run round trip). */
+  async getArtifactsByIds(tenantId: string, ids: string[]): Promise<ReportArtifactRecord[]> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return [];
+    return this.store.getArtifactsByIds(tenantId, unique);
+  }
+
   async downloadBytes(
     tenantId: string,
     id: string,

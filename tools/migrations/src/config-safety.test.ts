@@ -71,3 +71,42 @@ describe('sourceFilter allowlist (PRC-L376)', () => {
     for (const m of TABLE_MAPPINGS) expect(() => assertSafeTableMapping(m)).not.toThrow();
   });
 });
+
+describe('config-derived SQL identifiers (PRC-L376)', () => {
+  it('rejects a TARGET_PG_SCHEMA that would break out of a quoted identifier', () => {
+    expect(() =>
+      loadConfig({ ...creds, TARGET_PG_SCHEMA: 'public"; DROP TABLE students; --' }),
+    ).toThrow(/TARGET_PG_SCHEMA is not a safe SQL identifier/);
+  });
+
+  it('rejects an unsafe MIGRATION_STAGING_SCHEMA', () => {
+    expect(() => loadConfig({ ...creds, MIGRATION_STAGING_SCHEMA: 'Staging-1' })).toThrow(
+      /MIGRATION_STAGING_SCHEMA is not a safe SQL identifier/,
+    );
+  });
+
+  it.each(['abc', '0', '-5', '12abc', '1.5', ''])(
+    'rejects MIGRATION_BATCH_SIZE=%j',
+    (MIGRATION_BATCH_SIZE) => {
+      expect(() => loadConfig({ ...creds, MIGRATION_BATCH_SIZE })).toThrow(
+        /MIGRATION_BATCH_SIZE must be a positive integer/,
+      );
+    },
+  );
+
+  it('keeps the shipped defaults and accepts valid overrides', () => {
+    const defaults = loadConfig({ ...creds });
+    expect(defaults.pg.schema).toBe('public');
+    expect(defaults.stagingSchema).toBe('migration_staging');
+    expect(defaults.batchSize).toBe(5000);
+    const custom = loadConfig({
+      ...creds,
+      TARGET_PG_SCHEMA: 'proctira_core',
+      MIGRATION_STAGING_SCHEMA: '_staging2',
+      MIGRATION_BATCH_SIZE: '250',
+    });
+    expect(custom.pg.schema).toBe('proctira_core');
+    expect(custom.stagingSchema).toBe('_staging2');
+    expect(custom.batchSize).toBe(250);
+  });
+});

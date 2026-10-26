@@ -32,6 +32,7 @@ import type {
   ScreeningProgramEntity,
   NurseIncidentEntity,
 } from './health-repository.js';
+import { BreakGlassNotPendingError } from './pg-break-glass-store.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
 import { assertNotPhiCiphertextInput } from './phi-crypto.js';
 import {
@@ -113,11 +114,17 @@ type PhiAccessCapableRepository = HealthRepository & {
     id: string,
     tenantId: string,
     approverUserId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ) => Promise<HealthBreakGlassGrant | null>;
   denyBreakGlassGrant?: (
     id: string,
     tenantId: string,
     approverUserId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ) => Promise<HealthBreakGlassGrant | null>;
   listBreakGlassGrants?: (
     tenantId: string,
@@ -170,7 +177,7 @@ const HEALTH_AUTHORIZED_ROLES = [
   'counsellor',
 ];
 
-const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;
+export const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;
 
 /**
  * Roles cleared to read the PHI *access log* — the register of who looked at a child's
@@ -285,22 +292,100 @@ export function hasHealthAccess(
 }
 
 /**
- * PRC-H006: the counselling `reason` (topic) is counselling PHI. Only counsellors — and the
- * student's own guardian — may read it; nurses, health officers and admins get schedule metadata.
+ * PRC-L314: write-access gate. Mirrors {@link hasHealthAccess} but does NOT
+ * short-circuit true on guardian-of-student — a guardian may read a student's
+ * health records but must not be able to create/update/delete them. Goes
+ * straight to the role / institution-scope checks.
+ */
+export function hasHealthWriteAccess(
+  context: HealthAccessContext,
+  studentId: string,
+  options: HealthAccessOptions = {},
+): boolean {
+  const hasAuthorizedRole = hasHealthRole(context.roles, HEALTH_AUTHORIZED_ROLES);
+
+  if (!studentId) {
+    // Tenant-wide list surfaces.
+    if (!hasAuthorizedRole) return false;
+    return isTenantWideHealthActor(context);
+  }
+
+  if (!hasAuthorizedRole) return false;
+  if (isTenantWideHealthActor(context)) return true;
+
+  const institutions = effectiveInstitutionIds(context);
+  if (institutions.length === 0) return false;
+
+  const studentInstitutionId = options.studentInstitutionId;
+  if (!studentInstitutionId) return false;
+  return institutions.includes(studentInstitutionId);
+}
+
+/**
+ * PRC-H006 / PRC-M273: the counselling `reason` (topic) and `outcome` are counselling
+ * PHI. Only counsellors — and the student's own guardian — may read them; nurses,
+ * health officers and admins get schedule metadata only. Same predicate gates both
+ * fields.
  */
 export function canReadCounsellingReason(context: HealthAccessContext, studentId: string): boolean {
   if (context.guardianOfStudentIds.includes(studentId)) return true;
   return hasHealthRole(context.roles, ['counsellor']);
 }
 
-/** Blank `reason` on sessions the caller may not read it for (see canReadCounsellingReason). */
-export function redactCounsellingReasons<T extends { studentId: string; reason: string }>(
-  context: HealthAccessContext,
-  sessions: T[],
-): T[] {
+/**
+ * Blank `reason` and `outcome` on sessions the caller may not read them for
+ * (see canReadCounsellingReason). PRC-M273: outcome previously leaked to any
+ * authorized health role; it now follows the same guardian-or-counsellor gate
+ * as reason.
+ */
+export function redactCounsellingReasons<
+  T extends { studentId: string; reason: string; outcome: string | null },
+>(context: HealthAccessContext, sessions: T[]): T[] {
   return sessions.map((session) =>
-    canReadCounsellingReason(context, session.studentId) ? session : { ...session, reason: '' },
+    canReadCounsellingReason(context, session.studentId)
+      ? session
+      : { ...session, reason: '', outcome: '' },
   );
+}
+
+/**
+ * PRC-L316 (10b): `^\d{4}-\d{2}-\d{2}$` (the schemas.ts pattern) accepts
+ * digit-shaped nonsense like '2024-13-45' or '2024-02-30' — `new Date(...)`
+ * on Node is lenient too (it rolls '2024-02-30' forward to March 1 rather
+ * than rejecting it). This validates year/month/day ranges explicitly
+ * instead of relying on Date parsing, plus an optional lower year bound and
+ * future-date rejection (both opt-outable per field via `options`).
+ */
+export function assertValidCalendarDate(
+  value: string,
+  fieldName: string,
+  options: { allowFuture?: boolean; minYear?: number } = {},
+): void {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    throw new BusinessRuleError(`${fieldName} must be a valid calendar date (YYYY-MM-DD)`);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const minYear = options.minYear ?? 1900;
+  if (month < 1 || month > 12) {
+    throw new BusinessRuleError(`${fieldName} must be a valid calendar date (YYYY-MM-DD)`);
+  }
+  // Days-in-month via UTC day-0-of-next-month, which also accounts for leap years.
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day < 1 || day > daysInMonth) {
+    throw new BusinessRuleError(`${fieldName} must be a valid calendar date (YYYY-MM-DD)`);
+  }
+  if (year < minYear) {
+    throw new BusinessRuleError(`${fieldName} must not be earlier than ${minYear}`);
+  }
+  if (!options.allowFuture) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (value > todayStr) {
+      throw new BusinessRuleError(`${fieldName} cannot be in the future`);
+    }
+  }
 }
 
 /**
@@ -325,8 +410,19 @@ export class HealthService {
     if (accessContext.authoritativeInstitutionIds !== undefined) return accessContext;
     if (isTenantWideHealthActor(accessContext)) return accessContext;
     const lookup = this.repository.findActorInstitutionAssignments?.bind(this.repository);
+    // Lookup function absent entirely: legitimate "not attempted" case, still
+    // defers to JWT claims.
     if (!lookup || !accessContext.userId) return accessContext;
-    const assigned = await lookup(tenantId, accessContext.userId);
+    let assigned: string[] | null;
+    try {
+      assigned = await lookup(tenantId, accessContext.userId);
+    } catch {
+      // PRC-L312: the lookup was attempted and failed (RLS / schema drift /
+      // connection error) — this is NOT "not attempted". A school-bound actor
+      // must be denied rather than silently falling back to JWT institution
+      // claims; a tenant-wide actor is unaffected (already returned above).
+      return { ...accessContext, authoritativeInstitutionIds: [] };
+    }
     if (assigned === null) return accessContext;
     return { ...accessContext, authoritativeInstitutionIds: assigned };
   }
@@ -345,6 +441,29 @@ export class HealthService {
     if (!hasHealthAccess(effective, studentId, { studentInstitutionId })) {
       throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
+      );
+    }
+  }
+
+  /**
+   * PRC-L314/L311: write-access gate. A guardian may read a student's health
+   * records but must not be able to write to them or request break-glass —
+   * use this instead of {@link assertHealthAccess} at every mutating call site.
+   */
+  private async assertHealthWriteAccess(
+    accessContext: HealthAccessContext,
+    studentId: string,
+    tenantId?: string,
+  ): Promise<void> {
+    const effective =
+      tenantId != null
+        ? await this.resolveAuthoritativeInstitutions(tenantId, accessContext)
+        : accessContext;
+    const studentInstitutionId =
+      studentId && tenantId ? await this.resolveStudentInstitutionId(tenantId, studentId) : null;
+    if (!hasHealthWriteAccess(effective, studentId, { studentInstitutionId })) {
+      throw new ForbiddenError(
+        "Access denied: not authorized to modify this student's health records",
       );
     }
   }
@@ -428,7 +547,8 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
     },
   ): Promise<HealthMeasurementEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    assertValidCalendarDate(input.date, 'date');
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -458,7 +578,8 @@ export class HealthService {
   ): Promise<HealthMeasurementEntity> {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
+    if (input.date !== undefined) assertValidCalendarDate(input.date, 'date');
     const updated = await this.repository.updateMeasurement(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Measurement with id '${id}' not found`);
     return updated;
@@ -508,7 +629,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteMeasurement(id, tenantId, options);
   }
 
@@ -522,7 +643,8 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
     },
   ): Promise<AllergyEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    if (input.diagnosedDate != null) assertValidCalendarDate(input.diagnosedDate, 'diagnosedDate');
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -548,7 +670,8 @@ export class HealthService {
   ): Promise<AllergyEntity> {
     const existing = await this.repository.findAllergyById(id, tenantId);
     if (!existing) throw new NotFoundError(`Allergy with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
+    if (input.diagnosedDate != null) assertValidCalendarDate(input.diagnosedDate, 'diagnosedDate');
     const updated = await this.repository.updateAllergy(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Allergy with id '${id}' not found`);
     return updated;
@@ -565,7 +688,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findAllergyById(id, tenantId);
     if (!existing) throw new NotFoundError(`Allergy with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteAllergy(id, tenantId, options);
   }
 
@@ -596,7 +719,8 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
     },
   ): Promise<HealthConditionEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    if (input.diagnosedDate != null) assertValidCalendarDate(input.diagnosedDate, 'diagnosedDate');
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -623,7 +747,8 @@ export class HealthService {
   ): Promise<HealthConditionEntity> {
     const existing = await this.repository.findConditionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Condition with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
+    if (input.diagnosedDate != null) assertValidCalendarDate(input.diagnosedDate, 'diagnosedDate');
     const updated = await this.repository.updateCondition(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Condition with id '${id}' not found`);
     return updated;
@@ -640,7 +765,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findConditionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Condition with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteCondition(id, tenantId, options);
   }
 
@@ -671,7 +796,11 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
     },
   ): Promise<VaccinationEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    assertValidCalendarDate(input.dateAdministered, 'dateAdministered');
+    if (input.nextDueDate != null) {
+      assertValidCalendarDate(input.nextDueDate, 'nextDueDate', { allowFuture: true });
+    }
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -698,7 +827,13 @@ export class HealthService {
   ): Promise<VaccinationEntity> {
     const existing = await this.repository.findVaccinationById(id, tenantId);
     if (!existing) throw new NotFoundError(`Vaccination with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
+    if (input.dateAdministered != null) {
+      assertValidCalendarDate(input.dateAdministered, 'dateAdministered');
+    }
+    if (input.nextDueDate != null) {
+      assertValidCalendarDate(input.nextDueDate, 'nextDueDate', { allowFuture: true });
+    }
     const updated = await this.repository.updateVaccination(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Vaccination with id '${id}' not found`);
     return updated;
@@ -715,7 +850,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findVaccinationById(id, tenantId);
     if (!existing) throw new NotFoundError(`Vaccination with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteVaccination(id, tenantId, options);
   }
 
@@ -759,7 +894,11 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
     },
   ): Promise<InsuranceEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    assertValidCalendarDate(input.startDate, 'startDate', { allowFuture: true });
+    if (input.endDate != null) {
+      assertValidCalendarDate(input.endDate, 'endDate', { allowFuture: true });
+    }
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -785,7 +924,13 @@ export class HealthService {
   ): Promise<InsuranceEntity> {
     const existing = await this.repository.findInsuranceById(id, tenantId);
     if (!existing) throw new NotFoundError(`Insurance with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
+    if (input.startDate != null) {
+      assertValidCalendarDate(input.startDate, 'startDate', { allowFuture: true });
+    }
+    if (input.endDate != null) {
+      assertValidCalendarDate(input.endDate, 'endDate', { allowFuture: true });
+    }
     const updated = await this.repository.updateInsurance(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Insurance with id '${id}' not found`);
     return updated;
@@ -802,7 +947,7 @@ export class HealthService {
   ): Promise<void> {
     const existing = await this.repository.findInsuranceById(id, tenantId);
     if (!existing) throw new NotFoundError(`Insurance with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
     await this.repository.deleteInsurance(id, tenantId, options);
   }
 
@@ -836,7 +981,8 @@ export class HealthService {
       ) => Promise<void>;
     },
   ): Promise<SpecialNeedsAssessmentEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    assertValidCalendarDate(input.assessmentDate, 'assessmentDate');
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -878,7 +1024,8 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: DiagnosisEntity) => Promise<void>;
     },
   ): Promise<DiagnosisEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    assertValidCalendarDate(input.diagnosisDate, 'diagnosisDate');
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -921,7 +1068,11 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
     },
   ): Promise<ReferralEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    assertValidCalendarDate(input.referralDate, 'referralDate');
+    if (input.appointmentDate != null) {
+      assertValidCalendarDate(input.appointmentDate, 'appointmentDate', { allowFuture: true });
+    }
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -943,11 +1094,17 @@ export class HealthService {
     id: string,
     input: UpdateReferralInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
+    },
   ): Promise<ReferralEntity> {
     const existing = await this.repository.findReferralById(id, tenantId);
     if (!existing) throw new NotFoundError(`Referral with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    const updated = await this.repository.updateReferral(id, tenantId, input);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
+    if (input.appointmentDate != null) {
+      assertValidCalendarDate(input.appointmentDate, 'appointmentDate', { allowFuture: true });
+    }
+    const updated = await this.repository.updateReferral(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Referral with id '${id}' not found`);
     return updated;
   }
@@ -979,7 +1136,14 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
     },
   ): Promise<AccommodationPlanEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
+    assertValidCalendarDate(input.startDate, 'startDate', { allowFuture: true });
+    if (input.endDate != null) {
+      assertValidCalendarDate(input.endDate, 'endDate', { allowFuture: true });
+    }
+    if (input.reviewDate != null) {
+      assertValidCalendarDate(input.reviewDate, 'reviewDate', { allowFuture: true });
+    }
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -1001,11 +1165,23 @@ export class HealthService {
     id: string,
     input: UpdateAccommodationPlanInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity> {
     const existing = await this.repository.findAccommodationPlanById(id, tenantId);
     if (!existing) throw new NotFoundError(`Accommodation plan with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    const updated = await this.repository.updateAccommodationPlan(id, tenantId, input);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
+    if (input.startDate != null) {
+      assertValidCalendarDate(input.startDate, 'startDate', { allowFuture: true });
+    }
+    if (input.endDate != null) {
+      assertValidCalendarDate(input.endDate, 'endDate', { allowFuture: true });
+    }
+    if (input.reviewDate != null) {
+      assertValidCalendarDate(input.reviewDate, 'reviewDate', { allowFuture: true });
+    }
+    const updated = await this.repository.updateAccommodationPlan(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Accommodation plan with id '${id}' not found`);
     return updated;
   }
@@ -1041,11 +1217,15 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
     },
   ): Promise<CounsellingSessionEntity> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     // PRC-M272 / NEW-008: reject attacker-supplied enc:v* markers on write.
     assertNotPhiCiphertextInput(input.caseNotes, 'caseNotes');
     assertNotPhiCiphertextInput(input.reason, 'reason');
     assertNotPhiCiphertextInput(input.outcome, 'outcome');
+    assertValidCalendarDate(input.sessionDate, 'sessionDate');
+    if (input.followUpDate != null) {
+      assertValidCalendarDate(input.followUpDate, 'followUpDate', { allowFuture: true });
+    }
     if (input.followUpRequired && !input.followUpDate) {
       throw new BusinessRuleError(
         'Follow-up date is required when follow-up is marked as required',
@@ -1073,15 +1253,23 @@ export class HealthService {
     id: string,
     input: UpdateCounsellingSessionInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity> {
     const existing = await this.repository.findCounsellingSessionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Counselling session with id '${id}' not found`);
-    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, existing.studentId, tenantId);
 
     // PRC-M272 / NEW-008: never let a client store a crafted enc:v* marker.
     assertNotPhiCiphertextInput(input.caseNotes, 'caseNotes');
     assertNotPhiCiphertextInput(input.reason, 'reason');
     assertNotPhiCiphertextInput(input.outcome, 'outcome');
+
+    if (input.sessionDate != null) assertValidCalendarDate(input.sessionDate, 'sessionDate');
+    if (input.followUpDate != null) {
+      assertValidCalendarDate(input.followUpDate, 'followUpDate', { allowFuture: true });
+    }
 
     // PRC-M274 / NEW-007: a client that GETs a redacted session (caseNotes =
     // '[REDACTED]') and PUTs it back must not overwrite the real notes with the
@@ -1105,7 +1293,7 @@ export class HealthService {
         'Follow-up date is required when follow-up is marked as required',
       );
     }
-    const updated = await this.repository.updateCounsellingSession(id, tenantId, input);
+    const updated = await this.repository.updateCounsellingSession(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Counselling session with id '${id}' not found`);
     const [aclSession] = redactCounsellingReasons(
       accessContext,
@@ -1141,13 +1329,27 @@ export class HealthService {
 
   // ─── Screening Programs ─────────────────────────────────────────────────
 
+  /**
+   * PRC-L315: screening programs had no role gating at all. Reuses the
+   * existing tenant-wide-list-surface branch of hasHealthAccess (authorized
+   * health role + tenant-wide status) — there is no institution scoping
+   * since ScreeningProgramEntity has no institutionId field.
+   */
+  private assertScreeningProgramAccess(accessContext: HealthAccessContext): void {
+    if (!hasHealthAccess(accessContext, '')) {
+      throw new ForbiddenError('Access denied: not authorized to manage screening programs');
+    }
+  }
+
   async createScreeningProgram(
     tenantId: string,
     input: CreateScreeningProgramInput,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
+    this.assertScreeningProgramAccess(accessContext);
     const entity = {
       id: uuidv4(),
       tenantId,
@@ -1166,10 +1368,12 @@ export class HealthService {
     tenantId: string,
     id: string,
     input: UpdateScreeningProgramInput,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
+    this.assertScreeningProgramAccess(accessContext);
     const existing = await this.repository.findScreeningProgramById(id, tenantId);
     if (!existing) throw new NotFoundError(`Screening program with id '${id}' not found`);
     const updated = await this.repository.updateScreeningProgram(id, tenantId, input, options);
@@ -1181,16 +1385,23 @@ export class HealthService {
   async deleteScreeningProgram(
     tenantId: string,
     id: string,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<void> {
+    this.assertScreeningProgramAccess(accessContext);
     const existing = await this.repository.findScreeningProgramById(id, tenantId);
     if (!existing) throw new NotFoundError(`Screening program with id '${id}' not found`);
     await this.repository.deleteScreeningProgram(id, tenantId, options);
   }
 
-  async getScreeningProgram(tenantId: string, id: string): Promise<ScreeningProgramEntity> {
+  async getScreeningProgram(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+  ): Promise<ScreeningProgramEntity> {
+    this.assertScreeningProgramAccess(accessContext);
     const entity = await this.repository.findScreeningProgramById(id, tenantId);
     if (!entity) throw new NotFoundError(`Screening program with id '${id}' not found`);
     return entity;
@@ -1199,7 +1410,9 @@ export class HealthService {
   async listScreeningPrograms(
     tenantId: string,
     pagination: PaginationOptions,
+    accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<ScreeningProgramEntity>> {
+    this.assertScreeningProgramAccess(accessContext);
     return this.repository.listScreeningPrograms(tenantId, pagination);
   }
 
@@ -1207,9 +1420,31 @@ export class HealthService {
     tenantId: string,
     gradeLevel: string,
     pagination: PaginationOptions,
+    accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<ScreeningProgramEntity>> {
+    this.assertScreeningProgramAccess(accessContext);
     return this.repository.listScreeningProgramsByGrade(tenantId, gradeLevel, pagination);
   }
+  /**
+   * PRC-M275 (12b): the original one-shot `{ page: 1, pageSize: 100 }` +
+   * `Promise.all` call silently capped every DSAR export section at 100 rows
+   * — a student with 150 measurements would export only the first 100 with
+   * no indication any were missing. Loops a `list*` call until a page comes
+   * back shorter than `pageSize`, accumulating every row.
+   */
+  private async fetchAllPages<T>(
+    lister: (page: PaginationOptions) => Promise<PaginatedResult<T>>,
+    pageSize = 100,
+  ): Promise<T[]> {
+    const out: T[] = [];
+    for (let pageNum = 1; ; pageNum += 1) {
+      const result = await lister({ page: pageNum, pageSize });
+      out.push(...result.data);
+      if (result.data.length < pageSize) break;
+    }
+    return out;
+  }
+
   /**
    * G-734 — DSAR export of PHI held for a student (measurements, allergies,
    * conditions, vaccinations, insurance, special needs, counselling).
@@ -1226,7 +1461,7 @@ export class HealthService {
     sections: Record<string, unknown>;
   }> {
     await this.assertHealthAccess(accessContext, studentId, tenantId);
-    const page = { page: 1, pageSize: 100 };
+    // PRC-M275 (12b): fetchAllPages removes the 100-row cap on every section.
     const [
       measurements,
       allergies,
@@ -1239,17 +1474,33 @@ export class HealthService {
       accommodationPlans,
       counsellingSessions,
     ] = await Promise.all([
-      this.repository.listMeasurementsByStudent(tenantId, studentId, page),
-      this.repository.listAllergiesByStudent(tenantId, studentId, page),
-      this.repository.listConditionsByStudent(tenantId, studentId, page),
-      this.repository.listVaccinationsByStudent(tenantId, studentId, page),
-      this.repository.listInsuranceByStudent(tenantId, studentId, page),
-      this.repository.listAssessmentsByStudent(tenantId, studentId, page),
-      this.repository.listDiagnosesByStudent(tenantId, studentId, page),
-      this.repository.listReferralsByStudent(tenantId, studentId, page),
-      this.repository.listAccommodationPlansByStudent(tenantId, studentId, page),
-      this.repository.listCounsellingSessionsByStudent(tenantId, studentId, page),
+      this.fetchAllPages((p) => this.repository.listMeasurementsByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) => this.repository.listAllergiesByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) => this.repository.listConditionsByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) => this.repository.listVaccinationsByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) => this.repository.listInsuranceByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) => this.repository.listAssessmentsByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) => this.repository.listDiagnosesByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) => this.repository.listReferralsByStudent(tenantId, studentId, p)),
+      this.fetchAllPages((p) =>
+        this.repository.listAccommodationPlansByStudent(tenantId, studentId, p),
+      ),
+      this.fetchAllPages((p) =>
+        this.repository.listCounsellingSessionsByStudent(tenantId, studentId, p),
+      ),
     ]);
+
+    // PRC-M275 (12a): nurseIncidents + phiAccessHistory sections were absent
+    // entirely. listNurseIncidentsByStudent is a per-student call already on
+    // HealthRepository (optional, for older impls). phiAccessHistory calls the
+    // repository directly (not through the role-gated listPhiAccessLogs
+    // wrapper above) since DSAR access is already checked via
+    // assertHealthAccess at the top of this method — the stricter
+    // PHI_ACCESS_LOG_ROLES clearance that wrapper enforces does not apply here.
+    const nurseIncidents =
+      (await this.repository.listNurseIncidentsByStudent?.(tenantId, studentId)) ?? [];
+    const repo = this.repository as PhiAccessCapableRepository;
+    const phiAccessHistory = (await repo.listPhiAccessLogs?.(tenantId, { studentId })) ?? [];
 
     await this.auditPhiRead(accessContext, {
       tenantId,
@@ -1260,7 +1511,7 @@ export class HealthService {
 
     const counsellingWithAcl = redactCounsellingReasons(
       accessContext,
-      await this.applyCaseNotesFieldAcl(tenantId, accessContext, counsellingSessions.data),
+      await this.applyCaseNotesFieldAcl(tenantId, accessContext, counsellingSessions),
     );
 
     return {
@@ -1268,16 +1519,18 @@ export class HealthService {
       tenantId,
       exportedAt: new Date().toISOString(),
       sections: {
-        measurements: measurements.data,
-        allergies: allergies.data,
-        conditions: conditions.data,
-        vaccinations: vaccinations.data,
-        insurance: insurance.data,
-        specialNeedsAssessments: assessments.data,
-        diagnoses: diagnoses.data,
-        referrals: referrals.data,
-        accommodationPlans: accommodationPlans.data,
+        measurements,
+        allergies,
+        conditions,
+        vaccinations,
+        insurance,
+        specialNeedsAssessments: assessments,
+        diagnoses,
+        referrals,
+        accommodationPlans,
         counsellingSessions: counsellingWithAcl,
+        nurseIncidents,
+        phiAccessHistory,
       },
     };
   }
@@ -1306,7 +1559,7 @@ export class HealthService {
       appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
     },
   ): Promise<HealthBreakGlassGrant> {
-    await this.assertHealthAccess(accessContext, input.studentId, tenantId);
+    await this.assertHealthWriteAccess(accessContext, input.studentId, tenantId);
     if (!accessContext.userId) {
       throw new ForbiddenError('Access denied: authenticated user required for break-glass');
     }
@@ -1340,6 +1593,9 @@ export class HealthService {
     tenantId: string,
     id: string,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant> {
     if (!canApproveHealthBreakGlass(accessContext.roles)) {
       throw new ForbiddenError('Access denied: break-glass approval requires health_admin');
@@ -1352,13 +1608,25 @@ export class HealthService {
       throw new BusinessRuleError('Break-glass grants are not available on this repository');
     }
     try {
-      const updated = await repo.approveBreakGlassGrant(id, tenantId, accessContext.userId);
+      const updated = await repo.approveBreakGlassGrant(
+        id,
+        tenantId,
+        accessContext.userId,
+        options,
+      );
       if (!updated) throw new NotFoundError(`Break-glass grant with id '${id}' not found`);
       return updated;
     } catch (error) {
       if (error instanceof Error && error.message === 'DUAL_CONTROL_VIOLATION') {
         throw new BusinessRuleError(
           'Dual-control violation: requester cannot approve their own break-glass grant',
+        );
+      }
+      // PRC-L113 sub-issue 2: an already-resolved grant must not be silently
+      // re-approved with a 200.
+      if (error instanceof BreakGlassNotPendingError) {
+        throw new BusinessRuleError(
+          `Break-glass grant '${id}' is already '${error.status}' and cannot be re-approved/re-denied`,
         );
       }
       throw error;
@@ -1369,6 +1637,9 @@ export class HealthService {
     tenantId: string,
     id: string,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant> {
     if (!canApproveHealthBreakGlass(accessContext.roles)) {
       throw new ForbiddenError('Access denied: break-glass denial requires health_admin');
@@ -1381,13 +1652,20 @@ export class HealthService {
       throw new BusinessRuleError('Break-glass grants are not available on this repository');
     }
     try {
-      const updated = await repo.denyBreakGlassGrant(id, tenantId, accessContext.userId);
+      const updated = await repo.denyBreakGlassGrant(id, tenantId, accessContext.userId, options);
       if (!updated) throw new NotFoundError(`Break-glass grant with id '${id}' not found`);
       return updated;
     } catch (error) {
       if (error instanceof Error && error.message === 'DUAL_CONTROL_VIOLATION') {
         throw new BusinessRuleError(
           'Dual-control violation: requester cannot deny their own break-glass grant',
+        );
+      }
+      // PRC-L113 sub-issue 2: an already-resolved grant must not be silently
+      // re-denied with a 200.
+      if (error instanceof BreakGlassNotPendingError) {
+        throw new BusinessRuleError(
+          `Break-glass grant '${id}' is already '${error.status}' and cannot be re-approved/re-denied`,
         );
       }
       throw error;

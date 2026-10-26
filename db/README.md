@@ -279,6 +279,16 @@ Executable gate: `pnpm check:runtime-table-privileges` (CI job
 `runtime-table-privileges`). New `CREATE TABLE` without a catalog entry fails CI.
 | `schema_migration_phases` | Full (non-txn phase resume) | **None** — class `denied` via `088` |
 
+**Column-scoped exceptions on top of a class** (PRC-M209): the catalog's class
+values are table-wide (no per-table notes field), so a narrower grant layered
+on top of a table's class is documented here instead of in the JSON.
+`institution_repair_requests` stays classified `append_only` (SELECT, INSERT)
+in `db/runtime-table-privileges.json`, but `247_institution_repair_request_
+transition_guard.sql` additionally grants `UPDATE (status)` only, guarded by
+a BEFORE UPDATE trigger that permits only `open<->closed` transitions. Do not
+reclassify this table to `dml` to reflect that grant — the exception is
+intentionally narrower than full UPDATE.
+
 Bootstrap role docs: `db/bootstrap/README.md`. Audits:
 `docs/audits/DATA_W1_DATA_11_COMPLETE.md` (COMPLETE),
 `docs/audits/DATA_W1_DATA_11_PRIVILEGES.md` (ledgers),
