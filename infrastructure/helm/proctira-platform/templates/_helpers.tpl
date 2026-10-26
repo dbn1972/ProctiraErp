@@ -66,6 +66,18 @@ Return the image name for a service
 {{- $registry := .global.imageRegistry -}}
 {{- $repository := .image.repository -}}
 {{- $tag := .image.tag | default .appVersion -}}
+{{- /*
+PRC-M599: when global.requireImmutableImageTags is true (staging/production
+overlays) fail the render on an empty, default (Chart appVersion), `latest`
+or otherwise mutable tag. Allowlist = check-no-latest-image-tags.sh forms
+plus deploy.yml's CI tag `<gitsha>-<YYYYMMDDHHMMSS>`.
+*/ -}}
+{{- if .global.requireImmutableImageTags -}}
+{{- $t := toString $tag -}}
+{{- if or (eq $t "") (eq $t (toString .appVersion)) (eq $t "latest") (not (regexMatch "^(sha-pending|sha-[0-9a-f]{7,40}|[0-9a-f]{7,40}-[0-9]{14}|v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?)$" $t)) -}}
+{{- fail (printf "PRC-M599: image %s has mutable or default tag %q; staging/production renders require sha-<gitsha>, <gitsha>-<timestamp>, semver (not the chart appVersion) or sha-pending" $repository $t) -}}
+{{- end -}}
+{{- end -}}
 {{- if $registry -}}
 {{- printf "%s/%s:%s" $registry $repository $tag -}}
 {{- else -}}
