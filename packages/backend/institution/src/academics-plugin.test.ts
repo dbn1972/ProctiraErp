@@ -133,7 +133,22 @@ describe('G-901 institutionPlugin academics mount', () => {
   });
 
   it('serves the infrastructure hierarchy and partitions it per tenant', async () => {
-    const institutionId = randomUUID();
+    // PRC-M286: createLand now requires institutionId to belong to the
+    // caller's tenant, so seed a real institution instead of a bare UUID.
+    const institutionRes = await app.inject({
+      method: 'POST',
+      url: '/institutions',
+      payload: {
+        name: 'Infra School',
+        code: `INFRA-${Date.now()}`,
+        areaId: randomUUID(),
+        typeId: randomUUID(),
+        sectorId: randomUUID(),
+        ownershipId: randomUUID(),
+      },
+    });
+    expect(institutionRes.statusCode).toBe(201);
+    const institutionId = institutionRes.json().id as string;
     const land = await app.inject({
       method: 'POST',
       url: '/infrastructure/lands',

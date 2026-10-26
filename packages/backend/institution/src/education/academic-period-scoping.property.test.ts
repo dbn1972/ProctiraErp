@@ -95,6 +95,19 @@ function createMockPrisma(returnValue: unknown) {
   } as any;
 }
 
+/**
+ * PRC-L570: validateActivePeriod is now also date-window aware (it rejects
+ * when `asOf` falls outside startDate/endDate), unifying it with the
+ * canonical AcademicPeriodService check. This property suite's intent is
+ * "status is the sole determinant of outcome" — to keep that intent valid
+ * under the fix, every call below passes an explicit `asOf` at the midpoint
+ * of the generated period's window, holding the date dimension constant
+ * (always effective) so status remains the only varying input.
+ */
+function midpointAsOf(period: { startDate: Date; endDate: Date }): Date {
+  return new Date((period.startDate.getTime() + period.endDate.getTime()) / 2);
+}
+
 // --- Property 10: Academic Period Scoping ---
 
 describe('Property 10: Academic Period Scoping', () => {
@@ -109,7 +122,12 @@ describe('Property 10: Academic Period Scoping', () => {
           async (period, _operationType) => {
             const prisma = createMockPrisma(period);
 
-            const result = await validateActivePeriod(prisma, period.tenantId, period.id);
+            const result = await validateActivePeriod(
+              prisma,
+              period.tenantId,
+              period.id,
+              midpointAsOf(period),
+            );
 
             // The validator should return the period when it is active
             expect(result).toEqual(period);
@@ -131,7 +149,7 @@ describe('Property 10: Academic Period Scoping', () => {
           const prisma = createMockPrisma(period);
           const validator = new ActivePeriodValidator({ prisma });
 
-          const result = await validator.validate(period.tenantId, period.id);
+          const result = await validator.validate(period.tenantId, period.id, midpointAsOf(period));
 
           expect(result).toEqual(period);
           expect(result.status).toBe('active');
@@ -150,9 +168,9 @@ describe('Property 10: Academic Period Scoping', () => {
           async (period, _operationType) => {
             const prisma = createMockPrisma(period);
 
-            await expect(validateActivePeriod(prisma, period.tenantId, period.id)).rejects.toThrow(
-              BusinessRuleError,
-            );
+            await expect(
+              validateActivePeriod(prisma, period.tenantId, period.id, midpointAsOf(period)),
+            ).rejects.toThrow(BusinessRuleError);
           },
         ),
         { numRuns: 100 },
@@ -165,7 +183,7 @@ describe('Property 10: Academic Period Scoping', () => {
           const prisma = createMockPrisma(period);
 
           try {
-            await validateActivePeriod(prisma, period.tenantId, period.id);
+            await validateActivePeriod(prisma, period.tenantId, period.id, midpointAsOf(period));
             expect.fail('Expected BusinessRuleError to be thrown');
           } catch (error: any) {
             expect(error).toBeInstanceOf(BusinessRuleError);
@@ -187,7 +205,7 @@ describe('Property 10: Academic Period Scoping', () => {
           const prisma = createMockPrisma(period);
 
           try {
-            await validateActivePeriod(prisma, period.tenantId, period.id);
+            await validateActivePeriod(prisma, period.tenantId, period.id, midpointAsOf(period));
             expect.fail('Expected BusinessRuleError to be thrown');
           } catch (error: any) {
             expect(error).toBeInstanceOf(BusinessRuleError);
@@ -205,7 +223,7 @@ describe('Property 10: Academic Period Scoping', () => {
           const prisma = createMockPrisma(period);
 
           try {
-            await validateActivePeriod(prisma, period.tenantId, period.id);
+            await validateActivePeriod(prisma, period.tenantId, period.id, midpointAsOf(period));
             expect.fail('Expected BusinessRuleError to be thrown');
           } catch (error: any) {
             expect(error).toBeInstanceOf(BusinessRuleError);
@@ -226,15 +244,16 @@ describe('Property 10: Academic Period Scoping', () => {
           operationTypeArb,
           async (period, _operationType) => {
             const prisma = createMockPrisma(period);
+            const asOf = midpointAsOf(period);
 
             if (period.status === 'active') {
               // Active periods must allow the operation
-              const result = await validateActivePeriod(prisma, period.tenantId, period.id);
+              const result = await validateActivePeriod(prisma, period.tenantId, period.id, asOf);
               expect(result.status).toBe('active');
             } else {
               // Non-active periods must reject the operation
               await expect(
-                validateActivePeriod(prisma, period.tenantId, period.id),
+                validateActivePeriod(prisma, period.tenantId, period.id, asOf),
               ).rejects.toThrow(BusinessRuleError);
             }
           },
@@ -253,19 +272,20 @@ describe('Property 10: Academic Period Scoping', () => {
             // Both operations should have the same outcome for the same period
             const prisma1 = createMockPrisma(period);
             const prisma2 = createMockPrisma(period);
+            const asOf = midpointAsOf(period);
 
             let result1Success = false;
             let result2Success = false;
 
             try {
-              await validateActivePeriod(prisma1, period.tenantId, period.id);
+              await validateActivePeriod(prisma1, period.tenantId, period.id, asOf);
               result1Success = true;
             } catch {
               result1Success = false;
             }
 
             try {
-              await validateActivePeriod(prisma2, period.tenantId, period.id);
+              await validateActivePeriod(prisma2, period.tenantId, period.id, asOf);
               result2Success = true;
             } catch {
               result2Success = false;

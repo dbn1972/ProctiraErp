@@ -13,7 +13,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
-import { uniqueGradeOrder } from './fixtures/test-data';
+import { ensureSharedAcademicYear, uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 /** Server Action + route refresh can exceed 15s on loaded CI runners (fits the 90s CI test timeout). */
@@ -42,13 +42,14 @@ function headers(tenantId = TENANT_A) {
 }
 
 async function ensurePeriod(request: APIRequestContext): Promise<string> {
-  const code = `AY-${Date.now().toString(36)}`;
-  const res = await request.post(`${GATEWAY_URL}/api/v1/academic-periods`, {
-    headers: headers(),
-    data: { name: `E2E ${code}`, code, startDate: '2026-04-01', endDate: '2027-03-31' },
-  });
-  expect(res.status(), await res.text()).toBe(201);
-  return (await res.json()).id as string;
+  // PRC-L122: academic years are overlap-checked per tenant, and
+  // tools/e2e/seed-e2e-tenants.sql already seeds a baseline "E2E Academic
+  // Year" for TENANT_A with this exact 2026-04-01..2027-03-31 window, so a
+  // blind create here collides with it (and with every other spec sharing
+  // TENANT_A). Reuse the shared year instead (see ensureSharedAcademicYear's
+  // doc comment).
+  const period = await ensureSharedAcademicYear(request, GATEWAY_URL, headers());
+  return period.id;
 }
 
 async function ensureGrade(request: APIRequestContext): Promise<{ id: string; code: string }> {

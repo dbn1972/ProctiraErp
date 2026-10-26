@@ -9,13 +9,19 @@
 import { NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PrismaClient, AcademicPeriod } from '@proctira/database';
 
+import { isEffectiveOn, toUtcDateOnly } from '../academic-period/effective-dating.js';
+
 export interface ActivePeriodValidatorDeps {
   prisma: PrismaClient;
 }
 
 /**
  * Validates that an academic period is active.
- * Throws BusinessRuleError if the period is not active.
+ * Throws BusinessRuleError if the period is not active, or if `asOf` falls
+ * outside the period's effective startDate/endDate window (PRC-L570 — unifies
+ * this validator with the date-aware check already enforced by the canonical
+ * `AcademicPeriodService.validateActivePeriod()`, so the two "is period
+ * active" checks in this package no longer diverge).
  * Throws NotFoundError if the period does not exist.
  *
  * This utility is intended to be used by enrollment, attendance, and assessment
@@ -25,6 +31,7 @@ export async function validateActivePeriod(
   prisma: PrismaClient,
   tenantId: string,
   academicPeriodId: string,
+  asOf: Date | string = new Date(),
 ): Promise<AcademicPeriod> {
   const period = await prisma.academicPeriod.findFirst({
     where: { id: academicPeriodId, tenantId, deletedAt: null },
@@ -39,6 +46,13 @@ export async function validateActivePeriod(
       `The referenced academic period '${period.name}' is not currently active. ` +
         `Current status: ${period.status}. ` +
         `Only active periods allow enrollment, attendance, and assessment operations.`,
+    );
+  }
+
+  if (!isEffectiveOn(period.startDate, period.endDate, asOf)) {
+    throw new BusinessRuleError(
+      `The referenced academic period '${period.name}' is not effective on ${toUtcDateOnly(asOf)}. ` +
+        `Valid window: ${toUtcDateOnly(period.startDate)} .. ${toUtcDateOnly(period.endDate)}.`,
     );
   }
 
@@ -58,7 +72,11 @@ export class ActivePeriodValidator {
   /**
    * Validate that the given academic period is active.
    */
-  async validate(tenantId: string, academicPeriodId: string): Promise<AcademicPeriod> {
-    return validateActivePeriod(this.prisma, tenantId, academicPeriodId);
+  async validate(
+    tenantId: string,
+    academicPeriodId: string,
+    asOf: Date | string = new Date(),
+  ): Promise<AcademicPeriod> {
+    return validateActivePeriod(this.prisma, tenantId, academicPeriodId, asOf);
   }
 }

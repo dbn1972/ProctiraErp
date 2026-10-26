@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GradeService } from './grade-service.js';
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 
 function createMockPrisma() {
   return {
@@ -13,6 +13,12 @@ function createMockPrisma() {
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+    },
+    class: {
+      count: vi.fn(),
+    },
+    enrollment: {
+      count: vi.fn(),
     },
   } as any;
 }
@@ -233,6 +239,41 @@ describe('GradeService', () => {
       prisma.grade.findFirst.mockResolvedValue(null);
 
       await expect(service.delete(TENANT_ID, 'nonexistent')).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-M284: deleting a grade that still has live classes or enrolled
+    // students must be rejected — otherwise soft-delete silently orphans
+    // dependent rows.
+    it('should throw BusinessRuleError if the grade still has live classes (PRC-M284)', async () => {
+      prisma.grade.findFirst.mockResolvedValue({ id: 'grade-1', deletedAt: null });
+      prisma.class.count.mockResolvedValue(2);
+      prisma.enrollment.count.mockResolvedValue(0);
+
+      await expect(service.delete(TENANT_ID, 'grade-1')).rejects.toThrow(BusinessRuleError);
+      expect(prisma.grade.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw BusinessRuleError if the grade still has enrolled students (PRC-M284)', async () => {
+      prisma.grade.findFirst.mockResolvedValue({ id: 'grade-1', deletedAt: null });
+      prisma.class.count.mockResolvedValue(0);
+      prisma.enrollment.count.mockResolvedValue(5);
+
+      await expect(service.delete(TENANT_ID, 'grade-1')).rejects.toThrow(BusinessRuleError);
+      expect(prisma.grade.update).not.toHaveBeenCalled();
+    });
+
+    it('should soft-delete when no dependent classes or enrollments remain (PRC-M284)', async () => {
+      prisma.grade.findFirst.mockResolvedValue({ id: 'grade-1', deletedAt: null });
+      prisma.class.count.mockResolvedValue(0);
+      prisma.enrollment.count.mockResolvedValue(0);
+      prisma.grade.update.mockResolvedValue({});
+
+      await service.delete(TENANT_ID, 'grade-1');
+
+      expect(prisma.grade.update).toHaveBeenCalledWith({
+        where: { id: 'grade-1' },
+        data: { deletedAt: expect.any(Date) },
+      });
     });
   });
 });

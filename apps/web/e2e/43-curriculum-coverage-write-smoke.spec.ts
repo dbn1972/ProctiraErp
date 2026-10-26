@@ -8,7 +8,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
-import { uniqueGradeOrder } from './fixtures/test-data';
+import { uniqueFarFutureYearWindow, uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -81,13 +81,18 @@ async function createGrade(request: APIRequestContext) {
 
 async function createYear(request: APIRequestContext) {
   const code = `AY-C-${stamp()}`;
+  // PRC-L122: a fixed far-future window collided with itself across this
+  // function's own 2 call sites and with 41-admissions-crm's identical
+  // hardcoded window on the same shared tenant. Draw a unique one instead
+  // (see uniqueFarFutureYearWindow's doc comment).
+  const window = uniqueFarFutureYearWindow();
   const res = await request.post(`${GATEWAY_URL}/api/v1/academic-periods`, {
     headers: headers(),
     data: {
       name: `E2E Year ${code}`,
       code,
-      startDate: '2038-04-01',
-      endDate: '2039-03-31',
+      startDate: window.startDate,
+      endDate: window.endDate,
       status: 'inactive',
     },
   });

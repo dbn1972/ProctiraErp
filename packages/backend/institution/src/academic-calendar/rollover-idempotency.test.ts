@@ -75,12 +75,15 @@ function build(extras: RolloverExtras) {
       findMany: vi.fn(async ({ where }: { where: { academicPeriodId: string } }) =>
         where.academicPeriodId === 'src' ? [sourceClass] : [],
       ),
+      // PRC-M525: executeRollover's transactional write loop re-checks for an
+      // existing row immediately before inserting; this mock has none yet.
+      findFirst: vi.fn(async () => null),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
         ...data,
         id: 'new-class',
       })),
     },
-    enrollment: { findMany: vi.fn(async () => []) },
+    enrollment: { findMany: vi.fn(async () => []), findFirst: vi.fn(async () => null) },
     grade: { findMany: vi.fn(async () => []) },
   };
   const service = new AcademicCalendarService({
