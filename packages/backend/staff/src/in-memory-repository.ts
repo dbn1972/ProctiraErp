@@ -12,6 +12,11 @@ import { matchesStaffType } from './staff-type.js';
 export class InMemoryStaffRepository implements StaffRepository {
   private staff: Map<string, StaffEntity> = new Map();
   /**
+   * PRC-L157: soft-deleted ids. Mirrors the Prisma adapter's `deletedAt`: the row
+   * is retained, but reads, updates and lists no longer return it.
+   */
+  private readonly deletedIds = new Set<string>();
+  /**
    * PRC-H090: staff → institution index for school-scope parity with the Pg
    * repo. Keyed by `${tenantId}:${institutionId}` → set of staffIds.
    */
@@ -56,7 +61,7 @@ export class InMemoryStaffRepository implements StaffRepository {
     data: Partial<StaffEntity>,
   ): Promise<StaffEntity | null> {
     const existing = this.staff.get(id);
-    if (!existing || existing.tenantId !== tenantId) {
+    if (!existing || existing.tenantId !== tenantId || this.deletedIds.has(id)) {
       return null;
     }
 
@@ -74,7 +79,7 @@ export class InMemoryStaffRepository implements StaffRepository {
 
   async findById(id: string, tenantId: string): Promise<StaffEntity | null> {
     const entity = this.staff.get(id);
-    if (!entity || entity.tenantId !== tenantId) {
+    if (!entity || entity.tenantId !== tenantId || this.deletedIds.has(id)) {
       return null;
     }
     return entity;
@@ -94,7 +99,9 @@ export class InMemoryStaffRepository implements StaffRepository {
     filter: StaffFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StaffEntity>> {
-    let items = Array.from(this.staff.values()).filter((entity) => entity.tenantId === tenantId);
+    let items = Array.from(this.staff.values()).filter(
+      (entity) => entity.tenantId === tenantId && !this.deletedIds.has(entity.id),
+    );
 
     // Apply filters
     if (filter.status) {
@@ -157,11 +164,16 @@ export class InMemoryStaffRepository implements StaffRepository {
   private dependents = new Map<string, Record<string, number>>();
 
   async findExistingIds(ids: readonly string[], tenantId: string): Promise<string[]> {
-    return ids.filter((id) => this.staff.get(id)?.tenantId === tenantId);
+    return ids.filter(
+      (id) => this.staff.get(id)?.tenantId === tenantId && !this.deletedIds.has(id),
+    );
   }
 
   async purgeCreated(id: string, tenantId: string): Promise<void> {
-    if (this.staff.get(id)?.tenantId === tenantId) this.staff.delete(id);
+    if (this.staff.get(id)?.tenantId === tenantId) {
+      this.staff.delete(id);
+      this.deletedIds.delete(id);
+    }
   }
 
   /** Test helper: record a dependent HR row (e.g. a payroll line) for a staff member. */
@@ -178,15 +190,17 @@ export class InMemoryStaffRepository implements StaffRepository {
 
   async delete(id: string, tenantId: string): Promise<boolean> {
     const entity = this.staff.get(id);
-    if (!entity || entity.tenantId !== tenantId) {
+    if (!entity || entity.tenantId !== tenantId || this.deletedIds.has(id)) {
       return false;
     }
-    this.staff.delete(id);
+    // PRC-L157: soft delete (archive), same as PrismaStaffRepository.delete.
+    this.deletedIds.add(id);
     return true;
   }
 
   // Test helper
   clear(): void {
     this.staff.clear();
+    this.deletedIds.clear();
   }
 }

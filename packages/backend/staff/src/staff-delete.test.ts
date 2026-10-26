@@ -52,6 +52,22 @@ describe('PRC-L157 staff delete dependents guard', () => {
     await app.close();
   });
 
+  it('DELETE is a soft delete in the in-memory adapter, matching Prisma (PRC-L157)', async () => {
+    const { app, repo, staffId } = await mount();
+    const before = await repo.findById(staffId, TENANT);
+    expect((await app.inject({ method: 'DELETE', url: `/staff/${staffId}` })).statusCode).toBe(204);
+    // Hidden from reads, updates, lists and a repeat delete...
+    expect((await app.inject({ method: 'GET', url: `/staff/${staffId}` })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'DELETE', url: `/staff/${staffId}` })).statusCode).toBe(404);
+    const list = await app.inject({ method: 'GET', url: '/staff' });
+    expect((list.json().data as Array<{ id: string }>).map((s) => s.id)).not.toContain(staffId);
+    expect(await repo.update(staffId, TENANT, { firstName: 'X' })).toBeNull();
+    expect(await repo.findExistingIds([staffId], TENANT)).toEqual([]);
+    // ...but the row is retained (archived), not hard-deleted.
+    expect(await repo.findByIdentityNumber(before!.identityNumber)).toMatchObject({ id: staffId });
+    await app.close();
+  });
+
   it('dependents in another tenant do not block (tenant-scoped count)', async () => {
     const { app, repo, staffId } = await mount();
     repo.recordDependent('660e8400-e29b-41d4-a716-446655440001', staffId, 'payrollLines');
