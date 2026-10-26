@@ -23,6 +23,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { installAssessmentRouteGuard } from './assessment-http-guard.js';
 import type { AssessmentService } from './assessment-service.js';
 import {
   CreateGradingSchemeSchema,
@@ -42,8 +43,6 @@ import {
   type CreateOutcomeInput,
   type OutcomeParams,
 } from './schemas.js';
-
-import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
 
 /**
  * Options for registering assessment routes.
@@ -155,14 +154,9 @@ export async function registerAssessmentRoutes(
   fastify: FastifyInstance,
   options: AssessmentRoutesOptions,
 ): Promise<void> {
-  
-  // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
-  fastify.addHook('preHandler', async (request, reply) => {
-    if (!enforceAssessmentRouteAccess(request, reply)) {
-      return reply;
-    }
-  });
-const {
+  // W1-SEC-02: package-level RBAC; PRC-L083: installed once per instance.
+  installAssessmentRouteGuard(fastify);
+  const {
     assessmentService,
     gradingSchemesPrefix = '/grading-schemes',
     assessmentItemsPrefix = '/assessment-items',
@@ -231,14 +225,26 @@ const {
         });
       }
 
-      const query = { ...request.query } as GradingSchemeListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-L081: validate the list query against its schema (bounds + enum).
+      const parsed = validate(
+        GradingSchemeListQuerySchema,
+        { ...request.query },
+        { convert: true },
+      );
+      if (!parsed.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: parsed.errors,
+        });
+      }
+      const query = parsed.data;
 
       const result = await assessmentService.listGradingSchemes(
         tenantId,
         { type: query.type, search: query.search },
-        { page, pageSize },
+        { page: query.page ?? 1, pageSize: query.pageSize ?? 20 },
       );
 
       return reply.status(200).send({

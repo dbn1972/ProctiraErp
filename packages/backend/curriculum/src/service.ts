@@ -113,10 +113,11 @@ export class CurriculumService {
     id: string,
     input: { title?: string; objectives?: string | null; plannedDate?: string | null },
   ) {
+    // PRC-L288: `null` clears a nullable column; `undefined` leaves it unchanged.
     const updated = await this.store.updateLessonPlan(tenantId, id, {
       title: input.title?.trim(),
-      objectives: input.objectives ?? undefined,
-      plannedDate: input.plannedDate ?? undefined,
+      objectives: input.objectives,
+      plannedDate: input.plannedDate,
       updatedAt: nowIso(),
     });
     if (!updated) throw new NotFoundError(`Lesson plan ${id} not found`);
@@ -159,11 +160,12 @@ export class CurriculumService {
     id: string,
     input: { code?: string; statement?: string; unitId?: string | null; gradeId?: string | null },
   ) {
+    // PRC-L288: `null` clears a nullable column; `undefined` leaves it unchanged.
     const updated = await this.store.updateOutcome(tenantId, id, {
       code: input.code?.trim(),
       statement: input.statement?.trim(),
-      unitId: input.unitId ?? undefined,
-      gradeId: input.gradeId ?? undefined,
+      unitId: input.unitId,
+      gradeId: input.gradeId,
       updatedAt: nowIso(),
     });
     if (!updated) throw new NotFoundError(`Learning outcome ${id} not found`);

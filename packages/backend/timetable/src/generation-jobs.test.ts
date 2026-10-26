@@ -286,4 +286,83 @@ describe('generation jobs (PRC-M401)', () => {
     expect(atomicCalls).toBe(1);
     expect((job.stats as { persisted?: number }).persisted).toBe(1);
   });
+
+  /**
+   * PRC-M550(b): persistMeetings is all-or-nothing. A booking committed by a concurrent
+   * writer after the generator was seeded makes one generated meeting clash at persist time;
+   * the job must fail and persist none of its meetings (previously: `done`, 1 persisted,
+   * `persistSkipped: 1`, i.e. a silently partial timetable).
+   */
+  it('a persist-time clash fails the job and persists no generated meeting (PRC-M550b)', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'M550B',
+      dayPattern: '1',
+      status: 'active',
+    });
+    const period = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    const staffA = '55555555-5555-4555-8555-55555555aaaa';
+    const staffB = '55555555-5555-4555-8555-55555555bbbb';
+    const injectedId = crypto.randomUUID();
+
+    // Simulate a concurrent writer: right after the generator's seeding read, another
+    // request books staffB into the only slot (day 1, P1).
+    const originalList = repo.listMeetings.bind(repo);
+    let injected = false;
+    repo.listMeetings = async (t, filter) => {
+      const rows = await originalList(t, filter);
+      if (!injected && filter?.academicPeriodId && filter.dayOfWeek === undefined) {
+        injected = true;
+        const now = new Date().toISOString();
+        await repo.createMeeting({
+          id: injectedId,
+          tenantId,
+          institutionId,
+          academicPeriodId,
+          sectionId: crypto.randomUUID(),
+          subjectId: null,
+          staffId: staffB,
+          periodId: period.id,
+          roomId: null,
+          dayOfWeek: 1,
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      return rows;
+    };
+
+    const job = await service.runGenerationJob(
+      tenantId,
+      {
+        institutionId,
+        academicPeriodId,
+        bellScheduleId: schedule.id,
+        daysOfWeek: [1],
+        persistMeetings: true,
+        demands: [
+          { ...demandInput.demands[0]!, sectionId: crypto.randomUUID(), staffId: staffA },
+          { ...demandInput.demands[0]!, sectionId: crypto.randomUUID(), staffId: staffB },
+        ],
+      },
+      null,
+    );
+
+    expect(injected).toBe(true);
+    expect(job.status).toBe('failed');
+    expect(job.errorMessage).toMatch(/clash/i);
+    const meetings = await originalList(tenantId, { institutionId });
+    expect(meetings.map((m) => m.id)).toEqual([injectedId]);
+  });
 });

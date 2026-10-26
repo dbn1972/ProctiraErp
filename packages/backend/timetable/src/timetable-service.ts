@@ -95,6 +95,8 @@ const UUID_RE = new RegExp(UUID_PATTERN);
 /** Client-safe failure text: domain validation messages pass through, internals do not. */
 function sanitizeGenerationError(error: unknown): string {
   if (error instanceof AppError && error.statusCode < 500) return error.message;
+  // PRC-M550(b): a persist-time clash fails the run; say so instead of "internal error".
+  if (isTimetableClashError(error)) return error.message;
   return 'Generation failed due to an internal error';
 }
 
@@ -925,6 +927,75 @@ export class TimetableService {
     return row;
   }
 
+  /**
+   * PRC-M550(b): persist a generation run's meetings all-or-nothing. The per-meeting
+   * preconditions of createMeeting run first (once per section / staff member), then one
+   * repository transaction clash-checks and inserts every meeting; a clash with a booking
+   * made after the generator was seeded rolls the whole batch back and fails the job.
+   */
+  private async persistGeneratedMeetings(
+    tenantId: string,
+    input: CreateGenerationJobInput,
+    assignments: GeneratorAssignment[],
+  ): Promise<SectionMeetingEntity[]> {
+    const sectionInstitution = new Map<string, string>();
+    const staffChecked = new Set<string>();
+    const now = nowIso();
+    const candidates: SectionMeetingEntity[] = [];
+    for (const assignment of assignments) {
+      let institutionId = sectionInstitution.get(assignment.sectionId);
+      if (institutionId === undefined) {
+        await this.assertSectionEditable(tenantId, assignment.sectionId);
+        institutionId = await this.resolveMeetingInstitutionId(
+          tenantId,
+          assignment.sectionId,
+          input.institutionId,
+        );
+        sectionInstitution.set(assignment.sectionId, institutionId);
+      }
+      const staffKey = `${assignment.staffId}|${institutionId}`;
+      if (!staffChecked.has(staffKey)) {
+        await this.assertStaffAtInstitution(tenantId, assignment.staffId, institutionId);
+        staffChecked.add(staffKey);
+      }
+      candidates.push({
+        id: randomUUID(),
+        tenantId,
+        institutionId,
+        academicPeriodId: input.academicPeriodId,
+        sectionId: assignment.sectionId,
+        // Review #554: a demand subject may be a code; meetings keep only real subject ids.
+        subjectId: UUID_RE.test(assignment.subjectId) ? assignment.subjectId : null,
+        staffId: assignment.staffId,
+        periodId: assignment.periodId,
+        roomId: assignment.roomId,
+        dayOfWeek: assignment.dayOfWeek,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    const rows = await this.repo.createMeetingsAtomic(tenantId, candidates, (existing, candidate) =>
+      this.assertNoClashAgainst(tenantId, existing, candidate),
+    );
+    for (const row of rows) {
+      await this.recordAudit({
+        tenantId,
+        action: 'meeting.create',
+        entityType: 'section_meeting',
+        entityId: row.id,
+        actorId: null,
+        details: {
+          sectionId: row.sectionId,
+          periodId: row.periodId,
+          dayOfWeek: row.dayOfWeek,
+          staffId: row.staffId,
+        },
+      });
+    }
+    return rows;
+  }
+
   async updateMeeting(
     tenantId: string,
     id: string,
@@ -1272,31 +1343,12 @@ export class TimetableService {
       const generated = generateTimetable(generateInput);
 
       let persisted = 0;
-      let persistSkipped = 0;
-      if (input.persistMeetings) {
-        for (const assignment of generated.assignments) {
-          try {
-            await this.createMeeting(tenantId, {
-              institutionId: input.institutionId,
-              academicPeriodId: input.academicPeriodId,
-              sectionId: assignment.sectionId,
-              // Review #554: a demand subject may be a code; meetings keep only real subject ids.
-              subjectId: UUID_RE.test(assignment.subjectId) ? assignment.subjectId : null,
-              staffId: assignment.staffId,
-              periodId: assignment.periodId,
-              roomId: assignment.roomId,
-              dayOfWeek: assignment.dayOfWeek,
-              status: 'active',
-            });
-            persisted += 1;
-          } catch (error) {
-            if (isTimetableClashError(error)) {
-              persistSkipped += 1;
-              continue;
-            }
-            throw error;
-          }
-        }
+      // PRC-M550(b): persist is all-or-nothing, so nothing is ever skipped; the key stays
+      // in `stats` so the job record shape is unchanged.
+      const persistSkipped = 0;
+      if (input.persistMeetings && generated.assignments.length > 0) {
+        const rows = await this.persistGeneratedMeetings(tenantId, input, generated.assignments);
+        persisted = rows.length;
       }
 
       const updated = await this.ops.updateJob(tenantId, job.id, {

@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
+import { ConflictError } from '@proctira/common';
 import { getSharedPgPool } from '@proctira/database';
 import { ensurePgTestStudent, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
@@ -172,5 +173,39 @@ describe.skipIf(!live)('Pg report-card repositories', () => {
     expect(done?.completedAt).toBeInstanceOf(Date);
     expect(await jobs.findByStudentAndPeriod(tenantId, studentId, periodId)).toHaveLength(1);
     expect(await jobs.findById(job.id, randomUUID())).toBeNull();
+  });
+
+  it('PRC-L081: deleting a template referenced by a job is a 409 conflict', async () => {
+    const tenantId = randomUUID();
+    await seedTenant(tenantId);
+    const templates = new PgReportCardTemplateRepository(pool!);
+    const jobs = new PgReportCardJobRepository(pool!);
+    const studentId = randomUUID();
+    await ensurePgTestStudent(pool!, tenantId, studentId);
+
+    const template = await templates.create({
+      id: randomUUID(),
+      tenantId,
+      name: 'In use',
+      templateContent: '<p/>',
+      isDefault: false,
+      includeLogo: false,
+      includeGradeSummary: true,
+      includeComments: false,
+    });
+    await jobs.create({
+      id: randomUUID(),
+      tenantId,
+      studentId,
+      academicPeriodId: randomUUID(),
+      templateId: template.id,
+      institutionId: randomUUID(),
+      status: 'queued',
+      errorMessage: null,
+      outputUrl: null,
+    });
+
+    await expect(templates.delete(template.id, tenantId)).rejects.toBeInstanceOf(ConflictError);
+    expect(await templates.findById(template.id, tenantId)).not.toBeNull();
   });
 });

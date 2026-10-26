@@ -692,6 +692,65 @@ export class PgTimetableRepository implements TimetableRepository {
     );
   }
 
+  /**
+   * PRC-M550(b): one transaction for the whole batch. Every distinct slot lock is taken up
+   * front in sorted order (deadlock-free against other batches; single-slot writers hold one
+   * lock), then each candidate is clash-checked against same-slot rows read on this client —
+   * which include the batch's earlier inserts — and inserted. Any throw rolls everything back.
+   */
+  async createMeetingsAtomic(
+    tenantId: string,
+    candidates: SectionMeetingEntity[],
+    clashCheck: (
+      existing: SectionMeetingEntity[],
+      candidate: SectionMeetingEntity,
+    ) => void | Promise<void>,
+  ): Promise<SectionMeetingEntity[]> {
+    if (candidates.length === 0) return [];
+    return withSchemaCheck(() =>
+      withPgTenant(this.pool, tenantId, async (client) => {
+        const lockKeys = [
+          ...new Set(
+            candidates.map((c) => [tenantId, c.institutionId, c.dayOfWeek, c.periodId].join('|')),
+          ),
+        ].sort();
+        for (const lockKey of lockKeys) {
+          await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
+        }
+        const out: SectionMeetingEntity[] = [];
+        for (const candidate of candidates) {
+          const existingResult = await client.query(
+            `${MEETING_SELECT}
+             WHERE sm.tenant_id = $1 AND sm.deleted_at IS NULL
+               AND s.institution_id = $2 AND s.academic_period_id = $3 AND sm.day_of_week = $4`,
+            [tenantId, candidate.institutionId, candidate.academicPeriodId, candidate.dayOfWeek],
+          );
+          await clashCheck(
+            (existingResult.rows as Record<string, unknown>[]).map(mapMeeting),
+            candidate,
+          );
+          const inserted = await client.query(MEETING_INSERT_SQL, meetingInsertParams(candidate));
+          const insertedRow = inserted.rows[0] as Record<string, unknown>;
+          const fullResult = await client.query(
+            `${MEETING_SELECT} WHERE sm.tenant_id = $1 AND sm.id = $2 AND sm.deleted_at IS NULL`,
+            [tenantId, String(insertedRow.id)],
+          );
+          const fullRow = fullResult.rows[0] as Record<string, unknown> | undefined;
+          out.push(
+            fullRow
+              ? mapMeeting(fullRow)
+              : mapMeeting({
+                  ...insertedRow,
+                  institution_id: candidate.institutionId,
+                  academic_period_id: candidate.academicPeriodId,
+                }),
+          );
+        }
+        return out;
+      }),
+    );
+  }
+
   async updateMeeting(
     tenantId: string,
     id: string,

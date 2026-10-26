@@ -255,6 +255,19 @@ export interface TimetableRepository {
     clashCheck: (existing: SectionMeetingEntity[]) => void | Promise<void>,
   ): Promise<SectionMeetingEntity>;
   /**
+   * PRC-M550(b): insert a batch of meetings all-or-nothing. Each candidate is clash-checked
+   * against same-slot rows read inside the one transaction (so earlier inserts of the batch
+   * count); any `clashCheck` throw rolls the whole batch back.
+   */
+  createMeetingsAtomic(
+    tenantId: string,
+    candidates: SectionMeetingEntity[],
+    clashCheck: (
+      existing: SectionMeetingEntity[],
+      candidate: SectionMeetingEntity,
+    ) => void | Promise<void>,
+  ): Promise<SectionMeetingEntity[]>;
+  /**
    * PRC-M397: insert cloned sections + meetings atomically (all-or-nothing).
    */
   insertClonedTimetable(

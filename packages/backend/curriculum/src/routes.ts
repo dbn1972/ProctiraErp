@@ -7,12 +7,32 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { enforceCurriculumRouteAccess } from './curriculum-http-guard.js';
 import {
+  CoverageQuerySchema,
   CreateLearningOutcomeSchema,
   CreateLessonPlanSchema,
   CreateSyllabusUnitSchema,
+  IdParamsSchema,
+  ListOutcomesQuerySchema,
+  ListUnitsQuerySchema,
+  MAX_LESSON_PLAN_UNIT_IDS,
   MarkTaughtSchema,
+  UUID_PATTERN,
+  UpdateLearningOutcomeSchema,
+  UpdateLessonPlanSchema,
 } from './schemas.js';
 import type { CurriculumService } from './service.js';
+
+const UUID_RE = new RegExp(UUID_PATTERN);
+
+/** PRC-L288: an empty query value means "no filter" (as before), not a malformed id. */
+function presentQuery(request: FastifyRequest): Record<string, unknown> {
+  const query = (request.query ?? {}) as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(query).filter(([, value]) => value !== ''));
+}
+
+function sendValidationError(reply: FastifyReply, message: string, errors: unknown): FastifyReply {
+  return reply.status(400).send({ code: 'VALIDATION_ERROR', message, statusCode: 400, errors });
+}
 
 export interface CurriculumRoutesOptions {
   service: CurriculumService;
@@ -83,6 +103,17 @@ export async function registerCurriculumRoutes(
   fastify.addHook('preHandler', async (request, reply) => {
     if (!enforceCurriculumRouteAccess(request, reply)) {
       return reply;
+    }
+  });
+
+  // PRC-L288: every `:id` addresses a UUID row; reject a malformed id with 400
+  // before the scope hook or any handler sends it to Postgres (22P02 -> 500).
+  fastify.addHook('preHandler', async (request, reply) => {
+    const params = request.params as { id?: unknown } | undefined;
+    if (params?.id === undefined) return;
+    const parsed = validate(IdParamsSchema, { id: params.id });
+    if (!parsed.success) {
+      return sendValidationError(reply, 'Invalid id', parsed.errors);
     }
   });
 
@@ -159,14 +190,12 @@ export async function registerCurriculumRoutes(
         statusCode: 401,
       });
     }
-    const query = request.query as {
-      institutionId?: string;
-      subjectId?: string;
-      gradeId?: string;
-      academicPeriodId?: string;
-    };
+    const query = validate(ListUnitsQuerySchema, presentQuery(request));
+    if (!query.success) {
+      return sendValidationError(reply, 'Invalid syllabus unit filter', query.errors);
+    }
     try {
-      const rows = await service.listUnits(tenantId, query);
+      const rows = await service.listUnits(tenantId, query.data);
       return reply.send({ data: rows });
     } catch (error) {
       return sendError(reply, error);
@@ -228,10 +257,25 @@ export async function registerCurriculumRoutes(
       });
     }
     const query = request.query as { unitIds?: string };
-    const unitIds = (query.unitIds ?? '')
+    const unitIds = String(query.unitIds ?? '')
       .split(',')
       .map((id) => id.trim())
       .filter(Boolean);
+    // PRC-L288: bounded, UUID-only list (bound to `ANY($2::uuid[])`).
+    if (unitIds.length > MAX_LESSON_PLAN_UNIT_IDS) {
+      return sendValidationError(reply, 'Too many unitIds', [
+        {
+          field: 'unitIds',
+          rule: 'maxItems',
+          message: `At most ${MAX_LESSON_PLAN_UNIT_IDS} unitIds are allowed`,
+        },
+      ]);
+    }
+    if (unitIds.some((id) => !UUID_RE.test(id))) {
+      return sendValidationError(reply, 'Invalid unitIds', [
+        { field: 'unitIds', rule: 'format', message: 'Every unitId must be a UUID' },
+      ]);
+    }
     try {
       const rows = await service.listLessonPlansForUnits(tenantId, unitIds);
       return reply.send({ data: rows });
@@ -251,13 +295,12 @@ export async function registerCurriculumRoutes(
     }
     const { id } = request.params as { id: string };
     if (!(await assertLessonPlanInInstitution(service, tenantId, id, request, reply))) return;
-    const body = request.body as {
-      title?: string;
-      objectives?: string | null;
-      plannedDate?: string | null;
-    };
+    const body = validate(UpdateLessonPlanSchema, request.body ?? {});
+    if (!body.success) {
+      return sendValidationError(reply, 'Invalid lesson plan', body.errors);
+    }
     try {
-      const row = await service.updateLessonPlan(tenantId, id, body ?? {});
+      const row = await service.updateLessonPlan(tenantId, id, body.data);
       return reply.send(row);
     } catch (error) {
       return sendError(reply, error);
@@ -363,9 +406,12 @@ export async function registerCurriculumRoutes(
         statusCode: 401,
       });
     }
-    const query = request.query as { subjectId?: string; unitId?: string; gradeId?: string };
+    const query = validate(ListOutcomesQuerySchema, presentQuery(request));
+    if (!query.success) {
+      return sendValidationError(reply, 'Invalid learning outcome filter', query.errors);
+    }
     try {
-      const rows = await service.listOutcomes(tenantId, query);
+      const rows = await service.listOutcomes(tenantId, query.data);
       return reply.send({ data: rows });
     } catch (error) {
       return sendError(reply, error);
@@ -382,14 +428,12 @@ export async function registerCurriculumRoutes(
       });
     }
     const { id } = request.params as { id: string };
-    const body = request.body as {
-      code?: string;
-      statement?: string;
-      unitId?: string | null;
-      gradeId?: string | null;
-    };
+    const body = validate(UpdateLearningOutcomeSchema, request.body ?? {});
+    if (!body.success) {
+      return sendValidationError(reply, 'Invalid learning outcome', body.errors);
+    }
     try {
-      const row = await service.updateOutcome(tenantId, id, body ?? {});
+      const row = await service.updateOutcome(tenantId, id, body.data);
       return reply.send(row);
     } catch (error) {
       return sendError(reply, error);
@@ -436,13 +480,12 @@ export async function registerCurriculumRoutes(
         statusCode: 400,
       });
     }
+    const parsed = validate(CoverageQuerySchema, presentQuery(request));
+    if (!parsed.success) {
+      return sendValidationError(reply, 'Invalid coverage filter', parsed.errors);
+    }
     try {
-      const summary = await service.coverage(tenantId, {
-        subjectId: query.subjectId,
-        gradeId: query.gradeId,
-        academicPeriodId: query.academicPeriodId,
-        institutionId: query.institutionId,
-      });
+      const summary = await service.coverage(tenantId, parsed.data);
       return reply.send(summary);
     } catch (error) {
       return sendError(reply, error);

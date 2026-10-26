@@ -458,6 +458,143 @@ describe('ReportCardService', () => {
     it('should throw NotFoundError for non-existent job', async () => {
       await expect(service.getJobStatus(tenantId, uuidv4())).rejects.toThrow('not found');
     });
+
+    // PRC-M166: repeating a request while a matching job is in flight reuses it.
+    describe('PRC-M166 in-flight de-duplication', () => {
+      async function jobsFor(student: string) {
+        return jobRepo.findByStudentAndPeriod(tenantId, student, academicPeriodId);
+      }
+
+      it('reuses a queued job for the same student/period/template/institution', async () => {
+        const template = await service.createTemplate(tenantId, {
+          name: 'Dedup',
+          templateContent: '<html></html>',
+        });
+        const input = { studentId, academicPeriodId, templateId: template.id, institutionId };
+
+        const first = await service.queueReportCardGeneration(tenantId, input);
+        const second = await service.queueReportCardGeneration(tenantId, input);
+
+        expect(second.id).toBe(first.id);
+        expect(await jobsFor(studentId)).toHaveLength(1);
+        // Every dispatch targets the one job; the worker's claim CAS makes redelivery a no-op.
+        expect(new Set(publishedTasks.map((t) => t.id))).toEqual(new Set([first.id]));
+      });
+
+      it('reuses a processing job without dispatching it again', async () => {
+        const template = await service.createTemplate(tenantId, {
+          name: 'Dedup processing',
+          templateContent: '<html></html>',
+        });
+        const input = { studentId, academicPeriodId, templateId: template.id, institutionId };
+        const first = await service.queueReportCardGeneration(tenantId, input);
+        await jobRepo.updateStatus(first.id, tenantId, 'processing');
+        publishedTasks.length = 0;
+
+        const second = await service.queueReportCardGeneration(tenantId, input);
+
+        expect(second.id).toBe(first.id);
+        expect(second.status).toBe('processing');
+        expect(publishedTasks).toHaveLength(0);
+        expect(await jobsFor(studentId)).toHaveLength(1);
+      });
+
+      it('does not reuse a processing job abandoned past the stale window', async () => {
+        const staleAware = new ReportCardService(
+          templateRepo,
+          commentRepo,
+          brandingRepo,
+          jobRepo,
+          resultService,
+          new InMemoryAssessmentItemRepository(),
+          mockPublisher,
+          mockPdfGenerator,
+          { directory: anyIdReportCardDirectory, staleProcessingMs: 0 },
+        );
+        const template = await staleAware.createTemplate(tenantId, {
+          name: 'Dedup stale',
+          templateContent: '<html></html>',
+        });
+        const input = { studentId, academicPeriodId, templateId: template.id, institutionId };
+        const first = await staleAware.queueReportCardGeneration(tenantId, input);
+        await jobRepo.updateStatus(first.id, tenantId, 'processing');
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        const second = await staleAware.queueReportCardGeneration(tenantId, input);
+
+        expect(second.id).not.toBe(first.id);
+      });
+
+      it.each(['completed', 'failed'] as const)(
+        'creates a new job once the previous one is %s',
+        async (status) => {
+          const template = await service.createTemplate(tenantId, {
+            name: `Dedup ${status}`,
+            templateContent: '<html></html>',
+          });
+          const input = { studentId, academicPeriodId, templateId: template.id, institutionId };
+          const first = await service.queueReportCardGeneration(tenantId, input);
+          await jobRepo.updateStatus(first.id, tenantId, status);
+
+          const second = await service.queueReportCardGeneration(tenantId, input);
+
+          expect(second.id).not.toBe(first.id);
+          expect(await jobsFor(studentId)).toHaveLength(2);
+        },
+      );
+
+      it('creates a separate job for a different template', async () => {
+        const a = await service.createTemplate(tenantId, { name: 'A', templateContent: '<p/>' });
+        const b = await service.createTemplate(tenantId, { name: 'B', templateContent: '<p/>' });
+        const first = await service.queueReportCardGeneration(tenantId, {
+          studentId,
+          academicPeriodId,
+          templateId: a.id,
+          institutionId,
+        });
+        const second = await service.queueReportCardGeneration(tenantId, {
+          studentId,
+          academicPeriodId,
+          templateId: b.id,
+          institutionId,
+        });
+
+        expect(second.id).not.toBe(first.id);
+      });
+
+      it('bulk reuses in-flight jobs and only creates the missing ones', async () => {
+        const template = await service.createTemplate(tenantId, {
+          name: 'Dedup bulk',
+          templateContent: '<html></html>',
+        });
+        const s1 = uuidv4();
+        const s2 = uuidv4();
+        const existing = await service.queueReportCardGeneration(tenantId, {
+          studentId: s1,
+          academicPeriodId,
+          templateId: template.id,
+          institutionId,
+        });
+        await jobRepo.updateStatus(existing.id, tenantId, 'processing');
+        publishedTasks.length = 0;
+
+        const result = await service.queueBulkReportCardGeneration(tenantId, {
+          studentIds: [s1, s2],
+          academicPeriodId,
+          templateId: template.id,
+          institutionId,
+        });
+
+        expect(result.totalStudents).toBe(2);
+        expect(result.jobs).toHaveLength(2);
+        expect(result.jobs[0]!.id).toBe(existing.id);
+        expect(await jobsFor(s1)).toHaveLength(1);
+        expect(await jobsFor(s2)).toHaveLength(1);
+        expect(publishedTasks.map((t) => (t.payload as { studentId: string }).studentId)).toEqual([
+          s2,
+        ]);
+      });
+    });
   });
 
   // ─── Report Card Processing ──────────────────────────────────────────────
