@@ -7,7 +7,8 @@
  * Every 4xx/5xx response sent from a route handler must include `code`,
  * `message`, and `statusCode`. Throwing raw `new Error(...)` from outside a
  * `catch` block is also flagged (it bypasses the envelope when no global
- * handler is in place).
+ * handler is in place). Sending a raw Error object (`reply.send(err)` from a
+ * catch, or `.send(new Error(...))`) is an error (PRC-L375).
  *
  * Implementation: ts-morph drives the parsing so we can detect calls that
  * span multiple lines or use spread syntax (`...errorEnvelope`). A regex
@@ -26,15 +27,52 @@ const TITLE = 'Error Envelope Compliance ({code, message, statusCode})';
 
 const REQUIRED_FIELDS = ['code', 'message', 'statusCode'];
 
+// PRC-L375: built-in Error constructors whose instances are not the envelope.
+const BUILTIN_ERRORS = new Set(['Error', 'TypeError', 'RangeError', 'SyntaxError']);
+const RAW_ERROR_MESSAGE =
+  'response sends a raw Error object; use the { code, message, statusCode } envelope or AppError';
+const RAW_ERROR_SUGGESTION =
+  'Map the error to `{ code, message, statusCode }` or throw an `AppError` from @proctira/common.';
+
+/**
+ * PRC-L375: true when `arg` is `new <BuiltinError>(...)` or the variable bound
+ * by an enclosing `catch (err)` clause.
+ */
+function isRawErrorArg(arg, SyntaxKind) {
+  if (arg.getKind() === SyntaxKind.NewExpression) {
+    return BUILTIN_ERRORS.has(arg.getExpression().getText());
+  }
+  if (arg.getKind() !== SyntaxKind.Identifier) return false;
+  const name = arg.getText();
+  for (let node = arg.getParent(); node; node = node.getParent()) {
+    if (node.getKind() === SyntaxKind.CatchClause) {
+      if (node.getVariableDeclaration()?.getName() === name) return true;
+    }
+  }
+  return false;
+}
+
 /** AST: find `reply.status(4xx|5xx).send({...})` calls and validate the literal. */
 async function checkViaAst(sourceFile, file, report) {
   const mod = await import('ts-morph');
   const { SyntaxKind } = mod;
+  const reportRawError = (call) =>
+    report.addError(file, RAW_ERROR_MESSAGE, {
+      line: call.getStartLineNumber(),
+      suggestion: RAW_ERROR_SUGGESTION,
+      ruleRef: 'Charter §6 + §32',
+    });
   for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
     const expr = call.getExpression();
     if (expr.getKind() !== SyntaxKind.PropertyAccessExpression) continue;
     if (expr.getName?.() !== 'send') continue;
     const innerObj = expr.getExpression();
+    const arg = call.getArguments()[0];
+    // PRC-L375: bare `reply.send(<raw Error>)`.
+    if (innerObj.getKind() === SyntaxKind.Identifier && innerObj.getText() === 'reply') {
+      if (arg && isRawErrorArg(arg, SyntaxKind)) reportRawError(call);
+      continue;
+    }
     if (innerObj.getKind() !== SyntaxKind.CallExpression) continue;
     const inner = innerObj;
     const innerExpr = inner.getExpression();
@@ -43,11 +81,15 @@ async function checkViaAst(sourceFile, file, report) {
     if (!statusArg) continue;
     const statusText = statusArg.getText();
     const statusMatch = statusText.match(/(\d{3})/);
+    if (statusMatch && Number(statusMatch[1]) < 400) continue; // success envelopes don't need this shape
+    // PRC-L375: `reply.status(x).send(<raw Error>)` is never the envelope.
+    if (arg && isRawErrorArg(arg, SyntaxKind)) {
+      reportRawError(call);
+      continue;
+    }
     if (!statusMatch) continue;
     const statusCode = Number(statusMatch[1]);
-    if (statusCode < 400) continue; // success envelopes don't need this shape
 
-    const arg = call.getArguments()[0];
     if (!arg || arg.getKind() !== SyntaxKind.ObjectLiteralExpression) continue;
     // Only inspect literal objects; spread/imported envelopes are presumed compliant.
     const props = arg.getProperties();
@@ -97,16 +139,29 @@ async function checkViaAst(sourceFile, file, report) {
       'Raw `throw new Error(...)` outside a catch block bypasses the error envelope.',
       {
         line: thrown.getStartLineNumber(),
-        suggestion: 'Throw an `AppError` (or domain-specific subclass) so the global error handler renders the envelope.',
+        suggestion:
+          'Throw an `AppError` (or domain-specific subclass) so the global error handler renders the envelope.',
         ruleRef: 'Charter §6',
       },
     );
   }
 }
 
-/** Regex fallback. */
-function checkViaRegex(text, file, report) {
-  const sendRe = /reply\s*\.\s*(?:status|code)\s*\(\s*(\d{3})\s*\)\s*\.\s*send\s*\(\s*\{([\s\S]*?)\}\s*\)/g;
+/** Regex fallback (exported for unit tests). */
+export function checkViaRegex(text, file, report) {
+  // PRC-L375: `.send(new <BuiltinError>(...))` sends a raw Error object.
+  const rawRe = /\.\s*send\s*\(\s*new\s+(?:Type|Range|Syntax)?Error\s*\(/g;
+  let r;
+  while ((r = rawRe.exec(text)) !== null) {
+    report.addError(file, RAW_ERROR_MESSAGE, {
+      line: text.slice(0, r.index).split('\n').length,
+      suggestion: RAW_ERROR_SUGGESTION,
+      ruleRef: 'Charter §6 + §32',
+    });
+  }
+
+  const sendRe =
+    /reply\s*\.\s*(?:status|code)\s*\(\s*(\d{3})\s*\)\s*\.\s*send\s*\(\s*\{([\s\S]*?)\}\s*\)/g;
   let m;
   while ((m = sendRe.exec(text)) !== null) {
     const status = Number(m[1]);
@@ -116,11 +171,15 @@ function checkViaRegex(text, file, report) {
     const missing = REQUIRED_FIELDS.filter((f) => !new RegExp(`\\b${f}\\b`).test(body));
     if (missing.length === 0) continue;
     const line = text.slice(0, m.index).split('\n').length;
-    report.addError(file, `${status} response missing required envelope field(s): ${missing.join(', ')}.`, {
-      line,
-      suggestion: 'Add `{ code, message, statusCode }` to the response payload.',
-      ruleRef: 'Charter §6 + §32',
-    });
+    report.addError(
+      file,
+      `${status} response missing required envelope field(s): ${missing.join(', ')}.`,
+      {
+        line,
+        suggestion: 'Add `{ code, message, statusCode }` to the response payload.',
+        ruleRef: 'Charter §6 + §32',
+      },
+    );
   }
 
   const throwRe = /throw\s+new\s+Error\s*\(/g;
@@ -137,9 +196,16 @@ function checkViaRegex(text, file, report) {
   }
 }
 
-export async function runErrorEnvelopeCheck() {
+/**
+ * @param {{ backendDir?: string }} [opts] backendDir overrides the scanned
+ *   packages/backend root (used by fixture tests).
+ */
+export async function runErrorEnvelopeCheck({ backendDir = BACKEND_DIR } = {}) {
   const report = new Report(CHECK_IDS.ERROR_ENVELOPE, TITLE);
-  const routeFiles = await findFiles(BACKEND_DIR, (n) => isProductionTsFile(n) && n.includes('route'));
+  const routeFiles = await findFiles(
+    backendDir,
+    (n) => isProductionTsFile(n) && n.includes('route'),
+  );
   report.filesScanned = routeFiles.length;
 
   for (const file of routeFiles) {

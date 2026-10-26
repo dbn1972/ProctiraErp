@@ -17,10 +17,12 @@
  *   tolerated); a baseline error without one fails the gate.
  *   `--update-baseline` carries reasons forward by fingerprint.
  *
- * Exit codes:
+ * Exit codes (see src/lib/baseline-gate.mjs):
  *   0 — within baseline (warnings allowed unless --strict)
- *   1 — new error findings beyond baseline (or --strict warning regression)
- *   2 — runtime failure (uncaught exception)
+ *   1 — new error findings beyond baseline (or --strict warning regression),
+ *       or `--update-baseline` wrote error entries without a reason
+ *   2 — baseline file missing (pass --no-baseline or --update-baseline),
+ *       or runtime failure (uncaught exception)
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -32,6 +34,7 @@ import { runErrorEnvelopeCheck } from '../src/checks/error-envelope.mjs';
 import { runI18nCheck } from '../src/checks/i18n-readiness.mjs';
 import { runTableNamingCheck } from '../src/checks/table-naming.mjs';
 import { runTenantIdCheck } from '../src/checks/tenant-id.mjs';
+import { resolveExitCode } from '../src/lib/baseline-gate.mjs';
 import { CHECK_IDS } from '../src/lib/constants.mjs';
 import { REPORTS_DIR } from '../src/lib/paths.mjs';
 import { printReport, printSummary } from '../src/lib/reporter.mjs';
@@ -86,7 +89,9 @@ Options:
   --baseline=<path>    Baseline JSON used as the allowed-debt ceiling
                          (default: tools/dod-checks/reports/baseline.json).
   --no-baseline        Ignore baseline; fail on any error finding.
+                         Without this flag a missing baseline exits 2.
   --update-baseline    Write the current report to the baseline path (after run).
+                         Exits 1 if any written error entry has no reason.
   --json               Suppress human output; emit only the JSON report path.
   -h, --help           Show this help.
 `);
@@ -306,23 +311,39 @@ async function main() {
   await mkdir(dirname(reportPath), { recursive: true });
   await writeFile(reportPath, JSON.stringify(json, null, 2));
 
+  let unreasonedAfterUpdate = 0;
   if (args.updateBaseline) {
     await mkdir(dirname(args.baseline), { recursive: true });
     const previous = await loadBaseline(args.baseline);
-    await writeFile(
-      args.baseline,
-      JSON.stringify(withCarriedReasons(json, previous), null, 2) + '\n',
-    );
+    const written = withCarriedReasons(json, previous);
+    await writeFile(args.baseline, JSON.stringify(written, null, 2) + '\n');
     if (!args.jsonOnly) {
       console.log(`\n📌 Baseline updated at ${args.baseline}`);
+    }
+    // PRC-M551: absorbing error debt without a reason is not a passing run.
+    unreasonedAfterUpdate = baselineErrorFindings(written).filter((f) => !hasReason(f)).length;
+    if (unreasonedAfterUpdate > 0) {
+      console.error(
+        `❌ ${unreasonedAfterUpdate} baseline error entr${unreasonedAfterUpdate === 1 ? 'y' : 'ies'} written without a reason (≥${MIN_REASON_LENGTH} chars); add a reason to each before committing.`,
+      );
     }
   }
 
   let comparison = { ok: true, regressions: [], summary: 'baseline disabled' };
+  let baselineMissing = false;
   if (!args.noBaseline && !args.updateBaseline) {
     const baseline = await loadBaseline(args.baseline);
-    comparison = compareToBaseline(reports, baseline, { strict: args.strict });
-    if (!args.jsonOnly) printBaselineResult(comparison);
+    if (baseline) {
+      comparison = compareToBaseline(reports, baseline, { strict: args.strict });
+      if (!args.jsonOnly) printBaselineResult(comparison);
+    } else {
+      // PRC-M551: a missing baseline fails closed instead of passing.
+      baselineMissing = true;
+      comparison = null;
+      console.error(
+        `❌ baseline missing at ${args.baseline}; pass --no-baseline or --update-baseline`,
+      );
+    }
   } else if (args.noBaseline && !args.jsonOnly) {
     console.log('\n(Baseline comparison skipped via --no-baseline)');
   }
@@ -333,11 +354,17 @@ async function main() {
     console.log(reportPath);
   }
 
-  const absoluteFail =
-    args.noBaseline && (totals.totalErrors > 0 || (args.strict && totals.totalWarnings > 0));
-  const baselineFail = !args.noBaseline && !args.updateBaseline && !comparison.ok;
-  const failed = args.updateBaseline ? false : absoluteFail || baselineFail;
-  process.exit(failed ? 1 : 0);
+  process.exit(
+    resolveExitCode({
+      noBaseline: args.noBaseline,
+      updateBaseline: args.updateBaseline,
+      strict: args.strict,
+      totals,
+      comparison,
+      baselineMissing,
+      unreasonedAfterUpdate,
+    }),
+  );
 }
 
 main().catch((err) => {
