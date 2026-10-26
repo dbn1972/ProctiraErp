@@ -13,6 +13,13 @@
 name: Workflow Lint
 
 on:
+  # PRC-M428 / PRC-L307: also called from ci.yml (job workflow-lint) so CI
+  # Aggregate (Required) fails closed when workflow lint fails. Path filters
+  # below still apply to the standalone run only.
+  workflow_call:
+    secrets:
+      TURBO_TOKEN:
+        required: false
   pull_request:
     paths:
       - '.github/workflows/**'

@@ -1582,6 +1582,28 @@ jobs:
       contents: read
 
   # ---------------------------------------------------------------------------
+  # Static ops gates + workflow lint (PRC-M428 / PRC-L307)
+  # ---------------------------------------------------------------------------
+  # helm-template.yml (helm lint/template, no-latest image tags, topology,
+  # replica/PDB policy) and actionlint.yml (actionlint, pin/injection gates)
+  # are path-filtered standalone; calling them here makes every PR run them
+  # and CI Aggregate (Required) fail closed on failure or skip.
+  # ---------------------------------------------------------------------------
+  helm-template:
+    name: Helm Template (PRC-M428)
+    uses: ./.github/workflows/helm-template.yml
+    permissions:
+      contents: read
+
+  workflow-lint:
+    name: Workflow Lint (PRC-M428)
+    uses: ./.github/workflows/actionlint.yml
+    permissions:
+      contents: read
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+
+  # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
   # ---------------------------------------------------------------------------
   # Runs ungated Chromium smokes for Next secondary apps that are not covered
@@ -1766,6 +1788,8 @@ jobs:
       - runtime-table-privileges
       - runtime-role-gate
       - security-scans
+      - helm-template
+      - workflow-lint
       - secondary-apps-e2e
       - mobile-flutter
     if: always()
@@ -1818,6 +1842,8 @@ jobs:
           RUNTIME_TABLE_PRIVILEGES_RESULT: ${{ needs.runtime-table-privileges.result }}
           RUNTIME_ROLE_GATE_RESULT: ${{ needs.runtime-role-gate.result }}
           SECURITY_SCANS_RESULT: ${{ needs.security-scans.result }}
+          HELM_TEMPLATE_RESULT: ${{ needs.helm-template.result }}
+          WORKFLOW_LINT_RESULT: ${{ needs.workflow-lint.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
           MOBILE_FLUTTER_RESULT: ${{ needs.mobile-flutter.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs
