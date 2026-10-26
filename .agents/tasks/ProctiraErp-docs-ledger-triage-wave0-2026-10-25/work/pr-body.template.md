@@ -24,54 +24,54 @@ Scope and non-goals: ledger triage and reporting only. No findings are fixed her
 
 ## Counts before → after (758 rows)
 
-| Disposition | Before | After | Δ |
-|---|---|---|---|
-| OPEN | 291 | 241 | −50 |
-| PARTIAL | 206 | 241 | +35 |
-| FULLY_CLOSED | 260 | 271 | +11 |
-| DUPLICATE | 1 | 5 | +4 |
+| Disposition  | Before | After | Δ   |
+| ------------ | ------ | ----- | --- |
+| OPEN         | 291    | 241   | −50 |
+| PARTIAL      | 206    | 241   | +35 |
+| FULLY_CLOSED | 260    | 271   | +11 |
+| DUPLICATE    | 1      | 5     | +4  |
 
 Transitions:
 
-| Transition | Rows |
-|---|---|
-| OPEN → FULLY_CLOSED | 5 |
-| PARTIAL → FULLY_CLOSED | 6 |
-| PARTIAL → DUPLICATE | 4 |
-| OPEN → PARTIAL | 45 |
-| PARTIAL → PARTIAL (notes only) | 103 |
+| Transition                     | Rows |
+| ------------------------------ | ---- |
+| OPEN → FULLY_CLOSED            | 5    |
+| PARTIAL → FULLY_CLOSED         | 6    |
+| PARTIAL → DUPLICATE            | 4    |
+| OPEN → PARTIAL                 | 45   |
+| PARTIAL → PARTIAL (notes only) | 103  |
 
 STALE + DUPLICATE = 15 = rows moved to FULLY_CLOSED or DUPLICATE.
 
 Triage results over the 497 rows:
 
-| Result | Rows |
-|---|---|
-| STILL_OPEN | 288 |
-| PARTIAL_CONFIRMED | 150 |
-| CLAIMED | 44 |
-| STALE | 11 |
-| DUPLICATE | 4 |
-| NOT_TRIAGED | 0 |
+| Result            | Rows |
+| ----------------- | ---- |
+| STILL_OPEN        | 288  |
+| PARTIAL_CONFIRMED | 150  |
+| CLAIMED           | 44   |
+| STALE             | 11   |
+| DUPLICATE         | 4    |
+| NOT_TRIAGED       | 0    |
 
 Claimed by in-flight work: 44 rows, all excluded from triage with no CSV change:
 
-| Claimed by | Rows |
-|---|---|
-| PR #654 (institution) | 22 |
-| `fix/audit-parent-portal-batch` | 11 |
-| PR #633 (role catalogue) | 11 |
+| Claimed by                      | Rows |
+| ------------------------------- | ---- |
+| PR #654 (institution)           | 22   |
+| `fix/audit-parent-portal-batch` | 11   |
+| PR #633 (role catalogue)        | 11   |
 
 Rows still OPEN/PARTIAL, by eligibility:
 
-| Eligibility | Rows |
-|---|---|
-| BLOCKED_FOR_APPROVAL | 155 |
-| NEEDS_DECISION | 72 (the xlsx Needs column contributed 0 because the file is absent) |
-| SCHEMA_BATCH | 58 |
-| INFRA_BATCH | 41 |
-| ELIGIBLE_LOW | 59 |
-| ELIGIBLE_MEDIUM | 53 |
+| Eligibility          | Rows                                                                |
+| -------------------- | ------------------------------------------------------------------- |
+| BLOCKED_FOR_APPROVAL | 155                                                                 |
+| NEEDS_DECISION       | 72 (the xlsx Needs column contributed 0 because the file is absent) |
+| SCHEMA_BATCH         | 58                                                                  |
+| INFRA_BATCH          | 41                                                                  |
+| ELIGIBLE_LOW         | 59                                                                  |
+| ELIGIBLE_MEDIUM      | 53                                                                  |
 
 ## Evidence gate (consolidation)
 
@@ -87,14 +87,14 @@ Rows still OPEN/PARTIAL, by eligibility:
 
 ## Changed ledger rows (163)
 
-__LEDGER_TABLE__
+{{LEDGER_TABLE}}
 
 ## Overlap with other ledger PRs
 
 Edits are row-scoped: only changed lines differ, so conflicts are limited to the rows below.
 
-- **#652 `docs/reconcile-ledger-649`:** MERGED, and its merge commit is this PR's base. It changed 17 rows (`triage-manifest.json` → `overlap_652`). Rows that this PR also changes: __OVERLAP_652__.
-- **#630 `chore/canonical-gap-ledger`:** OPEN and CONFLICTING. It adds the CSV as a new file against an old base, so in raw diff terms it overlaps all __OVERLAP_630_ALL__ changed rows. Rows whose content actually differs between #630 and main (`overlap_630_effective_vs_main`, 112 rows) and that this PR also changes (__OVERLAP_630_N__): __OVERLAP_630__. If #630 is revived it must be rebased onto main after this PR, and these rows must be re-resolved.
+- **#652 `docs/reconcile-ledger-649`:** MERGED, and its merge commit is this PR's base. It changed 17 rows (`triage-manifest.json` → `overlap_652`). Rows that this PR also changes: {{OVERLAP_652}}.
+- **#630 `chore/canonical-gap-ledger`:** OPEN and CONFLICTING. It adds the CSV as a new file against an old base, so in raw diff terms it overlaps all {{OVERLAP_630_ALL}} changed rows. Rows whose content actually differs between #630 and main (`overlap_630_effective_vs_main`, 112 rows) and that this PR also changes ({{OVERLAP_630_N}}): {{OVERLAP_630}}. If #630 is revived it must be rebased onto main after this PR, and these rows must be re-resolved.
 
 ## Baseline failures (pre-existing, not fixed)
 
@@ -135,12 +135,12 @@ Rollout and rollback: documentation only. Revert the ledger commit to roll back.
 
 ## Wave 1 (planned, separate PRs)
 
-| Branch | Findings | Notes |
-|---|---|---|
-| `fix/app-web-batch1` | 12 | PRC-L255 salvaged from `fix/web-lows-L255` |
-| `fix/ui-packages-batch1` | 2 | Only custom-field L447/L448 are eligible; every ui-* row needs a decision |
-| `fix/platform-services-batch1` | 10 | etl, data-warehouse, notification, survey |
+| Branch                         | Findings | Notes                                                                     |
+| ------------------------------ | -------- | ------------------------------------------------------------------------- |
+| `fix/app-web-batch1`           | 12       | PRC-L255 salvaged from `fix/web-lows-L255`                                |
+| `fix/ui-packages-batch1`       | 2        | Only custom-field L447/L448 are eligible; every ui-* row needs a decision |
+| `fix/platform-services-batch1` | 10       | etl, data-warehouse, notification, survey                                 |
 
 ## Reviewer verdict
 
-__REVIEW_VERDICT__
+{{REVIEW_VERDICT}}
