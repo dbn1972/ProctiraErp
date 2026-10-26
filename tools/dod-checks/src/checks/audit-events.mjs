@@ -28,8 +28,12 @@ const WRITE_ROUTE_RE =
   /(?:fastify|app|router|server|instance)\.(?:post|put|patch|delete)\s*\(|\.route\s*\(\s*\{[^}]*method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)/i;
 
 // PRC-M410: evidence must be a call, matched on code with comments and string
-// contents removed. A bare import, type name, comment or string is not
-// integration.
+// and regex-literal contents removed. A bare import, type name, comment,
+// string, method/function declaration or type signature is not integration
+// (see isCallSite). Known residuals: an overload signature ending in `;` still
+// counts as a call, and a call in the `?` branch of a ternary followed by `:`
+// is read as a declaration (worst case: an extra warning). Matching is per
+// service file set, not per handler.
 const AUDIT_CALL_PATTERNS = [
   // Callee name contains "audit": recordAudit(…), auditMutation(…), audit(…).
   /(?<!function\s+)\b[\w$]*audit[\w$]*\s*\(/i,
@@ -41,10 +45,43 @@ const AUDIT_CALL_PATTERNS = [
   /\b(?:eventProducer|kafkaProducer|outbox|domainEvents?)\s*(?:\?\.|\.)\s*[\w$]+\s*\(/i,
 ];
 
+// Tokens after which a `/` starts a regex literal rather than a division.
+const REGEX_PREFIX_CHARS = new Set('(,=:[!&|?{};+-*%<>~^'.split(''));
+const REGEX_PREFIX_WORDS = new Set([
+  'return',
+  'typeof',
+  'case',
+  'do',
+  'else',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'throw',
+  'yield',
+  'await',
+]);
+
+/** True when a `/` at this point of the emitted code begins a regex literal. */
+function startsRegexLiteral(out) {
+  let k = out.length - 1;
+  while (k >= 0 && /\s/.test(out[k])) k--;
+  if (k < 0) return true;
+  const prev = out[k];
+  if (REGEX_PREFIX_CHARS.has(prev)) return true;
+  if (!/[\w$]/.test(prev)) return false;
+  let start = k;
+  while (start > 0 && /[\w$]/.test(out[start - 1])) start--;
+  return REGEX_PREFIX_WORDS.has(out.slice(start, k + 1));
+}
+
 /**
- * Blank out comments and the contents of string/template literals so only
- * code is matched. Template `${…}` expressions are dropped with the literal;
- * an audit call placed inside one is not counted.
+ * Blank out comments and the contents of string/template/regex literals so
+ * only code is matched. Template `${…}` expressions are dropped with the
+ * literal; an audit call placed inside one is not counted. A regex literal is
+ * scanned to its unescaped closing `/` (outside a `[...]` class) or to the end
+ * of the line, so a quote or backtick inside it cannot hide later code.
  */
 function stripCommentsAndStrings(text) {
   let out = '';
@@ -61,6 +98,34 @@ function stripCommentsAndStrings(text) {
       const end = text.indexOf('*/', i + 2);
       i = end === -1 ? n : end + 2;
       out += ' ';
+      continue;
+    }
+    if (c === '/' && startsRegexLiteral(out)) {
+      let j = i + 1;
+      let inClass = false;
+      let closed = false;
+      while (j < n && text[j] !== '\n') {
+        const ch = text[j];
+        if (ch === '\\') {
+          j += 2;
+          continue;
+        }
+        if (inClass) {
+          if (ch === ']') inClass = false;
+        } else if (ch === '[') {
+          inClass = true;
+        } else if (ch === '/') {
+          closed = true;
+          break;
+        }
+        j++;
+      }
+      if (closed) {
+        j++;
+        while (j < n && /[a-z]/i.test(text[j])) j++;
+      }
+      out += '""';
+      i = Math.min(j, n);
       continue;
     }
     if (c === "'" || c === '"' || c === '`') {
@@ -80,9 +145,37 @@ function stripCommentsAndStrings(text) {
   return out;
 }
 
+/**
+ * True when the `(` ending a pattern match opens a call rather than a
+ * declaration. After the balanced `)`, a `{` (function/method body) or `:`
+ * (type signature) on the same line marks a declaration. An unbalanced `(`
+ * is counted as a call.
+ */
+function isCallSite(code, openIdx) {
+  let depth = 0;
+  let k = openIdx;
+  for (; k < code.length; k++) {
+    if (code[k] === '(') depth++;
+    else if (code[k] === ')') {
+      depth--;
+      if (depth === 0) break;
+    }
+  }
+  if (k >= code.length) return true;
+  k++;
+  while (k < code.length && (code[k] === ' ' || code[k] === '\t')) k++;
+  return code[k] !== '{' && code[k] !== ':';
+}
+
 function hasAuditIntegration(text) {
   const code = stripCommentsAndStrings(text);
-  return AUDIT_CALL_PATTERNS.some((p) => p.test(code));
+  return AUDIT_CALL_PATTERNS.some((p) => {
+    const re = new RegExp(p.source, p.flags.includes('g') ? p.flags : p.flags + 'g');
+    for (const m of code.matchAll(re)) {
+      if (isCallSite(code, m.index + m[0].length - 1)) return true;
+    }
+    return false;
+  });
 }
 
 /**
