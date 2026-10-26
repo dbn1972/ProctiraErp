@@ -14,7 +14,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
-import { uniqueGradeOrder } from './fixtures/test-data';
+import { ensureSharedAcademicYear, uniqueGradeOrder } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -73,17 +73,10 @@ interface ExamFixture {
 /** period → grade → student → enrollment → examination (SCHEDULED). */
 async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
   const stamp = Date.now().toString(36);
-  const period = await postOk(
-    request,
-    '/academic-periods',
-    {
-      name: `Exam AY ${stamp}`,
-      code: `EX-${stamp}`,
-      startDate: isoDate(-30),
-      endDate: isoDate(300),
-    },
-    201,
-  );
+  // PRC-L122: academic years are overlap-checked per tenant, so every spec
+  // sharing TENANT_A reuses one "current year" instead of each creating its
+  // own now-centered window (see ensureSharedAcademicYear's doc comment).
+  const period = await ensureSharedAcademicYear(request, GATEWAY_URL, headers());
   const grade = await postOk(
     request,
     '/grades',

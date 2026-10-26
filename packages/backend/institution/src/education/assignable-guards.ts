@@ -8,6 +8,8 @@
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import type { PrismaClient } from '@proctira/database';
 
+import type { InstitutionRepository } from '../institution-repository.js';
+
 interface InstitutionLike {
   status?: string | null;
   deletedAt?: Date | string | null;
@@ -30,6 +32,25 @@ export async function requireAssignableInstitution(
     throw new BusinessRuleError(
       `Institution '${institutionId}' is inactive and cannot accept new assignments`,
     );
+  }
+}
+
+/**
+ * PRC-M286 — require that `institutionId` belongs to `tenantId` before it is
+ * stored on a row (infrastructure land, repair request, calendar event).
+ * Unlike {@link requireAssignableInstitution} this does NOT require ACTIVE
+ * status: decommissioning infrastructure on an inactive institution, or
+ * logging a calendar event tied to one, is a legitimate workflow. Only
+ * existence + tenant ownership are checked.
+ */
+export async function requireInstitution(
+  repository: InstitutionRepository,
+  tenantId: string,
+  institutionId: string,
+): Promise<void> {
+  const institution = await repository.findById(institutionId, tenantId);
+  if (!institution) {
+    throw new NotFoundError(`Institution '${institutionId}' not found`);
   }
 }
 

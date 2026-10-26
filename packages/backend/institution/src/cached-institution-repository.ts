@@ -65,9 +65,9 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     return reviveDates(cached);
   }
 
-  async findByCode(code: string): Promise<InstitutionEntity | null> {
+  async findByCode(code: string, tenantId: string): Promise<InstitutionEntity | null> {
     // Code lookups are not cached (used for uniqueness checks during writes)
-    return this.delegate.findByCode(code);
+    return this.delegate.findByCode(code, tenantId);
   }
 
   async findByNameInArea(

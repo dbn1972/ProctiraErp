@@ -6,7 +6,7 @@
  *
  * @requirements 5.5
  */
-import { NotFoundError, ConflictError } from '@proctira/common';
+import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
 import type { PrismaClient, Subject, InstitutionSubject } from '@proctira/database';
 
 import { requireAssignableInstitution } from './assignable-guards.js';
@@ -109,6 +109,9 @@ export class SubjectService {
 
   /**
    * Soft-delete a subject.
+   *
+   * PRC-M284: a subject still linked to a grade via `InstitutionSubject` is
+   * rejected — unlink it from every grade first via {@link unlinkFromGrade}.
    */
   async delete(tenantId: string, id: string): Promise<void> {
     const subject = await this.prisma.subject.findFirst({
@@ -117,6 +120,15 @@ export class SubjectService {
 
     if (!subject) {
       throw new NotFoundError(`Subject '${id}' not found`);
+    }
+
+    const linkCount = await this.prisma.institutionSubject.count({
+      where: { tenantId, subjectId: id },
+    });
+    if (linkCount > 0) {
+      throw new BusinessRuleError(
+        `Cannot delete subject '${id}': still linked to ${linkCount} grade(s); unlink from all grades first`,
+      );
     }
 
     await this.prisma.subject.update({

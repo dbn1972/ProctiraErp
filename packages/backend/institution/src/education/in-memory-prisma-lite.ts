@@ -219,6 +219,13 @@ export function createInMemoryAcademicsPrisma(
     class: new ModelTable(() => ({ capacity: null, ...soft() })),
     subject: new ModelTable(soft),
     institutionSubject: new ModelTable(() => ({})),
+    // PRC-L476: `ClassService.requireStaff()` calls `this.prisma.staff.findFirst(...)`.
+    // Without this table the delegate is `undefined` and the lookup crashes with
+    // a TypeError instead of correctly returning null (NotFoundError) when no
+    // staff row was seeded. This is an empty-by-default flat table — it does not
+    // give parity with Prisma's `classTeacher` relation include (tracked
+    // separately as NEEDS_DECISION; this fix only prevents the crash).
+    staff: new ModelTable(soft),
   };
 
   const institution = {

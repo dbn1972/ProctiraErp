@@ -4,7 +4,8 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClassService } from './class-service.js';
-import { NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
+import { createInMemoryAcademicsPrisma } from './in-memory-prisma-lite.js';
 
 function createMockPrisma() {
   return {
@@ -25,6 +26,9 @@ function createMockPrisma() {
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+    },
+    enrollment: {
+      count: vi.fn(),
     },
   } as any;
 }
@@ -122,6 +126,32 @@ describe('ClassService', () => {
           name: 'Class A',
         }),
       ).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-M285: duplicate (institution, grade, period, name) must be rejected.
+    it('should throw ConflictError when a class with the same name already exists for the grade/period', async () => {
+      prisma.grade.findFirst.mockResolvedValue({ id: 'grade-1' });
+      prisma.academicPeriod.findFirst.mockResolvedValue({ id: 'period-1' });
+      prisma.institution.findFirst.mockResolvedValue({ id: 'inst-1' });
+      prisma.class.findFirst.mockResolvedValue({
+        id: 'class-existing',
+        tenantId: TENANT_ID,
+        institutionId: 'inst-1',
+        gradeId: 'grade-1',
+        academicPeriodId: 'period-1',
+        name: 'Class A',
+        deletedAt: null,
+      });
+
+      await expect(
+        service.create(TENANT_ID, {
+          institutionId: 'inst-1',
+          gradeId: 'grade-1',
+          academicPeriodId: 'period-1',
+          name: 'Class A',
+        }),
+      ).rejects.toThrow(ConflictError);
+      expect(prisma.class.create).not.toHaveBeenCalled();
     });
 
     it('should set capacity to null when not provided', async () => {
@@ -265,9 +295,47 @@ describe('ClassService', () => {
     });
   });
 
+  describe('requireStaff crash guard (PRC-L476)', () => {
+    it('resolves with NotFoundError (not a crash) when staff is not seeded', async () => {
+      const institutionId = 'inst-shim-1';
+      const institutionRepository = {
+        findById: vi.fn(async (id: string) =>
+          id === institutionId
+            ? ({ id, tenantId: TENANT_ID, status: 'ACTIVE', deletedAt: null } as any)
+            : null,
+        ),
+      } as any;
+      const shimPrisma = createInMemoryAcademicsPrisma({ institutionRepository });
+      const grade = await shimPrisma.grade.create({
+        data: { tenantId: TENANT_ID, name: 'G1', code: 'G1', order: 1 },
+      });
+      const period = await shimPrisma.academicPeriod.create({
+        data: {
+          tenantId: TENANT_ID,
+          name: 'AY',
+          code: 'AY',
+          startDate: new Date(),
+          endDate: new Date(),
+        },
+      });
+      const shimService = new ClassService({ prisma: shimPrisma });
+
+      await expect(
+        shimService.create(TENANT_ID, {
+          institutionId,
+          gradeId: grade.id,
+          academicPeriodId: period.id,
+          name: 'Class A',
+          classTeacherStaffId: 'staff-not-seeded',
+        }),
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
   describe('delete', () => {
     it('should soft-delete a class', async () => {
       prisma.class.findFirst.mockResolvedValue({ id: 'class-1', deletedAt: null });
+      prisma.enrollment.count.mockResolvedValue(0);
       prisma.class.update.mockResolvedValue({});
 
       await service.delete(TENANT_ID, 'class-1');
@@ -282,6 +350,15 @@ describe('ClassService', () => {
       prisma.class.findFirst.mockResolvedValue(null);
 
       await expect(service.delete(TENANT_ID, 'nonexistent')).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-M284: deleting a class with ENROLLED students must be rejected.
+    it('should throw BusinessRuleError if the class has enrolled students (PRC-M284)', async () => {
+      prisma.class.findFirst.mockResolvedValue({ id: 'class-1', deletedAt: null });
+      prisma.enrollment.count.mockResolvedValue(4);
+
+      await expect(service.delete(TENANT_ID, 'class-1')).rejects.toThrow(BusinessRuleError);
+      expect(prisma.class.update).not.toHaveBeenCalled();
     });
   });
 });

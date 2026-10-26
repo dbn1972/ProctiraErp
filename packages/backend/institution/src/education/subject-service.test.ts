@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SubjectService } from './subject-service.js';
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 
 function createMockPrisma() {
   return {
@@ -27,6 +27,7 @@ function createMockPrisma() {
       findMany: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
     },
   } as any;
 }
@@ -151,6 +152,16 @@ describe('SubjectService', () => {
       prisma.subject.findFirst.mockResolvedValue(null);
 
       await expect(service.delete(TENANT_ID, 'nonexistent')).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-M284: deleting a subject that is still linked to a grade must be
+    // rejected — unlink it first.
+    it('should throw BusinessRuleError if the subject is still linked to a grade (PRC-M284)', async () => {
+      prisma.subject.findFirst.mockResolvedValue({ id: 'subj-1', deletedAt: null });
+      prisma.institutionSubject.count.mockResolvedValue(1);
+
+      await expect(service.delete(TENANT_ID, 'subj-1')).rejects.toThrow(BusinessRuleError);
+      expect(prisma.subject.update).not.toHaveBeenCalled();
     });
   });
 

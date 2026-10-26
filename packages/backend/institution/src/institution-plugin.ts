@@ -148,6 +148,7 @@ export const institutionPlugin = fp(
       prisma: deps.prisma,
       store: deps.calendarStore,
       rolloverExtras: options.rolloverExtras,
+      institutionRepository: repository,
     });
     fastify.decorate('academicCalendarService', academicCalendarService);
     await registerAcademicCalendarRoutes(fastify, {
@@ -174,6 +175,7 @@ export const institutionPlugin = fp(
     const infrastructureService = new InfrastructureService({
       store: deps.infrastructureStore,
       conditionStore: deps.conditionStore,
+      institutionRepository: repository,
     });
     fastify.decorate('infrastructureService', infrastructureService);
     await registerInfrastructureRoutes(fastify, {

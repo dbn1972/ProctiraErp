@@ -29,7 +29,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 |---|---|---|
 | `/` | a11y, cls, dark, functional, rtl, smoke, touch, visual | _all authenticated specs_ |
 | `/__tests/error-boundary` | smoke | `09-error-boundary-recovery.spec.ts` |
-| `/academic-periods` | a11y, dark, functional, smoke, touch | `27-academics-setup-write-smoke.spec.ts`<br>`34-examinations-write-smoke.spec.ts`<br>`38-academic-calendar-write-smoke.spec.ts`<br>`45-exam-ops-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`51-attendance-ops-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/academic-periods` | a11y, dark, functional, smoke, touch | `27-academics-setup-write-smoke.spec.ts`<br>`38-academic-calendar-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/academic-periods/[id]/bell-schedules` | smoke | `22-timetable-inventory-smoke.spec.ts` |
 | `/academic-periods/[id]/calendar` | functional | `38-academic-calendar-write-smoke.spec.ts` |
 | `/admin` | a11y, dark, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |

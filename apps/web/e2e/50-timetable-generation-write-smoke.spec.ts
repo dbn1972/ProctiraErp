@@ -8,6 +8,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { ensureSharedAcademicYear } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -66,18 +67,10 @@ interface TimetableFixture {
 
 async function buildTimetableInputs(request: APIRequestContext): Promise<TimetableFixture> {
   const stamp = Date.now().toString(36);
-  const period = await postOk(
-    request,
-    '/academic-periods',
-    {
-      name: `TT AY ${stamp}`,
-      code: `TT-${stamp}`,
-      startDate: isoDate(-30),
-      endDate: isoDate(300),
-      status: 'active',
-    },
-    201,
-  );
+  // PRC-L122: academic years are overlap-checked per tenant, so every spec
+  // sharing TENANT_A reuses one "current year" instead of each creating its
+  // own now-centered window (see ensureSharedAcademicYear's doc comment).
+  const period = await ensureSharedAcademicYear(request, GATEWAY_URL, headers());
   const bell = await postOk(
     request,
     '/timetable/bell-schedules',
