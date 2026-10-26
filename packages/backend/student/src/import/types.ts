@@ -250,3 +250,19 @@ export const MAX_IMPORT_FILE_SIZE = 50 * 1024 * 1024;
 
 /** Threshold for async processing (rows) */
 export const ASYNC_THRESHOLD_ROWS = 1000;
+
+/** PRC-L589: max data rows per import; far above one school's roll, bounds validation/DB work. */
+export const MAX_IMPORT_ROWS = 50_000;
+
+/** PRC-L589: max declared uncompressed size of all archive entries (zip-bomb guard). */
+export const MAX_IMPORT_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
+
+/** PRC-L589: max archive entries; a student template xlsx has roughly 10-20 parts. */
+export const MAX_IMPORT_ZIP_ENTRIES = 1_000;
+
+/** PRC-L589: parse bounds applied before and after loading an xlsx. */
+export interface ImportParseLimits {
+  maxRows: number;
+  maxUncompressedBytes: number;
+  maxEntries: number;
+}

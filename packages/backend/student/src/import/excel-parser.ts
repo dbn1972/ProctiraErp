@@ -9,7 +9,13 @@
  * - 19.2: Validate all rows against entity rules
  */
 
-import type { ImportStudentRow } from './types.js';
+import {
+  MAX_IMPORT_ROWS,
+  MAX_IMPORT_UNCOMPRESSED_BYTES,
+  MAX_IMPORT_ZIP_ENTRIES,
+  type ImportParseLimits,
+  type ImportStudentRow,
+} from './types.js';
 
 /**
  * Structural slice of an ExcelJS workbook used by the import parser.
@@ -117,20 +123,128 @@ export interface ParseResult {
   headerErrors: string[];
 }
 
+const EOCD_SIGNATURE = 0x06054b50;
+const CENTRAL_HEADER_SIGNATURE = 0x02014b50;
+const EOCD_MIN_BYTES = 22;
+const CENTRAL_HEADER_MIN_BYTES = 46;
+
+/**
+ * PRC-L589: zip-bomb pre-check on the archive's central directory, run before
+ * exceljs inflates anything. Returns an error message, or null when the
+ * declared bounds are fine (or the buffer is not a zip; exceljs reports that).
+ * Declared sizes are trusted: a streaming inflate cap would need JSZip internals.
+ */
+export function inspectZipBounds(
+  buffer: Buffer,
+  limits: Pick<ImportParseLimits, 'maxEntries' | 'maxUncompressedBytes'>,
+): string | null {
+  if (buffer.length < EOCD_MIN_BYTES) return null;
+  const searchFloor = Math.max(0, buffer.length - (EOCD_MIN_BYTES + 0xffff));
+  let eocd = -1;
+  for (let i = buffer.length - EOCD_MIN_BYTES; i >= searchFloor; i--) {
+    if (buffer.readUInt32LE(i) === EOCD_SIGNATURE) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd === -1) return null;
+  const entries = buffer.readUInt16LE(eocd + 10);
+  const directorySize = buffer.readUInt32LE(eocd + 12);
+  const directoryOffset = buffer.readUInt32LE(eocd + 16);
+  if (entries === 0xffff || directorySize === 0xffffffff || directoryOffset === 0xffffffff) {
+    return 'ZIP64 archives are not supported for student import';
+  }
+  if (entries > limits.maxEntries) {
+    return `File has ${entries} archive entries; the maximum is ${limits.maxEntries}`;
+  }
+  if (directoryOffset + directorySize > eocd) return 'File archive directory is corrupt';
+  let total = 0;
+  let pos = directoryOffset;
+  for (let n = 0; n < entries; n++) {
+    if (pos + CENTRAL_HEADER_MIN_BYTES > eocd) return 'File archive directory is corrupt';
+    if (buffer.readUInt32LE(pos) !== CENTRAL_HEADER_SIGNATURE) {
+      return 'File archive directory is corrupt';
+    }
+    const uncompressed = buffer.readUInt32LE(pos + 24);
+    if (uncompressed === 0xffffffff) return 'ZIP64 archives are not supported for student import';
+    total += uncompressed;
+    if (total > limits.maxUncompressedBytes) {
+      return `File declares over ${limits.maxUncompressedBytes} bytes uncompressed; the maximum is ${limits.maxUncompressedBytes}`;
+    }
+    const nameLength = buffer.readUInt16LE(pos + 28);
+    const extraLength = buffer.readUInt16LE(pos + 30);
+    const commentLength = buffer.readUInt16LE(pos + 32);
+    pos += CENTRAL_HEADER_MIN_BYTES + nameLength + extraLength + commentLength;
+  }
+  return null;
+}
+
+/**
+ * PRC-L589: plain text for any exceljs cell value. Formula cells use their
+ * cached result; rich text and hyperlinks use their text; error cells are blank.
+ */
+function cellText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString().split('T')[0] ?? '';
+  if (typeof value === 'object') {
+    const v = value as {
+      result?: unknown;
+      formula?: unknown;
+      sharedFormula?: unknown;
+      richText?: Array<{ text?: unknown }>;
+      text?: unknown;
+      error?: unknown;
+    };
+    if ('formula' in v || 'sharedFormula' in v || 'result' in v) return cellText(v.result);
+    if (Array.isArray(v.richText)) {
+      return v.richText
+        .map((part) => String(part.text ?? ''))
+        .join('')
+        .trim();
+    }
+    if ('text' in v) return cellText(v.text);
+    if ('error' in v) return '';
+  }
+  return String(value).trim();
+}
+
 /**
  * Parse an Excel buffer into student import rows.
  * Validates that the file has the expected headers and extracts data rows.
  *
  * @param buffer - The Excel file buffer
+ * @param overrides - PRC-L589 parse bounds (defaults: MAX_IMPORT_* constants)
  * @returns Parsed rows and any header-level errors
  */
-export async function parseExcelBuffer(buffer: Buffer): Promise<ParseResult> {
+export async function parseExcelBuffer(
+  buffer: Buffer,
+  overrides: Partial<ImportParseLimits> = {},
+): Promise<ParseResult> {
+  const limits: ImportParseLimits = {
+    maxRows: MAX_IMPORT_ROWS,
+    maxUncompressedBytes: MAX_IMPORT_UNCOMPRESSED_BYTES,
+    maxEntries: MAX_IMPORT_ZIP_ENTRIES,
+    ...overrides,
+  };
+  const archiveError = inspectZipBounds(buffer, limits);
+  if (archiveError) {
+    return { rows: [], headerErrors: [archiveError] };
+  }
+
   const workbook = await createExcelWorkbook();
   await workbook.xlsx.load(buffer);
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) {
     return { rows: [], headerErrors: ['No worksheet found in the Excel file'] };
+  }
+
+  const dataRows = Math.max(0, worksheet.rowCount - 1);
+  if (dataRows > limits.maxRows) {
+    return {
+      rows: [],
+      headerErrors: [`File has ${dataRows} data rows; the maximum is ${limits.maxRows}`],
+    };
   }
 
   // Validate headers (first row)
@@ -179,12 +293,7 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ParseResult> {
     const getCellValue = (header: HeaderName): string => {
       const colIdx = columnMap.get(header);
       if (colIdx === undefined) return '';
-      const cell = row.getCell(colIdx + 1);
-      if (cell.value === null || cell.value === undefined) return '';
-      if (cell.value instanceof Date) {
-        return cell.value.toISOString().split('T')[0] ?? '';
-      }
-      return String(cell.value).trim();
+      return cellText(row.getCell(colIdx + 1).value);
     };
 
     const studentRow: ImportStudentRow = {
@@ -216,8 +325,7 @@ function isRowEmpty(
   colCount: number,
 ): boolean {
   for (let i = 1; i <= colCount; i++) {
-    const cell = row.getCell(i);
-    if (cell.value !== null && cell.value !== undefined && String(cell.value).trim() !== '') {
+    if (cellText(row.getCell(i).value) !== '') {
       return false;
     }
   }
