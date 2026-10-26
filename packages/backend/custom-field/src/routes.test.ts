@@ -131,6 +131,88 @@ describe('Custom Field Routes', () => {
       expect(body.data).toHaveLength(2);
       expect(body.meta.totalItems).toBe(2);
     });
+
+    // PRC-L447: the list query must be validated (isActive coerced, pageSize capped).
+    it('PRC-L447: should coerce isActive querystring to a boolean filter', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/custom-fields/definitions',
+        payload: {
+          entityType: 'student',
+          fieldKey: 'active_one',
+          label: 'Active',
+          fieldType: 'text',
+        },
+      });
+      const inactiveResponse = await app.inject({
+        method: 'POST',
+        url: '/custom-fields/definitions',
+        payload: {
+          entityType: 'student',
+          fieldKey: 'inactive_one',
+          label: 'Inactive',
+          fieldType: 'text',
+        },
+      });
+      const inactive = JSON.parse(inactiveResponse.payload);
+      await app.inject({ method: 'DELETE', url: `/custom-fields/definitions/${inactive.id}` });
+
+      const activeList = await app.inject({
+        method: 'GET',
+        url: '/custom-fields/definitions?isActive=true',
+      });
+      expect(activeList.statusCode).toBe(200);
+      const activeBody = JSON.parse(activeList.payload);
+      expect(activeBody.data.map((d: { fieldKey: string }) => d.fieldKey)).toEqual(['active_one']);
+
+      const inactiveList = await app.inject({
+        method: 'GET',
+        url: '/custom-fields/definitions?isActive=false',
+      });
+      expect(inactiveList.statusCode).toBe(200);
+      const inactiveBody = JSON.parse(inactiveList.payload);
+      expect(inactiveBody.data.map((d: { fieldKey: string }) => d.fieldKey)).toEqual([
+        'inactive_one',
+      ]);
+    });
+
+    it('PRC-L447: should reject pageSize above the schema maximum of 100', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/custom-fields/definitions?pageSize=101',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.payload).code).toBe('VALIDATION_ERROR');
+    });
+
+    it('PRC-L447: should reject pageSize below 1', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/custom-fields/definitions?pageSize=0',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.payload).code).toBe('VALIDATION_ERROR');
+    });
+
+    it('PRC-L447: should honour a valid page and pageSize', async () => {
+      for (const key of ['page_a', 'page_b', 'page_c']) {
+        await app.inject({
+          method: 'POST',
+          url: '/custom-fields/definitions',
+          payload: { entityType: 'student', fieldKey: key, label: key, fieldType: 'text' },
+        });
+      }
+      const response = await app.inject({
+        method: 'GET',
+        url: '/custom-fields/definitions?page=1&pageSize=2',
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.data).toHaveLength(2);
+      expect(body.meta.page).toBe(1);
+      expect(body.meta.pageSize).toBe(2);
+      expect(body.meta.totalItems).toBe(3);
+    });
   });
 
   describe('GET /custom-fields/definitions/:id', () => {
