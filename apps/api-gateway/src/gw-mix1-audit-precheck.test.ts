@@ -44,6 +44,54 @@ describe('audit availability pre-check (PRC-M014)', () => {
   });
 });
 
+describe('post-commit audit failure (PRC-M014)', () => {
+  it('keeps the committed 2xx, defers the audit row and trips the gate for the next write', async () => {
+    const savedEnv = process.env['NODE_ENV'];
+    // Own app instance so the tripped gate does not leak into other tests.
+    const app = await buildApp({ config: createTestConfig() });
+    await app.ready();
+    try {
+      // The availability probe (queryAuditLogs on the in-memory store) succeeds,
+      // so the gate is open; only the post-commit audit write fails.
+      const recordAudit = vi
+        .spyOn(app.auditService, 'recordAudit')
+        .mockRejectedValue(new Error('audit db down'));
+      process.env['NODE_ENV'] = 'production';
+      const payload = {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        dateOfBirth: '2010-01-01',
+        gender: 'female',
+      };
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/students',
+        headers: authHeaders(app, { roles: ['admin'] }),
+        payload,
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json().id).toBeTruthy();
+      expect(res.headers['x-audit-status']).toBe('deferred');
+      expect(typeof res.headers['x-audit-request-id']).toBe('string');
+      expect(String(res.headers['x-audit-request-id']).length).toBeGreaterThan(0);
+      expect(recordAudit).toHaveBeenCalled();
+
+      const next = await app.inject({
+        method: 'POST',
+        url: '/api/v1/students',
+        headers: authHeaders(app, { roles: ['admin'] }),
+        payload,
+      });
+      expect(next.statusCode).toBe(503);
+      expect(next.json().code).toBe('AUDIT_UNAVAILABLE');
+      expect(next.headers['retry-after']).toBe('5');
+    } finally {
+      process.env['NODE_ENV'] = savedEnv;
+      vi.restoreAllMocks();
+      await app.close();
+    }
+  });
+});
 describe('AuditAvailabilityGate', () => {
   it('caches probe results, coalesces probes and trips on markUnavailable', async () => {
     let now = 0;

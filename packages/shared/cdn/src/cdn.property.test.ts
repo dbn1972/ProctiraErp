@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as fc from 'fast-check';
-import { buildAssetUrl, normalizePath } from './url-builder.js';
+import { buildAssetUrl, CdnPathError, normalizePath } from './url-builder.js';
 import { createCdnAdapter } from './cdn-adapter.js';
 import type { AssetCategory, AssetUrlOptions, CdnConfig } from './types.js';
 
@@ -22,11 +22,15 @@ const assetCategoryArb: fc.Arbitrary<AssetCategory> = fc.constantFrom(
   'document',
 );
 
-const safePathSegmentArb = fc.string({
-  unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split('')),
-  minLength: 1,
-  maxLength: 20,
-});
+// PRC-L580: exact '.' / '..' segments are traversal and now rejected, so they
+// are outside the valid-path domain (see the traversal property below).
+const safePathSegmentArb = fc
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split('')),
+    minLength: 1,
+    maxLength: 20,
+  })
+  .filter((s) => s !== '.' && s !== '..');
 
 const assetPathArb = fc
   .array(safePathSegmentArb, { minLength: 1, maxLength: 4 })
@@ -155,6 +159,23 @@ describe('CDN URL Builder Properties', () => {
     );
   });
 
+  it('inserting a traversal segment anywhere in a valid path is rejected (PRC-L580)', () => {
+    fc.assert(
+      fc.property(
+        fc.array(safePathSegmentArb, { minLength: 1, maxLength: 4 }),
+        fc.nat(),
+        fc.constantFrom('..', '.', '%2e%2e', '%2E.'),
+        assetCategoryArb,
+        cdnConfigArb,
+        (segments, index, traversal, category, config) => {
+          const at = index % (segments.length + 1);
+          const path = [...segments.slice(0, at), traversal, ...segments.slice(at)].join('/');
+          expect(() => buildAssetUrl({ path, category }, config)).toThrow(CdnPathError);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
   it('versioned flag is true only when both enableVersioning and version are set', () => {
     fc.assert(
       fc.property(assetUrlOptionsArb, cdnConfigArb, (options, config) => {

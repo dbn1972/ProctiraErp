@@ -33,6 +33,26 @@ ruleTester.run('error-envelope', rule, {
     {
       code: `reply.code(403).send({ code: 'F', message: 'no', statusCode: 403 });`,
     },
+    // PRC-L301: const payload resolved to a compliant object literal
+    {
+      code: `const body = { code: 'C', message: 'm', statusCode: 400 }; reply.status(400).send(body);`,
+    },
+    // PRC-L301: reassignable bindings stay presumed compliant
+    {
+      code: `let body = { message: 'x' }; body = make(); reply.status(400).send(body);`,
+    },
+    // PRC-L301: parameters are not resolved
+    {
+      code: `function f(status) { reply.status(status).send({ message: 'x' }); }`,
+    },
+    // PRC-L301: const status resolved to a 2xx code is not constrained
+    {
+      code: `const s = 200; reply.status(s).send({ data: 1 });`,
+    },
+    // PRC-L301: a const payload mutated after declaration is presumed compliant
+    {
+      code: `const body = { message: 'x' }; body.code = 'C'; body.statusCode = 400; reply.status(400).send(body);`,
+    },
   ],
   invalid: [
     {
@@ -46,6 +66,27 @@ ruleTester.run('error-envelope', rule, {
     {
       code: `throw new Error('not in catch');`,
       errors: [{ messageId: 'rawError' }],
+    },
+    // PRC-L301: const status identifier
+    {
+      code: `const s = 400; reply.status(s).send({ message: 'x' });`,
+      errors: [
+        { messageId: 'missingFields', data: { status: '400', missing: 'code, statusCode' } },
+      ],
+    },
+    // PRC-L301: const payload identifier
+    {
+      code: `const body = { message: 'x' }; reply.status(404).send(body);`,
+      errors: [
+        { messageId: 'missingFields', data: { status: '404', missing: 'code, statusCode' } },
+      ],
+    },
+    // PRC-L301: both resolved
+    {
+      code: `const s = 500; const body = { code: 'X' }; reply.code(s).send(body);`,
+      errors: [
+        { messageId: 'missingFields', data: { status: '500', missing: 'message, statusCode' } },
+      ],
     },
   ],
 });

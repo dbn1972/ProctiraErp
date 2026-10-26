@@ -97,14 +97,16 @@ export const PLATFORM_SCOPED_OPERATIONS = Object.freeze([
     receiver: 'repository',
     operations: [
       'findPluginByName',
-      'createPlugin',
-      'createManifest',
+      // PRC-L478: replaces createPlugin + createManifest. Writes the same two
+      // platform records (plugin + its manifest) in one unit; no tenant data.
+      'registerAtomically',
       'findPluginById',
       'listPlugins',
     ],
     reason:
       'The plugin registry (plugins + manifests) is a platform catalogue: PluginEntity has no ' +
-      'tenantId. Per-tenant installs and permissions are tenant-scoped and are not listed.',
+      'tenantId. Per-tenant installs and permissions are tenant-scoped and are not listed ' +
+      '(installAtomically / uninstallAtomically stay subject to the lint).',
   },
   {
     file: 'audit/src/audit-service.ts',

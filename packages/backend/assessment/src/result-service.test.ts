@@ -561,6 +561,28 @@ describe('ResultService', () => {
       expect(response.successCount).toBe(1);
       expect(response.errorCount).toBe(2);
     });
+
+    it('PRC-L079: reports non-UUID studentId/assessmentItemId as row format errors', async () => {
+      const rows = [
+        { studentId, assessmentItemId: items[0]!.id, score: 85 }, // valid
+        { studentId: 'student-1', assessmentItemId: items[0]!.id, score: 85 },
+        { studentId, assessmentItemId: 'item-1', score: 85 },
+      ];
+
+      const response = await resultService.importFromExcel(
+        tenantId,
+        subjectId,
+        academicPeriodId,
+        rows,
+      );
+
+      expect(response.successCount).toBe(1);
+      expect(response.errorCount).toBe(2);
+      expect(response.errors.map((e) => [e.row, e.field])).toEqual([
+        [1, 'format'],
+        [2, 'format'],
+      ]);
+    });
   });
 
   // ─── Calculate All Grades Tests ────────────────────────────────────────

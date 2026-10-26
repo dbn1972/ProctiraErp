@@ -4,16 +4,23 @@
  * Creates an isolated testing environment for plugin validation.
  * Simulates the platform runtime without requiring a full server.
  */
-import type { PluginDefinition } from '../core/define-plugin.js';
-import type {
-  HookContext,
-  HookResult,
-  DomainEventPayload,
-  ApprovedEvent,
+import {
+  BUILT_IN_EVENT_DEFINITIONS,
+  BUILT_IN_EXTENSION_POINTS,
+  type ApprovedEvent,
+  type HookContext,
+  type HookResult,
 } from '@proctira/backend-plugin';
-import { validateManifest, type ManifestValidationResult } from '../manifest/index.js';
-import { mockHookContext } from './mock-hook-context.js';
+
+import type { PluginDefinition } from '../core/define-plugin.js';
+import {
+  validateManifest,
+  validateManifestOrThrow,
+  type ManifestValidationResult,
+} from '../manifest/index.js';
+
 import { mockEventPayload } from './mock-event-payload.js';
+import { mockHookContext } from './mock-hook-context.js';
 
 /**
  * Options for creating a test harness.
@@ -27,6 +34,11 @@ export interface TestHarnessOptions {
   configuration?: Record<string, unknown>;
   /** Product version to validate compatibility against */
   productVersion?: string;
+  /**
+   * Override the hook timeout (ms). Defaults to the catalogue entry's
+   * `timeoutMs`, matching the platform registry (PRC-L486).
+   */
+  hookTimeoutMs?: number;
 }
 
 /**
@@ -103,7 +115,19 @@ export function createTestHarness(
   plugin: PluginDefinition,
   options: TestHarnessOptions = {},
 ): TestHarness {
-  const { tenantId = 'test-tenant-001', actorId = 'test-user-001', configuration = {} } = options;
+  const {
+    tenantId = 'test-tenant-001',
+    actorId = 'test-user-001',
+    configuration = {},
+    hookTimeoutMs,
+  } = options;
+
+  // PRC-L486: mirror the platform contract. An invalid manifest cannot be
+  // registered, so the harness refuses it up front (throws ManifestValidationError).
+  validateManifestOrThrow(plugin.manifest);
+  const declaredPermissions = new Set(plugin.manifest.requiredPermissions);
+  const missingPermissions = (required: string[]) =>
+    required.filter((permission) => !declaredPermissions.has(permission));
 
   return {
     plugin,
@@ -125,6 +149,23 @@ export function createTestHarness(
         );
       }
 
+      // PRC-L486: the same checks the platform applies before a hook can run.
+      if (!plugin.manifest.requiredExtensionPoints.includes(extensionPointId)) {
+        throw new Error(
+          `Extension point '${extensionPointId}' is not declared in manifest.requiredExtensionPoints`,
+        );
+      }
+      const extensionPoint = BUILT_IN_EXTENSION_POINTS.find((ep) => ep.id === extensionPointId);
+      if (!extensionPoint) {
+        throw new Error(`Extension point '${extensionPointId}' is not in the platform catalogue`);
+      }
+      const missing = missingPermissions(extensionPoint.requiredPermissions);
+      if (missing.length > 0) {
+        throw new Error(
+          `Plugin lacks required permissions for extension point '${extensionPointId}': ${missing.join(', ')}`,
+        );
+      }
+
       const context = mockHookContext({
         tenantId,
         actorId,
@@ -132,8 +173,18 @@ export function createTestHarness(
         ...contextOverrides,
       });
 
+      const timeoutMs = hookTimeoutMs ?? extensionPoint.timeoutMs;
       const startTime = Date.now();
-      const result = await hookDef.handler(payload, context);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const result = await Promise.race([
+        Promise.resolve(hookDef.handler(payload, context)),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Hook '${extensionPointId}' exceeded ${timeoutMs}ms`)),
+            timeoutMs,
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
       const executionTimeMs = Date.now() - startTime;
 
       return {
@@ -152,6 +203,18 @@ export function createTestHarness(
         throw new Error(
           `No event handler registered for event '${eventType}'. ` +
             `Registered events: ${plugin.eventHandlers.map((h) => h.eventType).join(', ') || 'none'}`,
+        );
+      }
+
+      // PRC-L486: only approved catalogue events, and only with their permissions.
+      const eventDefinition = BUILT_IN_EVENT_DEFINITIONS.find((ev) => ev.eventType === eventType);
+      if (!eventDefinition) {
+        throw new Error(`Event '${eventType}' is not an approved platform event`);
+      }
+      const missing = missingPermissions(eventDefinition.requiredPermissions);
+      if (missing.length > 0) {
+        throw new Error(
+          `Plugin lacks required permissions for event '${eventType}': ${missing.join(', ')}`,
         );
       }
 
@@ -213,16 +276,16 @@ export function createTestHarness(
 
 function createTestLogger() {
   return {
-    info: (message: string, _data?: Record<string, unknown>) => {
+    info: (_message: string, _data?: Record<string, unknown>) => {
       /* no-op in tests */
     },
-    warn: (message: string, _data?: Record<string, unknown>) => {
+    warn: (_message: string, _data?: Record<string, unknown>) => {
       /* no-op in tests */
     },
-    error: (message: string, _data?: Record<string, unknown>) => {
+    error: (_message: string, _data?: Record<string, unknown>) => {
       /* no-op in tests */
     },
-    debug: (message: string, _data?: Record<string, unknown>) => {
+    debug: (_message: string, _data?: Record<string, unknown>) => {
       /* no-op in tests */
     },
   };

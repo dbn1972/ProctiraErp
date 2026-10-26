@@ -24,7 +24,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { isAssessmentAdmin, isReportCardOperator } from './assessment-access.js';
-import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
+import { installAssessmentRouteGuard } from './assessment-http-guard.js';
 import {
   CreateReportCardTemplateSchema,
   UpdateReportCardTemplateSchema,
@@ -162,12 +162,8 @@ export async function registerReportCardRoutes(
   fastify: FastifyInstance,
   options: ReportCardRoutesOptions,
 ): Promise<void> {
-  // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
-  fastify.addHook('preHandler', async (request, reply) => {
-    if (!enforceAssessmentRouteAccess(request, reply)) {
-      return reply;
-    }
-  });
+  // W1-SEC-02: package-level RBAC; PRC-L083: installed once per instance.
+  installAssessmentRouteGuard(fastify);
   const { reportCardService, prefix = '/report-cards' } = options;
 
   // ─── Template Routes ───────────────────────────────────────────────────

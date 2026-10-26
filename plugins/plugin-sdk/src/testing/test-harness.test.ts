@@ -7,6 +7,7 @@ import { definePlugin } from '../core/define-plugin.js';
 import { defineHook } from '../core/define-hook.js';
 import { defineEventHandler } from '../core/define-event-handler.js';
 import type { PluginManifest } from '@proctira/backend-plugin';
+import { ManifestValidationError } from '../manifest/index.js';
 
 const testManifest: PluginManifest = {
   name: 'harness-test-plugin',
@@ -151,6 +152,115 @@ describe('createTestHarness', () => {
     await harness.simulateEnable();
 
     expect(enableCalled).toBe(true);
+  });
+
+  describe('platform contract checks (PRC-L486)', () => {
+    it('throws at creation when the manifest is invalid', () => {
+      const plugin = definePlugin({
+        manifest: { ...testManifest, requiredExtensionPoints: ['report.export'] },
+      });
+      expect(() => createTestHarness(plugin)).toThrow(ManifestValidationError);
+    });
+
+    it('rejects a hook whose extension point is not declared in the manifest', async () => {
+      const plugin = definePlugin({
+        manifest: testManifest,
+        hooks: [
+          defineHook('student.before-create', async () => ({ success: true, executionTimeMs: 0 })),
+        ],
+      });
+      const harness = createTestHarness(plugin);
+      await expect(harness.invokeHook('student.before-create', {})).rejects.toThrow(
+        "Extension point 'student.before-create' is not declared in manifest.requiredExtensionPoints",
+      );
+    });
+
+    it('rejects a hook on an id that is not a catalogue extension point', async () => {
+      // 'dashboard.widget' is a valid UI slot (so the manifest validates) but not a hook point.
+      const plugin = definePlugin({
+        manifest: {
+          ...testManifest,
+          requiredExtensionPoints: ['student.after-create', 'dashboard.widget'],
+        },
+        hooks: [
+          defineHook('dashboard.widget', async () => ({ success: true, executionTimeMs: 0 })),
+        ],
+      });
+      const harness = createTestHarness(plugin);
+      await expect(harness.invokeHook('dashboard.widget', {})).rejects.toThrow(
+        "Extension point 'dashboard.widget' is not in the platform catalogue",
+      );
+    });
+
+    it('rejects a hook when the manifest lacks the extension point permissions', async () => {
+      const plugin = definePlugin({
+        manifest: {
+          ...testManifest,
+          requiredPermissions: ['student.read'],
+          requiredExtensionPoints: ['student.after-create', 'student.before-create'],
+        },
+        hooks: [
+          defineHook('student.before-create', async () => ({ success: true, executionTimeMs: 0 })),
+        ],
+      });
+      const harness = createTestHarness(plugin);
+      await expect(harness.invokeHook('student.before-create', {})).rejects.toThrow(
+        "Plugin lacks required permissions for extension point 'student.before-create': student.write",
+      );
+    });
+
+    it('rejects a hook that exceeds the timeout', async () => {
+      const plugin = definePlugin({
+        manifest: testManifest,
+        hooks: [
+          defineHook('student.after-create', async () => {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            return { success: true, executionTimeMs: 0 };
+          }),
+        ],
+      });
+      const harness = createTestHarness(plugin, { hookTimeoutMs: 20 });
+      await expect(harness.invokeHook('student.after-create', {})).rejects.toThrow(
+        "Hook 'student.after-create' exceeded 20ms",
+      );
+    });
+
+    it('rejects an event type that is not in the platform catalogue', async () => {
+      const plugin = definePlugin({
+        manifest: testManifest,
+        eventHandlers: [defineEventHandler('attendance.recorded', async () => {})],
+      });
+      const harness = createTestHarness(plugin);
+      await expect(harness.invokeEventHandler('attendance.recorded')).rejects.toThrow(
+        "Event 'attendance.recorded' is not an approved platform event",
+      );
+    });
+
+    it('rejects an event when the manifest lacks the event permissions', async () => {
+      const plugin = definePlugin({
+        manifest: testManifest,
+        eventHandlers: [defineEventHandler('workflow.transitioned', async () => {})],
+      });
+      const harness = createTestHarness(plugin);
+      await expect(harness.invokeEventHandler('workflow.transitioned')).rejects.toThrow(
+        "Plugin lacks required permissions for event 'workflow.transitioned': workflow.read",
+      );
+    });
+
+    it('still runs a hook and event that satisfy the contract', async () => {
+      const plugin = definePlugin({
+        manifest: testManifest,
+        hooks: [
+          defineHook('student.after-create', async () => ({ success: true, executionTimeMs: 1 })),
+        ],
+        eventHandlers: [defineEventHandler('student.created', async () => {})],
+      });
+      const harness = createTestHarness(plugin);
+      await expect(harness.invokeHook('student.after-create', {})).resolves.toMatchObject({
+        success: true,
+      });
+      await expect(harness.invokeEventHandler('student.created')).resolves.toBeUndefined();
+    });
   });
 
   it('should simulate disable lifecycle', async () => {

@@ -56,11 +56,15 @@ describe('Transport Service - No Overlapping Student Assignments (Property)', ()
           const startDateStr = startDate.toISOString().split('T')[0]!;
 
           // First assignment should succeed
-          const assignment1 = await service.createStudentAssignment(tenantId, {
-            studentId,
-            routeId: route1.id,
-            startDate: startDateStr,
-          });
+          const assignment1 = await service.createStudentAssignment(
+            tenantId,
+            {
+              studentId,
+              routeId: route1.id,
+              startDate: startDateStr,
+            },
+            'test-actor',
+          );
 
           expect(assignment1.isActive).toBe(true);
           expect(assignment1.studentId).toBe(studentId);
@@ -68,11 +72,15 @@ describe('Transport Service - No Overlapping Student Assignments (Property)', ()
           // Second assignment for the same student should be rejected
           // because the student already has an active assignment
           await expect(
-            service.createStudentAssignment(tenantId, {
-              studentId,
-              routeId: route2.id,
-              startDate: startDateStr,
-            }),
+            service.createStudentAssignment(
+              tenantId,
+              {
+                studentId,
+                routeId: route2.id,
+                startDate: startDateStr,
+              },
+              'test-actor',
+            ),
           ).rejects.toThrow('Student already has an active transport route assignment');
         },
       ),

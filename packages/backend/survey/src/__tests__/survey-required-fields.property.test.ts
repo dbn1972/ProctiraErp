@@ -112,6 +112,19 @@ class MockDistributionRepo implements DistributionRepository {
   async update(id: string, tenantId: string, data: any): Promise<DistributionRecordEntity | null> {
     return null;
   }
+  async markCompletedIfOpen(
+    id: string,
+    tenantId: string,
+    submittedAt: string,
+  ): Promise<DistributionRecordEntity | null> {
+    for (const [key, record] of this.records) {
+      if (record.id !== id || record.status === 'completed') continue;
+      const updated = { ...record, status: 'completed' as const, submittedAt };
+      this.records.set(key, updated);
+      return updated;
+    }
+    return null;
+  }
 
   async countByStatus(
     tenantId: string,

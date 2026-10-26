@@ -21,7 +21,9 @@ describe('Transport Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as { tenantId?: string; user?: { roles: string[] } }).tenantId = tenantId;
-      (request as { tenantId?: string; user?: { roles: string[] } }).user = {
+      // PRC-L392: writes require the principal's `sub` for attribution.
+      (request as { tenantId?: string; user?: { sub?: string; roles: string[] } }).user = {
+        sub: 'test-user',
         roles: ['transport_officer'],
       };
     });
@@ -297,5 +299,4 @@ describe('Transport Routes', () => {
       expect(response.statusCode).toBe(403);
     });
   });
-
 });

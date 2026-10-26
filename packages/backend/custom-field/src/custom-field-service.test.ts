@@ -132,6 +132,66 @@ describe('CustomFieldService', () => {
         }),
       ).rejects.toThrow(NotFoundError);
     });
+
+    // PRC-L448: update must keep the create-time invariant that dropdowns have options.
+    describe('PRC-L448: dropdown options invariant on update', () => {
+      async function createDropdown() {
+        return service.createDefinition(TENANT_ID, {
+          entityType: 'student',
+          fieldKey: 'house',
+          label: 'House',
+          fieldType: 'dropdown',
+          validationRules: { options: ['A', 'B'] },
+        });
+      }
+
+      it('should reject rules that strip all options and keep the stored options', async () => {
+        const created = await createDropdown();
+        await expect(
+          service.updateDefinition(TENANT_ID, created.id, {
+            validationRules: { required: true },
+          }),
+        ).rejects.toThrow(ValidationError);
+        const stored = await service.getDefinitionById(TENANT_ID, created.id);
+        expect(stored.validationRules.options).toEqual(['A', 'B']);
+      });
+
+      it('should reject an empty options list', async () => {
+        const created = await createDropdown();
+        await expect(
+          service.updateDefinition(TENANT_ID, created.id, {
+            validationRules: { options: [] },
+          }),
+        ).rejects.toThrow(ValidationError);
+      });
+
+      it('should accept rules that keep at least one option', async () => {
+        const created = await createDropdown();
+        const updated = await service.updateDefinition(TENANT_ID, created.id, {
+          validationRules: { options: ['C'], required: true },
+        });
+        expect(updated.validationRules).toEqual({ options: ['C'], required: true });
+      });
+
+      it('should still allow replacing rules on a non-dropdown field', async () => {
+        const created = await service.createDefinition(TENANT_ID, {
+          entityType: 'student',
+          fieldKey: 'motto',
+          label: 'Motto',
+          fieldType: 'text',
+        });
+        const updated = await service.updateDefinition(TENANT_ID, created.id, {
+          validationRules: { maxLength: 5 },
+        });
+        expect(updated.validationRules).toEqual({ maxLength: 5 });
+      });
+
+      it('should leave dropdown options untouched when validationRules is omitted', async () => {
+        const created = await createDropdown();
+        const updated = await service.updateDefinition(TENANT_ID, created.id, { label: 'Hall' });
+        expect(updated.validationRules.options).toEqual(['A', 'B']);
+      });
+    });
   });
 
   describe('getDefinitionById', () => {

@@ -17,29 +17,25 @@
  * - 7.6: Support Custom_Fields to extend staff profiles without database schema changes
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { CustomFieldService } from './custom-field-service.js';
 import type {
   CustomFieldEntityType,
   CustomFieldValidationRules,
 } from './custom-field-repository.js';
+import type { CustomFieldService } from './custom-field-service.js';
 import {
   CreateCustomFieldDefinitionSchema,
   UpdateCustomFieldDefinitionSchema,
   CustomFieldDefinitionListQuerySchema,
   CustomFieldDefinitionParamsSchema,
   EntityValuesParamsSchema,
-  BulkSetCustomFieldValuesSchema,
-  SetCustomFieldValueSchema,
   type CreateCustomFieldDefinitionInput,
   type UpdateCustomFieldDefinitionInput,
   type CustomFieldDefinitionListQuery,
   type CustomFieldDefinitionParams,
   type EntityValuesParams,
-  type BulkSetCustomFieldValuesInput,
-  type SetCustomFieldValueInput,
 } from './schemas.js';
 
 /**
@@ -234,9 +230,20 @@ export async function registerCustomFieldRoutes(
         });
       }
 
-      const query = request.query as CustomFieldDefinitionListQuery;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // Validate and coerce the querystring (PRC-L447): caps pageSize at the
+      // schema maximum and converts isActive='true'/'false' to a boolean.
+      const queryResult = validateQuery(CustomFieldDefinitionListQuerySchema, request.query);
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
 
       const result = await customFieldService.listDefinitions(
         tenantId,

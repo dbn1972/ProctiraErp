@@ -1308,12 +1308,19 @@ export class PgTransportRepository implements TransportRepository {
       tenantId,
       `UPDATE transport_alerts
        SET acknowledged_at = now(), acknowledged_by = $3
-       WHERE id = $1 AND tenant_id = $2
+       WHERE id = $1 AND tenant_id = $2 AND acknowledged_at IS NULL
        RETURNING *`,
       [id, tenantId, acknowledgedBy],
     );
-    if (!result.rows[0]) return null;
-    return mapAlertRow(result.rows[0] as Record<string, unknown>);
+    if (result.rows[0]) return mapAlertRow(result.rows[0] as Record<string, unknown>);
+    // PRC-L392: first acknowledgement wins; return the stored row unchanged (null -> 404).
+    const existing = await this.query(
+      tenantId,
+      `SELECT * FROM transport_alerts WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId],
+    );
+    if (!existing.rows[0]) return null;
+    return mapAlertRow(existing.rows[0] as Record<string, unknown>);
   }
 
   async createTransportFeeStructure(

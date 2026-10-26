@@ -487,7 +487,7 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     return {
       pluginName,
       totalInstalls: installs,
-      activeInstalls: installs - uninstalls,
+      activeInstalls: Math.max(0, installs - uninstalls),
       totalApiCalls: apiCalls,
       totalErrors: errors,
       averageRating: average,
@@ -542,13 +542,14 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
       case 'day':
         return d.toISOString().slice(0, 10);
       case 'week': {
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        d.setDate(diff);
+        // UTC so week/month buckets agree with the ISO (UTC) day buckets.
+        const day = d.getUTCDay();
+        const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
+        d.setUTCDate(diff);
         return d.toISOString().slice(0, 10);
       }
       case 'month':
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`;
     }
   }
 }

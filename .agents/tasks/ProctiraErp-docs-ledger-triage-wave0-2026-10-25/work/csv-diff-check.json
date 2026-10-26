@@ -1,0 +1,53 @@
+{
+  "baseline_sha": "4c7fb8fec961b49a8a7b70c05d22ebe30ad18e20",
+  "baseline_sha256": "80f7968ba22222ab4d822e07e0a48b336e5d47b86f013180f9422061665978da",
+  "baseline_sha256_matches_ledger_before": true,
+  "new_sha256": "d7450a377b3d493b311f03bdb38eacff17c781d8732348ba94b2354ad4bff561",
+  "line_count_equal": true,
+  "crlf_only": true,
+  "trailing_newline": true,
+  "header_identical": true,
+  "data_rows": 758,
+  "data_rows_expected": 758,
+  "data_rows_ok": true,
+  "row_order_identical": true,
+  "changed_line_count": 163,
+  "changed_ids_equal_accepted": true,
+  "changed_not_accepted": [],
+  "accepted_not_changed": [],
+  "changed_rows_only_allowed_columns": true,
+  "disallowed_column_changes": {},
+  "changed_values_match_proposals": true,
+  "value_mismatch": [],
+  "latest_wave_values": ["wave0-triage-2026-10-25"],
+  "unchanged_lines_byte_identical": true,
+  "counts_before": {
+    "DUPLICATE": 1,
+    "FULLY_CLOSED": 260,
+    "OPEN": 291,
+    "PARTIAL": 206
+  },
+  "counts_after": {
+    "DUPLICATE": 5,
+    "FULLY_CLOSED": 271,
+    "OPEN": 241,
+    "PARTIAL": 241
+  },
+  "counts_before_match_ledger_before": true,
+  "transitions": {
+    "OPEN->FULLY_CLOSED": 5,
+    "OPEN->PARTIAL": 45,
+    "PARTIAL->DUPLICATE": 4,
+    "PARTIAL->FULLY_CLOSED": 6,
+    "PARTIAL->PARTIAL": 103
+  },
+  "accepted_by_triage_result": {
+    "PARTIAL_CONFIRMED": 148,
+    "STALE": 11,
+    "DUPLICATE": 4
+  },
+  "stale_plus_duplicate": 15,
+  "moved_to_closed_or_duplicate": 15,
+  "stale_dup_reconciles": true,
+  "all_pass": true
+}

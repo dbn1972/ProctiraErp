@@ -33,6 +33,8 @@ import {
   TransitionRequestSchema,
   WorkflowDefinitionParamsSchema,
   WorkflowInstanceParamsSchema,
+  WorkflowDefinitionListQuerySchema,
+  WorkflowInstanceListQuerySchema,
   type CreateWorkflowDefinitionInput,
   type UpdateWorkflowDefinitionInput,
   type CreateWorkflowInstanceInput,
@@ -236,9 +238,21 @@ export async function registerWorkflowRoutes(
         });
       }
 
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      // PRC-L397: validate the querystring against the declared list schema.
+      const queryResult = validate(WorkflowDefinitionListQuerySchema, request.query ?? {}, {
+        convert: true,
+      });
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
 
       const result = await workflowService.listDefinitions(
         tenantId,
@@ -464,9 +478,21 @@ export async function registerWorkflowRoutes(
           statusCode: 401,
         });
       }
-      const query = request.query;
-      const page = Number(query.page) || 1;
-      const pageSize = Math.min(Number(query.pageSize) || 20, 100);
+      // PRC-L397: validate the querystring against the declared list schema.
+      const queryResult = validate(WorkflowInstanceListQuerySchema, request.query ?? {}, {
+        convert: true,
+      });
+      if (!queryResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid query parameters',
+          statusCode: 400,
+          errors: queryResult.errors,
+        });
+      }
+      const query = queryResult.data;
+      const page = query.page ?? 1;
+      const pageSize = Math.min(query.pageSize ?? 20, 100);
       const priority = ['high', 'normal', 'low'].includes(String(query.priority))
         ? (query.priority as InstancePriority)
         : undefined;

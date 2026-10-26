@@ -14,7 +14,7 @@ import type {
   InvalidationRequest,
   InvalidationResult,
 } from '../types.js';
-import { buildAssetUrl } from '../url-builder.js';
+import { assertSafeAssetPath, buildAssetUrl, normalizePath } from '../url-builder.js';
 
 export class NginxCdnAdapter implements CdnAdapter {
   private readonly config: CdnConfig;
@@ -32,11 +32,21 @@ export class NginxCdnAdapter implements CdnAdapter {
     // or by clearing the cache directory on the server.
     // This implementation assumes an nginx-cache-purge module or proxy_cache_purge.
 
-    const purgeBaseUrl = this.config.baseUrl;
+    const purgeBaseUrl = this.config.baseUrl.endsWith('/')
+      ? this.config.baseUrl.slice(0, -1)
+      : this.config.baseUrl;
     const errors: string[] = [];
 
     for (const path of request.paths) {
-      const purgeUrl = `${purgeBaseUrl}${path.startsWith('/') ? path : '/' + path}`;
+      // PRC-L580: never purge a caller path that can traverse out of its prefix.
+      try {
+        assertSafeAssetPath(path);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        errors.push(`Rejected unsafe purge path ${JSON.stringify(path)}: ${message}`);
+        continue;
+      }
+      const purgeUrl = `${purgeBaseUrl}${normalizePath(path)}`;
       try {
         // In production, this would send a PURGE request:
         // await fetch(purgeUrl, { method: 'PURGE' });

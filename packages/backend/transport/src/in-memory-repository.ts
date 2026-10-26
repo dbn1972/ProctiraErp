@@ -563,6 +563,8 @@ export class InMemoryTransportRepository implements TransportRepository {
   ): Promise<TransportAlertEntity | null> {
     const existing = this.alerts.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
+    // PRC-L392: first acknowledgement wins (mirrors `acknowledged_at IS NULL` in PG).
+    if (existing.acknowledgedAt) return existing;
     const updated: TransportAlertEntity = {
       ...existing,
       acknowledgedAt: new Date(),

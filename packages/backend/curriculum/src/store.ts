@@ -98,6 +98,13 @@ export interface CurriculumStore {
   deleteCoverage(tenantId: string, unitId: string): Promise<boolean>;
 }
 
+/** PRC-L288: patch keys set to `undefined` mean "unchanged" (mirrors the PG store). */
+function definedOnly<T extends object>(patch: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}
+
 export class InMemoryCurriculumStore implements CurriculumStore {
   private readonly units = new Map<string, SyllabusUnitRecord>();
   private readonly plans = new Map<string, LessonPlanRecord>();
@@ -170,7 +177,7 @@ export class InMemoryCurriculumStore implements CurriculumStore {
   ): Promise<LessonPlanRecord | null> {
     const row = this.plans.get(id);
     if (!row || row.tenantId !== tenantId) return null;
-    const next = { ...row, ...patch };
+    const next = { ...row, ...definedOnly(patch) };
     this.plans.set(id, next);
     return { ...next };
   }
@@ -211,7 +218,7 @@ export class InMemoryCurriculumStore implements CurriculumStore {
   ): Promise<LearningOutcomeRecord | null> {
     const row = this.outcomes.get(id);
     if (!row || row.tenantId !== tenantId) return null;
-    const next = { ...row, ...patch };
+    const next = { ...row, ...definedOnly(patch) };
     this.outcomes.set(id, next);
     return { ...next };
   }
@@ -468,10 +475,12 @@ export class PgCurriculumStore implements CurriculumStore {
   ): Promise<LessonPlanRecord | null> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
+        // PRC-L288: nullable columns take the patch value (incl. null = clear)
+        // only when the key is present ($7/$8 flags); NOT NULL title keeps COALESCE.
         `UPDATE lesson_plans SET
            title = COALESCE($3, title),
-           objectives = COALESCE($4, objectives),
-           planned_date = COALESCE($5::date, planned_date),
+           objectives = CASE WHEN $7::boolean THEN $4::text ELSE objectives END,
+           planned_date = CASE WHEN $8::boolean THEN $5::date ELSE planned_date END,
            updated_at = COALESCE($6::timestamptz, now())
          WHERE tenant_id = $1 AND id = $2
          RETURNING *`,
@@ -482,6 +491,8 @@ export class PgCurriculumStore implements CurriculumStore {
           patch.objectives ?? null,
           patch.plannedDate ?? null,
           patch.updatedAt ?? null,
+          patch.objectives !== undefined,
+          patch.plannedDate !== undefined,
         ],
       );
       return rows[0] ? mapPlan(rows[0] as Record<string, unknown>) : null;
@@ -557,11 +568,13 @@ export class PgCurriculumStore implements CurriculumStore {
   ): Promise<LearningOutcomeRecord | null> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
+        // PRC-L288: nullable unit_id/grade_id are set (incl. null = clear) only
+        // when the key is present ($8/$9 flags); NOT NULL columns keep COALESCE.
         `UPDATE learning_outcomes SET
            code = COALESCE($3, code),
            statement = COALESCE($4, statement),
-           unit_id = COALESCE($5::uuid, unit_id),
-           grade_id = COALESCE($6::uuid, grade_id),
+           unit_id = CASE WHEN $8::boolean THEN $5::uuid ELSE unit_id END,
+           grade_id = CASE WHEN $9::boolean THEN $6::uuid ELSE grade_id END,
            updated_at = COALESCE($7::timestamptz, now())
          WHERE tenant_id = $1 AND id = $2
          RETURNING *`,
@@ -573,6 +586,8 @@ export class PgCurriculumStore implements CurriculumStore {
           patch.unitId ?? null,
           patch.gradeId ?? null,
           patch.updatedAt ?? null,
+          patch.unitId !== undefined,
+          patch.gradeId !== undefined,
         ],
       );
       return rows[0] ? mapOutcome(rows[0] as Record<string, unknown>) : null;

@@ -65,8 +65,13 @@ export const CreateLeaveRequestSchema = Type.Object({
 });
 export type CreateLeaveRequestInput = Static<typeof CreateLeaveRequestSchema>;
 
+/**
+ * PRC-L277: institution/student/class/period identifiers are UUIDs (the ops
+ * tables store them in UUID columns); device-assigned deviceId/eventId stay
+ * free-form.
+ */
 export const RegisterDeviceSchema = Type.Object({
-  institutionId: Type.String({ minLength: 1 }),
+  institutionId: UuidStr(),
   deviceId: Type.String({ minLength: 1, maxLength: 120 }),
   label: Type.Optional(Type.String({ maxLength: 255 })),
 });
@@ -74,17 +79,17 @@ export type RegisterDeviceInput = Static<typeof RegisterDeviceSchema>;
 
 export const IngestPunchEventSchema = Type.Object({
   eventId: Type.String({ minLength: 1, maxLength: 120 }),
-  studentId: Type.String({ minLength: 1 }),
+  studentId: UuidStr(),
   punchedAt: Type.String({ minLength: 1 }),
   type: Type.Union([Type.Literal('IN'), Type.Literal('OUT')]),
-  classId: Type.Optional(Type.String({ minLength: 1 })),
-  academicPeriodId: Type.Optional(Type.String({ minLength: 1 })),
+  classId: Type.Optional(UuidStr()),
+  academicPeriodId: Type.Optional(UuidStr()),
 });
 export type IngestPunchEventInput = Static<typeof IngestPunchEventSchema>;
 
 export const IngestBatchSchema = Type.Object({
   deviceId: Type.String({ minLength: 1, maxLength: 120 }),
-  institutionId: Type.String({ minLength: 1 }),
+  institutionId: UuidStr(),
   events: Type.Array(IngestPunchEventSchema, { minItems: 1, maxItems: 500 }),
 });
 export type IngestBatchInput = Static<typeof IngestBatchSchema>;

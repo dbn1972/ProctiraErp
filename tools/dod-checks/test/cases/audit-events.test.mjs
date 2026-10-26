@@ -67,5 +67,51 @@ export async function run() {
     message: JSON.stringify(exempt),
   });
 
+  // PRC-M410: the word "audit" without an audit call is not integration.
+  const notEvidence = {
+    'a comment mentioning audit': `export class FeeService {
+  // TODO: audit this later
+  async create(input: any) { return input; }
+}
+`,
+    'a bare audit import': `import { AuditService } from '@proctira/audit';
+export class FeeService {
+  async create(input: any) { return input; }
+}
+`,
+    'a string containing audit': `export class FeeService {
+  async create(input: any) { const auditNote = 'audit'; return { ...input, note: auditNote }; }
+}
+`,
+  };
+  for (const [label, service] of Object.entries(notEvidence)) {
+    const warned = await warningsFor({
+      'fees/src/fee-routes.ts': WRITE_ROUTE,
+      'fees/src/fee-service.ts': service,
+    });
+    results.push({
+      name: `PRC-M410: ${label} is not audit evidence (still warns)`,
+      ok: warned.length === 1,
+      message: JSON.stringify(warned),
+    });
+  }
+
+  const routeCall = await warningsFor({
+    'fees/src/fee-routes.ts': `export async function feeRoutes(app: any) {
+  app.post('/fees', async (req: any) => {
+    const fee = await app.feeService.create(req.body);
+    await recordAudit(req, { action: 'fee.create', id: fee.id });
+    return fee;
+  });
+}
+`,
+    'fees/src/fee-service.ts': SILENT_SERVICE,
+  });
+  results.push({
+    name: 'PRC-M410: an audit call in the route file satisfies the check',
+    ok: routeCall.length === 0,
+    message: JSON.stringify(routeCall),
+  });
+
   return results;
 }

@@ -109,6 +109,14 @@ without one fails the gate. `--update-baseline` carries reasons forward by
 fingerprint (check + file + message), so new entries come out without a
 reason and must be documented before the gate passes again.
 
+Aggregator exit codes (PRC-M551):
+
+- `0` — within baseline.
+- `1` — new error debt beyond baseline (or a `--strict` warning regression),
+  or `--update-baseline` wrote error entries without a reason.
+- `2` — the baseline file is missing (pass `--no-baseline` or
+  `--update-baseline` explicitly), or a runtime failure.
+
 Baseline vs. false positive: a finding that is real but out of scope goes in
 the baseline with a reason. A finding the check gets wrong is fixed in the
 check. For `tenant-id`, records that no tenant owns (billing plan catalogue,

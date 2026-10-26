@@ -6,8 +6,9 @@
  * event handlers, and UI slot registrations.
  */
 import type { PluginManifest } from '@proctira/backend-plugin';
-import type { HookDefinition } from './define-hook.js';
+
 import type { EventHandlerDefinition } from './define-event-handler.js';
+import type { HookDefinition } from './define-hook.js';
 import type { UISlotComponentDefinition } from './define-ui-slot.js';
 
 /**
@@ -90,7 +91,7 @@ export interface PluginDefinition {
  *     version: '1.0.0',
  *     supportedProductVersions: '>=1.0.0 <2.0.0',
  *     requiredPermissions: ['attendance.read', 'notification.send'],
- *     requiredExtensionPoints: ['attendance.after-create'],
+ *     requiredExtensionPoints: ['student.after-create'],
  *     tenantScopeBehavior: 'isolated',
  *     auditBehavior: 'Logs all notification sends',
  *     runtimeDependencies: [],

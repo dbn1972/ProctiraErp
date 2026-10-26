@@ -169,6 +169,25 @@ describe('validateCustomFieldValue', () => {
         expect(result.errors[0]!.rule).toBe('pattern');
       }
     });
+
+    // PRC-L448: JS Date rolls impossible days over (2026-02-31 -> 2026-03-03).
+    it.each(['2026-02-31', '2026-02-30', '2025-02-29', '2026-04-31'])(
+      'PRC-L448: should fail for impossible calendar date %s',
+      (value) => {
+        const def = makeDefinition({ fieldType: 'date' });
+        const result = validateCustomFieldValue(def, value);
+        expect(result.valid).toBe(false);
+        if (!result.valid) {
+          expect(result.errors[0]!.rule).toBe('invalid');
+        }
+      },
+    );
+
+    it('PRC-L448: should pass for a leap-day date in a leap year', () => {
+      const def = makeDefinition({ fieldType: 'date' });
+      const result = validateCustomFieldValue(def, '2024-02-29');
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe('dropdown field type', () => {

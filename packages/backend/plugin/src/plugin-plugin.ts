@@ -7,6 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import type { ExtensionPointRegistry } from './extension-points/extension-point-registry.js';
 import type { PluginRepository } from './plugin-repository.js';
 import { PluginService, type PluginServiceConfig } from './plugin-service.js';
 import { registerPluginRoutes } from './routes.js';
@@ -21,6 +22,11 @@ export interface PluginPluginOptions {
   config: PluginServiceConfig;
   /** Route prefix (default: '/plugins') */
   prefix?: string;
+  /**
+   * PRC-M604: extension-point registry kept in sync with the install lifecycle
+   * (disable/uninstall unregister the install's hooks, UI slots and events).
+   */
+  registry?: ExtensionPointRegistry;
 }
 
 // Extend Fastify types
@@ -35,10 +41,10 @@ declare module 'fastify' {
  */
 export const pluginPlugin = fp(
   async function pluginPluginImpl(fastify: FastifyInstance, options: PluginPluginOptions) {
-    const { repository, config, prefix = '/plugins' } = options;
+    const { repository, config, prefix = '/plugins', registry } = options;
 
     // Create plugin service instance
-    const pluginService = new PluginService(repository, config);
+    const pluginService = new PluginService(repository, config, registry);
 
     // Decorate fastify with the plugin service
     fastify.decorate('pluginService', pluginService);

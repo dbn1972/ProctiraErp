@@ -132,8 +132,13 @@ test.describe('Scholarship documents — live upload (E2E_BACKEND_READY)', () =>
       timeout: 20_000,
     });
 
-    await page.locator(`#reject-reason-${applicationId}`).fill('The marksheet scan is unreadable');
+    // PRC-L270: the reason field lives inside the reject dialog and resets when it opens,
+    // so open the dialog first, then fill the reason, then confirm.
     await page.getByTestId(`document-reject-${marksheetId}`).click();
+    const rejectDialog = page.getByTestId('scholarship-document-reject');
+    await rejectDialog
+      .locator(`#reject-reason-${applicationId}`)
+      .fill('The marksheet scan is unreadable');
     await page.getByTestId('scholarship-document-reject-confirm').click();
     await expect(page.getByTestId(`scholarship-document-${marksheetId}`)).toContainText(
       'REJECTED',

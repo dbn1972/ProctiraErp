@@ -27,20 +27,62 @@ const AUDIT_EXEMPT_SERVICES = new Set(['audit', 'developer-portal']);
 const WRITE_ROUTE_RE =
   /(?:fastify|app|router|server|instance)\.(?:post|put|patch|delete)\s*\(|\.route\s*\(\s*\{[^}]*method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)/i;
 
-const AUDIT_PATTERNS = [
-  /\baudit(?:Service|Logger|Repo|Repository|Producer|Bus)?\b/i,
-  /\bauditEvent\s*\(/,
-  /\brecord(?:Audit|Change|Event)\s*\(/i,
+// PRC-M410: evidence must be a call, matched on code with comments and string
+// contents removed. A bare import, type name, comment or string is not
+// integration.
+const AUDIT_CALL_PATTERNS = [
+  // Callee name contains "audit": recordAudit(…), auditMutation(…), audit(…).
+  /(?<!function\s+)\b[\w$]*audit[\w$]*\s*\(/i,
+  // Method call on an audit-named object: this.auditService.record(…).
+  /\b[\w$]*audit[\w$]*\s*(?:\?\.|\.)\s*[\w$]+\s*\(/i,
+  /\brecord(?:Change|Event)\s*\(/i,
   /\bemit(?:Audit|Domain)?Event\s*\(/i,
   /\bpublish(?:Audit|Domain)?Event\s*\(/i,
-  /\beventProducer\b/,
-  /\bkafkaProducer\b/,
-  /\bdomainEvent\b/i,
-  /from\s+['"]@proctira\/(?:backend-)?audit['"]/,
+  /\b(?:eventProducer|kafkaProducer|outbox|domainEvents?)\s*(?:\?\.|\.)\s*[\w$]+\s*\(/i,
 ];
 
+/**
+ * Blank out comments and the contents of string/template literals so only
+ * code is matched. Template `${…}` expressions are dropped with the literal;
+ * an audit call placed inside one is not counted.
+ */
+function stripCommentsAndStrings(text) {
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (c === '/' && next === '/') {
+      while (i < n && text[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      const end = text.indexOf('*/', i + 2);
+      i = end === -1 ? n : end + 2;
+      out += ' ';
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < n && text[j] !== c) {
+        if (text[j] === '\\') j++;
+        else if (c !== '`' && text[j] === '\n') break;
+        j++;
+      }
+      out += c + c;
+      i = j + 1;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
 function hasAuditIntegration(text) {
-  return AUDIT_PATTERNS.some((p) => p.test(text));
+  const code = stripCommentsAndStrings(text);
+  return AUDIT_CALL_PATTERNS.some((p) => p.test(code));
 }
 
 /**

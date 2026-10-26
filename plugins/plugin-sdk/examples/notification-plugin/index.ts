@@ -18,7 +18,7 @@ export default definePlugin({
     owner: 'proctira-official',
     version: '1.0.0',
     supportedProductVersions: '>=1.0.0 <2.0.0',
-    requiredPermissions: ['attendance.read', 'notification.send', 'student.read'],
+    requiredPermissions: ['attendance.read', 'notification.send', 'student.read', 'ui.dashboard'],
     requiredExtensionPoints: ['student.after-create'],
     configSchema: {
       type: 'object',
@@ -74,7 +74,7 @@ export default definePlugin({
   ],
 
   uiSlots: [
-    defineUISlot('dashboard-widget.main', 'attendance-alert-widget', {
+    defineUISlot('dashboard.widget', 'attendance-alert-widget', {
       label: 'Attendance Alerts',
       icon: 'bell-alert',
       order: 20,

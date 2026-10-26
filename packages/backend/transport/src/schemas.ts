@@ -331,6 +331,42 @@ export const TransportListQuerySchema = Type.Object({
 
 export type TransportListQuery = Static<typeof TransportListQuerySchema>;
 
+/**
+ * PRC-L390: any-version, case-insensitive UUID shape for list filters. Filter ids
+ * (student, institution) come from other modules, so this only rejects values PG
+ * cannot cast to `uuid` (which previously surfaced as a 500).
+ */
+const UUID_FILTER_PATTERN =
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
+
+/** PRC-L390: list query for GET /transport/routes (UUID filter validated before it reaches PG). */
+export const TransportRouteListQuerySchema = Type.Composite([
+  TransportListQuerySchema,
+  Type.Object({
+    institutionId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+  }),
+]);
+
+/** PRC-L390: list query for GET /transport/driver-assignments. */
+export const TransportDriverAssignmentListQuerySchema = Type.Composite([
+  TransportListQuerySchema,
+  Type.Object({
+    vehicleId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+    driverId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+    routeId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+  }),
+]);
+
+/** PRC-L390: list query for GET /transport/student-assignments. */
+export const TransportStudentAssignmentListQuerySchema = Type.Composite([
+  TransportListQuerySchema,
+  Type.Object({
+    studentId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+    routeId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+    stopId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+  }),
+]);
+
 // ─── Response Schemas ────────────────────────────────────────────────────────
 
 export const TransportRouteResponseSchema = Type.Object({

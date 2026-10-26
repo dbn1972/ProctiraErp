@@ -8,7 +8,7 @@ import { useId, useRef, useState } from 'react';
 
 import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
-
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import {
   clientFileError,
   documentTypeLabel,
@@ -103,8 +103,28 @@ function Slot({
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const label = documentTypeLabel(documentType);
 
+  // PRC-L270: the delete runs only after the user confirms it.
+  const remove = async (doc: UploadedScholarshipDocument) => {
+    setRemoving(true);
+    setError(null);
+    try {
+      await scholarshipBrowserFetch(`/applications/${applicationId}/documents/${doc.id}`, {
+        method: 'DELETE',
+        apiRoot,
+      });
+      setConfirmRemove(false);
+      onRemoved(doc.id);
+    } catch (err) {
+      setConfirmRemove(false);
+      setError(err instanceof BrowserGatewayError ? err.message : 'Could not remove the file');
+    } finally {
+      setRemoving(false);
+    }
+  };
   const send = async (file: File | undefined) => {
     if (!file) return;
     const problem = clientFileError(file);
@@ -147,25 +167,26 @@ function Slot({
           <button
             type="button"
             className="ms-3 text-xs text-destructive underline"
-            onClick={() => {
-              void scholarshipBrowserFetch(
-                `/applications/${applicationId}/documents/${existing.id}`,
-                {
-                  method: 'DELETE',
-                  apiRoot,
-                },
-              )
-                .then(() => onRemoved(existing.id))
-                .catch((err: unknown) => {
-                  setError(
-                    err instanceof BrowserGatewayError ? err.message : 'Could not remove the file',
-                  );
-                });
-            }}
+            onClick={() => setConfirmRemove(true)}
           >
             Remove
           </button>
         </p>
+      ) : null}
+      {existing ? (
+        <ConfirmActionDialog
+          open={confirmRemove}
+          onOpenChange={(open) => {
+            if (!removing) setConfirmRemove(open);
+          }}
+          title="Remove this file?"
+          description={`${existing.originalFilename} will be removed from your ${label} slot. You can upload a file again afterwards.`}
+          confirmLabel="Remove file"
+          destructive
+          pending={removing}
+          onConfirm={() => void remove(existing)}
+          testId="scholarship-document-remove"
+        />
       ) : null}
       <div
         className="mt-3 flex flex-wrap items-center gap-2"

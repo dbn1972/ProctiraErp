@@ -354,3 +354,12 @@ describe('adminFetch CSRF (PRC-M486)', () => {
     }
   });
 });
+
+describe('tenant general settings client (PRC-M144)', () => {
+  it('exports no PATCH /tenant/settings client (PRC-M144)', async () => {
+    // The backend only exposes PUT /tenant/settings; the live save path is
+    // `saveTenantSettings` (PUT) in admin.server.ts. A PATCH client must not exist.
+    const admin = await import('./admin');
+    expect('updateTenantGeneralSettings' in admin).toBe(false);
+  });
+});

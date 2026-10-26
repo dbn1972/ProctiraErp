@@ -15,10 +15,20 @@
  * - 22.5: Track delivery status (sent, delivered, read, failed)
  * - 22.6: Retry email delivery up to 3 times with exponential backoff
  */
-import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
+import {
+  NotFoundError,
+  ValidationError,
+  BusinessRuleError,
+  resolveProviderDeliveryMode,
+} from '@proctira/common';
 import { assertPublicHttpsUrlShape } from '@proctira/common/safe-fetch';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  LIVE_EMAIL_UNIMPLEMENTED_NOTE,
+  LIVE_PUSH_UNIMPLEMENTED_NOTE,
+  LIVE_SMS_UNIMPLEMENTED_NOTE,
+} from './channel-sender-factory.js';
 import type {
   NotificationRepository,
   NotificationEntity,
@@ -35,6 +45,19 @@ import type {
   DeliveryStatus,
 } from './schemas.js';
 import { redactSensitiveVariables } from './sensitive-variables.js';
+
+/**
+ * PRC-L333: `live` exactly when the sender factory would build live senders. Env states the
+ * factory rejects at config load (unknown mode, silent production sandbox) keep the previous
+ * sandbox report here rather than failing the capabilities read.
+ */
+function wantsLiveDelivery(env: Record<string, string | undefined>): boolean {
+  try {
+    return resolveProviderDeliveryMode('notification', env) === 'live';
+  } catch {
+    return false;
+  }
+}
 
 // ─── Channel Delivery Interfaces ─────────────────────────────────────────────
 
@@ -757,8 +780,19 @@ export class NotificationService {
   /**
    * Honesty metadata for channel delivery modes (prefs UI / ops banners).
    * Defaults report sandbox until live SMTP/FCM/Twilio adapters replace the stubs.
+   *
+   * PRC-L333: follows the same provider-mode policy as `channel-sender-factory.ts`; under
+   * `PROVIDER_MODE=live` the env-built senders are the fail-closed live stubs, so report
+   * `live` with their notes instead of claiming sandbox delivery.
    */
-  getDeliveryCapabilities() {
+  getDeliveryCapabilities(env: Record<string, string | undefined> = process.env) {
+    if (wantsLiveDelivery(env)) {
+      return {
+        email: { mode: 'live' as const, honestyNote: LIVE_EMAIL_UNIMPLEMENTED_NOTE },
+        push: { mode: 'live' as const, honestyNote: LIVE_PUSH_UNIMPLEMENTED_NOTE },
+        sms: { mode: 'live' as const, honestyNote: LIVE_SMS_UNIMPLEMENTED_NOTE },
+      };
+    }
     return {
       email: {
         mode: 'sandbox' as const,

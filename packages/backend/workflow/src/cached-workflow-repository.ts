@@ -3,7 +3,7 @@
  *
  * Wraps any WorkflowRepository implementation with a Redis-backed cache layer.
  * Uses read-through caching for findDefinitionById (definitions rarely change).
- * Invalidates on definition update and delete operations.
+ * Invalidates on definition create, update and delete operations; "not found" is never cached.
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
@@ -34,7 +34,12 @@ export class CachedWorkflowRepository implements WorkflowRepository {
   async createDefinition(
     entity: Omit<WorkflowDefinitionEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<WorkflowDefinitionEntity> {
-    return this.delegate.createDefinition(entity);
+    const created = await this.delegate.createDefinition(entity);
+    // PRC-L598: drop any stale entry for this id so the next read sees the new row.
+    if (this.cache) {
+      await this.cache.del(tenantKey(created.tenantId, 'workflow-definition', created.id));
+    }
+    return created;
   }
 
   async findDefinitionById(id: string, tenantId: string): Promise<WorkflowDefinitionEntity | null> {
@@ -43,12 +48,16 @@ export class CachedWorkflowRepository implements WorkflowRepository {
     }
 
     const key = tenantKey(tenantId, 'workflow-definition', id);
-    const cached = await this.cache.getOrSet(
-      key,
-      () => this.delegate.findDefinitionById(id, tenantId),
-      DEFINITION_TTL_SECONDS,
-    );
-    return reviveDates(cached);
+    const cached = await this.cache.get<WorkflowDefinitionEntity>(key);
+    if (cached) {
+      return reviveDates(cached);
+    }
+    const fresh = await this.delegate.findDefinitionById(id, tenantId);
+    // PRC-L598: never cache "not found"; only real definitions are stored.
+    if (fresh) {
+      await this.cache.set(key, fresh, DEFINITION_TTL_SECONDS);
+    }
+    return fresh;
   }
 
   async updateDefinition(

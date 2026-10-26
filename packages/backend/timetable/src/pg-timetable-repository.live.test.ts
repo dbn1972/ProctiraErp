@@ -560,6 +560,112 @@ describe('PgTimetableRepository (live)', () => {
   });
 
   /**
+   * PRC-M407: listSubstitutions applies the status filter and hides substitutions whose
+   * meeting or section was soft-deleted (`sm.deleted_at IS NULL AND s.deleted_at IS NULL`).
+   */
+  it.skipIf(!live)(
+    'listSubstitutions filters by status and hides soft-deleted meetings/sections',
+    async () => {
+      const repo = new PgTimetableRepository(pool!);
+      const a = await seedFixture();
+      const now = new Date().toISOString();
+      const schedule = await repo.createBellSchedule({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        code: 'SUBF',
+        name: 'Sub filter day',
+        dayPattern: '1,2,3,4,5',
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const period = await repo.createPeriod({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        bellScheduleId: schedule.id,
+        name: 'P1',
+        periodOrder: 1,
+        startTime: '08:00',
+        endTime: '08:45',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const originalStaffId = await seedStaff(a.tenantId);
+      const substituteStaffId = await seedStaff(a.tenantId);
+      /** One section + meeting (on its own weekday) + substitution with `status`. */
+      const seedSubstitution = async (code: string, dayOfWeek: number, status: string) => {
+        const section = await repo.createSection({
+          id: randomUUID(),
+          tenantId: a.tenantId,
+          institutionId: a.institutionId,
+          academicPeriodId: a.academicPeriodId,
+          gradeId: null,
+          code,
+          name: code,
+          primaryTeacherId: null,
+          defaultRoomId: null,
+          capacity: 30,
+          status: 'DRAFT',
+          publishedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const meeting = await repo.createMeeting({
+          id: randomUUID(),
+          tenantId: a.tenantId,
+          institutionId: a.institutionId,
+          academicPeriodId: a.academicPeriodId,
+          sectionId: section.id,
+          subjectId: null,
+          staffId: originalStaffId,
+          periodId: period.id,
+          roomId: null,
+          dayOfWeek,
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        });
+        const sub = await repo.createSubstitution({
+          id: randomUUID(),
+          tenantId: a.tenantId,
+          institutionId: a.institutionId,
+          sectionMeetingId: meeting.id,
+          originalStaffId,
+          substituteStaffId,
+          substitutionDate: '2026-09-07',
+          reason: null,
+          status,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { section, meeting, sub };
+      };
+      const kept = await seedSubstitution('SUBF-KEEP', 1, 'SCHEDULED');
+      const cancelled = await seedSubstitution('SUBF-CXL', 2, 'CANCELLED');
+      const meetingGone = await seedSubstitution('SUBF-MTG', 3, 'SCHEDULED');
+      const sectionGone = await seedSubstitution('SUBF-SEC', 4, 'SCHEDULED');
+      const ids = async (filter: { status?: string } = {}) =>
+        (await repo.listSubstitutions(a.tenantId, { institutionId: a.institutionId, ...filter }))
+          .map((s) => s.id)
+          .sort();
+
+      expect(await ids()).toEqual(
+        [kept.sub.id, cancelled.sub.id, meetingGone.sub.id, sectionGone.sub.id].sort(),
+      );
+
+      expect(await repo.deleteMeeting(a.tenantId, meetingGone.meeting.id)).toBe(true);
+      expect(await repo.deleteSection(a.tenantId, sectionGone.section.id)).toBe(true);
+      expect(await ids()).toEqual([kept.sub.id, cancelled.sub.id].sort());
+
+      expect(await ids({ status: 'scheduled' })).toEqual([kept.sub.id]);
+      expect(await ids({ status: 'CANCELLED' })).toEqual([cancelled.sub.id]);
+      expect(await ids({ status: 'COMPLETED' })).toEqual([]);
+    },
+  );
+
+  /**
    * PRC-L503: insertClonedTimetable atomicity against live PG — seed two tenants, clone into
    * one, assert the other tenant's data is never touched/visible (cross-tenant invisibility).
    */
@@ -643,4 +749,100 @@ describe('PgTimetableRepository (live)', () => {
       ).rejects.toThrow(/clone tenant mismatch/);
     },
   );
+
+  /**
+   * PRC-M550(b): createMeetingsAtomic is all-or-nothing. A batch whose second meeting clashes
+   * (same teacher, same slot as the first) rolls back the first insert too; a clean batch
+   * persists every meeting.
+   */
+  it.skipIf(!live)('createMeetingsAtomic rolls back the whole batch on a clash', async () => {
+    const repo = new PgTimetableRepository(pool!);
+    const a = await seedFixture();
+    const now = new Date().toISOString();
+    const schedule = await repo.createBellSchedule({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: a.academicPeriodId,
+      code: 'BATCH',
+      name: 'Batch day',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const period = await repo.createPeriod({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const section = async (code: string) =>
+      repo.createSection({
+        id: randomUUID(),
+        tenantId: a.tenantId,
+        institutionId: a.institutionId,
+        academicPeriodId: a.academicPeriodId,
+        gradeId: null,
+        code,
+        name: code,
+        primaryTeacherId: null,
+        defaultRoomId: null,
+        capacity: 30,
+        status: 'DRAFT',
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    const [s1, s2, s3, s4] = await Promise.all([
+      section('B-1'),
+      section('B-2'),
+      section('B-3'),
+      section('B-4'),
+    ]);
+    const staffX = await seedStaff(a.tenantId);
+    const staffY = await seedStaff(a.tenantId);
+    const meeting = (sectionId: string, staffId: string, dayOfWeek: number) => ({
+      id: randomUUID(),
+      tenantId: a.tenantId,
+      institutionId: a.institutionId,
+      academicPeriodId: a.academicPeriodId,
+      sectionId,
+      subjectId: null,
+      staffId,
+      periodId: period.id,
+      roomId: null,
+      dayOfWeek,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    const clashCheck = (existing: { staffId: string }[], candidate: { staffId: string }) => {
+      if (existing.some((m) => m.staffId === candidate.staffId)) {
+        throw new Error('staff already booked');
+      }
+    };
+
+    const first = meeting(s1!.id, staffX, 1);
+    await expect(
+      repo.createMeetingsAtomic(a.tenantId, [first, meeting(s2!.id, staffX, 1)], clashCheck),
+    ).rejects.toThrow(/staff already booked/);
+    expect(await repo.getMeeting(a.tenantId, first.id)).toBeNull();
+    expect(await repo.listMeetings(a.tenantId, { institutionId: a.institutionId })).toEqual([]);
+
+    const clean = await repo.createMeetingsAtomic(
+      a.tenantId,
+      [meeting(s3!.id, staffX, 2), meeting(s4!.id, staffY, 2)],
+      clashCheck,
+    );
+    expect(clean).toHaveLength(2);
+    expect(
+      (await repo.listMeetings(a.tenantId, { institutionId: a.institutionId })).map((m) => m.id),
+    ).toEqual(expect.arrayContaining(clean.map((m) => m.id)));
+  });
 });

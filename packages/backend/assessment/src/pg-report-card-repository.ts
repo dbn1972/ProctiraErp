@@ -6,6 +6,7 @@
  * db/sql/024_wave7_domain_persistence_schema.sql. Every statement runs under
  * `withPgTenant` so the FORCEd RLS policies apply to the app role.
  */
+import { ConflictError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   withPgTenant,
@@ -225,13 +226,23 @@ export class PgReportCardTemplateRepository
   }
 
   async delete(id: string, tenantId: string): Promise<boolean> {
-    return this.run(tenantId, async (c) => {
-      const res = await c.query(
-        `DELETE FROM report_card_templates WHERE id = $1 AND tenant_id = $2`,
-        [id, tenantId],
-      );
-      return Number(res.rowCount ?? 0) > 0;
-    });
+    try {
+      return await this.run(tenantId, async (c) => {
+        const res = await c.query(
+          `DELETE FROM report_card_templates WHERE id = $1 AND tenant_id = $2`,
+          [id, tenantId],
+        );
+        return Number(res.rowCount ?? 0) > 0;
+      });
+    } catch (error) {
+      // PRC-L081: report_card_jobs.template_id is ON DELETE RESTRICT (db/sql/024).
+      if ((error as { code?: unknown } | null)?.code === '23503') {
+        throw new ConflictError(
+          'Report card template is in use by generated report cards and cannot be deleted',
+        );
+      }
+      throw error;
+    }
   }
 }
 

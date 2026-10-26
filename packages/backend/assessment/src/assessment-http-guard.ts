@@ -2,7 +2,7 @@
  * Fastify helpers for assessment domain RBAC (W1-SEC-02 residual).
  */
 import { AppError } from '@proctira/common';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { assertAssessmentAccess, type AssessmentAction } from './assessment-access.js';
 
@@ -40,9 +40,23 @@ export function enforceAssessmentRouteAccess(
   request: FastifyRequest,
   reply: FastifyReply,
 ): boolean {
-  return requireAssessmentAction(
-    request,
-    reply,
-    assessmentActionForMethod(request.method),
-  );
+  return requireAssessmentAction(request, reply, assessmentActionForMethod(request.method));
+}
+
+const guardedInstances = new WeakSet<FastifyInstance>();
+
+/**
+ * PRC-L083: install the package-level RBAC preHandler (W1-SEC-02) once per
+ * Fastify instance. The grading, result and report-card route groups each call
+ * this so they stay guarded when registered alone; under the fp-wrapped
+ * assessment plugin they share one instance and the hook no longer stacks.
+ */
+export function installAssessmentRouteGuard(fastify: FastifyInstance): void {
+  if (guardedInstances.has(fastify)) return;
+  guardedInstances.add(fastify);
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceAssessmentRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
 }

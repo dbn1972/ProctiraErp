@@ -14,8 +14,9 @@
  *      top-0`) so the brand and connectivity status remain visible while
  *      the page scrolls.
  *
- *   2. **Bottom-tab navigation** — four primary destinations
- *      (Home, Attendance, Students, Profile). Each tab is at least
+ *   2. **Bottom-tab navigation** — the available primary destinations
+ *      (Home, Attendance, Students; Profile stays hidden until a
+ *      self-profile page exists — PRC-L259). Each tab is at least
  *      48 px tall (Requirement 41 AC 3 / 37 AC 3) and pairs an icon
  *      with a visible text label (Requirement 37 AC 4). The active tab
  *      is highlighted using the `--primary` token from the tenant
@@ -24,12 +25,13 @@
  *
  *   3. **Hamburger drawer** — a `<Sheet>` from `@proctira/ui/components`
  *      that exposes less-frequent destinations (Settings, Reports, Help,
- *      Sign out). Each drawer link is also at least 48 px tall.
+ *      Sign out). Each drawer entry is also at least 48 px tall. Sign out
+ *      is a button that calls the CSRF-protected POST `signOut()` (which
+ *      also purges SW caches, drafts and the sync queue), not a GET link.
  *
- * The `<ConnectivityIndicator>` itself is delivered by Task 54.3; this
- * shell mounts a labelled placeholder (`data-testid="connectivity-
- * indicator-placeholder"`) so the slot stays visible from 53.2 onward
- * and 54.3 only has to swap the inner element.
+ * The header mounts the live `<ConnectivityIndicator iconOnly>` from
+ * Task 54.3 (role="status", aria-label Online/Offline/Syncing) — PRC-L259
+ * replaced the aria-hidden placeholder dot that announced nothing.
  *
  * `data-shell="mobile"` is preserved so the Task 53.1 `<AppShell>`
  * layout-switch tests continue to pass.
@@ -65,6 +67,8 @@ import {
   SheetTrigger,
 } from '@proctira/ui/components';
 import { useBrand } from '@/providers/BrandConfigProvider';
+import { ConnectivityIndicator } from '@/components/connectivity/ConnectivityIndicator';
+import { signOut } from '@/lib/auth';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
 import { cn } from '@/lib/utils';
@@ -253,14 +257,9 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
           </div>
         ) : null}
 
-        {/* Persistent connectivity-indicator slot. Task 54.3 will swap this
-            placeholder for the live `<ConnectivityIndicator>` component;
-            keeping the slot from 53.2 onward avoids a layout shift. */}
-        <div
-          data-testid="connectivity-indicator-placeholder"
-          aria-hidden="true"
-          className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40"
-        />
+        {/* Persistent connectivity indicator (Task 54.3). Icon-only to fit the
+            header; the state is announced via role="status" + aria-label. */}
+        <ConnectivityIndicator iconOnly className="shrink-0" />
 
         {/* Hamburger drawer trigger — opens the less-frequent destinations
             sheet (Settings / Reports / Help / Sign out). */}
@@ -287,6 +286,25 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
             <nav aria-label="Secondary navigation" className="flex flex-col py-2">
               {DRAWER_LINKS.map((link) => {
                 const Icon = link.Icon;
+                if (link.key === 'signout') {
+                  // POST + CSRF via signOut(); a GET link would end the session
+                  // without CSRF protection and skip the client-side purge.
+                  return (
+                    <button
+                      key={link.key}
+                      type="button"
+                      onClick={() => {
+                        setDrawerOpen(false);
+                        void signOut('/login');
+                      }}
+                      className="flex h-12 w-full items-center gap-3 px-4 text-start text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:bg-muted"
+                      data-testid={`mobile-shell-drawer-link-${link.key}`}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                      <span>{link.label}</span>
+                    </button>
+                  );
+                }
                 return (
                   <Link
                     key={link.key}

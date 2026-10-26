@@ -90,6 +90,30 @@ describe('compareSemver', () => {
       ),
     ).toBe(1);
   });
+
+  it('orders pre-release identifiers per SemVer 2.0.0 §11 (PRC-L480)', () => {
+    const ordered = [
+      '1.0.0-alpha',
+      '1.0.0-alpha.1',
+      '1.0.0-alpha.2',
+      '1.0.0-alpha.beta',
+      '1.0.0-beta',
+      '1.0.0-beta.2',
+      '1.0.0-beta.11',
+      '1.0.0-rc.1',
+      '1.0.0',
+    ].map((v) => parseSemver(v)!);
+    for (let i = 0; i < ordered.length - 1; i++) {
+      expect(compareSemver(ordered[i]!, ordered[i + 1]!)).toBe(-1);
+      expect(compareSemver(ordered[i + 1]!, ordered[i]!)).toBe(1);
+    }
+    expect(compareSemver(parseSemver('1.0.0-rc.1')!, parseSemver('1.0.0-rc.1')!)).toBe(0);
+  });
+
+  it('applies pre-release ordering in ranges (PRC-L480)', () => {
+    expect(checkCompatibility('1.0.0-beta.2', '>=1.0.0-beta.1')).toBe(true);
+    expect(checkCompatibility('1.0.0-alpha.9', '>=1.0.0-beta.1')).toBe(false);
+  });
 });
 
 describe('checkCompatibility', () => {
@@ -155,6 +179,78 @@ describe('checkCompatibility', () => {
       expect(checkCompatibility('1.5.0', '>=1.0.0 <2.0.0')).toBe(true);
       expect(checkCompatibility('2.0.0', '>=1.0.0 <2.0.0')).toBe(false);
       expect(checkCompatibility('0.9.0', '>=1.0.0 <2.0.0')).toBe(false);
+    });
+  });
+
+  describe('union ranges (||) (PRC-L480)', () => {
+    it('matches when any alternative matches', () => {
+      expect(checkCompatibility('1.5.0', '^1.0.0 || ^2.0.0')).toBe(true);
+      expect(checkCompatibility('2.3.0', '^1.0.0 || ^2.0.0')).toBe(true);
+      expect(checkCompatibility('3.0.0', '^1.0.0 || ^2.0.0')).toBe(false);
+    });
+
+    it('rejects a union with an empty alternative instead of matching everything', () => {
+      expect(checkCompatibility('2.1.0', '1.0.0 ||')).toBe(false);
+      expect(checkCompatibility('2.1.0', '|| 9.9.9')).toBe(false);
+      expect(checkCompatibility('2.1.0', '>=1.0.0 ||  ')).toBe(false);
+      expect(checkCompatibility('1.0.0', '1.0.0 || || 2.0.0')).toBe(false);
+    });
+
+    it('supports compound alternatives', () => {
+      expect(checkCompatibility('0.5.0', '>=0.1.0 <1.0.0 || >=2.0.0')).toBe(true);
+      expect(checkCompatibility('1.5.0', '>=0.1.0 <1.0.0 || >=2.0.0')).toBe(false);
+    });
+  });
+
+  describe('x-ranges and partial versions (PRC-L480)', () => {
+    it('handles 1.x and 1', () => {
+      expect(checkCompatibility('1.4.0', '1.x')).toBe(true);
+      expect(checkCompatibility('1.0.0', '1')).toBe(true);
+      expect(checkCompatibility('2.0.0', '1.x')).toBe(false);
+      expect(checkCompatibility('0.9.9', '1')).toBe(false);
+    });
+
+    it('handles 1.2.* and 1.2', () => {
+      expect(checkCompatibility('1.2.9', '1.2.*')).toBe(true);
+      expect(checkCompatibility('1.2.0', '1.2')).toBe(true);
+      expect(checkCompatibility('1.3.0', '1.2.*')).toBe(false);
+      expect(checkCompatibility('1.1.9', '1.2')).toBe(false);
+    });
+
+    it('handles operators with partial versions', () => {
+      expect(checkCompatibility('2.0.0', '>1.x')).toBe(true);
+      expect(checkCompatibility('1.9.9', '>1.x')).toBe(false);
+      expect(checkCompatibility('1.9.9', '<=1.x')).toBe(true);
+      expect(checkCompatibility('2.0.0', '<=1.x')).toBe(false);
+    });
+
+    it('handles caret and tilde with partial versions', () => {
+      expect(checkCompatibility('1.9.0', '^1.x')).toBe(true);
+      expect(checkCompatibility('2.0.0', '^1.x')).toBe(false);
+      expect(checkCompatibility('1.2.7', '~1.2')).toBe(true);
+      expect(checkCompatibility('1.3.0', '~1.2')).toBe(false);
+    });
+  });
+
+  describe('hyphen ranges (PRC-L480)', () => {
+    it('is inclusive at both ends', () => {
+      expect(checkCompatibility('1.2.3', '1.2.3 - 1.4.0')).toBe(true);
+      expect(checkCompatibility('1.4.0', '1.2.3 - 1.4.0')).toBe(true);
+      expect(checkCompatibility('1.4.1', '1.2.3 - 1.4.0')).toBe(false);
+      expect(checkCompatibility('1.2.2', '1.2.3 - 1.4.0')).toBe(false);
+    });
+
+    it('treats a partial upper bound as the whole x-range', () => {
+      expect(checkCompatibility('1.4.9', '1.2.3 - 1.4')).toBe(true);
+      expect(checkCompatibility('1.5.0', '1.2.3 - 1.4')).toBe(false);
+    });
+  });
+
+  describe('spaced operators (PRC-L480)', () => {
+    it('accepts whitespace between operator and version', () => {
+      expect(checkCompatibility('1.5.0', '>= 1.0.0 < 2.0.0')).toBe(true);
+      expect(checkCompatibility('2.0.0', '>= 1.0.0 < 2.0.0')).toBe(false);
+      expect(checkCompatibility('0.9.0', '>= 1.0.0 < 2.0.0')).toBe(false);
     });
   });
 
