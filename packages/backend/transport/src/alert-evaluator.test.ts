@@ -165,6 +165,8 @@ describe('evaluateTransportAlerts', () => {
     expect(drafts).toHaveLength(1);
     expect(drafts[0]!.kind).toBe('missed_pickup');
     expect(drafts[0]!.studentId).toBe(STUDENT);
+    // PRC-M441: the trip date is the de-duplication key for repeat evaluations.
+    expect(drafts[0]!.payload.tripDate).toBe('2026-09-09');
   });
 
   it('does not fire missed_pickup when the student boarded', () => {
