@@ -325,6 +325,12 @@ describe.skipIf(!DATABASE_URL)('PRC-M213 academic/fee overlap EXCLUDE constraint
            ) VALUES ($1, $2, 'B', 'RACE1', '2026-06-01', '2026-12-31', '2026-06-01', '2026-12-31', 2)`,
         [randomUUID(), tenantId],
       );
+      // Mark insertB as observed now. Once A commits, B's ErrorResponse can be
+      // read off its socket before A's COMMIT reply resolves, i.e. before the
+      // `expect(insertB).rejects` below attaches; Vitest would then report the
+      // rejection as an unhandled error and fail the run. The assertion below
+      // still awaits insertB itself, so it must reject with 23P01 as before.
+      void insertB.catch(() => undefined);
 
       // Give B's INSERT a moment to reach Postgres and start waiting on A.
       await new Promise((resolve) => setTimeout(resolve, 200));
