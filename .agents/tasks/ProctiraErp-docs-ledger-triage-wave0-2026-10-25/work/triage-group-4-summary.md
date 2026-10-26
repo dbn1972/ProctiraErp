@@ -7,35 +7,35 @@
 
 ## Counts
 
-| triage_result | rows |
-|---|---|
-| STALE | 7 |
-| DUPLICATE | 3 |
-| PARTIAL_CONFIRMED | 56 (4 propose OPEN → PARTIAL: PRC-L277, PRC-M169, PRC-M173, PRC-M400) |
-| STILL_OPEN | 47 (28 OPEN, 19 PARTIAL with no new tip evidence of met steps; no CSV change) |
+| triage_result     | rows                                                                          |
+| ----------------- | ----------------------------------------------------------------------------- |
+| STALE             | 7                                                                             |
+| DUPLICATE         | 3                                                                             |
+| PARTIAL_CONFIRMED | 56 (4 propose OPEN → PARTIAL: PRC-L277, PRC-M169, PRC-M173, PRC-M400)         |
+| STILL_OPEN        | 47 (28 OPEN, 19 PARTIAL with no new tip evidence of met steps; no CSV change) |
 
-| eligibility (rows staying OPEN/PARTIAL) | rows |
-|---|---|
-| ELIGIBLE_MEDIUM | 34 |
-| ELIGIBLE_LOW | 10 |
-| BLOCKED_FOR_APPROVAL | 22 |
-| NEEDS_DECISION | 19 |
-| SCHEMA_BATCH | 14 |
-| INFRA_BATCH | 4 |
-| CLAIMED | 0 (no group-4 id appears in `claimed-and-decision.json`) |
-| n/a (STALE/DUPLICATE) | 10 |
+| eligibility (rows staying OPEN/PARTIAL) | rows                                                     |
+| --------------------------------------- | -------------------------------------------------------- |
+| ELIGIBLE_MEDIUM                         | 34                                                       |
+| ELIGIBLE_LOW                            | 10                                                       |
+| BLOCKED_FOR_APPROVAL                    | 22                                                       |
+| NEEDS_DECISION                          | 19                                                       |
+| SCHEMA_BATCH                            | 14                                                       |
+| INFRA_BATCH                             | 4                                                        |
+| CLAIMED                                 | 0 (no group-4 id appears in `claimed-and-decision.json`) |
+| n/a (STALE/DUPLICATE)                   | 10                                                       |
 
 ## STALE (proposed FULLY_CLOSED, ALREADY_FIXED note convention)
 
-| id | evidence | test |
-|---|---|---|
-| PRC-L175 | timetable routes.ts:121,160; timetable-service.ts:1392-1405 | timetable suite exit 0 |
-| PRC-L374 | timetable generation.ts:209-215; timetable-service.ts:1220-1229 | timetable suite exit 0 |
-| PRC-M549 | timetable routes.ts:1250-1279; timetable-service.ts:1606-1623 | timetable suite exit 0 |
-| PRC-M382 | staff staff-csv.ts:34-79,136-163; hr-service.ts:808 | staff suite exit 0 |
-| PRC-M386 | student students-360/service.ts:441-463,517-521; blob-store.ts:55 | student suite exit 0 |
-| PRC-M292 | library library-service.ts:182-204,247-252; in-memory-repository.ts:89-103 | library suite exit 0 |
-| PRC-L573 | library patron-binding.test.ts:158-200; library-ops.test.ts (fines, concurrency, cross-tenant) | library suite exit 0 |
+| id       | evidence                                                                                       | test                   |
+| -------- | ---------------------------------------------------------------------------------------------- | ---------------------- |
+| PRC-L175 | timetable routes.ts:121,160; timetable-service.ts:1392-1405                                    | timetable suite exit 0 |
+| PRC-L374 | timetable generation.ts:209-215; timetable-service.ts:1220-1229                                | timetable suite exit 0 |
+| PRC-M549 | timetable routes.ts:1250-1279; timetable-service.ts:1606-1623                                  | timetable suite exit 0 |
+| PRC-M382 | staff staff-csv.ts:34-79,136-163; hr-service.ts:808                                            | staff suite exit 0     |
+| PRC-M386 | student students-360/service.ts:441-463,517-521; blob-store.ts:55                              | student suite exit 0   |
+| PRC-M292 | library library-service.ts:182-204,247-252; in-memory-repository.ts:89-103                     | library suite exit 0   |
+| PRC-L573 | library patron-binding.test.ts:158-200; library-ops.test.ts (fines, concurrency, cross-tenant) | library suite exit 0   |
 
 ## DUPLICATE
 
@@ -45,16 +45,16 @@
 
 ## Tests run (all targeted package suites, server-guard exit 0 before each)
 
-| command | exit | log |
-|---|---|---|
-| `pnpm -C packages/backend/timetable exec vitest run --reporter=verbose` | 0 (178 passed, 12 skipped) | `logs/triage-g4/timetable-vitest.log` |
-| `pnpm -C packages/backend/attendance exec vitest run --reporter=verbose` | 0 (167 passed, 14 skipped) | `logs/triage-g4/attendance-vitest.log` |
+| command                                                                   | exit                       | log                                     |
+| ------------------------------------------------------------------------- | -------------------------- | --------------------------------------- |
+| `pnpm -C packages/backend/timetable exec vitest run --reporter=verbose`   | 0 (178 passed, 12 skipped) | `logs/triage-g4/timetable-vitest.log`   |
+| `pnpm -C packages/backend/attendance exec vitest run --reporter=verbose`  | 0 (167 passed, 14 skipped) | `logs/triage-g4/attendance-vitest.log`  |
 | `pnpm -C packages/backend/examination exec vitest run --reporter=verbose` | 0 (250 passed, 14 skipped) | `logs/triage-g4/examination-vitest.log` |
-| `pnpm -C packages/backend/health exec vitest run --reporter=verbose` | 0 (202 passed, 7 skipped) | `logs/triage-g4/health-vitest.log` |
-| `pnpm -C packages/backend/staff exec vitest run --reporter=verbose` | 0 (814 passed, 12 skipped) | `logs/triage-g4/staff-vitest.log` |
-| `pnpm -C packages/backend/transport exec vitest run --reporter=verbose` | 0 (76 passed, 2 skipped) | `logs/triage-g4/transport-vitest.log` |
-| `pnpm -C packages/backend/student exec vitest run --reporter=verbose` | 0 (392 passed, 5 skipped) | `logs/triage-g4/student-vitest.log` |
-| `pnpm -C packages/backend/library exec vitest run --reporter=verbose` | 0 (53 passed, 1 skipped) | `logs/triage-g4/library-vitest.log` |
+| `pnpm -C packages/backend/health exec vitest run --reporter=verbose`      | 0 (202 passed, 7 skipped)  | `logs/triage-g4/health-vitest.log`      |
+| `pnpm -C packages/backend/staff exec vitest run --reporter=verbose`       | 0 (814 passed, 12 skipped) | `logs/triage-g4/staff-vitest.log`       |
+| `pnpm -C packages/backend/transport exec vitest run --reporter=verbose`   | 0 (76 passed, 2 skipped)   | `logs/triage-g4/transport-vitest.log`   |
+| `pnpm -C packages/backend/student exec vitest run --reporter=verbose`     | 0 (392 passed, 5 skipped)  | `logs/triage-g4/student-vitest.log`     |
+| `pnpm -C packages/backend/library exec vitest run --reporter=verbose`     | 0 (53 passed, 1 skipped)   | `logs/triage-g4/library-vitest.log`     |
 
 The skipped tests are live/PG suites (DATABASE_URL unset). They are NOT VERIFIED and were never used to support STALE. Rows whose remaining proof depends on them (PRC-M400, M396, M407, L503, L278, M169, L275, L563, M620, M583, M632, M368) stay PARTIAL.
 

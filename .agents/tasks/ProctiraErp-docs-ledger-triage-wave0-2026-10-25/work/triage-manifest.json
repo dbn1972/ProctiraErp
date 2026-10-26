@@ -11,12 +11,7 @@
     "non_closed": 497,
     "claimed": 44,
     "needs_decision": 0,
-    "groups": [
-      113,
-      116,
-      111,
-      113
-    ],
+    "groups": [113, 116, 111, 113],
     "excluded_not_open_or_partial": {
       "FULLY_CLOSED": 260,
       "DUPLICATE": 1
@@ -249,25 +244,19 @@
     {
       "id": "PRC-L174",
       "source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"],
       "module": "timetable"
     },
     {
       "id": "PRC-L237",
       "source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"],
       "module": "app-web"
     },
     {
       "id": "PRC-L276",
       "source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"],
       "module": "attendance"
     },
     {
@@ -327,17 +316,13 @@
     {
       "id": "PRC-L347",
       "source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"],
       "module": "scholarship"
     },
     {
       "id": "PRC-L391",
       "source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"],
       "module": "transport"
     },
     {
@@ -379,33 +364,25 @@
     {
       "id": "PRC-M015",
       "source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"],
       "module": "app-api-gateway"
     },
     {
       "id": "PRC-M182",
       "source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"],
       "module": "auth"
     },
     {
       "id": "PRC-M237",
       "source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"],
       "module": "examination"
     },
     {
       "id": "PRC-M262",
       "source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"],
       "module": "github"
     },
     {
@@ -510,9 +487,7 @@
     {
       "id": "PRC-M521",
       "source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"],
       "module": "hostel"
     },
     {
@@ -572,17 +547,13 @@
     {
       "id": "PRC-M586",
       "source": "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)",
-      "all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"
-      ],
+      "all_sources": ["PR#633 fix/audit-role-catalogue-d2 (body ledger table, marked deferred)"],
       "module": "auth"
     },
     {
       "id": "PRC-M601",
       "source": "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)",
-      "all_sources": [
-        "module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"
-      ],
+      "all_sources": ["module-rule:parent-portal (in-flight branch fix/audit-parent-portal-batch)"],
       "module": "parent-portal"
     }
   ],

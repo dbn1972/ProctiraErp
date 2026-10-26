@@ -7,25 +7,25 @@
 
 ## Triage result counts
 
-| triage_result | count | proposed CSV change |
-|---|---|---|
-| STALE | 4 | → FULLY_CLOSED: PRC-L421, PRC-L434, PRC-L439, PRC-L513 |
-| DUPLICATE | 1 | PRC-M067 → DUPLICATE of PRC-M132 (same file and endpoint; M132 is the surviving row) |
-| PARTIAL_CONFIRMED | 56 | → PARTIAL, notes get a met/unmet line. 12 of these move OPEN→PARTIAL: L195, L223, L228, L236, L253, L408, L597, M005, M147, M155, M330, M568. The other 44 were already PARTIAL. |
-| STILL_OPEN | 52 | none |
+| triage_result     | count | proposed CSV change                                                                                                                                                              |
+| ----------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| STALE             | 4     | → FULLY_CLOSED: PRC-L421, PRC-L434, PRC-L439, PRC-L513                                                                                                                           |
+| DUPLICATE         | 1     | PRC-M067 → DUPLICATE of PRC-M132 (same file and endpoint; M132 is the surviving row)                                                                                             |
+| PARTIAL_CONFIRMED | 56    | → PARTIAL, notes get a met/unmet line. 12 of these move OPEN→PARTIAL: L195, L223, L228, L236, L253, L408, L597, M005, M147, M155, M330, M568. The other 44 were already PARTIAL. |
+| STILL_OPEN        | 52    | none                                                                                                                                                                             |
 
 ## Eligibility counts (rows staying OPEN/PARTIAL)
 
-| eligibility | count |
-|---|---|
-| BLOCKED_FOR_APPROVAL | 43 |
-| NEEDS_DECISION | 32 |
-| ELIGIBLE_LOW | 18 — L096, L224, L228, L253, L255, L262, L530, M147, M254, L172, L240, L244, L270, L407, L413, L435, M144, M489 |
-| ELIGIBLE_MEDIUM | 4 — L140, L141, L466, M134 |
-| SCHEMA_BATCH | 6 — L299, M335, L036, L097, L464, M482 |
-| INFRA_BATCH | 5 — L223, M005, M568, L216, L263 |
-| CLAIMED | 0 (no group-1 id is in the manifest claimed list) |
-| n/a (STALE/DUPLICATE) | 5 |
+| eligibility           | count                                                                                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| BLOCKED_FOR_APPROVAL  | 43                                                                                                              |
+| NEEDS_DECISION        | 32                                                                                                              |
+| ELIGIBLE_LOW          | 18 — L096, L224, L228, L253, L255, L262, L530, M147, M254, L172, L240, L244, L270, L407, L413, L435, M144, M489 |
+| ELIGIBLE_MEDIUM       | 4 — L140, L141, L466, M134                                                                                      |
+| SCHEMA_BATCH          | 6 — L299, M335, L036, L097, L464, M482                                                                          |
+| INFRA_BATCH           | 5 — L223, M005, M568, L216, L263                                                                                |
+| CLAIMED               | 0 (no group-1 id is in the manifest claimed list)                                                               |
+| n/a (STALE/DUPLICATE) | 5                                                                                                               |
 
 ## Reviewer attention
 

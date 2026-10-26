@@ -1,701 +1,574 @@
 {
- "sha": "4c7fb8fec961b49a8a7b70c05d22ebe30ad18e20",
- "branch": "docs/ledger-triage-wave0",
- "commands": [
-  {
-   "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 install --frozen-lockfile",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/install.log",
-   "step": "baseline"
-  },
-  {
-   "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run typecheck --continue --concurrency=3 --summarize",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/typecheck.log",
-   "step": "baseline"
-  },
-  {
-   "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run lint --continue --concurrency=3 --summarize",
-   "exit_code": 1,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/lint.log",
-   "step": "baseline"
-  },
-  {
-   "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run test --continue --concurrency=2 --summarize",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/test.log",
-   "step": "baseline"
-  },
-  {
-   "command": "~/bin/server-guard.sh (before install)",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-install.out",
-   "step": "baseline"
-  },
-  {
-   "command": "~/bin/server-guard.sh (before typecheck)",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-typecheck.out",
-   "step": "baseline"
-  },
-  {
-   "command": "~/bin/server-guard.sh (before lint)",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-lint.out",
-   "step": "baseline"
-  },
-  {
-   "command": "~/bin/server-guard.sh (before test)",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-test.out",
-   "step": "baseline"
-  },
-  {
-   "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/gate.py",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/gate.log",
-   "step": "consolidation"
-  },
-  {
-   "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/apply_ledger.py",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/apply.log",
-   "step": "consolidation"
-  },
-  {
-   "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/verify_ledger.py",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/verify.log",
-   "step": "consolidation"
-  },
-  {
-   "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/wave1_plan.py",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/wave1-disjointness.log",
-   "step": "consolidation"
-  },
-  {
-   "command": "gh pr list --state open --json number,headRefName,mergeable,mergeStateStatus,updatedAt",
-   "exit_code": 0,
-   "log": null,
-   "step": "consolidation (in-flight refresh; output summarised in baseline-assessment.md)"
-  }
- ],
- "tests_run": [
-  {
-   "command": "pnpm --filter @proctira/web exec vitest run src/components/gradebook/gradebook-workflow-panel.test.tsx src/components/shared/entity-search-select.test.tsx \"src/app/(dashboard)/students/import/_components/bulk-import-panel.test.tsx\" \"src/app/(dashboard)/health/[studentId]/page.test.tsx\"",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-l228-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L228"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/web exec vitest run src/app/dead-internal-links.test.ts src/featureRegistry.test.ts src/lib/examinations/results-csv.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-d6-guard-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L236",
-    "PRC-L408",
-    "PRC-L421",
-    "PRC-L434",
-    "PRC-L439",
-    "PRC-L407",
-    "PRC-L534"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/web exec vitest run src/lib/sw/sw-parity.test.ts src/lib/sw/sw-runtime.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-sw-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L253"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/ui-data-grid exec vitest run src/DataGrid.audit.test.tsx",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/data-grid-audit-test.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L513"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/admin-console exec vitest run \"src/app/(admin)/actions.test.ts\" src/middleware.test.ts src/lib/api/gateway.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/admin-console-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-M005",
-    "PRC-L527"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/web exec vitest run \"src/app/(dashboard)/staff/[id]/profile-data.test.tsx\" \"src/app/(dashboard)/students/_components/student-profile-kpis.test.ts\" src/components/institutions/institution-form.lookups.test.tsx \"src/app/(dashboard)/staff/leaves/_components/leave-decision-buttons.test.tsx\"",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-profiles-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-M155",
-    "PRC-L048",
-    "PRC-L054",
-    "PRC-L056"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/api-gateway exec vitest run src/dart-client-contract.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/gateway-dart-contract-test.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-M254"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/backend-registration exec vitest run src/document-content-validation.test.ts src/registration-service.test.ts src/public-throttle.test.ts src/public-routes-security.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/registration-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-M330",
-    "PRC-M332"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/backend-developer-portal exec vitest run",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/developer-portal-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L097",
-    "PRC-L464",
-    "PRC-L466"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/backend-theme exec vitest run",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/theme-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L172",
-    "PRC-M392",
-    "PRC-M394",
-    "PRC-M395"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/web exec vitest run src/lib/api/list-result.drift.test.ts src/lib/api/gateway.test.ts src/lib/api/gateway-proxy.test.ts src/lib/api/fees.test.ts \"src/app/(dashboard)/help/help-accuracy.test.ts\" \"src/app/(dashboard)/reports/dashboard/page.test.tsx\" \"src/app/(dashboard)/reports/actions.test.ts\" src/features/settings/__tests__/NotificationPreferences.test.tsx \"src/app/(public)/track/application-tracking.test.tsx\"",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-final-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L263",
-    "PRC-L269",
-    "PRC-L532",
-    "PRC-M090",
-    "PRC-M134",
-    "PRC-M146",
-    "PRC-M489"
-   ]
-  },
-  {
-   "command": "pnpm --filter @proctira/web exec vitest run src/middleware.refresh.test.ts src/middleware.tenant-headers.test.ts src/lib/auth/return-to.test.ts src/app/api/auth/refresh/route.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-auth-tests.log",
-   "log_exists": true,
-   "step": "triage-g1",
-   "ids": [
-    "PRC-L545",
-    "PRC-M133"
-   ]
-  },
-  {
-   "command": "pnpm -C <W> --filter @proctira/etl-worker exec vitest run src/auth.test.ts src/server.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L209-etl-worker.log",
-   "log_exists": true,
-   "step": "triage-g2",
-   "ids": [
-    "PRC-L209"
-   ]
-  },
-  {
-   "command": "pnpm -C <W> --filter @proctira/backend-audit exec vitest run src/audit-service.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L295-audit-service.log",
-   "log_exists": true,
-   "step": "triage-g2",
-   "ids": [
-    "PRC-L295"
-   ]
-  },
-  {
-   "command": "pnpm -C <W> --filter @proctira/backend-developer-portal exec vitest run src/webhook-fanout.wiring.test.ts src/webhook-signing-secrets.test.ts src/webhook-signature.test.ts src/webhook-outbox-delivery.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/M211-devportal.log",
-   "log_exists": true,
-   "step": "triage-g2",
-   "ids": [
-    "PRC-M211"
-   ]
-  },
-  {
-   "command": "pnpm -C <W> --filter @proctira/api-gateway exec vitest run src/webhook-signing-secrets-wiring.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/M211-gateway.log",
-   "log_exists": true,
-   "step": "triage-g2",
-   "ids": [
-    "PRC-M211"
-   ]
-  },
-  {
-   "command": "pnpm -C <W> exec vitest run tools/scripts/__tests__/apply-sql-guards.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L380-apply-sql-guards.log",
-   "log_exists": true,
-   "step": "triage-g2",
-   "ids": [
-    "PRC-L380"
-   ]
-  },
-  {
-   "command": "node --test tools/scripts/run-e2e-backend-ready.test.mjs (env -u CI -u DATABASE_URL)",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L389-run-e2e.log",
-   "log_exists": true,
-   "step": "triage-g2",
-   "ids": [
-    "PRC-L389"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/privacy exec vitest run src/privacy-service.test.ts src/erasure-completion-guard.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/privacy-cas.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-L136"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/plugin exec vitest run src/sandbox/in-process-sandbox.security.test.ts src/sandbox/in-process-sandbox.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/plugin-sandbox-tests.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-L479",
-    "PRC-M602",
-    "PRC-M628"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/shared/search-index exec vitest run src/__tests__/fail-closed.test.ts src/__tests__/postgres-search-index.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/search-index.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-L494"
-   ]
-  },
-  {
-   "command": "pnpm -C apps/api-gateway exec vitest run src/mutation-audit.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-mutation-audit.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M013",
-    "PRC-M014"
-   ]
-  },
-  {
-   "command": "pnpm -C apps/api-gateway exec vitest run src/audit-mount.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-audit-mount.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M013"
-   ]
-  },
-  {
-   "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-audit-precheck.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-audit-precheck.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M014"
-   ]
-  },
-  {
-   "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-scim.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-scim.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M026"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/auth exec vitest run src/mfa-routes.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-mfa-routes.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M183",
-    "PRC-M497"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/auth exec vitest run src/local-refresh-guard.test.ts src/access-token-revocation.test.ts src/rbac-plugin.test.ts src/keycloak/identity-projection.test.ts src/keycloak/logout-revoke.test.ts src/keycloak/routes.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-m183-coverage.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M183"
-   ]
-  },
-  {
-   "command": "pnpm -C apps/api-gateway exec vitest run src/insights-ui-plugin.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-insights-ui-plugin.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-L204"
-   ]
-  },
-  {
-   "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-workflow-paging.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-workflow-paging.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M022"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/workflow exec vitest run src/transition-concurrency.test.ts src/routes-actor.test.ts src/escalation-worker.wiring.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/workflow-m463.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M463"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/auth exec vitest run src/external-providers/saml-provider.test.ts src/external-providers/external-auth-routes.test.ts src/external-providers/external-auth-handler.test.ts",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-external-providers.log",
-   "log_exists": true,
-   "step": "triage-g3",
-   "ids": [
-    "PRC-M587",
-    "PRC-M589"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/timetable exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/timetable-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-L175",
-    "PRC-M400",
-    "PRC-L373",
-    "PRC-L374",
-    "PRC-L503",
-    "PRC-M396",
-    "PRC-M407",
-    "PRC-M549",
-    "PRC-M550"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/attendance exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/attendance-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-L277",
-    "PRC-M169",
-    "PRC-M173",
-    "PRC-L275",
-    "PRC-L278",
-    "PRC-M496"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/health exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/health-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-L312",
-    "PRC-L115",
-    "PRC-L313",
-    "PRC-L472",
-    "PRC-L563"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/examination exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/examination-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-M231",
-    "PRC-M510",
-    "PRC-M620"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/library exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/library-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-M292",
-    "PRC-L129",
-    "PRC-L573"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/staff exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/staff-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-L157",
-    "PRC-M368",
-    "PRC-M371",
-    "PRC-M381",
-    "PRC-M382"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/student exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/student-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-L366",
-    "PRC-M386"
-   ]
-  },
-  {
-   "command": "pnpm -C packages/backend/transport exec vitest run --reporter=verbose",
-   "exit_code": 0,
-   "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/transport-vitest.log",
-   "log_exists": true,
-   "step": "triage-g4",
-   "ids": [
-    "PRC-L592"
-   ]
-  }
- ],
- "csv_diff_check": {
-  "baseline_sha": "4c7fb8fec961b49a8a7b70c05d22ebe30ad18e20",
-  "baseline_sha256": "80f7968ba22222ab4d822e07e0a48b336e5d47b86f013180f9422061665978da",
-  "baseline_sha256_matches_ledger_before": true,
-  "new_sha256": "d7450a377b3d493b311f03bdb38eacff17c781d8732348ba94b2354ad4bff561",
-  "line_count_equal": true,
-  "crlf_only": true,
-  "trailing_newline": true,
-  "header_identical": true,
-  "data_rows": 758,
-  "data_rows_expected": 758,
-  "data_rows_ok": true,
-  "row_order_identical": true,
-  "changed_line_count": 163,
-  "changed_ids_equal_accepted": true,
-  "changed_not_accepted": [],
-  "accepted_not_changed": [],
-  "changed_rows_only_allowed_columns": true,
-  "disallowed_column_changes": {},
-  "changed_values_match_proposals": true,
-  "value_mismatch": [],
-  "latest_wave_values": [
-   "wave0-triage-2026-10-25"
+  "sha": "4c7fb8fec961b49a8a7b70c05d22ebe30ad18e20",
+  "branch": "docs/ledger-triage-wave0",
+  "commands": [
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 install --frozen-lockfile",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/install.log",
+      "step": "baseline"
+    },
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run typecheck --continue --concurrency=3 --summarize",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/typecheck.log",
+      "step": "baseline"
+    },
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run lint --continue --concurrency=3 --summarize",
+      "exit_code": 1,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/lint.log",
+      "step": "baseline"
+    },
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run test --continue --concurrency=2 --summarize",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/test.log",
+      "step": "baseline"
+    },
+    {
+      "command": "~/bin/server-guard.sh (before install)",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-install.out",
+      "step": "baseline"
+    },
+    {
+      "command": "~/bin/server-guard.sh (before typecheck)",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-typecheck.out",
+      "step": "baseline"
+    },
+    {
+      "command": "~/bin/server-guard.sh (before lint)",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-lint.out",
+      "step": "baseline"
+    },
+    {
+      "command": "~/bin/server-guard.sh (before test)",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-test.out",
+      "step": "baseline"
+    },
+    {
+      "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/gate.py",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/gate.log",
+      "step": "consolidation"
+    },
+    {
+      "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/apply_ledger.py",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/apply.log",
+      "step": "consolidation"
+    },
+    {
+      "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/verify_ledger.py",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/verify.log",
+      "step": "consolidation"
+    },
+    {
+      "command": "python3 .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/work/wave1_plan.py",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/consolidation/wave1-disjointness.log",
+      "step": "consolidation"
+    },
+    {
+      "command": "gh pr list --state open --json number,headRefName,mergeable,mergeStateStatus,updatedAt",
+      "exit_code": 0,
+      "log": null,
+      "step": "consolidation (in-flight refresh; output summarised in baseline-assessment.md)"
+    }
   ],
-  "unchanged_lines_byte_identical": true,
+  "tests_run": [
+    {
+      "command": "pnpm --filter @proctira/web exec vitest run src/components/gradebook/gradebook-workflow-panel.test.tsx src/components/shared/entity-search-select.test.tsx \"src/app/(dashboard)/students/import/_components/bulk-import-panel.test.tsx\" \"src/app/(dashboard)/health/[studentId]/page.test.tsx\"",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-l228-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L228"]
+    },
+    {
+      "command": "pnpm --filter @proctira/web exec vitest run src/app/dead-internal-links.test.ts src/featureRegistry.test.ts src/lib/examinations/results-csv.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-d6-guard-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L236", "PRC-L408", "PRC-L421", "PRC-L434", "PRC-L439", "PRC-L407", "PRC-L534"]
+    },
+    {
+      "command": "pnpm --filter @proctira/web exec vitest run src/lib/sw/sw-parity.test.ts src/lib/sw/sw-runtime.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-sw-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L253"]
+    },
+    {
+      "command": "pnpm --filter @proctira/ui-data-grid exec vitest run src/DataGrid.audit.test.tsx",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/data-grid-audit-test.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L513"]
+    },
+    {
+      "command": "pnpm --filter @proctira/admin-console exec vitest run \"src/app/(admin)/actions.test.ts\" src/middleware.test.ts src/lib/api/gateway.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/admin-console-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-M005", "PRC-L527"]
+    },
+    {
+      "command": "pnpm --filter @proctira/web exec vitest run \"src/app/(dashboard)/staff/[id]/profile-data.test.tsx\" \"src/app/(dashboard)/students/_components/student-profile-kpis.test.ts\" src/components/institutions/institution-form.lookups.test.tsx \"src/app/(dashboard)/staff/leaves/_components/leave-decision-buttons.test.tsx\"",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-profiles-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-M155", "PRC-L048", "PRC-L054", "PRC-L056"]
+    },
+    {
+      "command": "pnpm --filter @proctira/api-gateway exec vitest run src/dart-client-contract.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/gateway-dart-contract-test.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-M254"]
+    },
+    {
+      "command": "pnpm --filter @proctira/backend-registration exec vitest run src/document-content-validation.test.ts src/registration-service.test.ts src/public-throttle.test.ts src/public-routes-security.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/registration-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-M330", "PRC-M332"]
+    },
+    {
+      "command": "pnpm --filter @proctira/backend-developer-portal exec vitest run",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/developer-portal-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L097", "PRC-L464", "PRC-L466"]
+    },
+    {
+      "command": "pnpm --filter @proctira/backend-theme exec vitest run",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/theme-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L172", "PRC-M392", "PRC-M394", "PRC-M395"]
+    },
+    {
+      "command": "pnpm --filter @proctira/web exec vitest run src/lib/api/list-result.drift.test.ts src/lib/api/gateway.test.ts src/lib/api/gateway-proxy.test.ts src/lib/api/fees.test.ts \"src/app/(dashboard)/help/help-accuracy.test.ts\" \"src/app/(dashboard)/reports/dashboard/page.test.tsx\" \"src/app/(dashboard)/reports/actions.test.ts\" src/features/settings/__tests__/NotificationPreferences.test.tsx \"src/app/(public)/track/application-tracking.test.tsx\"",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-final-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L263", "PRC-L269", "PRC-L532", "PRC-M090", "PRC-M134", "PRC-M146", "PRC-M489"]
+    },
+    {
+      "command": "pnpm --filter @proctira/web exec vitest run src/middleware.refresh.test.ts src/middleware.tenant-headers.test.ts src/lib/auth/return-to.test.ts src/app/api/auth/refresh/route.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-auth-tests.log",
+      "log_exists": true,
+      "step": "triage-g1",
+      "ids": ["PRC-L545", "PRC-M133"]
+    },
+    {
+      "command": "pnpm -C <W> --filter @proctira/etl-worker exec vitest run src/auth.test.ts src/server.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L209-etl-worker.log",
+      "log_exists": true,
+      "step": "triage-g2",
+      "ids": ["PRC-L209"]
+    },
+    {
+      "command": "pnpm -C <W> --filter @proctira/backend-audit exec vitest run src/audit-service.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L295-audit-service.log",
+      "log_exists": true,
+      "step": "triage-g2",
+      "ids": ["PRC-L295"]
+    },
+    {
+      "command": "pnpm -C <W> --filter @proctira/backend-developer-portal exec vitest run src/webhook-fanout.wiring.test.ts src/webhook-signing-secrets.test.ts src/webhook-signature.test.ts src/webhook-outbox-delivery.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/M211-devportal.log",
+      "log_exists": true,
+      "step": "triage-g2",
+      "ids": ["PRC-M211"]
+    },
+    {
+      "command": "pnpm -C <W> --filter @proctira/api-gateway exec vitest run src/webhook-signing-secrets-wiring.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/M211-gateway.log",
+      "log_exists": true,
+      "step": "triage-g2",
+      "ids": ["PRC-M211"]
+    },
+    {
+      "command": "pnpm -C <W> exec vitest run tools/scripts/__tests__/apply-sql-guards.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L380-apply-sql-guards.log",
+      "log_exists": true,
+      "step": "triage-g2",
+      "ids": ["PRC-L380"]
+    },
+    {
+      "command": "node --test tools/scripts/run-e2e-backend-ready.test.mjs (env -u CI -u DATABASE_URL)",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g2/L389-run-e2e.log",
+      "log_exists": true,
+      "step": "triage-g2",
+      "ids": ["PRC-L389"]
+    },
+    {
+      "command": "pnpm -C packages/backend/privacy exec vitest run src/privacy-service.test.ts src/erasure-completion-guard.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/privacy-cas.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-L136"]
+    },
+    {
+      "command": "pnpm -C packages/backend/plugin exec vitest run src/sandbox/in-process-sandbox.security.test.ts src/sandbox/in-process-sandbox.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/plugin-sandbox-tests.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-L479", "PRC-M602", "PRC-M628"]
+    },
+    {
+      "command": "pnpm -C packages/shared/search-index exec vitest run src/__tests__/fail-closed.test.ts src/__tests__/postgres-search-index.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/search-index.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-L494"]
+    },
+    {
+      "command": "pnpm -C apps/api-gateway exec vitest run src/mutation-audit.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-mutation-audit.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M013", "PRC-M014"]
+    },
+    {
+      "command": "pnpm -C apps/api-gateway exec vitest run src/audit-mount.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-audit-mount.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M013"]
+    },
+    {
+      "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-audit-precheck.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-audit-precheck.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M014"]
+    },
+    {
+      "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-scim.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-scim.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M026"]
+    },
+    {
+      "command": "pnpm -C packages/backend/auth exec vitest run src/mfa-routes.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-mfa-routes.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M183", "PRC-M497"]
+    },
+    {
+      "command": "pnpm -C packages/backend/auth exec vitest run src/local-refresh-guard.test.ts src/access-token-revocation.test.ts src/rbac-plugin.test.ts src/keycloak/identity-projection.test.ts src/keycloak/logout-revoke.test.ts src/keycloak/routes.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-m183-coverage.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M183"]
+    },
+    {
+      "command": "pnpm -C apps/api-gateway exec vitest run src/insights-ui-plugin.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-insights-ui-plugin.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-L204"]
+    },
+    {
+      "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-workflow-paging.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-workflow-paging.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M022"]
+    },
+    {
+      "command": "pnpm -C packages/backend/workflow exec vitest run src/transition-concurrency.test.ts src/routes-actor.test.ts src/escalation-worker.wiring.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/workflow-m463.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M463"]
+    },
+    {
+      "command": "pnpm -C packages/backend/auth exec vitest run src/external-providers/saml-provider.test.ts src/external-providers/external-auth-routes.test.ts src/external-providers/external-auth-handler.test.ts",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-external-providers.log",
+      "log_exists": true,
+      "step": "triage-g3",
+      "ids": ["PRC-M587", "PRC-M589"]
+    },
+    {
+      "command": "pnpm -C packages/backend/timetable exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/timetable-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": [
+        "PRC-L175",
+        "PRC-M400",
+        "PRC-L373",
+        "PRC-L374",
+        "PRC-L503",
+        "PRC-M396",
+        "PRC-M407",
+        "PRC-M549",
+        "PRC-M550"
+      ]
+    },
+    {
+      "command": "pnpm -C packages/backend/attendance exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/attendance-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": ["PRC-L277", "PRC-M169", "PRC-M173", "PRC-L275", "PRC-L278", "PRC-M496"]
+    },
+    {
+      "command": "pnpm -C packages/backend/health exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/health-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": ["PRC-L312", "PRC-L115", "PRC-L313", "PRC-L472", "PRC-L563"]
+    },
+    {
+      "command": "pnpm -C packages/backend/examination exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/examination-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": ["PRC-M231", "PRC-M510", "PRC-M620"]
+    },
+    {
+      "command": "pnpm -C packages/backend/library exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/library-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": ["PRC-M292", "PRC-L129", "PRC-L573"]
+    },
+    {
+      "command": "pnpm -C packages/backend/staff exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/staff-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": ["PRC-L157", "PRC-M368", "PRC-M371", "PRC-M381", "PRC-M382"]
+    },
+    {
+      "command": "pnpm -C packages/backend/student exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/student-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": ["PRC-L366", "PRC-M386"]
+    },
+    {
+      "command": "pnpm -C packages/backend/transport exec vitest run --reporter=verbose",
+      "exit_code": 0,
+      "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g4/transport-vitest.log",
+      "log_exists": true,
+      "step": "triage-g4",
+      "ids": ["PRC-L592"]
+    }
+  ],
+  "csv_diff_check": {
+    "baseline_sha": "4c7fb8fec961b49a8a7b70c05d22ebe30ad18e20",
+    "baseline_sha256": "80f7968ba22222ab4d822e07e0a48b336e5d47b86f013180f9422061665978da",
+    "baseline_sha256_matches_ledger_before": true,
+    "new_sha256": "d7450a377b3d493b311f03bdb38eacff17c781d8732348ba94b2354ad4bff561",
+    "line_count_equal": true,
+    "crlf_only": true,
+    "trailing_newline": true,
+    "header_identical": true,
+    "data_rows": 758,
+    "data_rows_expected": 758,
+    "data_rows_ok": true,
+    "row_order_identical": true,
+    "changed_line_count": 163,
+    "changed_ids_equal_accepted": true,
+    "changed_not_accepted": [],
+    "accepted_not_changed": [],
+    "changed_rows_only_allowed_columns": true,
+    "disallowed_column_changes": {},
+    "changed_values_match_proposals": true,
+    "value_mismatch": [],
+    "latest_wave_values": ["wave0-triage-2026-10-25"],
+    "unchanged_lines_byte_identical": true,
+    "counts_before": {
+      "DUPLICATE": 1,
+      "FULLY_CLOSED": 260,
+      "OPEN": 291,
+      "PARTIAL": 206
+    },
+    "counts_after": {
+      "DUPLICATE": 5,
+      "FULLY_CLOSED": 271,
+      "OPEN": 241,
+      "PARTIAL": 241
+    },
+    "counts_before_match_ledger_before": true,
+    "transitions": {
+      "OPEN->FULLY_CLOSED": 5,
+      "OPEN->PARTIAL": 45,
+      "PARTIAL->DUPLICATE": 4,
+      "PARTIAL->FULLY_CLOSED": 6,
+      "PARTIAL->PARTIAL": 103
+    },
+    "accepted_by_triage_result": {
+      "PARTIAL_CONFIRMED": 148,
+      "STALE": 11,
+      "DUPLICATE": 4
+    },
+    "stale_plus_duplicate": 15,
+    "moved_to_closed_or_duplicate": 15,
+    "stale_dup_reconciles": true,
+    "all_pass": true
+  },
   "counts_before": {
-   "DUPLICATE": 1,
-   "FULLY_CLOSED": 260,
-   "OPEN": 291,
-   "PARTIAL": 206
+    "DUPLICATE": 1,
+    "FULLY_CLOSED": 260,
+    "OPEN": 291,
+    "PARTIAL": 206
   },
   "counts_after": {
-   "DUPLICATE": 5,
-   "FULLY_CLOSED": 271,
-   "OPEN": 241,
-   "PARTIAL": 241
+    "DUPLICATE": 5,
+    "FULLY_CLOSED": 271,
+    "OPEN": 241,
+    "PARTIAL": 241
   },
-  "counts_before_match_ledger_before": true,
-  "transitions": {
-   "OPEN->FULLY_CLOSED": 5,
-   "OPEN->PARTIAL": 45,
-   "PARTIAL->DUPLICATE": 4,
-   "PARTIAL->FULLY_CLOSED": 6,
-   "PARTIAL->PARTIAL": 103
+  "registry_rows": 497,
+  "registry_result_counts": {
+    "PARTIAL_CONFIRMED": 150,
+    "STILL_OPEN": 288,
+    "CLAIMED": 44,
+    "STALE": 11,
+    "DUPLICATE": 4
   },
-  "accepted_by_triage_result": {
-   "PARTIAL_CONFIRMED": 148,
-   "STALE": 11,
-   "DUPLICATE": 4
+  "accepted_changes": {
+    "total": 163,
+    "by_result": {
+      "PARTIAL_CONFIRMED": 148,
+      "STALE": 11,
+      "DUPLICATE": 4
+    },
+    "transitions": {
+      "OPEN->FULLY_CLOSED": 5,
+      "OPEN->PARTIAL": 45,
+      "PARTIAL->DUPLICATE": 4,
+      "PARTIAL->FULLY_CLOSED": 6,
+      "PARTIAL->PARTIAL": 103
+    }
   },
-  "stale_plus_duplicate": 15,
-  "moved_to_closed_or_duplicate": 15,
-  "stale_dup_reconciles": true,
-  "all_pass": true
- },
- "counts_before": {
-  "DUPLICATE": 1,
-  "FULLY_CLOSED": 260,
-  "OPEN": 291,
-  "PARTIAL": 206
- },
- "counts_after": {
-  "DUPLICATE": 5,
-  "FULLY_CLOSED": 271,
-  "OPEN": 241,
-  "PARTIAL": 241
- },
- "registry_rows": 497,
- "registry_result_counts": {
-  "PARTIAL_CONFIRMED": 150,
-  "STILL_OPEN": 288,
-  "CLAIMED": 44,
-  "STALE": 11,
-  "DUPLICATE": 4
- },
- "accepted_changes": {
-  "total": 163,
-  "by_result": {
-   "PARTIAL_CONFIRMED": 148,
-   "STALE": 11,
-   "DUPLICATE": 4
-  },
-  "transitions": {
-   "OPEN->FULLY_CLOSED": 5,
-   "OPEN->PARTIAL": 45,
-   "PARTIAL->DUPLICATE": 4,
-   "PARTIAL->FULLY_CLOSED": 6,
-   "PARTIAL->PARTIAL": 103
-  }
- },
- "gate_downgrades": [
-  {
-   "id": "PRC-L421",
-   "from": "STALE",
-   "to": "STILL_OPEN",
-   "reason": "STALE proposal contradicts merged owner disposition (PR #634); backend surface still live at tip."
-  },
-  {
-   "id": "PRC-L439",
-   "from": "STALE",
-   "to": "STILL_OPEN",
-   "reason": "STALE proposal contradicts merged owner disposition (PR #634)."
-  },
-  {
-   "id": "PRC-M211",
-   "from": "STALE",
-   "to": "PARTIAL_CONFIRMED",
-   "reason": "Acceptance not met by default configuration; live-DB half not verified. Triage itself flagged a possible downgrade."
-  }
- ],
- "csv_skipped": [
-  {
-   "id": "PRC-L563",
-   "reason": "Row has a pre-existing CSV encoding anomaly (backslash-escaped quotes; RFC 4180 parse yields 12 fields, see triage-manifest.json ledger_parse_anomalies). Rewriting its notes would re-encode the line, which the row-scoped edit rule forbids. Triage result kept (PARTIAL_CONFIRMED, already PARTIAL); CSV left unchanged."
-  }
- ],
- "not_triaged": [],
- "wave1": [
-  {
-   "branch": "fix/app-web-batch1",
-   "size": 12,
-   "ids": [
-    "PRC-L228",
-    "PRC-L240",
-    "PRC-L253",
-    "PRC-L255",
-    "PRC-L270",
-    "PRC-L413",
-    "PRC-L435",
-    "PRC-L530",
-    "PRC-M134",
-    "PRC-M144",
-    "PRC-M147",
-    "PRC-M489"
-   ]
-  },
-  {
-   "branch": "fix/ui-packages-batch1",
-   "size": 2,
-   "ids": [
-    "PRC-L447",
-    "PRC-L448"
-   ]
-  },
-  {
-   "branch": "fix/platform-services-batch1",
-   "size": 10,
-   "ids": [
-    "PRC-L099",
-    "PRC-L100",
-    "PRC-L302",
-    "PRC-L101",
-    "PRC-L333",
-    "PRC-M593",
-    "PRC-L453",
-    "PRC-L554",
-    "PRC-L164",
-    "PRC-L165"
-   ]
-  }
- ],
- "not_verified": [
-  "xlsx Fix steps / Acceptance / Needs: file absent; triage judged rows against ledger title/notes only.",
-  "Live/PG-gated suites (DATABASE_URL/REDIS_URL unset): all *.live.test.ts and PG repository paths, incl. library PG claimCopyForCheckout (PRC-M292 PG path), developer-portal migration 113 (PRC-M211), db rows from PR #650.",
-  "Flutter/Dart tests (no toolchain): mobile rows and PRC-M254.",
-  "Web/Flutter e2e, build-only gates and root check:* scripts were not run.",
-  "No test command was run during consolidation (ledger/doc-only change); no server-guard run was needed for it.",
-  "Wave 1 expected file sets are planning estimates from triage + in-flight plans; actual diffs may differ.",
-  "Why main CI is green while 27 package lint tasks fail at baseline was not investigated.",
-  "docs/audits/remediation/README.md status table (180/207/371) is stale and was not updated (out of scope)."
- ]
+  "gate_downgrades": [
+    {
+      "id": "PRC-L421",
+      "from": "STALE",
+      "to": "STILL_OPEN",
+      "reason": "STALE proposal contradicts merged owner disposition (PR #634); backend surface still live at tip."
+    },
+    {
+      "id": "PRC-L439",
+      "from": "STALE",
+      "to": "STILL_OPEN",
+      "reason": "STALE proposal contradicts merged owner disposition (PR #634)."
+    },
+    {
+      "id": "PRC-M211",
+      "from": "STALE",
+      "to": "PARTIAL_CONFIRMED",
+      "reason": "Acceptance not met by default configuration; live-DB half not verified. Triage itself flagged a possible downgrade."
+    }
+  ],
+  "csv_skipped": [
+    {
+      "id": "PRC-L563",
+      "reason": "Row has a pre-existing CSV encoding anomaly (backslash-escaped quotes; RFC 4180 parse yields 12 fields, see triage-manifest.json ledger_parse_anomalies). Rewriting its notes would re-encode the line, which the row-scoped edit rule forbids. Triage result kept (PARTIAL_CONFIRMED, already PARTIAL); CSV left unchanged."
+    }
+  ],
+  "not_triaged": [],
+  "wave1": [
+    {
+      "branch": "fix/app-web-batch1",
+      "size": 12,
+      "ids": [
+        "PRC-L228",
+        "PRC-L240",
+        "PRC-L253",
+        "PRC-L255",
+        "PRC-L270",
+        "PRC-L413",
+        "PRC-L435",
+        "PRC-L530",
+        "PRC-M134",
+        "PRC-M144",
+        "PRC-M147",
+        "PRC-M489"
+      ]
+    },
+    {
+      "branch": "fix/ui-packages-batch1",
+      "size": 2,
+      "ids": ["PRC-L447", "PRC-L448"]
+    },
+    {
+      "branch": "fix/platform-services-batch1",
+      "size": 10,
+      "ids": [
+        "PRC-L099",
+        "PRC-L100",
+        "PRC-L302",
+        "PRC-L101",
+        "PRC-L333",
+        "PRC-M593",
+        "PRC-L453",
+        "PRC-L554",
+        "PRC-L164",
+        "PRC-L165"
+      ]
+    }
+  ],
+  "not_verified": [
+    "xlsx Fix steps / Acceptance / Needs: file absent; triage judged rows against ledger title/notes only.",
+    "Live/PG-gated suites (DATABASE_URL/REDIS_URL unset): all *.live.test.ts and PG repository paths, incl. library PG claimCopyForCheckout (PRC-M292 PG path), developer-portal migration 113 (PRC-M211), db rows from PR #650.",
+    "Flutter/Dart tests (no toolchain): mobile rows and PRC-M254.",
+    "Web/Flutter e2e, build-only gates and root check:* scripts were not run.",
+    "No test command was run during consolidation (ledger/doc-only change); no server-guard run was needed for it.",
+    "Wave 1 expected file sets are planning estimates from triage + in-flight plans; actual diffs may differ.",
+    "Why main CI is green while 27 package lint tasks fail at baseline was not investigated.",
+    "docs/audits/remediation/README.md status table (180/207/371) is stale and was not updated (out of scope)."
+  ]
 }

@@ -2104,8 +2104,6 @@
       "apps/registration-portal/next-env.d.ts"
     ],
     "cause": "Next.js build (turbo ^build dependency) rewrote next-env.d.ts; restored with git checkout --",
-    "final_status_porcelain": [
-      "?? .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/"
-    ]
+    "final_status_porcelain": ["?? .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/"]
   }
 }

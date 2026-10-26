@@ -654,10 +654,7 @@
     },
     "eligibility": "ELIGIBLE_LOW",
     "boundary": null,
-    "expected_files": [
-      "apps/web/playwright.config.ts",
-      "apps/web/e2e/service-worker.spec.ts"
-    ],
+    "expected_files": ["apps/web/playwright.config.ts", "apps/web/e2e/service-worker.spec.ts"],
     "evidence": [
       {
         "file": "apps/web/src/lib/sw/sw-parity.test.ts",
@@ -1246,9 +1243,7 @@
     "proposed": null,
     "eligibility": "ELIGIBLE_LOW",
     "boundary": null,
-    "expected_files": [
-      "apps/web/src/components/gradebook/issue-transcript-form.tsx"
-    ],
+    "expected_files": ["apps/web/src/components/gradebook/issue-transcript-form.tsx"],
     "evidence": [
       {
         "file": "apps/web/src/components/gradebook/issue-transcript-form.tsx",
@@ -1580,9 +1575,7 @@
     },
     "eligibility": "ELIGIBLE_LOW",
     "boundary": null,
-    "expected_files": [
-      "apps/web/src/lib/api/dashboards.ts"
-    ],
+    "expected_files": ["apps/web/src/lib/api/dashboards.ts"],
     "evidence": [
       {
         "file": "apps/web/src/lib/api/dashboards.ts",
@@ -2029,9 +2022,7 @@
       }
     ],
     "tests_run": [],
-    "unmet_steps": [
-      "no issued board registration number field exists on the candidate record"
-    ],
+    "unmet_steps": ["no issued board registration number field exists on the candidate record"],
     "rationale": "Residual needs a backend column."
   },
   {
@@ -2885,9 +2876,7 @@
         "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/admin-console-tests.log"
       }
     ],
-    "unmet_steps": [
-      "admin-console list endpoints remain unpaginated"
-    ],
+    "unmet_steps": ["admin-console list endpoints remain unpaginated"],
     "rationale": "Residual = pagination only."
   },
   {
@@ -3081,9 +3070,7 @@
         "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-final-tests.log"
       }
     ],
-    "unmet_steps": [
-      "refund still cannot target a specific payment (no paymentId in the contract)"
-    ],
+    "unmet_steps": ["refund still cannot target a specific payment (no paymentId in the contract)"],
     "rationale": "Backend refund contract open."
   },
   {
@@ -3148,9 +3135,7 @@
         "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-auth-tests.log"
       }
     ],
-    "unmet_steps": [
-      "no tests for login, callback and mfa-verify proxies"
-    ],
+    "unmet_steps": ["no tests for login, callback and mfa-verify proxies"],
     "rationale": "Coverage improved; auth-proxy tests remain."
   },
   {
@@ -3210,9 +3195,7 @@
     },
     "eligibility": "ELIGIBLE_LOW",
     "boundary": null,
-    "expected_files": [
-      "apps/web/src/lib/api/admin.ts"
-    ],
+    "expected_files": ["apps/web/src/lib/api/admin.ts"],
     "evidence": [
       {
         "file": "apps/web/src/lib/api/admin.ts",
@@ -3260,9 +3243,7 @@
         "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/web-final-tests.log"
       }
     ],
-    "unmet_steps": [
-      "91 reads still collapse denial/outage to an empty list"
-    ],
+    "unmet_steps": ["91 reads still collapse denial/outage to an empty list"],
     "rationale": "Baseline lowered 92->91 since notes; migration remains."
   },
   {
@@ -3416,9 +3397,7 @@
         "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g1/theme-tests.log"
       }
     ],
-    "unmet_steps": [
-      "theme package is PARKED/unmounted (G-605) so rendering path is unverifiable"
-    ],
+    "unmet_steps": ["theme package is PARKED/unmounted (G-605) so rendering path is unverifiable"],
     "rationale": "Schema constraints present and tested; mount residual unchanged."
   },
   {

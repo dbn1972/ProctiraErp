@@ -8,20 +8,20 @@
 
 ## Triage result counts
 
-| Result | Count |
-|---|---|
-| STALE | 3 |
-| DUPLICATE | 0 |
-| PARTIAL_CONFIRMED | 22 |
-| STILL_OPEN | 91 |
+| Result            | Count |
+| ----------------- | ----- |
+| STALE             | 3     |
+| DUPLICATE         | 0     |
+| PARTIAL_CONFIRMED | 22    |
+| STILL_OPEN        | 91    |
 
 STALE (proposed FULLY_CLOSED, each with a targeted passing test I ran):
 
-| Id | Evidence | Test (exit) |
-|---|---|---|
-| PRC-L209 | etl-worker auth hook + verified tenant binding (`apps/etl-worker/src/server.ts:92-108`, `auth.ts:110-126`) | etl-worker `auth.test.ts` + `server.test.ts` 26/26 (0) |
-| PRC-M211 | envelope secrets 113, fan-out creates deliveries, mandatory fail-closed signing (`developer-portal-service.ts:660-673,709-740`) | developer-portal webhook suites 24/24 (0); gateway wiring 3/3 (0) |
-| PRC-L389 | e2e harness fail-closed by default (`tools/scripts/run-e2e-backend-ready.sh:24-28,59-63,124-130`) | `node --test tools/scripts/run-e2e-backend-ready.test.mjs` 6/6 (0) |
+| Id       | Evidence                                                                                                                        | Test (exit)                                                        |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| PRC-L209 | etl-worker auth hook + verified tenant binding (`apps/etl-worker/src/server.ts:92-108`, `auth.ts:110-126`)                      | etl-worker `auth.test.ts` + `server.test.ts` 26/26 (0)             |
+| PRC-M211 | envelope secrets 113, fan-out creates deliveries, mandatory fail-closed signing (`developer-portal-service.ts:660-673,709-740`) | developer-portal webhook suites 24/24 (0); gateway wiring 3/3 (0)  |
+| PRC-L389 | e2e harness fail-closed by default (`tools/scripts/run-e2e-backend-ready.sh:24-28,59-63,124-130`)                               | `node --test tools/scripts/run-e2e-backend-ready.test.mjs` 6/6 (0) |
 
 M211 caveat (also in its note): fan-out only runs when `WEBHOOK_FANOUT_EVENTS` is set, and migration 113 was not applied to a live DB. A reviewer may downgrade it to PARTIAL if acceptance needs fan-out on by default.
 
@@ -29,29 +29,29 @@ PARTIAL_CONFIRMED: 21 OPEN→PARTIAL and 1 PARTIAL with refreshed notes (L380). 
 
 ## Eligibility counts (rows staying OPEN/PARTIAL: 113)
 
-| Eligibility | Count |
-|---|---|
-| ELIGIBLE_LOW | 17 |
-| ELIGIBLE_MEDIUM | 8 |
-| SCHEMA_BATCH | 26 |
-| INFRA_BATCH | 29 |
-| BLOCKED_FOR_APPROVAL | 33 |
-| NEEDS_DECISION | 0 (no xlsx Needs column; owner-decision rows from ledger notes, e.g. M209/M623/M624/L565, are BLOCKED_FOR_APPROVAL with the boundary named) |
-| CLAIMED | 0 (no group-2 id appears in `claimed-and-decision.json`) |
+| Eligibility          | Count                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| ELIGIBLE_LOW         | 17                                                                                                                                          |
+| ELIGIBLE_MEDIUM      | 8                                                                                                                                           |
+| SCHEMA_BATCH         | 26                                                                                                                                          |
+| INFRA_BATCH          | 29                                                                                                                                          |
+| BLOCKED_FOR_APPROVAL | 33                                                                                                                                          |
+| NEEDS_DECISION       | 0 (no xlsx Needs column; owner-decision rows from ledger notes, e.g. M209/M623/M624/L565, are BLOCKED_FOR_APPROVAL with the boundary named) |
+| CLAIMED              | 0 (no group-2 id appears in `claimed-and-decision.json`)                                                                                    |
 
 ELIGIBLE_LOW: L099, L100, L101, L187, L300, L301, L302, L375, L376, L453, L461, L462, L467, L497, L554, L556, L581.
 ELIGIBLE_MEDIUM: M408, M409, M410, M419, M551, M553, M593, M614.
 
 ## Tests run
 
-| Command | Exit | Log |
-|---|---|---|
-| `pnpm -C <W> --filter @proctira/etl-worker exec vitest run src/auth.test.ts src/server.test.ts` | 0 | `logs/triage-g2/L209-etl-worker.log` |
-| `pnpm -C <W> --filter @proctira/backend-developer-portal exec vitest run src/webhook-fanout.wiring.test.ts src/webhook-signing-secrets.test.ts src/webhook-signature.test.ts src/webhook-outbox-delivery.test.ts` | 0 | `logs/triage-g2/M211-devportal.log` |
-| `pnpm -C <W> --filter @proctira/api-gateway exec vitest run src/webhook-signing-secrets-wiring.test.ts` | 0 | `logs/triage-g2/M211-gateway.log` |
-| `node --test tools/scripts/run-e2e-backend-ready.test.mjs` | 0 | `logs/triage-g2/L389-run-e2e.log` |
-| `pnpm -C <W> exec vitest run tools/scripts/__tests__/apply-sql-guards.test.ts` | 0 | `logs/triage-g2/L380-apply-sql-guards.log` |
-| `pnpm -C <W> --filter @proctira/backend-audit exec vitest run src/audit-service.test.ts` | 0 | `logs/triage-g2/L295-audit-service.log` |
+| Command                                                                                                                                                                                                           | Exit | Log                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------ |
+| `pnpm -C <W> --filter @proctira/etl-worker exec vitest run src/auth.test.ts src/server.test.ts`                                                                                                                   | 0    | `logs/triage-g2/L209-etl-worker.log`       |
+| `pnpm -C <W> --filter @proctira/backend-developer-portal exec vitest run src/webhook-fanout.wiring.test.ts src/webhook-signing-secrets.test.ts src/webhook-signature.test.ts src/webhook-outbox-delivery.test.ts` | 0    | `logs/triage-g2/M211-devportal.log`        |
+| `pnpm -C <W> --filter @proctira/api-gateway exec vitest run src/webhook-signing-secrets-wiring.test.ts`                                                                                                           | 0    | `logs/triage-g2/M211-gateway.log`          |
+| `node --test tools/scripts/run-e2e-backend-ready.test.mjs`                                                                                                                                                        | 0    | `logs/triage-g2/L389-run-e2e.log`          |
+| `pnpm -C <W> exec vitest run tools/scripts/__tests__/apply-sql-guards.test.ts`                                                                                                                                    | 0    | `logs/triage-g2/L380-apply-sql-guards.log` |
+| `pnpm -C <W> --filter @proctira/backend-audit exec vitest run src/audit-service.test.ts`                                                                                                                          | 0    | `logs/triage-g2/L295-audit-service.log`    |
 
 ## Not completed / not verified
 

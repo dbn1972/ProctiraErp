@@ -8,30 +8,30 @@ The branch names match the three Wave 1 branches the orchestrator had already cr
 - `fix/ui-packages-batch1`: has commits `3457113e` (PRC-L447) and `260ee433` (PRC-L448).
 - `fix/platform-services-batch1`: its `plan.md` has the same 10 ids as Batch C.
 
-| Batch | Branch | Findings | Severity mix | Expected files |
-|---|---|---|---|---|
-| A | `fix/app-web-batch1` | 12 | 4 medium, 8 low | 27 |
-| B | `fix/ui-packages-batch1` | 2 | 2 low | 7 |
-| C | `fix/platform-services-batch1` | 10 | 1 medium, 9 low | 36 |
+| Batch | Branch                         | Findings | Severity mix    | Expected files |
+| ----- | ------------------------------ | -------- | --------------- | -------------- |
+| A     | `fix/app-web-batch1`           | 12       | 4 medium, 8 low | 27             |
+| B     | `fix/ui-packages-batch1`       | 2        | 2 low           | 7              |
+| C     | `fix/platform-services-batch1` | 10       | 1 medium, 9 low | 36             |
 
 Batch B is well below the ~10 target, and this is driven by the evidence. Every non-closed `packages/ui/*` row (L195, L200, L201, L393, L520, L594, L596, L597, M455, M637) and the other custom-field rows (L446, L449, L450) are NEEDS_DECISION or BLOCKED_FOR_APPROVAL. Only PRC-L447 and PRC-L448 are eligible. The batch was not padded with rows from unrelated modules, because that would break the `fix/<module>-batchN` grouping rule.
 
 ## Batch A — `fix/app-web-batch1` (apps/web, split by route area)
 
-| PRC id | Sev | Area | After W0 | One-line fix |
-|---|---|---|---|---|
-| PRC-L228 | low | staff / students list pages | PARTIAL | Add component tests for `app/(dashboard)/staff/page.tsx` and `students/page.tsx`. This is the only residual: gradebook, EntitySearchSelect, import and health tests already pass. |
-| PRC-L240 | low | fees forms | PARTIAL | Add field-level errors and `aria-invalid`/`aria-describedby` to `new-fee-plan-form.tsx` and `new-invoice-form.tsx`. |
-| PRC-L253 | low | service worker | PARTIAL | Generate or share the SW route classifier instead of hand-duplicating it. Add a Playwright project that runs with service workers enabled (`playwright.config.ts:59` blocks them in every run today). |
-| PRC-L255 | low | institutions / infrastructure | OPEN | Prefill the edit-facility form, follow the selected facility, and refresh after room/facility saves. **Salvage source:** `fix/web-lows-L255` commit `05591952a` (4 files, not on main). Re-apply it against tip. |
-| PRC-L270 | low | scholarships / documents | PARTIAL | Make Preview open inline instead of calling the same `download()` (`application-documents-panel.tsx:150-160`). Add a confirmation to Remove (`document-upload-slots.tsx:158-166`). The i18n part follows DECISION_REGISTER §4 and is not in this batch. |
-| PRC-L413 | low | dev scripts | PARTIAL | Read the HMAC dev secret from env only, with no hard-coded default (`scripts/capture-institutions-timetable.mjs:49`). Stop the mock gateway from answering 200 to every write. |
-| PRC-L435 | low | scholarships / disbursements | PARTIAL | Format the paid date in the tenant timezone using the existing `resolveTenantTimezone` (`page.tsx:74-82`). Add a payment-reference column. |
-| PRC-L530 | low | gradebook / transcript | OPEN | Delete the unreferenced `issue-transcript-form.tsx`, which takes a pasted ID and has no confirmation (D6 allows removing unreachable code). The live IssueTranscriptByName path is not touched. |
-| PRC-M134 | medium | lib/api gateway proxy | PARTIAL | Stream request and response bodies through a byte counter instead of `arrayBuffer()` (`gateway-proxy.ts:81,105`), keeping the existing cap. |
-| PRC-M144 | medium | lib/api admin | PARTIAL | Delete the dead PATCH client `updateTenantGeneralSettings` (`lib/api/admin.ts:578-587`, zero callers). |
-| PRC-M147 | medium | lib/api dashboards | PARTIAL | Remove the unreachable fabricated enrollment score and browser-local `formatClock` from `lib/api/dashboards.ts` (:668, :756-770). |
-| PRC-M489 | medium | lib/api tests | PARTIAL | Add unit suites for `lib/api/examinations.ts`, `admin.server.ts` and `health.ts`. Gateway auth-fallback is already covered. |
+| PRC id   | Sev    | Area                          | After W0 | One-line fix                                                                                                                                                                                                                                            |
+| -------- | ------ | ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRC-L228 | low    | staff / students list pages   | PARTIAL  | Add component tests for `app/(dashboard)/staff/page.tsx` and `students/page.tsx`. This is the only residual: gradebook, EntitySearchSelect, import and health tests already pass.                                                                       |
+| PRC-L240 | low    | fees forms                    | PARTIAL  | Add field-level errors and `aria-invalid`/`aria-describedby` to `new-fee-plan-form.tsx` and `new-invoice-form.tsx`.                                                                                                                                     |
+| PRC-L253 | low    | service worker                | PARTIAL  | Generate or share the SW route classifier instead of hand-duplicating it. Add a Playwright project that runs with service workers enabled (`playwright.config.ts:59` blocks them in every run today).                                                   |
+| PRC-L255 | low    | institutions / infrastructure | OPEN     | Prefill the edit-facility form, follow the selected facility, and refresh after room/facility saves. **Salvage source:** `fix/web-lows-L255` commit `05591952a` (4 files, not on main). Re-apply it against tip.                                        |
+| PRC-L270 | low    | scholarships / documents      | PARTIAL  | Make Preview open inline instead of calling the same `download()` (`application-documents-panel.tsx:150-160`). Add a confirmation to Remove (`document-upload-slots.tsx:158-166`). The i18n part follows DECISION_REGISTER §4 and is not in this batch. |
+| PRC-L413 | low    | dev scripts                   | PARTIAL  | Read the HMAC dev secret from env only, with no hard-coded default (`scripts/capture-institutions-timetable.mjs:49`). Stop the mock gateway from answering 200 to every write.                                                                          |
+| PRC-L435 | low    | scholarships / disbursements  | PARTIAL  | Format the paid date in the tenant timezone using the existing `resolveTenantTimezone` (`page.tsx:74-82`). Add a payment-reference column.                                                                                                              |
+| PRC-L530 | low    | gradebook / transcript        | OPEN     | Delete the unreferenced `issue-transcript-form.tsx`, which takes a pasted ID and has no confirmation (D6 allows removing unreachable code). The live IssueTranscriptByName path is not touched.                                                         |
+| PRC-M134 | medium | lib/api gateway proxy         | PARTIAL  | Stream request and response bodies through a byte counter instead of `arrayBuffer()` (`gateway-proxy.ts:81,105`), keeping the existing cap.                                                                                                             |
+| PRC-M144 | medium | lib/api admin                 | PARTIAL  | Delete the dead PATCH client `updateTenantGeneralSettings` (`lib/api/admin.ts:578-587`, zero callers).                                                                                                                                                  |
+| PRC-M147 | medium | lib/api dashboards            | PARTIAL  | Remove the unreachable fabricated enrollment score and browser-local `formatClock` from `lib/api/dashboards.ts` (:668, :756-770).                                                                                                                       |
+| PRC-M489 | medium | lib/api tests                 | PARTIAL  | Add unit suites for `lib/api/examinations.ts`, `admin.server.ts` and `health.ts`. Gateway auth-fallback is already covered.                                                                                                                             |
 
 Expected files:
 
@@ -57,10 +57,10 @@ Notes:
 
 ## Batch B — `fix/ui-packages-batch1` (custom-field; ui-* rows ineligible)
 
-| PRC id | Sev | Module | After W0 | One-line fix |
-|---|---|---|---|---|
-| PRC-L447 | low | custom-field | OPEN | Validate the definitions list query: coerce `isActive` to a boolean and reject `page`/`pageSize` outside 1..100 with the standard 400 envelope. |
-| PRC-L448 | low | custom-field | OPEN | Reject impossible calendar dates. Re-check the dropdown-must-have-options rule on update. Replace-vs-merge of `validationRules` is an owner API decision and stays a residual. |
+| PRC id   | Sev | Module       | After W0 | One-line fix                                                                                                                                                                   |
+| -------- | --- | ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PRC-L447 | low | custom-field | OPEN     | Validate the definitions list query: coerce `isActive` to a boolean and reject `page`/`pageSize` outside 1..100 with the standard 400 envelope.                                |
+| PRC-L448 | low | custom-field | OPEN     | Reject impossible calendar dates. Re-check the dropdown-must-have-options rule on update. Replace-vs-merge of `validationRules` is an owner API decision and stays a residual. |
 
 Expected files:
 
@@ -73,18 +73,18 @@ PRC-L513 (ui-data-grid) was closed STALE in Wave 0, so the batch does not need t
 
 ## Batch C — `fix/platform-services-batch1` (etl, data-warehouse, notification, survey)
 
-| PRC id | Sev | Module | After W0 | One-line fix |
-|---|---|---|---|---|
-| PRC-L099 | low | etl | OPEN | Apply `PipelineListQuerySchema` with coercion to both list handlers: boolean `enabled`, and `page`/`pageSize` capped at 1..100. |
-| PRC-L100 | low | etl | OPEN | Validate `:pipelineId` and return 404 when the execution belongs to a different pipeline. |
-| PRC-L302 | low | etl | OPEN | Emit one audit event per successful pipeline create, update, delete and execute through an injectable sink. Durable gateway sink injection is a residual (expect PARTIAL). |
-| PRC-L101 | low | etl | PARTIAL | Add authz and cross-tenant repository tests (connector SSRF/LFI tests already exist). |
-| PRC-L333 | low | notification | OPEN | Derive delivery capabilities from env instead of a hard-coded sandbox, and fix the retry off-by-one against the configured maximum. |
-| PRC-M593 | medium | data-warehouse | OPEN | Fail closed when time-period labels are unknown, so an empty filter no longer returns everything. |
-| PRC-L453 | low | data-warehouse | OPEN | Guard or cascade `deleteWarehouse` across indicators, records, GIS layers and translations. |
-| PRC-L554 | low | data-warehouse | OPEN | Validate translation language codes and field names, include empty strings in the unique key, and link translation deletes to entity deletes. |
-| PRC-L164 | low | survey | OPEN | Enforce `validation.pattern` through a safe-regex guard, validate table/repeater cells, and honour `minLength: 0`. |
-| PRC-L165 | low | survey | OPEN | Make submit plus distribution update, and reminder publish plus count, atomic at the repository level. |
+| PRC id   | Sev    | Module         | After W0 | One-line fix                                                                                                                                                               |
+| -------- | ------ | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRC-L099 | low    | etl            | OPEN     | Apply `PipelineListQuerySchema` with coercion to both list handlers: boolean `enabled`, and `page`/`pageSize` capped at 1..100.                                            |
+| PRC-L100 | low    | etl            | OPEN     | Validate `:pipelineId` and return 404 when the execution belongs to a different pipeline.                                                                                  |
+| PRC-L302 | low    | etl            | OPEN     | Emit one audit event per successful pipeline create, update, delete and execute through an injectable sink. Durable gateway sink injection is a residual (expect PARTIAL). |
+| PRC-L101 | low    | etl            | PARTIAL  | Add authz and cross-tenant repository tests (connector SSRF/LFI tests already exist).                                                                                      |
+| PRC-L333 | low    | notification   | OPEN     | Derive delivery capabilities from env instead of a hard-coded sandbox, and fix the retry off-by-one against the configured maximum.                                        |
+| PRC-M593 | medium | data-warehouse | OPEN     | Fail closed when time-period labels are unknown, so an empty filter no longer returns everything.                                                                          |
+| PRC-L453 | low    | data-warehouse | OPEN     | Guard or cascade `deleteWarehouse` across indicators, records, GIS layers and translations.                                                                                |
+| PRC-L554 | low    | data-warehouse | OPEN     | Validate translation language codes and field names, include empty strings in the unique key, and link translation deletes to entity deletes.                              |
+| PRC-L164 | low    | survey         | OPEN     | Enforce `validation.pattern` through a safe-regex guard, validate table/repeater cells, and honour `minLength: 0`.                                                         |
+| PRC-L165 | low    | survey         | OPEN     | Make submit plus distribution update, and reminder publish plus count, atomic at the repository level.                                                                     |
 
 Expected files:
 

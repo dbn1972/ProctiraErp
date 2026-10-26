@@ -103,9 +103,7 @@
       "acceptance": null,
       "needs": null,
       "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "claim_all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ]
+      "claim_all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"]
     },
     {
       "id": "PRC-L237",
@@ -137,9 +135,7 @@
       "acceptance": null,
       "needs": null,
       "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "claim_all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ]
+      "claim_all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"]
     },
     {
       "id": "PRC-L321",
@@ -262,9 +258,7 @@
       "acceptance": null,
       "needs": null,
       "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "claim_all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ]
+      "claim_all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"]
     },
     {
       "id": "PRC-L391",
@@ -279,9 +273,7 @@
       "acceptance": null,
       "needs": null,
       "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "claim_all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ]
+      "claim_all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"]
     },
     {
       "id": "PRC-L476",
@@ -368,9 +360,7 @@
       "acceptance": null,
       "needs": null,
       "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "claim_all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ]
+      "claim_all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"]
     },
     {
       "id": "PRC-M182",
@@ -402,9 +392,7 @@
       "acceptance": null,
       "needs": null,
       "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "claim_all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ]
+      "claim_all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"]
     },
     {
       "id": "PRC-M262",
@@ -634,9 +622,7 @@
       "acceptance": null,
       "needs": null,
       "claim_source": "PR#633 fix/audit-role-catalogue-d2 (commit)",
-      "claim_all_sources": [
-        "PR#633 fix/audit-role-catalogue-d2 (commit)"
-      ]
+      "claim_all_sources": ["PR#633 fix/audit-role-catalogue-d2 (commit)"]
     },
     {
       "id": "PRC-M525",
