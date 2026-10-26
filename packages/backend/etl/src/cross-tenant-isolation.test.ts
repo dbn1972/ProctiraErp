@@ -97,6 +97,22 @@ describe('InMemoryPipelineRepository cross-tenant isolation (PRC-L101)', () => {
     expect(await repo.listExecutions('pipe-a', TENANT_B, 1, 50)).toEqual({ data: [], total: 0 });
     expect((await repo.listExecutions('pipe-a', TENANT_A, 1, 50)).total).toBe(1);
   });
+
+  it("updateExecution refuses another tenant's execution and leaves it intact", async () => {
+    const run: PipelineExecution = {
+      ...executionRow('exec-idle', 'pipe-a', TENANT_A),
+      status: 'running',
+      completedAt: null,
+    };
+    expect(await repo.createExecutionIfIdle(run, new Date(0))).toBe(true);
+    await expect(
+      repo.updateExecution('exec-idle', { tenantId: TENANT_B, status: 'failed' }),
+    ).rejects.toThrow(/Execution not found: exec-idle/);
+    const own = await repo.getExecution('exec-idle', TENANT_A);
+    expect(own?.tenantId).toBe(TENANT_A);
+    expect(own?.status).toBe('running');
+    expect(await repo.getExecution('exec-idle', TENANT_B)).toBeNull();
+  });
 });
 
 describe('ETL routes cross-tenant isolation (PRC-L101)', () => {
