@@ -1,0 +1,2109 @@
+{
+  "sha": "4c7fb8fec961b49a8a7b70c05d22ebe30ad18e20",
+  "branch": "docs/ledger-triage-wave0",
+  "node": "v20.20.2",
+  "pnpm": "10.33.2",
+  "environment": {
+    "DATABASE_URL": "unset",
+    "REDIS_URL": "unset",
+    "CI": "unset",
+    "note": "Live/PG-backed tests self-skip without DATABASE_URL/REDIS_URL; skip counts recorded per package under test.vitest."
+  },
+  "server_guard": [
+    {
+      "when": "2026-10-25T08:54:13+00:00",
+      "before": "install",
+      "exit_code": 0,
+      "output_log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-install.out"
+    },
+    {
+      "when": "2026-10-25T08:54:28+00:00",
+      "before": "typecheck",
+      "exit_code": 0,
+      "output_log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-typecheck.out"
+    },
+    {
+      "when": "2026-10-25T08:57:36+00:00",
+      "before": "lint",
+      "exit_code": 0,
+      "output_log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-lint.out"
+    },
+    {
+      "when": "2026-10-25T09:01:30+00:00",
+      "before": "test",
+      "exit_code": 0,
+      "output_log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/guard-test.out"
+    }
+  ],
+  "commands": [
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 install --frozen-lockfile",
+      "exit_code": 0,
+      "log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/install.log",
+      "duration_s": 6
+    },
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run typecheck --continue --concurrency=3 --summarize",
+      "exit_code": 0,
+      "log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/typecheck.log",
+      "duration_s": 173
+    },
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run lint --continue --concurrency=3 --summarize",
+      "exit_code": 1,
+      "log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/lint.log",
+      "duration_s": 208
+    },
+    {
+      "command": "pnpm -C /home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0 exec turbo run test --continue --concurrency=2 --summarize",
+      "exit_code": 0,
+      "log": "/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/.agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/baseline/test.log",
+      "duration_s": 277
+    }
+  ],
+  "totals": {
+    "typecheck": {
+      "PASS": 82,
+      "NO_SCRIPT": 1
+    },
+    "lint": {
+      "PASS": 53,
+      "FAIL": 27,
+      "NO_SCRIPT": 3
+    },
+    "test": {
+      "PASS": 83
+    }
+  },
+  "packages": [
+    {
+      "name": "@proctira/admin-console",
+      "path": "apps/admin-console",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  101 passed (101)"
+      }
+    },
+    {
+      "name": "@proctira/api-gateway",
+      "path": "apps/api-gateway",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "apps/api-gateway/src/tenant-plan-quotas.ts",
+        "first_error": "12:24  error  \"free\" is overridden by string in this union type  @typescript-eslint/no-redundant-type-constituents",
+        "totals": "60 problems (5 errors, 55 warnings)",
+        "error_rules": {
+          "@typescript-eslint/no-redundant-type-constituents": 5
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  821 passed | 9 skipped (830)"
+      }
+    },
+    {
+      "name": "@proctira/developer-portal",
+      "path": "apps/developer-portal",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  15 passed (15)"
+      }
+    },
+    {
+      "name": "@proctira/etl-worker",
+      "path": "apps/etl-worker",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  27 passed (27)"
+      }
+    },
+    {
+      "name": "@proctira/install-wizard",
+      "path": "apps/install-wizard",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  47 passed (47)"
+      }
+    },
+    {
+      "name": "@proctira/public-website",
+      "path": "apps/public-website",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  60 passed (60)"
+      }
+    },
+    {
+      "name": "@proctira/registration-portal",
+      "path": "apps/registration-portal",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  78 passed (78)"
+      }
+    },
+    {
+      "name": "@proctira/web",
+      "path": "apps/web",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  2262 passed (2262)"
+      }
+    },
+    {
+      "name": "@proctira/backend-admin-dashboard",
+      "path": "packages/backend/admin-dashboard",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/admin-dashboard/src/admin-dashboard-plugin.ts",
+        "first_error": "7:1  error  `fastify` type import should occur before import of `fastify-plugin`  import/order",
+        "totals": "2 problems (1 error, 1 warning)",
+        "error_rules": {
+          "import/order": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  25 passed (25)"
+      }
+    },
+    {
+      "name": "@proctira/backend-assessment",
+      "path": "packages/backend/assessment",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/assessment/src/routes.ts",
+        "first_error": "27:1  error  There should be no empty line within import group  import/order",
+        "totals": "72 problems (3 errors, 69 warnings)",
+        "error_rules": {
+          "import/order": 2,
+          "@typescript-eslint/no-unused-vars": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  179 passed | 4 skipped (183)"
+      }
+    },
+    {
+      "name": "@proctira/backend-attendance",
+      "path": "packages/backend/attendance",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/attendance/src/ops-routes.ts",
+        "first_error": "22:1  error  There should be no empty line within import group  import/order",
+        "totals": "46 problems (2 errors, 44 warnings)",
+        "error_rules": {
+          "import/order": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  167 passed | 14 skipped (181)"
+      }
+    },
+    {
+      "name": "@proctira/backend-audit",
+      "path": "packages/backend/audit",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  77 passed | 11 skipped (88)"
+      }
+    },
+    {
+      "name": "@proctira/backend-auth",
+      "path": "packages/backend/auth",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/auth/src/external-providers/provider-registry.ts",
+        "first_error": "7:37  error  'ExternalProviderConfig' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars",
+        "totals": "56 problems (2 errors, 54 warnings)",
+        "error_rules": {
+          "@typescript-eslint/no-unused-vars": 1,
+          "import/order": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  330 passed | 18 skipped (348)"
+      }
+    },
+    {
+      "name": "@proctira/backend-billing",
+      "path": "packages/backend/billing",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/billing/src/entitlement-middleware.ts",
+        "first_error": "228:12  error  Promise-returning function provided to return value where a void return was expected  @typescript-eslint/no-misused-promises",
+        "totals": "48 problems (3 errors, 45 warnings)",
+        "error_rules": {
+          "@typescript-eslint/no-misused-promises": 3
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  123 passed | 1 skipped (124)"
+      }
+    },
+    {
+      "name": "@proctira/backend-communication",
+      "path": "packages/backend/communication",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  70 passed | 2 skipped (72)"
+      }
+    },
+    {
+      "name": "@proctira/backend-curriculum",
+      "path": "packages/backend/curriculum",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  12 passed (12)"
+      }
+    },
+    {
+      "name": "@proctira/backend-custom-field",
+      "path": "packages/backend/custom-field",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/custom-field/src/custom-field-service.ts",
+        "first_error": "28:1  error  `./custom-field-validator.js` import should occur before type import of `./schemas.js`  import/order",
+        "totals": "33 problems (8 errors, 25 warnings)",
+        "error_rules": {
+          "import/order": 2,
+          "@typescript-eslint/no-unused-vars": 5,
+          "@typescript-eslint/no-unnecessary-type-assertion": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  77 passed (77)"
+      }
+    },
+    {
+      "name": "@proctira/backend-dashboards",
+      "path": "packages/backend/dashboards",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  32 passed (32)"
+      }
+    },
+    {
+      "name": "@proctira/backend-data-warehouse",
+      "path": "packages/backend/data-warehouse",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  122 passed (122)"
+      }
+    },
+    {
+      "name": "@proctira/backend-developer-portal",
+      "path": "packages/backend/developer-portal",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/developer-portal/src/create-developer-portal-repository.ts",
+        "first_error": "12:1  error  `./developer-portal-repository.js` type import should occur before import of `./hybrid-repository.js`  import/order",
+        "totals": "77 problems (1 error, 76 warnings)",
+        "error_rules": {
+          "import/order": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  138 passed | 5 skipped (143)"
+      }
+    },
+    {
+      "name": "@proctira/backend-etl",
+      "path": "packages/backend/etl",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  267 passed (267)"
+      }
+    },
+    {
+      "name": "@proctira/backend-examination",
+      "path": "packages/backend/examination",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/examination/src/document-task-queue-factory.ts",
+        "first_error": "10:35  error  '/home/ec2-user/ProctiraErp/.agents/worktrees/ledger-triage-wave0/packages/shared/queue-abstraction/src/index.ts' imported multiple times  import/no-duplicates",
+        "totals": "80 problems (5 errors, 75 warnings)",
+        "error_rules": {
+          "import/no-duplicates": 2,
+          "import/order": 3
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  250 passed | 14 skipped (264)"
+      }
+    },
+    {
+      "name": "@proctira/backend-fees",
+      "path": "packages/backend/fees",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  156 passed | 16 skipped (172)"
+      }
+    },
+    {
+      "name": "@proctira/backend-gradebook",
+      "path": "packages/backend/gradebook",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  117 passed | 13 skipped (130)"
+      }
+    },
+    {
+      "name": "@proctira/backend-health",
+      "path": "packages/backend/health",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  202 passed | 7 skipped (209)"
+      }
+    },
+    {
+      "name": "@proctira/backend-hostel",
+      "path": "packages/backend/hostel",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  32 passed | 2 skipped (34)"
+      }
+    },
+    {
+      "name": "@proctira/backend-install",
+      "path": "packages/backend/install",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  50 passed (50)"
+      }
+    },
+    {
+      "name": "@proctira/backend-institution",
+      "path": "packages/backend/institution",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/institution/src/area-hierarchy/area-hierarchy.routes.ts",
+        "first_error": "18:1  error  All imports in the declaration are only used as types. Use `import type`  @typescript-eslint/consistent-type-imports",
+        "totals": "87 problems (7 errors, 80 warnings)",
+        "error_rules": {
+          "@typescript-eslint/consistent-type-imports": 1,
+          "import/order": 2,
+          "@typescript-eslint/no-unused-vars": 2,
+          "@typescript-eslint/no-unnecessary-type-assertion": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  365 passed | 12 skipped (377)"
+      }
+    },
+    {
+      "name": "@proctira/backend-library",
+      "path": "packages/backend/library",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  53 passed | 1 skipped (54)"
+      }
+    },
+    {
+      "name": "@proctira/backend-lms",
+      "path": "packages/backend/lms",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  68 passed | 1 skipped (69)"
+      }
+    },
+    {
+      "name": "@proctira/backend-notification",
+      "path": "packages/backend/notification",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  195 passed | 1 skipped (196)"
+      }
+    },
+    {
+      "name": "@proctira/backend-parent-portal",
+      "path": "packages/backend/parent-portal",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  79 passed | 5 skipped (84)"
+      }
+    },
+    {
+      "name": "@proctira/backend-plugin",
+      "path": "packages/backend/plugin",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/plugin/src/extension-points/extension-point-registry.ts",
+        "first_error": "14:1  error  `@proctira/common` import should occur before import of `uuid`  import/order",
+        "totals": "41 problems (12 errors, 29 warnings)",
+        "error_rules": {
+          "import/order": 6,
+          "@typescript-eslint/no-unused-vars": 3,
+          "@typescript-eslint/no-unnecessary-type-assertion": 1,
+          "@typescript-eslint/no-misused-promises": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  123 passed (123)"
+      }
+    },
+    {
+      "name": "@proctira/backend-policy",
+      "path": "packages/backend/policy",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/policy/src/in-memory-repository.ts",
+        "first_error": "7:1  error  There should be at least one empty line between import groups  import/order",
+        "totals": "32 problems (4 errors, 28 warnings)",
+        "error_rules": {
+          "import/order": 2,
+          "@typescript-eslint/no-unused-vars": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  64 passed (64)"
+      }
+    },
+    {
+      "name": "@proctira/backend-privacy",
+      "path": "packages/backend/privacy",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/privacy/src/create-privacy-repository.ts",
+        "first_error": "11:1  error  `./pg-privacy-repository.js` import should occur before type import of `./privacy-repository.js`  import/order",
+        "totals": "36 problems (1 error, 35 warnings)",
+        "error_rules": {
+          "import/order": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  149 passed | 8 skipped (157)"
+      }
+    },
+    {
+      "name": "@proctira/backend-providers",
+      "path": "packages/backend/providers",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "NO_SCRIPT",
+        "exit_code": null
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  6 passed (6)"
+      }
+    },
+    {
+      "name": "@proctira/backend-registration",
+      "path": "packages/backend/registration",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  187 passed | 5 skipped (192)"
+      }
+    },
+    {
+      "name": "@proctira/backend-report",
+      "path": "packages/backend/report",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  111 passed (111)"
+      }
+    },
+    {
+      "name": "@proctira/backend-scholarship",
+      "path": "packages/backend/scholarship",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  155 passed | 8 skipped (163)"
+      }
+    },
+    {
+      "name": "@proctira/backend-staff",
+      "path": "packages/backend/staff",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  814 passed | 12 skipped (826)"
+      }
+    },
+    {
+      "name": "@proctira/backend-student",
+      "path": "packages/backend/student",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/student/src/audit/audit-service.ts",
+        "first_error": "16:1  error  `./types.js` type import should occur after type import of `./diff.js`  import/order",
+        "totals": "91 problems (2 errors, 89 warnings)",
+        "error_rules": {
+          "import/order": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  392 passed | 5 skipped (397)"
+      }
+    },
+    {
+      "name": "@proctira/backend-survey",
+      "path": "packages/backend/survey",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/survey/src/survey-plugin.ts",
+        "first_error": "20:1  error  `./routes.js` import should occur before type import of `./survey-repository.js`  import/order",
+        "totals": "29 problems (1 error, 28 warnings)",
+        "error_rules": {
+          "import/order": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  41 passed (41)"
+      }
+    },
+    {
+      "name": "@proctira/backend-tenant",
+      "path": "packages/backend/tenant",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  267 passed | 24 skipped (291)"
+      }
+    },
+    {
+      "name": "@proctira/backend-theme",
+      "path": "packages/backend/theme",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/theme/src/theme-plugin.ts",
+        "first_error": "12:1  error  `./routes.js` import should occur before type import of `./theme-repository.js`  import/order",
+        "totals": "24 problems (1 error, 23 warnings)",
+        "error_rules": {
+          "import/order": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  95 passed (95)"
+      }
+    },
+    {
+      "name": "@proctira/backend-timetable",
+      "path": "packages/backend/timetable",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  178 passed | 12 skipped (190)"
+      }
+    },
+    {
+      "name": "@proctira/backend-transport",
+      "path": "packages/backend/transport",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  76 passed | 2 skipped (78)"
+      }
+    },
+    {
+      "name": "@proctira/backend-workflow",
+      "path": "packages/backend/workflow",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/backend/workflow/src/escalation-service.ts",
+        "first_error": "13:1  error  `@proctira/events` type import should occur before import of `uuid`  import/order",
+        "totals": "50 problems (4 errors, 46 warnings)",
+        "error_rules": {
+          "import/order": 2,
+          "@typescript-eslint/no-unused-vars": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  148 passed | 3 skipped (151)"
+      }
+    },
+    {
+      "name": "eslint-plugin-proctira",
+      "path": "packages/eslint-plugin-openemis",
+      "typecheck": {
+        "status": "NO_SCRIPT",
+        "exit_code": null
+      },
+      "lint": {
+        "status": "NO_SCRIPT",
+        "exit_code": null
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      }
+    },
+    {
+      "name": "@proctira/auth",
+      "path": "packages/shared/auth",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/shared/auth/src/rbac.ts",
+        "first_error": "14:25  error  'RoleAssignment' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars",
+        "totals": "3 problems (1 error, 2 warnings)",
+        "error_rules": {
+          "@typescript-eslint/no-unused-vars": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  91 passed (91)"
+      }
+    },
+    {
+      "name": "@proctira/cache",
+      "path": "packages/shared/cache",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  37 passed (37)"
+      }
+    },
+    {
+      "name": "@proctira/cdn",
+      "path": "packages/shared/cdn",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/shared/cdn/src/adapters/cloudfront.ts",
+        "first_error": "41:11  error  'invalidationPaths' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+        "totals": "2 problems (2 errors, 0 warnings)",
+        "error_rules": {
+          "@typescript-eslint/no-unused-vars": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  46 passed (46)"
+      }
+    },
+    {
+      "name": "@proctira/common",
+      "path": "packages/shared/common",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  122 passed (122)"
+      }
+    },
+    {
+      "name": "@proctira/database",
+      "path": "packages/shared/database",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  92 passed | 59 skipped (151)"
+      }
+    },
+    {
+      "name": "@proctira/events",
+      "path": "packages/shared/events",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  62 passed (62)"
+      }
+    },
+    {
+      "name": "@proctira/i18n",
+      "path": "packages/shared/i18n",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  69 passed (69)"
+      }
+    },
+    {
+      "name": "@proctira/logging",
+      "path": "packages/shared/logging",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  34 passed (34)"
+      }
+    },
+    {
+      "name": "@proctira/observability",
+      "path": "packages/shared/observability",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  296 passed (296)"
+      }
+    },
+    {
+      "name": "@proctira/pdf-lite",
+      "path": "packages/shared/pdf-lite",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  7 passed (7)"
+      }
+    },
+    {
+      "name": "@proctira/queue-abstraction",
+      "path": "packages/shared/queue-abstraction",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  161 passed | 16 skipped (177)"
+      }
+    },
+    {
+      "name": "@proctira/search-index",
+      "path": "packages/shared/search-index",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  17 passed (17)"
+      }
+    },
+    {
+      "name": "@proctira/secrets",
+      "path": "packages/shared/secrets",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/shared/secrets/src/factory.ts",
+        "first_error": "8:1  error  `./types.js` type import should occur after import of `./adapters/vault-adapter.js`  import/order",
+        "totals": "6 problems (3 errors, 3 warnings)",
+        "error_rules": {
+          "import/order": 3
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  80 passed (80)"
+      }
+    },
+    {
+      "name": "@proctira/storage",
+      "path": "packages/shared/storage",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/shared/storage/src/factory.ts",
+        "first_error": "7:1  error  `./adapters/s3-adapter.js` import should occur before type import of `./types.js`  import/order",
+        "totals": "2 problems (2 errors, 0 warnings)",
+        "error_rules": {
+          "import/order": 2
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  82 passed (82)"
+      }
+    },
+    {
+      "name": "@proctira/tenant",
+      "path": "packages/shared/tenant",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  102 passed | 2 skipped (104)"
+      }
+    },
+    {
+      "name": "@proctira/testing",
+      "path": "packages/shared/testing",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  55 passed (55)"
+      }
+    },
+    {
+      "name": "@proctira/validation",
+      "path": "packages/shared/validation",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  88 passed (88)"
+      }
+    },
+    {
+      "name": "@proctira/ui-area-picker",
+      "path": "packages/ui/area-picker",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  16 passed (16)"
+      }
+    },
+    {
+      "name": "@proctira/ui-bulk-import",
+      "path": "packages/ui/bulk-import",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  14 passed (14)"
+      }
+    },
+    {
+      "name": "@proctira/ui-components",
+      "path": "packages/ui/components",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/ui/components/src/Accordion.tsx",
+        "first_error": "3:1  error  `react` import should occur after import of `lucide-react`  import/order",
+        "totals": "23 problems (17 errors, 6 warnings)",
+        "error_rules": {
+          "import/order": 17
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  160 passed (160)"
+      }
+    },
+    {
+      "name": "@proctira/ui-dashboards",
+      "path": "packages/ui/dashboards",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "packages/ui/dashboards/src/DashboardSection.tsx",
+        "first_error": "23:1  error  There should be no empty line within import group  import/order",
+        "totals": "18 problems (18 errors, 0 warnings)",
+        "error_rules": {
+          "import/order": 17,
+          "@typescript-eslint/no-unsafe-member-access": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  90 passed (90)"
+      }
+    },
+    {
+      "name": "@proctira/ui-data-grid",
+      "path": "packages/ui/data-grid",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  29 passed (29)"
+      }
+    },
+    {
+      "name": "@proctira/ui-file-upload",
+      "path": "packages/ui/file-upload",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  16 passed (16)"
+      }
+    },
+    {
+      "name": "@proctira/ui-form-builder",
+      "path": "packages/ui/form-builder",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  29 passed (29)"
+      }
+    },
+    {
+      "name": "@proctira/ui-language-switcher",
+      "path": "packages/ui/language-switcher",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  19 passed (19)"
+      }
+    },
+    {
+      "name": "@proctira/ui-motion-gate",
+      "path": "packages/ui/motion-gate",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  18 passed (18)"
+      }
+    },
+    {
+      "name": "@proctira/ui-notification-bell",
+      "path": "packages/ui/notification-bell",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  17 passed (17)"
+      }
+    },
+    {
+      "name": "@proctira/plugin-sdk",
+      "path": "plugins/plugin-sdk",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "plugins/plugin-sdk/src/core/define-hook.ts",
+        "first_error": "7:15  error  'HookContext' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars",
+        "totals": "63 problems (25 errors, 38 warnings)",
+        "error_rules": {
+          "@typescript-eslint/no-unused-vars": 13,
+          "import/order": 10,
+          "@typescript-eslint/no-misused-promises": 1,
+          "@typescript-eslint/restrict-template-expressions": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  46 passed (46)"
+      }
+    },
+    {
+      "name": "@proctira/default-theme",
+      "path": "themes/default-theme",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "themes/default-theme/src/index.ts",
+        "first_error": "27:1  error  `./dark.js` import should occur before import of `./light.js`  import/order",
+        "totals": "1 problem (1 error, 0 warnings)",
+        "error_rules": {
+          "import/order": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  19 passed (19)"
+      }
+    },
+    {
+      "name": "@proctira/theme-sdk",
+      "path": "themes/theme-sdk",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "themes/theme-sdk/src/preview.ts",
+        "first_error": "16:28  error  'ThemeAssets' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars",
+        "totals": "1 problem (1 error, 0 warnings)",
+        "error_rules": {
+          "@typescript-eslint/no-unused-vars": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  38 passed (38)"
+      }
+    },
+    {
+      "name": "@proctira/dod-checks",
+      "path": "tools/dod-checks",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      }
+    },
+    {
+      "name": "@proctira/install-cli",
+      "path": "tools/install-cli",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "FAIL",
+        "exit_code": 1,
+        "cache": "MISS",
+        "first_error_file": "tools/install-cli/src/commands/validate.ts",
+        "first_error": "17:10  error  'execSync' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars",
+        "totals": "2 problems (1 error, 1 warning)",
+        "error_rules": {
+          "@typescript-eslint/no-unused-vars": 1
+        }
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  53 passed (53)"
+      }
+    },
+    {
+      "name": "@proctira/migrations",
+      "path": "tools/migrations",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "NO_SCRIPT",
+        "exit_code": null
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  137 passed (137)"
+      }
+    },
+    {
+      "name": "@proctira/tenant-isolation-tests",
+      "path": "tools/tenant-isolation-tests",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  132 passed | 7 skipped (139)"
+      }
+    },
+    {
+      "name": "@proctira/exam-document-worker",
+      "path": "workers/exam-document",
+      "typecheck": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "lint": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS"
+      },
+      "test": {
+        "status": "PASS",
+        "exit_code": 0,
+        "cache": "MISS",
+        "vitest": "Tests  15 passed (15)"
+      }
+    }
+  ],
+  "open_prs": [
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/minor-and-patch-4e7cbf8079",
+      "mergeable": "MERGEABLE",
+      "number": 660,
+      "title": "chore(deps)(deps): Bump the minor-and-patch group across 1 directory with 41 updates",
+      "updatedAt": "2026-10-25T08:51:49Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/nextjs-03556a4c12",
+      "mergeable": "MERGEABLE",
+      "number": 656,
+      "title": "chore(deps)(deps-dev): Bump eslint-config-next from 15.5.28 to 16.4.2 in the nextjs group across 1 directory",
+      "updatedAt": "2026-10-25T08:51:48Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "fix/audit-institution-batch",
+      "mergeable": "CONFLICTING",
+      "number": 654,
+      "title": "fix(institution): close 22 audit-gap findings (PRC-L/M batch)",
+      "updatedAt": "2026-10-25T08:14:55Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/pub/apps/mobile/multi-4f78aef6ff",
+      "mergeable": "UNKNOWN",
+      "number": 645,
+      "title": "chore(mobile): Bump firebase_messaging and firebase_core in /apps/mobile",
+      "updatedAt": "2026-10-19T05:40:32Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/pub/apps/mobile/pub-minor-and-patch-a161f68698",
+      "mergeable": "UNKNOWN",
+      "number": 644,
+      "title": "chore(mobile): Bump go_router from 18.0.2 to 18.1.0 in /apps/mobile in the pub-minor-and-patch group",
+      "updatedAt": "2026-10-19T05:40:13Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/eslint-import-resolver-typescript-4.4.5",
+      "mergeable": "MERGEABLE",
+      "number": 643,
+      "title": "chore(deps)(deps-dev): Bump eslint-import-resolver-typescript from 3.10.1 to 4.4.5",
+      "updatedAt": "2026-10-25T08:51:46Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/chokidar-5.0.0",
+      "mergeable": "MERGEABLE",
+      "number": 642,
+      "title": "chore(deps)(deps-dev): Bump chokidar from 3.6.0 to 6.0.0",
+      "updatedAt": "2026-10-25T08:51:46Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/tanstack/react-table-9.3.1",
+      "mergeable": "MERGEABLE",
+      "number": 641,
+      "title": "chore(deps)(deps): Bump @tanstack/react-table from 8.21.3 to 9.3.1",
+      "updatedAt": "2026-10-25T08:51:46Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/amqplib-2.2.0",
+      "mergeable": "MERGEABLE",
+      "number": 640,
+      "title": "chore(deps)(deps): Bump amqplib from 0.10.9 to 2.2.0",
+      "updatedAt": "2026-10-25T08:51:42Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/rollup-plugin-visualizer-7.1.1",
+      "mergeable": "MERGEABLE",
+      "number": 639,
+      "title": "chore(deps)(deps-dev): Bump rollup-plugin-visualizer from 5.12.0 to 7.1.1",
+      "updatedAt": "2026-10-25T08:51:43Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/prisma-e3d1f12db8",
+      "mergeable": "MERGEABLE",
+      "number": 638,
+      "title": "chore(deps)(deps): Bump the prisma group across 1 directory with 2 updates",
+      "updatedAt": "2026-10-25T08:58:54Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "dependabot/npm_and_yarn/fastify-c35172de61",
+      "mergeable": "MERGEABLE",
+      "number": 636,
+      "title": "chore(deps)(deps): Bump the fastify group across 1 directory with 8 updates",
+      "updatedAt": "2026-10-25T08:51:41Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "fix/audit-role-catalogue-d2",
+      "mergeable": "UNKNOWN",
+      "number": 633,
+      "title": "fix(rbac): normalize role synonyms + extend realm to canonical role set (PRC-M015)",
+      "updatedAt": "2026-10-20T11:58:45Z"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "chore/canonical-gap-ledger",
+      "mergeable": "UNKNOWN",
+      "number": 630,
+      "title": "docs(audit): canonical gap ledger as single source of truth",
+      "updatedAt": "2026-10-18T07:02:01Z"
+    }
+  ],
+  "in_flight": [
+    {
+      "baseRefName": "main",
+      "headRefName": "fix/audit-institution-batch",
+      "isDraft": false,
+      "mergeStateStatus": "DIRTY",
+      "mergeable": "CONFLICTING",
+      "number": 654,
+      "reviewDecision": "",
+      "state": "OPEN",
+      "title": "fix(institution): close 22 audit-gap findings (PRC-L/M batch)",
+      "updatedAt": "2026-10-25T08:14:55Z",
+      "headRefOid": "e19336b666ca5329d3747bdbc0750a6e8b01d092",
+      "note": "OPEN, CONFLICTING / mergeStateStatus DIRTY: needs rebase/conflict resolution before merge."
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "fix/audit-role-catalogue-d2",
+      "isDraft": false,
+      "mergeStateStatus": "BEHIND",
+      "mergeable": "MERGEABLE",
+      "number": 633,
+      "reviewDecision": "",
+      "state": "OPEN",
+      "title": "fix(rbac): normalize role synonyms + extend realm to canonical role set (PRC-M015)",
+      "updatedAt": "2026-10-20T11:58:45Z",
+      "headRefOid": "689018ea351d79869c60e0cca95982d733d4d1e4",
+      "note": "OPEN, MERGEABLE but BEHIND main; no review decision."
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "docs/reconcile-ledger-649",
+      "isDraft": false,
+      "mergeStateStatus": "UNKNOWN",
+      "mergeable": "UNKNOWN",
+      "number": 652,
+      "reviewDecision": "",
+      "state": "MERGED",
+      "title": "docs(audit): reconcile ledger with PR #649 (infrastructure)",
+      "updatedAt": "2026-10-25T08:50:20Z",
+      "headRefOid": null,
+      "note": "MERGED 2026-10-25T08:50:19Z; merge commit 4c7fb8fe is the baseline SHA (origin/main tip at triage time).",
+      "mergeCommit": "4c7fb8fec961b49a8a7b70c05d22ebe30ad18e20"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "chore/canonical-gap-ledger",
+      "isDraft": false,
+      "mergeStateStatus": "DIRTY",
+      "mergeable": "CONFLICTING",
+      "number": 630,
+      "reviewDecision": "",
+      "state": "OPEN",
+      "title": "docs(audit): canonical gap ledger as single source of truth",
+      "updatedAt": "2026-10-18T07:02:01Z",
+      "headRefOid": "23d78fb471d329a7a884967a4e2101f5404cead6",
+      "note": "OPEN, CONFLICTING / DIRTY as expected; last updated 2026-10-18."
+    },
+    {
+      "branch": "fix/audit-parent-portal-batch",
+      "pr": null,
+      "remote_branch": "absent on origin (git ls-remote empty; gh pr list --head returns [])",
+      "local_head": "6c05bbec055c9c7adf5ccf3fec448d963277b414",
+      "last_commit_date": "2026-10-22T12:10:16Z",
+      "last_commit_subject": "feat(parent-portal): same-transaction domain audit for consent/link/invoice/payment (PRC-M533)",
+      "ahead_of_origin_main": 6,
+      "behind_origin_main": 8,
+      "worktree": "/home/ec2-user/ProctiraErp/.agents/worktrees/batch-parent-portal (clean, 0 porcelain entries)",
+      "note": "Local-only branch, not pushed, no PR."
+    }
+  ],
+  "tree_changes": {
+    "generated_files_restored": [
+      "apps/admin-console/next-env.d.ts",
+      "apps/developer-portal/next-env.d.ts",
+      "apps/install-wizard/next-env.d.ts",
+      "apps/public-website/next-env.d.ts",
+      "apps/registration-portal/next-env.d.ts"
+    ],
+    "cause": "Next.js build (turbo ^build dependency) rewrote next-env.d.ts; restored with git checkout --",
+    "final_status_porcelain": ["?? .agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/"]
+  }
+}

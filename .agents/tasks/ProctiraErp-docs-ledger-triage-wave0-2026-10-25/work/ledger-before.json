@@ -1,0 +1,39 @@
+{
+  "rows": 758,
+  "columns": [
+    "id",
+    "severity",
+    "module",
+    "disposition",
+    "latest_wave",
+    "evidence",
+    "title",
+    "notes"
+  ],
+  "disposition_col": "disposition",
+  "severity_col": "severity",
+  "by_disposition": {
+    "FULLY_CLOSED": 260,
+    "PARTIAL": 206,
+    "DUPLICATE": 1,
+    "OPEN": 291
+  },
+  "severity_x_disposition_nonclosed": {
+    "low|DUPLICATE": 1,
+    "low|OPEN": 151,
+    "low|PARTIAL": 105,
+    "medium|OPEN": 140,
+    "medium|PARTIAL": 101
+  },
+  "line_ending": "CRLF",
+  "ends_with_newline": true,
+  "sha256": "80f7968ba22222ab4d822e07e0a48b336e5d47b86f013180f9422061665978da",
+  "matches_expected": true,
+  "expected": {
+    "rows": 758,
+    "OPEN": 291,
+    "PARTIAL": 206,
+    "FULLY_CLOSED": 260,
+    "DUPLICATE": 1
+  }
+}

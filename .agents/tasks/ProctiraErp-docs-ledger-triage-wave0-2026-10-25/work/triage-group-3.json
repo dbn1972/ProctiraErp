@@ -1,0 +1,3285 @@
+[
+  {
+    "id": "PRC-L089",
+    "severity": "low",
+    "module": "communication",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "frozen API contract: surfacing live-count errors changes the audience preview response shape (per row notes)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/communication/src/live-audience.ts",
+        "line": 81,
+        "excerpt": "} catch { // Tables may be absent in unit tests without schema — keep nulls. }"
+      },
+      {
+        "file": "packages/backend/communication/src/communication-service.ts",
+        "line": 65,
+        "excerpt": "const live = await fetchLiveAudienceCounts(tenantId, audienceJson); return estimateAudience(audienceJson, live);"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Live-count query errors are still swallowed by a bare catch and the caller silently gets the estimator path; no error is surfaced."
+  },
+  {
+    "id": "PRC-L136",
+    "severity": "low",
+    "module": "privacy",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Conditional-UPDATE/row-lock on privacy state transitions not implemented this PR. OPEN. wave0-triage-2026-10-25: met: erasure manual transitions use compare-and-set on expected status (pg-privacy-repository.ts:401, privacy-service.ts:351); erasure execute start is a CAS approved->in_progress (pg-privacy-repository.ts:591); stalled-erasure release takes FOR UPDATE row locks (pg-privacy-repository.ts:614-627); unmet steps: legal-hold release is read-then-write with no conditional UPDATE/row lock (pg-privacy-repository.ts:262-291; privacy-service.ts:235-242) — double release / lost update still possible; correction-request transitions (approve/reject/apply) update without an expected-status guard (pg-privacy-repository.ts:475-518; privacy-service.ts:942,1007)"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "privacy/legal-hold state machine (statutory DPDP control) — needs privacy owner review; failing-first proof required",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/privacy/src/pg-privacy-repository.ts",
+        "line": 401,
+        "excerpt": "WHERE id = $1 AND tenant_id = $2 AND ($7::text IS NULL OR status = $7::text)  -- PRC-H076 CAS"
+      },
+      {
+        "file": "packages/backend/privacy/src/privacy-service.ts",
+        "line": 351,
+        "excerpt": "updateErasureRequest(requestId, tenantId, {...}, { expectedStatus: existing.status })"
+      },
+      {
+        "file": "packages/backend/privacy/src/pg-privacy-repository.ts",
+        "line": 591,
+        "excerpt": "WHERE id = $1 AND tenant_id = $2 AND status = 'approved' RETURNING *  -- PRC-M320 execute claim"
+      },
+      {
+        "file": "packages/backend/privacy/src/pg-privacy-repository.ts",
+        "line": 614,
+        "excerpt": "SELECT status FROM privacy_erasure_requests ... FOR UPDATE  (stalled-release row lock)"
+      },
+      {
+        "file": "packages/backend/privacy/src/pg-privacy-repository.ts",
+        "line": 269,
+        "excerpt": "updateLegalHold: SELECT * ... then UPDATE privacy_legal_holds ... WHERE id = $1 AND tenant_id = $2 (no active predicate)"
+      },
+      {
+        "file": "packages/backend/privacy/src/privacy-service.ts",
+        "line": 235,
+        "excerpt": "releaseLegalHold: findLegalHoldById -> if (!existing.active) throw -> updateLegalHold (read-then-write)"
+      },
+      {
+        "file": "packages/backend/privacy/src/pg-privacy-repository.ts",
+        "line": 475,
+        "excerpt": "updateCorrectionRequest: SELECT then UPDATE ... WHERE id = $1 AND tenant_id = $2 (no expected-status guard)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/privacy exec vitest run src/privacy-service.test.ts src/erasure-completion-guard.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/privacy-cas.log"
+      }
+    ],
+    "unmet_steps": [
+      "legal-hold release is read-then-write with no conditional UPDATE/row lock (pg-privacy-repository.ts:262-291; privacy-service.ts:235-242) — double release / lost update still possible",
+      "correction-request transitions (approve/reject/apply) update without an expected-status guard (pg-privacy-repository.ts:475-518; privacy-service.ts:942,1007)"
+    ],
+    "rationale": "Erasure transitions are now CAS-guarded in the PG repository, but legal-hold release and correction transitions remain read-then-write. Tests run are in-memory (DATABASE_URL unset), so the PG CAS SQL is evidenced by code only."
+  },
+  {
+    "id": "PRC-L143",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/report/src/catalogue-routes.ts",
+      "packages/backend/report/src/catalogue-service.ts",
+      "packages/backend/report/src/catalogue-schemas.ts",
+      "packages/backend/report/src/report-store.ts",
+      "packages/backend/report/src/pg-report-store.ts",
+      "packages/backend/report/src/routes.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/pg-report-store.ts",
+        "line": 412,
+        "excerpt": "SELECT * FROM report_runs WHERE ${clauses} ORDER BY created_at DESC  (no LIMIT)"
+      },
+      {
+        "file": "packages/backend/report/src/catalogue-routes.ts",
+        "line": 205,
+        "excerpt": "visibleRuns.map(async (run) => run.artifactId ? await service.getArtifact(tenantId, run.artifactId) ...)  (N+1)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "GET /runs is still unbounded and does one artifact lookup (own tenant transaction) per run. Pagination + JOIN is additive and does not need a migration."
+  },
+  {
+    "id": "PRC-L144",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "Idempotency-Key for generate needs a persisted key/column; stale-run reaper state",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/catalogue-service.ts",
+        "line": 121,
+        "excerpt": "insertRun({... status: 'running' ...}) before work"
+      },
+      {
+        "file": "packages/backend/report/src/catalogue-service.ts",
+        "line": 156,
+        "excerpt": "await this.blobs.put(objectKey, bytes); then insertArtifact(...) — blob written before artifact row, no tx"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Generate path unchanged: run row inserted as running, blob written before the artifact row, no idempotency key."
+  },
+  {
+    "id": "PRC-L145",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "DECISION_REGISTER group 3 (tenant timezone source of truth, PRODUCT decision)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/scheduler.ts",
+        "line": 15,
+        "excerpt": "const day = next.getUTCDate(); next.setUTCMonth(next.getUTCMonth() + 1); if (next.getUTCDate() < day) next.setUTCDate(0);"
+      },
+      {
+        "file": "packages/backend/report/src/scheduler.ts",
+        "line": 21,
+        "excerpt": "next.setUTCHours(safeHour, 0, 0, 0);  (UTC, no tenant timezone)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "computeNextRunAt is unchanged since 2026-09-09 (git blame): pure UTC math, clamp drifts the anchor day after a short month; no tenant timezone input."
+  },
+  {
+    "id": "PRC-L164",
+    "severity": "low",
+    "module": "survey",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/survey/src/survey-service.ts",
+      "packages/backend/survey/src/survey-service.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 633,
+        "excerpt": "if (question.validation.minLength && value.length < question.validation.minLength)  (0 is falsy; no pattern check anywhere)"
+      },
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 726,
+        "excerpt": "case 'table':  (cell values not validated)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "No validation.pattern enforcement in survey-service.ts; minLength uses a truthy check; table/repeater cells unvalidated. Reuse a safe-regex guard (custom-field/safe-regex-guard.ts) to avoid ReDoS."
+  },
+  {
+    "id": "PRC-L165",
+    "severity": "low",
+    "module": "survey",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/survey/src/survey-service.ts",
+      "packages/backend/survey/src/survey-repository.ts",
+      "packages/backend/survey/src/in-memory-repository.ts",
+      "packages/backend/survey/src/survey-service.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 363,
+        "excerpt": "submissionRepo.create(...) then distributionRepo.update(... completed) — two writes, no tx"
+      },
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 414,
+        "excerpt": "notificationPublisher.sendReminder(...) before the sequential remindersSent update loop"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Submit and reminders unchanged; package parked and in-memory only."
+  },
+  {
+    "id": "PRC-L166",
+    "severity": "low",
+    "module": "survey",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "mount/persist decision for parked survey+theme packages (notes: do NOT mount); persistence also needs schema",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/rbac-registry.ts",
+        "line": 114,
+        "excerpt": "// PRC-M387: parked survey package (G-605) is pre-mapped so that, once mounted..."
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Survey/theme still parked and unmounted."
+  },
+  {
+    "id": "PRC-L169",
+    "severity": "low",
+    "module": "tenant",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "tenant resolution security: custom-domain ownership verification (DNS/HTTP challenge) gates host->tenant routing",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/tenant/src/tenant-service.ts",
+        "line": 566,
+        "excerpt": "verified: false,  (addDomain)"
+      },
+      {
+        "file": "packages/backend/tenant/src/routes.ts",
+        "line": 21,
+        "excerpt": "GET/POST /tenants/:id/domains, DELETE /tenants/:id/domains/:domainId  (no verify route)"
+      },
+      {
+        "file": "packages/backend/tenant/src/public-tenant-resolver.ts",
+        "line": 83,
+        "excerpt": "if (!domain?.verified) return null;"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "No verification flow; added domains stay unverified and never resolve."
+  },
+  {
+    "id": "PRC-L171",
+    "severity": "low",
+    "module": "tenant",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "RBAC role catalogue: built-in role seed-drift reconciliation (DECISION_REGISTER group 2)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/tenant/src/pg-roles-repository.ts",
+        "line": 112,
+        "excerpt": "await this.ensureSeeded(tenantId); const docs = await this.roles.byTenant(tenantId);"
+      },
+      {
+        "file": "packages/backend/tenant/src/pg-roles-repository.ts",
+        "line": 205,
+        "excerpt": "let rows = await this.users.byTenant(tenantId);  (in-memory filter/paging)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Roles/users still loaded whole per call; no seed-drift reconciliation."
+  },
+  {
+    "id": "PRC-L284",
+    "severity": "low",
+    "module": "auth",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "auth secrets / production boot validation (also infra-owned redirect + web-origin config)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/auth/src/invite/invite-service.ts",
+        "line": 61,
+        "excerpt": "'http://localhost:3201';  (invite base URL fallback)"
+      },
+      {
+        "file": "packages/backend/auth/src/keycloak/routes.ts",
+        "line": 447,
+        "excerpt": "if (config.clientSecret) body.set('client_secret', config.clientSecret);  (no prod rejection of dev defaults)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Localhost fallbacks remain; no production boot guard."
+  },
+  {
+    "id": "PRC-L332",
+    "severity": "low",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization: device ownership (user) check",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/routes.ts",
+        "line": 322,
+        "excerpt": "const deleted = await prefsStore.deleteDevice(tenantId, deviceId);  (no userId)"
+      },
+      {
+        "file": "packages/backend/notification/src/prefs-store.ts",
+        "line": 170,
+        "excerpt": "if (!existing || existing.tenantId !== tenantId) return false;  (tenant-only check)"
+      },
+      {
+        "file": "packages/backend/notification/src/routes.ts",
+        "line": 244,
+        "excerpt": "prefsStore.updatePreferences(tenantId, userId, (request.body ?? {}) as Partial<...>)  (no schema)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Device delete is tenant-scoped only; preference/device bodies are cast without schema validation."
+  },
+  {
+    "id": "PRC-L333",
+    "severity": "low",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/notification/src/notification-service.ts",
+      "packages/backend/notification/src/notification-service.test.ts",
+      "packages/backend/notification/src/routes.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 764,
+        "excerpt": "mode: 'sandbox' as const,  (getDeliveryCapabilities hard-coded)"
+      },
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 391,
+        "excerpt": "if (newRetryCount < notification.maxRetries) {"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Capabilities still hard-coded sandbox; retry comparison unchanged."
+  },
+  {
+    "id": "PRC-L336",
+    "severity": "low",
+    "module": "privacy",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization / separation of duties on privacy erasure + legal holds",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/privacy/src/routes.ts",
+        "line": 412,
+        "excerpt": "fastify.post(`${prefix}/erasure-requests/:id/transition`, { preValidation: requireUuidIdParam }, ... requireTenant / requireActor only"
+      },
+      {
+        "file": "packages/backend/privacy/src/privacy-service.ts",
+        "line": 229,
+        "excerpt": "releaseLegalHold(holdId, tenantId, releasedBy, ctx) — no check that releasedBy differs from the hold creator/requester"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "No role check or distinct-actor (SoD) enforcement exists in routes.ts or privacy-service.ts; any actor reaching the mount can request, approve, execute and release."
+  },
+  {
+    "id": "PRC-L369",
+    "severity": "low",
+    "module": "tenant",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "tenant resolution boundary: caching public host->tenant mapping affects suspension/domain freshness",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/tenant/src/pg-tenant-repository.ts",
+        "line": 641,
+        "excerpt": "const all = await this.domains.all({ platform: true }); return all.find(...)"
+      },
+      {
+        "file": "packages/backend/tenant/src/pg-tenant-repository.ts",
+        "line": 450,
+        "excerpt": "const docs = await this.tenants.all({ platform: true });  (findTenantBySlug)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Public resolver still full-scans tenant/domain documents per anonymous request, uncached."
+  },
+  {
+    "id": "PRC-L372",
+    "severity": "low",
+    "module": "tenant",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "auth (session invalidation) + privacy (decommission data export)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/tenant/src/schemas.ts",
+        "line": 319,
+        "excerpt": "exportData: Type.Optional(  (not read anywhere in tenant-service.ts)"
+      },
+      {
+        "file": "packages/backend/tenant/src/tenant-service.ts",
+        "line": 298,
+        "excerpt": "- Existing sessions are NOT revoked (tracked follow-up)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "exportData still ignored; sessions not invalidated."
+  },
+  {
+    "id": "PRC-L397",
+    "severity": "low",
+    "module": "workflow",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/workflow/src/standalone-server.ts",
+      "packages/backend/workflow/src/workflow-plugin.ts",
+      "packages/backend/workflow/src/schemas.ts",
+      "packages/backend/workflow/src/index.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/standalone-server.ts",
+        "line": 76,
+        "excerpt": "await app.listen({ port: PORT, host: HOST });"
+      },
+      {
+        "file": "packages/backend/workflow/src/standalone-server.ts",
+        "line": 84,
+        "excerpt": "registerGracefulShutdown({  (registered after listen)"
+      },
+      {
+        "file": "packages/backend/workflow/src/workflow-plugin.ts",
+        "line": 160,
+        "excerpt": "fastify.decorate('assignmentService', assignmentService);"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Hygiene items unchanged."
+  },
+  {
+    "id": "PRC-L445",
+    "severity": "low",
+    "module": "auth",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authentication: local login disclosure/timing",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/auth/src/routes.ts",
+        "line": 142,
+        "excerpt": "if (!user.isActive) { ... message: 'Account is inactive' }  (before password check)"
+      },
+      {
+        "file": "packages/backend/auth/src/routes.ts",
+        "line": 164,
+        "excerpt": "const isValid = await verifyPassword(password, user.passwordHash);"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Inactive/locked states are still disclosed before the password check."
+  },
+  {
+    "id": "PRC-L446",
+    "severity": "low",
+    "module": "custom-field",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization for student/staff custom values",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/custom-field/src/routes.ts",
+        "line": 228,
+        "excerpt": "const tenantId = (request as ...).tenantId;  (no role/permission check in routes.ts)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "No in-package authz; package parked."
+  },
+  {
+    "id": "PRC-L447",
+    "severity": "low",
+    "module": "custom-field",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/custom-field/src/routes.ts",
+      "packages/backend/custom-field/src/routes.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/custom-field/src/routes.ts",
+        "line": 237,
+        "excerpt": "const query = request.query as CustomFieldDefinitionListQuery;  (schema not applied)"
+      },
+      {
+        "file": "packages/backend/custom-field/src/routes.ts",
+        "line": 239,
+        "excerpt": "const pageSize = Number(query.pageSize) || 20;  (uncapped)"
+      },
+      {
+        "file": "packages/backend/custom-field/src/schemas.ts",
+        "line": 143,
+        "excerpt": "Type.Number({ minimum: 1, maximum: 100, ... })  (defined, unused)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Query is cast, not validated; isActive arrives as a string."
+  },
+  {
+    "id": "PRC-L448",
+    "severity": "low",
+    "module": "custom-field",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/custom-field/src/custom-field-validator.ts",
+      "packages/backend/custom-field/src/custom-field-service.ts",
+      "packages/backend/custom-field/src/custom-field-validator.test.ts",
+      "packages/backend/custom-field/src/custom-field-service.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/custom-field/src/custom-field-validator.ts",
+        "line": 235,
+        "excerpt": "const parsed = new Date(value); if (Number.isNaN(parsed.getTime()))  (2026-02-31 passes)"
+      },
+      {
+        "file": "packages/backend/custom-field/src/custom-field-service.ts",
+        "line": 115,
+        "excerpt": "if (input.validationRules !== undefined) updateData.validationRules = input.validationRules;  (wholesale replace)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L449",
+    "severity": "low",
+    "module": "custom-field",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "privacy erasure wiring + cross-domain entity existence checks",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/custom-field/src/custom-field-service.ts",
+        "line": 213,
+        "excerpt": "entityId,  (stored without existence check)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L450",
+    "severity": "low",
+    "module": "custom-field",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "mount/persist decision for parked custom-field package; persistence needs schema",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/custom-field/src/create-custom-field-repositories.ts",
+        "line": 4,
+        "excerpt": "Durable Postgres schema for definitions/values is not shipped yet."
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L477",
+    "severity": "low",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "audit/tenant scope for platform registry operations",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/plugin-service.ts",
+        "line": 91,
+        "excerpt": "tenantId: 'system',"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L478",
+    "severity": "low",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/plugin/src/plugin-service.ts",
+      "packages/backend/plugin/src/plugin-repository.ts",
+      "packages/backend/plugin/src/in-memory-repository.ts",
+      "packages/backend/plugin/src/plugin-service.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/plugin-service.ts",
+        "line": 124,
+        "excerpt": "async install(  (multi-step writes, no tx/uniqueness)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged; package in-memory only."
+  },
+  {
+    "id": "PRC-L479",
+    "severity": "low",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization: tests must assert authz behaviour that PRC-M603 has not defined",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/sandbox/in-process-sandbox.security.test.ts",
+        "line": 33,
+        "excerpt": "describe('NEW-g7_platform-011 in-process sandbox refuses untrusted code by default', ...)  (fail-closed refusal, not an escape attempt)"
+      },
+      {
+        "file": "packages/backend/plugin/src/routes.test.ts",
+        "line": null,
+        "excerpt": "no 403 / cross-tenant / concurrency cases (grep)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/plugin exec vitest run src/sandbox/in-process-sandbox.security.test.ts src/sandbox/in-process-sandbox.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/plugin-sandbox-tests.log"
+      }
+    ],
+    "unmet_steps": [],
+    "rationale": "Sandbox fail-closed tests exist, but there are still no authz, cross-tenant evaluate or concurrency tests, and no worker-sandbox escape test. Kept OPEN."
+  },
+  {
+    "id": "PRC-L480",
+    "severity": "low",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/plugin/src/compatibility.ts",
+      "packages/backend/plugin/src/compatibility.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/compatibility.ts",
+        "line": 62,
+        "excerpt": "const operator = match[1] || '=';  (single comparator; no ||, x-range, hyphen)"
+      },
+      {
+        "file": "packages/backend/plugin/src/compatibility.ts",
+        "line": 45,
+        "excerpt": "if (a.prerelease && !b.prerelease) return -1;  (identifiers not compared)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L481",
+    "severity": "low",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "plugin registry lifecycle model (versioning/deprecate/remove) undefined for a parked package (PRC-L578)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/plugin-service.ts",
+        "line": 69,
+        "excerpt": "status: 'active',"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L483",
+    "severity": "low",
+    "module": "plugin-sdk",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "plugins/plugin-sdk/examples/export-plugin/index.ts",
+      "plugins/plugin-sdk/examples/workflow-plugin/index.ts",
+      "plugins/plugin-sdk/src/core/define-hook.ts",
+      "plugins/plugin-sdk/src/core/define-ui-slot.ts",
+      "plugins/plugin-sdk/src/manifest/index.ts",
+      "plugins/plugin-sdk/src/examples.test.ts",
+      "packages/backend/plugin/src/extension-points/built-in-definitions.ts"
+    ],
+    "evidence": [
+      {
+        "file": "plugins/plugin-sdk/examples/export-plugin/index.ts",
+        "line": 48,
+        "excerpt": "requiredExtensionPoints: ['report.export'],"
+      },
+      {
+        "file": "packages/backend/plugin/src/extension-points/built-in-definitions.ts",
+        "line": 201,
+        "excerpt": "id: 'export.before-generate'  (catalog has no 'report.export')"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Example still references a non-catalog extension point; no catalog validation in defineHook/validateManifest."
+  },
+  {
+    "id": "PRC-L486",
+    "severity": "low",
+    "module": "plugin-sdk",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "plugins/plugin-sdk/src/testing/test-harness.ts",
+      "plugins/plugin-sdk/src/testing/test-harness.test.ts",
+      "plugins/plugin-sdk/src/core/define-plugin.ts"
+    ],
+    "evidence": [
+      {
+        "file": "plugins/plugin-sdk/src/testing/test-harness.ts",
+        "line": null,
+        "excerpt": "no permission / extension-point / timeout / manifest checks (unchanged since #601; harness not in PR scope)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L488",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "row notes: NEEDS OWNER DECISION (delete-or-gate legacy report engine)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/index.ts",
+        "line": 16,
+        "excerpt": "export { reportPlugin } from './report-plugin.js';  (legacy engine still exported)"
+      },
+      {
+        "file": "packages/backend/report/src/standalone-server.ts",
+        "line": 73,
+        "excerpt": "const repository = new InMemoryReportRepository();"
+      },
+      {
+        "file": "apps/api-gateway/src/domain-plugins.ts",
+        "line": 144,
+        "excerpt": "import { reportCataloguePlugin } from '@proctira/backend-report';  (only the catalogue plugin is mounted)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Legacy engine is still unmounted with an in-memory standalone server; owner decision pending per notes."
+  },
+  {
+    "id": "PRC-L489",
+    "severity": "low",
+    "module": "shared-cdn",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "dependency + external integration (AWS CloudFront SDK / CDN purge clients)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/shared/cdn/src/adapters/cloudfront.ts",
+        "line": 52,
+        "excerpt": "// In a real implementation, this would call the AWS CloudFront API:"
+      },
+      {
+        "file": "packages/shared/cdn/src/adapters/cloudfront.ts",
+        "line": 66,
+        "excerpt": "success: true,"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L494",
+    "severity": "low",
+    "module": "shared-search-index",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Concrete postgres search adapter + service wiring is a feature not implemented this PR. OPEN. wave0-triage-2026-10-25: met: postgres adapter implemented (adapters/postgres-search-index.ts) and selectable; memory default refused in production (factory.ts:39-60); fail-closed + postgres tests pass; unmet steps: no service imports @proctira/search-index (no package.json dependency outside the package), so the index is still unwired"
+    },
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "which service(s) consume search-index (product scope) — no consumer exists",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/shared/search-index/src/adapters/postgres-search-index.ts",
+        "line": 83,
+        "excerpt": "INSERT INTO search_index_documents  (real tsvector adapter; table in db/sql/065_search_index_schema.sql)"
+      },
+      {
+        "file": "packages/shared/search-index/src/factory.ts",
+        "line": 45,
+        "excerpt": "if (!adapter || adapter === 'memory') { if production -> throw 'In-memory search index is not allowed when NODE_ENV=production' }"
+      },
+      {
+        "file": "packages/shared/search-index/src/factory.ts",
+        "line": 13,
+        "excerpt": "* Wave 3 wires only the in-memory stub; postgres is reserved for a later slice.  (stale comment)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/shared/search-index exec vitest run src/__tests__/fail-closed.test.ts src/__tests__/postgres-search-index.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/search-index.log"
+      }
+    ],
+    "unmet_steps": [
+      "no service imports @proctira/search-index (no package.json dependency outside the package), so the index is still unwired"
+    ],
+    "rationale": "Row notes say postgres adapter not implemented; tip has it (PR #540)."
+  },
+  {
+    "id": "PRC-L568",
+    "severity": "low",
+    "module": "install",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "security policy: SSRF scheme/host restrictions",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/install/src/types.ts",
+        "line": 91,
+        "excerpt": "url: Type.String({ minLength: 1 }),  (no scheme/host restriction)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L569",
+    "severity": "low",
+    "module": "install",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "actor/ip/user-agent on install_bootstrap_runs needs columns; table itself not in db/sql (PRC-M626)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/install/src/bootstrap-store.ts",
+        "line": 83,
+        "excerpt": "INSERT INTO install_bootstrap_runs (id, status, completed_steps, adapter_configs, ...)  (no actor)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L576",
+    "severity": "low",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "delivery claim needs a claimed/sending state; notifications.status CHECK allows only sent/delivered/read/failed (db/sql/005_notifications_schema.sql:39)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 363,
+        "excerpt": "if (notification.status === 'delivered' || notification.status === 'read') return true;  (post-hoc skip, no claim)"
+      },
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 473,
+        "excerpt": "updateNotificationStatus(..., { status: 'read', readAt })  (markAsRead overwrites any status)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Redelivery after completion is skipped, but two concurrent jobs can both send; mark-read has no status guard."
+  },
+  {
+    "id": "PRC-L577",
+    "severity": "low",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "auth/tenant middleware wiring for standalone server",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/standalone-server.ts",
+        "line": 75,
+        "excerpt": "const repository = new InMemoryNotificationRepository();"
+      },
+      {
+        "file": "packages/backend/notification/src/standalone-server.ts",
+        "line": 66,
+        "excerpt": "app.get('/ready', async (_request, reply) => reply.status(200).send({ status: 'ready' ..."
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L578",
+    "severity": "low",
+    "module": "policy",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "mount + persistence decision for parked plugin/policy packages; persistence needs schema",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/domain-plugins.ts",
+        "line": null,
+        "excerpt": "no import of @proctira/backend-policy or @proctira/backend-plugin in gateway sources (grep)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L580",
+    "severity": "low",
+    "module": "shared-cdn",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/shared/cdn/src/url-builder.ts",
+      "packages/shared/cdn/src/url-builder.test.ts",
+      "packages/shared/cdn/src/adapters/nginx.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/shared/cdn/src/url-builder.ts",
+        "line": 76,
+        "excerpt": "segments.push(options.tenantId);  (no \"..\" / tenantId sanitisation)"
+      },
+      {
+        "file": "packages/shared/cdn/src/adapters/nginx.ts",
+        "line": 35,
+        "excerpt": "const purgeBaseUrl = this.config.baseUrl;"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-L598",
+    "severity": "low",
+    "module": "workflow",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/workflow/src/cached-workflow-repository.ts",
+      "packages/backend/workflow/src/cached-workflow-repository.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/cached-workflow-repository.ts",
+        "line": 46,
+        "excerpt": "const cached = await this.cache.getOrSet(  (null results cached)"
+      },
+      {
+        "file": "packages/backend/workflow/src/cached-workflow-repository.ts",
+        "line": 37,
+        "excerpt": "return this.delegate.createDefinition(entity);  (no invalidation on create)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Decorator still unused (only exported from index.ts) and would negative-cache."
+  },
+  {
+    "id": "PRC-M008",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "DECISION_REGISTER group 9 cites PRC-M008 (definition of attendance rate)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/board-summary.ts",
+        "line": 236,
+        "excerpt": "summary.attendancePercent = Math.round((presentLike / total) * 10000) / 100;  (all-time)"
+      },
+      {
+        "file": "apps/api-gateway/src/institution-overview.ts",
+        "line": 206,
+        "excerpt": "AND date >= (CURRENT_DATE - INTERVAL '30 days')  (DB UTC date)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Three definitions remain."
+  },
+  {
+    "id": "PRC-M012",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "INFRA_BATCH",
+    "boundary": "deployment overlays must set TRUSTED_PROXY_CIDRS; overlaps PRC-M524 (infrastructure, PARTIAL)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/app.ts",
+        "line": 230,
+        "excerpt": "trustProxy: config.trustedProxyCidrs && config.trustedProxyCidrs.length > 0 ? config.trustedProxyCidrs : false,"
+      },
+      {
+        "file": "infrastructure/k8s/base/configmap.yaml",
+        "line": 28,
+        "excerpt": "TRUSTED_PROXY_CIDRS: ''  (placeholder from PR #649)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "PR #649 added an empty placeholder key only; runtime behaviour unchanged (trustProxy false) and no boot warning. Not a duplicate: M524 covers manifests/CORS, M012 also covers gateway boot warning + rate-limit/audit IP impact."
+  },
+  {
+    "id": "PRC-M013",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not addressed: expanding atomic same-txn audit to grades/attendance/staff/student/scholarship/tenant-admin + success/failure outcome field is a large gateway+audit change; deferred. wave0-triage-2026-10-25: met: placeholder before-values removed; post-hoc rows carry changed field names; 4xx outcomes not audited as mutations; fees money-movement paths audit atomically via ATOMIC_MUTATION_AUDIT_PATH_PATTERNS (mutation-audit.ts:40-54,118-139; app.ts:1167; tests pass); unmet steps: grades/attendance/staff/student/scholarship(other than netting)/tenant-admin mutations still rely on post-hoc audit with body hash only and no domain before-values"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "audit security control: same-transaction audit across grades/attendance/staff/student/scholarship/tenant-admin domains",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/mutation-audit.ts",
+        "line": 120,
+        "excerpt": "no fabricated placeholder (`bodyHash: 'pre-mutation'` was removed)"
+      },
+      {
+        "file": "apps/api-gateway/src/mutation-audit.ts",
+        "line": 138,
+        "excerpt": "return { beforeValues: null, afterValues: { bodyHash, path, changedFields } };"
+      },
+      {
+        "file": "apps/api-gateway/src/mutation-audit.ts",
+        "line": 40,
+        "excerpt": "ATOMIC_MUTATION_AUDIT_PATH_PREFIXES = ['/api/v1/health/measurements', '/api/v1/fees/payments']"
+      },
+      {
+        "file": "apps/api-gateway/src/mutation-audit.ts",
+        "line": 50,
+        "excerpt": "ATOMIC_MUTATION_AUDIT_PATH_PATTERNS: fees refund|credit-notes|write-offs|void|pay, concessions approve|reject, scholarships/net"
+      },
+      {
+        "file": "apps/api-gateway/src/app.ts",
+        "line": 1167,
+        "excerpt": "// PRC-M013: only state-changing outcomes are audited as mutations"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C apps/api-gateway exec vitest run src/mutation-audit.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-mutation-audit.log"
+      },
+      {
+        "command": "pnpm -C apps/api-gateway exec vitest run src/audit-mount.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-audit-mount.log"
+      }
+    ],
+    "unmet_steps": [
+      "grades/attendance/staff/student/scholarship(other than netting)/tenant-admin mutations still rely on post-hoc audit with body hash only and no domain before-values"
+    ],
+    "rationale": "Row notes say not addressed; PR #543 (2026-10-06) landed part of it."
+  },
+  {
+    "id": "PRC-M014",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not addressed: pre-check/same-txn audit for all sensitive routes + caching 5xx for keyless retries is a broad gateway change; current post-mutation 503 behaviour retained (fail-closed) for non-atomic paths. wave0-triage-2026-10-25: met: onSend no longer rewrites committed mutations to 503 — it keeps the true status, sets x-audit-status: deferred and enqueues a bounded retry; a preHandler pre-check refuses sensitive mutations with 503 before the handler when audit is down (app.ts:1141-1219; pre-check + retry-queue tests pass); unmet steps: no HTTP regression test proves that a post-commit audit failure returns the original 2xx with x-audit-status: deferred (grep finds no test asserting x-audit-status/deferred)"
+    },
+    "eligibility": "ELIGIBLE_MEDIUM",
+    "boundary": "",
+    "expected_files": [
+      "apps/api-gateway/src/gw-mix1-audit-precheck.test.ts",
+      "apps/api-gateway/src/app.ts"
+    ],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/app.ts",
+        "line": 1149,
+        "excerpt": "app.addHook('preHandler', ...) if (await auditGate.isAvailable()) return; ... reply.status(503)  (refused before handler)"
+      },
+      {
+        "file": "apps/api-gateway/src/app.ts",
+        "line": 1211,
+        "excerpt": "// PRC-M014: the mutation already committed. Rewriting to 503 would make a client retry and duplicate it"
+      },
+      {
+        "file": "apps/api-gateway/src/app.ts",
+        "line": 1217,
+        "excerpt": "reply.header('x-audit-status', 'deferred'); return payload;"
+      },
+      {
+        "file": "apps/api-gateway/src/gw-mix1-audit-precheck.test.ts",
+        "line": 27,
+        "excerpt": "it('audit store down → sensitive POST is refused with 503 before the handler runs', ...)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-audit-precheck.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-audit-precheck.log"
+      },
+      {
+        "command": "pnpm -C apps/api-gateway exec vitest run src/mutation-audit.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-mutation-audit.log"
+      }
+    ],
+    "unmet_steps": [
+      "no HTTP regression test proves that a post-commit audit failure returns the original 2xx with x-audit-status: deferred (grep finds no test asserting x-audit-status/deferred)"
+    ],
+    "rationale": "Code at tip resolves the stated defect (PR #543, 2026-10-06), but the core post-commit behaviour has no test, so it does not meet the STALE bar. Also note the retry queue is in-process and lost on restart (logged for manual reconciliation). Test-only fix remains."
+  },
+  {
+    "id": "PRC-M016",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "row notes: DPDP minimisation needs a product/retention decision for applicant student masters",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/domain-plugins.ts",
+        "line": 399,
+        "excerpt": "async function ensureAdmissionsStudentProfile(input: AdmissionsStudentProfileInput) {"
+      },
+      {
+        "file": "apps/api-gateway/src/domain-plugins.ts",
+        "line": 689,
+        "excerpt": "function reconcileAdmissionsOfferResourcesHook() {"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M026",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not addressed: SCIM O(N^2) allUsers() + non-atomic Group PATCH needs a getUser(id) + row-locked batch role update on RolesService; sizeable, deferred. wave0-triage-2026-10-25: met: single-resource reads use rolesService.getUser; Group PATCH applies per-user atomic deltas, with a concurrent-PATCH test (gw-mix1-scim.test.ts:125) passing; unmet steps: GET /Users (incl. eq filters) and GET /Groups still page through the whole tenant directory via allUsers() in memory (scim-plugin.ts:268-278,416,622)"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "identity provisioning surface (SCIM over RolesService tenant directory)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/scim-plugin.ts",
+        "line": 449,
+        "excerpt": "// PRC-M026: one-row lookups instead of loading the whole tenant directory."
+      },
+      {
+        "file": "apps/api-gateway/src/scim-plugin.ts",
+        "line": 666,
+        "excerpt": "// PRC-M026: compute add/remove deltas, then apply each user's change as one atomic membership update"
+      },
+      {
+        "file": "apps/api-gateway/src/scim-plugin.ts",
+        "line": 416,
+        "excerpt": "let users = await allUsers(rolesService, tenantId);  (Users list/filter)"
+      },
+      {
+        "file": "apps/api-gateway/src/scim-plugin.ts",
+        "line": 622,
+        "excerpt": "const users = await allUsers(rolesService, tenantId);  (Groups list)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-scim.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-scim.log"
+      }
+    ],
+    "unmet_steps": [
+      "GET /Users (incl. eq filters) and GET /Groups still page through the whole tenant directory via allUsers() in memory (scim-plugin.ts:268-278,416,622)"
+    ],
+    "rationale": "Row notes say not addressed; PR #543 landed the atomic PATCH and single-row reads."
+  },
+  {
+    "id": "PRC-M027",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authentication: dedicated hashed SCIM token + session/token revocation on deprovision",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/scim-plugin.ts",
+        "line": 598,
+        "excerpt": "// SCIM DELETE deprovisions; the directory keeps the record (audit) but suspends it."
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M183",
+    "severity": "medium",
+    "module": "auth",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not addressed: HTTP-level tests for MFA/invite/local login-refresh-logout routes not added this session (focused test budget spent on JWKS/refresh-token/senderRole/audit/workflow/policy). Deferred. wave0-triage-2026-10-25: met: HTTP tests now exist for MFA routes (mfa-routes.test.ts), local refresh route (local-refresh-guard.test.ts), auth-plugin (access-token-revocation.test.ts, rbac-plugin.test.ts) and Keycloak plugin authenticate/logout (identity-projection.test.ts, logout-revoke.test.ts, keycloak/routes.test.ts); all pass; unmet steps: no HTTP tests for invite routes (create/accept/revoke) — invite/routes.ts only exercised for tenant-directory; no HTTP tests for local POST /auth/login and local logout in routes.ts"
+    },
+    "eligibility": "ELIGIBLE_MEDIUM",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/auth/src/routes.ts",
+      "packages/backend/auth/src/invite/routes.ts",
+      "packages/backend/auth/src/auth-plugin.ts",
+      "packages/backend/auth/src/invite/routes.test.ts",
+      "packages/backend/auth/src/local-login-routes.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/auth/src/mfa-routes.test.ts",
+        "line": 48,
+        "excerpt": "describe('PRC-M497 OTP send bound to primary auth', ...)  (HTTP inject tests of MFA routes)"
+      },
+      {
+        "file": "packages/backend/auth/src/local-refresh-guard.test.ts",
+        "line": 145,
+        "excerpt": "app.inject({ method: 'POST', url: '/auth/refresh', ... })  (registerAuthRoutes)"
+      },
+      {
+        "file": "packages/backend/auth/src/access-token-revocation.test.ts",
+        "line": 18,
+        "excerpt": "import { authPlugin } from './auth-plugin.js';"
+      },
+      {
+        "file": "packages/backend/auth/src/keycloak/identity-projection.test.ts",
+        "line": 62,
+        "excerpt": "app.get('/protected', { preHandler: [app.authenticate] }, ...)  (Keycloak plugin authenticate)"
+      },
+      {
+        "file": "packages/backend/auth/src/keycloak/logout-revoke.test.ts",
+        "line": 432,
+        "excerpt": "describe('POST /logout — authenticated logout (PRC-L282)', ...)  (Keycloak logout route)"
+      },
+      {
+        "file": "packages/backend/auth/src/tenant-directory.test.ts",
+        "line": 33,
+        "excerpt": "inviteService: {} as never,  (invite routes registered only for tenant-directory; no invite endpoint tests)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/auth exec vitest run src/mfa-routes.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-mfa-routes.log"
+      },
+      {
+        "command": "pnpm -C packages/backend/auth exec vitest run src/local-refresh-guard.test.ts src/access-token-revocation.test.ts src/rbac-plugin.test.ts src/keycloak/identity-projection.test.ts src/keycloak/logout-revoke.test.ts src/keycloak/routes.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-m183-coverage.log"
+      }
+    ],
+    "unmet_steps": [
+      "no HTTP tests for invite routes (create/accept/revoke) — invite/routes.ts only exercised for tenant-directory",
+      "no HTTP tests for local POST /auth/login and local logout in routes.ts"
+    ],
+    "rationale": "Test-only gap remains for invite routes and local login/logout. invite/routes.test.ts and local-login-routes.test.ts would be new files (not at tip)."
+  },
+  {
+    "id": "PRC-M190",
+    "severity": "medium",
+    "module": "communication",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "product definition of audienceType/audienceIds -> recipient expansion (enrolment/hostel/transport/guardian) is undefined; cross-module resolvers do not exist",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/communication/src/circulars-service.ts",
+        "line": 163,
+        "excerpt": "circular.acks.length ? ... : [{ id: 'audience', label: circular.audienceType }]"
+      },
+      {
+        "file": "packages/backend/communication/src/communication-service.ts",
+        "line": 128,
+        "excerpt": "const estimatedRecipients = estimateAudience(campaign.audienceJson).estimatedRecipients;"
+      },
+      {
+        "file": "packages/backend/communication/src/audience.ts",
+        "line": 74,
+        "excerpt": "honestyNote: 'v1 estimator — not live enrollment counts. Wire student/hostel/route segment resolvers...'"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Circular send still fans out to a single placeholder recipient when no acks exist, and campaign recipient count is the estimator value."
+  },
+  {
+    "id": "PRC-M307",
+    "severity": "medium",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "privacy: cross-service resolution of user email/phone (PII)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 259,
+        "excerpt": "to: notification.recipientUserId,"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Email \"to\" is still the user id."
+  },
+  {
+    "id": "PRC-M308",
+    "severity": "medium",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "frozen API/event contract + schema (notification status enum CHECK in db/sql/005_notifications_schema.sql:39)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 267,
+        "excerpt": "// No email sender configured — mark as delivered (in-process) success = true;"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Sandbox/no-sender sends still marked delivered."
+  },
+  {
+    "id": "PRC-M310",
+    "severity": "medium",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "product rules for quiet hours/digest (which classes bypass, digest cadence) are undefined",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 242,
+        "excerpt": "attemptDelivery(notification, template)  (no prefsStore/quiet-hours lookup in notification-service.ts)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "NotificationService never consults preferences."
+  },
+  {
+    "id": "PRC-M338",
+    "severity": "medium",
+    "module": "report",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "external email/notification integration for PII report delivery",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/catalogue-service.ts",
+        "line": 81,
+        "excerpt": "this.delivery = delivery ?? new InMemoryScheduleDelivery();"
+      },
+      {
+        "file": "packages/backend/report/src/catalogue-plugin.ts",
+        "line": 34,
+        "excerpt": "const service = new CatalogueService(store, blobStore);  (no delivery port passed)"
+      },
+      {
+        "file": "packages/backend/report/src/catalogue-service.ts",
+        "line": 381,
+        "excerpt": "delivered += 1;"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Gateway plugin still wires the in-memory delivery port and counts recipients as delivered."
+  },
+  {
+    "id": "PRC-M359",
+    "severity": "medium",
+    "module": "shared-pdf-lite",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "dependency/asset change: embedding a Unicode TrueType font (licensing) on official documents",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/shared/pdf-lite/src/pdf-document.ts",
+        "line": 54,
+        "excerpt": "} else if (code < 0x20 || code > 0xff) { out += '?';"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M389",
+    "severity": "medium",
+    "module": "tenant",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "unique (tenant_id, revision) constraint + locked allocation",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/tenant/src/pg-tenant-repository.ts",
+        "line": 692,
+        "excerpt": "const maxRevision = existing.reduce(...); revision: maxRevision + 1"
+      },
+      {
+        "file": "packages/backend/tenant/src/tenant-repository.ts",
+        "line": 184,
+        "excerpt": "Implementations MUST allocate `revision = MAX(revision) + 1`"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Revision allocation still read-max-then-insert. PR #631 branding-atomicity fixed publish/rollback merge (PRC-L168), not revision uniqueness."
+  },
+  {
+    "id": "PRC-M458",
+    "severity": "medium",
+    "module": "workflow",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "auth/tenant context wiring for standalone server",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/standalone-server.ts",
+        "line": 69,
+        "excerpt": "const repository = new InMemoryWorkflowRepository();"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M460",
+    "severity": "medium",
+    "module": "workflow",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "business rule: case lifecycle state machine (resolution record, no-skip review)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/case-service.ts",
+        "line": 42,
+        "excerpt": "pending_review: ['resolved', 'in_progress', 'escalated'],"
+      },
+      {
+        "file": "packages/backend/workflow/src/case-service.ts",
+        "line": 159,
+        "excerpt": "if (input.status !== undefined) updateData.status = input.status;  (PUT can set resolved with no resolution)"
+      },
+      {
+        "file": "packages/backend/workflow/src/case-service.ts",
+        "line": 40,
+        "excerpt": "open: ['in_progress', 'escalated', 'closed'],  (close without review)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M461",
+    "severity": "medium",
+    "module": "workflow",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "business rule: transition condition evaluator semantics",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/schemas.ts",
+        "line": 72,
+        "excerpt": "conditions: Type.Optional(  (accepted; no reference in workflow-service.ts)"
+      },
+      {
+        "file": "packages/backend/workflow/src/workflow-service.ts",
+        "line": 284,
+        "excerpt": "async transition(  (no conditions/entityType check)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M462",
+    "severity": "medium",
+    "module": "workflow",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "active-instance-per-entity uniqueness + escalation outbox design",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/workflow-service.ts",
+        "line": 142,
+        "excerpt": "async updateDefinition(  (no live-instance guard)"
+      },
+      {
+        "file": "packages/backend/workflow/src/workflow-service.ts",
+        "line": 182,
+        "excerpt": "async deleteDefinition(tenantId: string, id: string)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M529",
+    "severity": "medium",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "recipient cap / parallelism policy undefined, and processEvent has no caller (PRC-M600)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 643,
+        "excerpt": "} catch {  (processEvent per-rule send errors swallowed)"
+      },
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 636,
+        "excerpt": "await this.send(tenantId, {...})  (sequential loop, no cap)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M600",
+    "severity": "medium",
+    "module": "notification",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "which events/schedules drive notifications (rule-engine activation changes user-visible sends)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/notification/src/notification-service.ts",
+        "line": 608,
+        "excerpt": "async processEvent(  (only definition; git grep finds no caller outside tests)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Rule engine still has no caller; schedule/threshold rules unimplemented."
+  },
+  {
+    "id": "PRC-M602",
+    "severity": "medium",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "A hardened isolation (isolated-vm / worker) is a large security feature; package parked/unmounted. OPEN (unmounted). wave0-triage-2026-10-25: met: InProcessSandbox refuses to execute code unless allowUntrustedInProcess is set (in-process-sandbox.ts:95-118; security test passes); unmet steps: the worker-based PluginSandbox still runs plugin code in node:vm inside a worker thread (sandbox-worker.ts:12,205); a vm escape reaches the worker realm of the same process, so there is no true isolate/process boundary"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "security isolation boundary + dependency (isolated-vm or process isolation)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/sandbox/in-process-sandbox.ts",
+        "line": 98,
+        "excerpt": "NEW-g7_platform-011: node:vm cannot safely contain untrusted code. Refuse by default"
+      },
+      {
+        "file": "packages/backend/plugin/src/sandbox/sandbox-worker.ts",
+        "line": 205,
+        "excerpt": "const vmContext = createContext(globals, {  (worker sandbox still node:vm inside worker_threads)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/plugin exec vitest run src/sandbox/in-process-sandbox.security.test.ts src/sandbox/in-process-sandbox.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/plugin-sandbox-tests.log"
+      }
+    ],
+    "unmet_steps": [
+      "the worker-based PluginSandbox still runs plugin code in node:vm inside a worker thread (sandbox-worker.ts:12,205); a vm escape reaches the worker realm of the same process, so there is no true isolate/process boundary"
+    ],
+    "rationale": "PR #590 (NEW-g7_platform-011) hardened the in-process path; row notes predate that evidence."
+  },
+  {
+    "id": "PRC-M603",
+    "severity": "medium",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization: plugin register/install/enable role guard",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/routes.ts",
+        "line": 115,
+        "excerpt": "return user?.sub ?? 'system';  (no role check in routes.ts)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M604",
+    "severity": "medium",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_MEDIUM",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/plugin/src/plugin-service.ts",
+      "packages/backend/plugin/src/extension-points/extension-point-registry.ts",
+      "packages/backend/plugin/src/plugin-plugin.ts",
+      "packages/backend/plugin/src/plugin-service.test.ts",
+      "packages/backend/plugin/src/extension-points/extension-point-registry.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/plugin-service.ts",
+        "line": 253,
+        "excerpt": "async disable(...)  (no registry unregister)"
+      },
+      {
+        "file": "packages/backend/plugin/src/plugin-service.ts",
+        "line": 291,
+        "excerpt": "async uninstall(  (no registry unregister)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Registry still disconnected from lifecycle; fix is in-package."
+  },
+  {
+    "id": "PRC-M605",
+    "severity": "medium",
+    "module": "plugin-sdk",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "row notes: owner decision — mount or remove plugin-sdk dev tooling",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "plugins/plugin-sdk/src/cli/index.ts",
+        "line": 23,
+        "excerpt": "console.log('<product-name> Plugin CLI\\n');  (commands print text; literal product name elided for the brand-string gate)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M606",
+    "severity": "medium",
+    "module": "policy",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization on security-policy create/activate/assign",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/policy/src/routes.ts",
+        "line": 114,
+        "excerpt": "fastify.post(  (no requireRole/requirePermission in routes.ts)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M608",
+    "severity": "medium",
+    "module": "policy",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "audit contract + auth actor context for a parked package",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/policy/src/policy-service.ts",
+        "line": 88,
+        "excerpt": "createdBy: null,"
+      },
+      {
+        "file": "packages/backend/policy/src/policy-service.ts",
+        "line": 140,
+        "excerpt": "createdBy: null,"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M609",
+    "severity": "medium",
+    "module": "policy",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_MEDIUM",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/policy/src/policy-service.ts",
+      "packages/backend/policy/src/schemas.ts",
+      "packages/backend/policy/src/policy-service.test.ts",
+      "packages/backend/policy/src/routes.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/policy/src/schemas.ts",
+        "line": 178,
+        "excerpt": "rules: Type.Record(Type.String(), Type.Unknown(), ...)  (per-type rule schemas at schemas.ts:54-129 never applied)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Per-type schemas exist but rules are accepted as an untyped record."
+  },
+  {
+    "id": "PRC-M610",
+    "severity": "medium",
+    "module": "policy",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "row notes: data-model/ownership decision for platform-scope policies (also a tenant boundary)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/policy/src/policy-evaluation-engine.ts",
+        "line": 70,
+        "excerpt": "'platform',  (platform level resolved from tenant-owned rows)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M625",
+    "severity": "medium",
+    "module": "install",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authentication: install token gate",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/install/src/install-security.ts",
+        "line": 33,
+        "excerpt": "if (!expectedToken) return true;"
+      },
+      {
+        "file": "packages/backend/install/src/install-security.ts",
+        "line": 36,
+        "excerpt": "if (!value || value !== expectedToken)  (not timing-safe)"
+      },
+      {
+        "file": "packages/backend/install/src/install-plugin.ts",
+        "line": 106,
+        "excerpt": "app.get('/status', ...)  (no preHandler)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M626",
+    "severity": "medium",
+    "module": "install",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "install_bootstrap_runs table/migration + secret-ref storage",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/install/src/bootstrap-store.ts",
+        "line": 89,
+        "excerpt": "JSON.stringify(run.adapterConfigs),  (plaintext secrets)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged; table not in db/sql."
+  },
+  {
+    "id": "PRC-M627",
+    "severity": "medium",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "permission consent / authorization on plugin install+enable",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/plugin-service.ts",
+        "line": 216,
+        "excerpt": "async enable(tenantId, installId, actor)  (no config/extension-point/status checks)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M628",
+    "severity": "medium",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "SSRF-hardened allow-list (block internal/metadata/redirects, no '*') not implemented; parked. OPEN (unmounted). wave0-triage-2026-10-25: met: wildcard '*' allow-lists rejected; https-only; metadata/loopback/private targets blocked; host must be explicitly listed (egress-policy.ts:25-66; security test passes); unmet steps: redirects are not blocked or re-validated: both sandboxes call globalThis.fetch with caller init (default redirect follow) after validating only the initial URL"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "security policy: SSRF egress hardening (redirect handling, DNS rebinding)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/sandbox/egress-policy.ts",
+        "line": 25,
+        "excerpt": "assertSafeAllowedHosts: rejects '*' or empty host"
+      },
+      {
+        "file": "packages/backend/plugin/src/sandbox/egress-policy.ts",
+        "line": 60,
+        "excerpt": "await assertPublicHttpsUrlDefault(rawUrl);  (https + public address)"
+      },
+      {
+        "file": "packages/backend/plugin/src/sandbox/in-process-sandbox.ts",
+        "line": 341,
+        "excerpt": "await assertEgressAllowed(urlStr, quota.allowedNetworkHosts); return globalThis.fetch(input, init);"
+      },
+      {
+        "file": "packages/backend/plugin/src/sandbox/sandbox-worker.ts",
+        "line": 96,
+        "excerpt": "return globalThis.fetch(input as string | Request, init);  (default redirect: follow)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/plugin exec vitest run src/sandbox/in-process-sandbox.security.test.ts src/sandbox/in-process-sandbox.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/plugin-sandbox-tests.log"
+      }
+    ],
+    "unmet_steps": [
+      "redirects are not blocked or re-validated: both sandboxes call globalThis.fetch with caller init (default redirect follow) after validating only the initial URL"
+    ],
+    "rationale": "Row notes say not implemented; PR #590 landed most of it."
+  },
+  {
+    "id": "PRC-M629",
+    "severity": "medium",
+    "module": "plugin",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "privacy: event payload minimisation/masking policy",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/plugin/src/extension-points/extension-point-registry.ts",
+        "line": 264,
+        "excerpt": "registration.handler(payload, context)  (full payload, no masking/size cap)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M630",
+    "severity": "medium",
+    "module": "policy",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "security-policy evaluation semantics (precedence across types, stricter-wins)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/policy/src/policy-evaluation-engine.ts",
+        "line": 190,
+        "excerpt": "Object.assign(merged, policy.rules);  (shallow, ignores priority)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Unchanged."
+  },
+  {
+    "id": "PRC-M638",
+    "severity": "medium",
+    "module": "workflow",
+    "old_disposition": "OPEN",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "workflow business rules (FINAL/status handling, chained escalation) + concurrency",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/escalation-service.ts",
+        "line": 175,
+        "excerpt": "async processEscalation(payload: EscalationTaskPayload): Promise<boolean> {"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate; no rework landed. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L086",
+    "severity": "low",
+    "module": "billing",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "shared @proctira/database document collection + control-plane migration",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/billing/src/pg-billing-repository.ts",
+        "line": 72,
+        "excerpt": "const all = await this.plans.all({ platform: true });"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L106",
+    "severity": "low",
+    "module": "fees",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "external messaging integration + finance dunning",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/fees/src/reminder-sandbox.ts",
+        "line": 30,
+        "excerpt": "mode: 'sandbox';"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L107",
+    "severity": "low",
+    "module": "fees",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "per-tenant invoice/receipt sequence needs a migration",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/fees/src/fees-service.ts",
+        "line": 218,
+        "excerpt": "return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;"
+      },
+      {
+        "file": "packages/backend/fees/src/fees-service.ts",
+        "line": 223,
+        "excerpt": "return `INV-${stamp}-${invoiceId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L204",
+    "severity": "low",
+    "module": "app-api-gateway",
+    "old_disposition": "PARTIAL",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not changed this part: NOT_CONNECTED/DEMO meta already returned instead of silent QUEUED; TypeBox 400 boundary + ETL consumer (or 501) not added. Left PARTIAL. wave0-triage-2026-10-25: met: non-demo POST /data-warehouse/import/jobs returns 501 DW_IMPORT_NOT_CONNECTED instead of inserting a QUEUED row (insights-ui-plugin.ts:179-187; test passes); unmet steps: demo-mode path still casts the body with a presence check only: no TypeBox schema (source enum, filename length, rows integer >= 0) before inserting the QUEUED row"
+    },
+    "eligibility": "ELIGIBLE_LOW",
+    "boundary": "",
+    "expected_files": [
+      "apps/api-gateway/src/insights-ui-plugin.ts",
+      "apps/api-gateway/src/insights-ui-plugin.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/insights-ui-plugin.ts",
+        "line": 180,
+        "excerpt": "if (!demoData) return reply.status(501).send({ code: 'DW_IMPORT_NOT_CONNECTED', ... })"
+      },
+      {
+        "file": "apps/api-gateway/src/insights-ui-plugin.ts",
+        "line": 189,
+        "excerpt": "const body = (request.body ?? {}) as { source?; filename?; rows? };  (cast, presence check only)"
+      },
+      {
+        "file": "apps/api-gateway/src/insights-ui-plugin.test.ts",
+        "line": 103,
+        "excerpt": "it('refuses import jobs with 501 instead of leaving them QUEUED forever', ...)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C apps/api-gateway exec vitest run src/insights-ui-plugin.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-insights-ui-plugin.log"
+      }
+    ],
+    "unmet_steps": [
+      "demo-mode path still casts the body with a presence check only: no TypeBox schema (source enum, filename length, rows integer >= 0) before inserting the QUEUED row"
+    ],
+    "rationale": "Row notes say the 501 was not added; tip has it (2026-10-06, git blame)."
+  },
+  {
+    "id": "PRC-L280",
+    "severity": "low",
+    "module": "audit",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization: gateway audit-logs scope mapping (tenant-admin access)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/rbac-registry.ts",
+        "line": 98,
+        "excerpt": "'audit-logs': 'platform',"
+      },
+      {
+        "file": "packages/backend/audit/src/routes.ts",
+        "line": 156,
+        "excerpt": "const AUDIT_WRITE_ROLES = new Set<string>(["
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L286",
+    "severity": "low",
+    "module": "billing",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "depends on PRC-M184 transaction/lock work (schema batch) + live PG",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/billing/src/pg-billing-repository.test.ts",
+        "line": null,
+        "excerpt": "no concurrency / PG RLS cross-tenant / denied-side-effect cases (file list + grep)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L337",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "security policy: download signing secret fail-closed + user-bound token",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/signed-download.ts",
+        "line": 15,
+        "excerpt": "REPORT_DOWNLOAD_SIGNING_SECRET ?? SIS_BOARD_EXPORT_SIGNING_SECRET ?? JWT_SECRET ?? 'sis-board-export-dev-secret-change-me'"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Hardcoded dev fallback secret is still present; notes accurate."
+  },
+  {
+    "id": "PRC-L338",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "auth: tokenised emailed links vs session requirement; blocked by PRC-M338",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/catalogue-service.ts",
+        "line": 180,
+        "excerpt": "downloadUrl: `/api/v1/reports/artifacts/${artifactId}/download?token=${signed.token}`  (relative URL, short-lived token)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "No delivery adapter and no absolute auth-page link / fresh-token minting; notes accurate."
+  },
+  {
+    "id": "PRC-L339",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Class A but not landed in this PR: fix is fully determined but requires a forward migration in range 230-239 + live-PG verification, or is additional test-authoring; grouped for a focused follow-up. Status carried forward from re-audit. Prev: resolveTenantId prefers gateway tenantId; x-tenant-id header fallback + explicit tenant_id predicate (defence-in-depth) not removed/added. Not addressed in this part (scope/time); carried forward at its re-audit status. Root cause unchanged from the re-audit evidence. wave0-triage-2026-10-25: met: explicit tenant_id predicates are present on the PG report store artifact/schedule/run queries (pg-report-store.ts:126,137,141,178,188,251,378,399); unmet steps: resolveTenantId still falls back to the client x-tenant-id header after request.tenantId (catalogue-routes.ts:24-31)"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "tenant isolation: removing x-tenant-id header fallback in report tenant resolution",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/pg-report-store.ts",
+        "line": 126,
+        "excerpt": "SELECT * FROM report_artifacts WHERE tenant_id = $1 AND id = $2 LIMIT 1"
+      },
+      {
+        "file": "packages/backend/report/src/pg-report-store.ts",
+        "line": 399,
+        "excerpt": "const clauses = ['tenant_id = $1'];  (listRuns)"
+      },
+      {
+        "file": "packages/backend/report/src/pg-report-store.ts",
+        "line": 251,
+        "excerpt": "DELETE FROM report_schedules WHERE tenant_id = $1 AND id = $2"
+      },
+      {
+        "file": "packages/backend/report/src/catalogue-routes.ts",
+        "line": 27,
+        "excerpt": "const header = request.headers['x-tenant-id']; if (typeof header === 'string' && header.length > 0) return header;"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [
+      "resolveTenantId still falls back to the client x-tenant-id header after request.tenantId (catalogue-routes.ts:24-31)"
+    ],
+    "rationale": "Row notes say the tenant_id predicate was not added; tip shows it on every PG store query, so only the header fallback remains."
+  },
+  {
+    "id": "PRC-L340",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "audit/privacy control: domain audit of PII export downloads and schedule changes",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/catalogue-routes.ts",
+        "line": 233,
+        "excerpt": "const artifact = await service.getArtifact(tenantId, params.data.id);  (download path; no domain audit call in catalogue-routes.ts/catalogue-service.ts)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "No audit references in catalogue-service.ts or catalogue-routes.ts; only gateway post-hoc mutation audit covers POSTs."
+  },
+  {
+    "id": "PRC-L341",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "privacy: in-tenant recipient restriction for PII report export",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/catalogue-schemas.ts",
+        "line": 21,
+        "excerpt": "recipients: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 320 })))  (no format/maxItems/uniqueItems)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Recipients schema unchanged; notes accurate."
+  },
+  {
+    "id": "PRC-L342",
+    "severity": "low",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "storage security config: SSE + production fail-closed for report blobs",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/blob-store.ts",
+        "line": 100,
+        "excerpt": "contentType: 'application/octet-stream',"
+      },
+      {
+        "file": "packages/backend/report/src/blob-store.ts",
+        "line": 110,
+        "excerpt": "} catch { return null; }  (all download errors -> not found)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate: octet-stream uploads and swallow-all download errors remain. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L471",
+    "severity": "low",
+    "module": "fees",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "financial business rule + new fees API route",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/fees/src/fees-service.ts",
+        "line": 794,
+        "excerpt": "async supersedeFeeStructure(  (service only)"
+      },
+      {
+        "file": "packages/backend/fees/src/fees-plugin.ts",
+        "line": 1197,
+        "excerpt": "${prefix}/structures/:id/instalments  (no /supersede route among fees-plugin routes)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-L529",
+    "severity": "low",
+    "module": "app-api-gateway",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "workflow_ui_approvals needs decided_by/decision columns",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/workflow-ui-pg-store.ts",
+        "line": 361,
+        "excerpt": "DELETE FROM workflow_ui_approvals WHERE id = $1 AND tenant_id = $2"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M022",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "PARTIAL",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not changed this part: gw-mix1-workflow-paging.test.ts already exists; full pagination contract (meta.totalItems beyond 200) with server-side sort not completed; default pageSize 200 remains. Left PARTIAL. wave0-triage-2026-10-25: met: instances and pending-approvals list endpoints are SQL-paged with totals (workflow-ui-engine-store.ts:286-308; workflow-ui-plugin.ts:304-316; paging test passes); unmet steps: definitions list (workflow-ui-plugin.ts:249 -> listDefinitions with PAGE 200) still truncates; approval decider lookup scans listPendingApprovals/listInstances capped at 200 (workflow-ui-plugin.ts:160-162), so approvals beyond row 200 are not found"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authorization: approval-decider lookup (checkApprovalDecider) scans a truncated list",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/workflow-ui-engine-store.ts",
+        "line": 286,
+        "excerpt": "/** PRC-M022: SQL-paged (repository ORDER BY created_at, id) with totals. */"
+      },
+      {
+        "file": "apps/api-gateway/src/workflow-ui-plugin.ts",
+        "line": 304,
+        "excerpt": "store.listInstancesPage ? await store.listInstancesPage(tenantId, pagination) : ..."
+      },
+      {
+        "file": "apps/api-gateway/src/workflow-ui-engine-store.ts",
+        "line": 42,
+        "excerpt": "const PAGE = { page: 1, pageSize: 200 } as const;  (still used at :220, :251, :259)"
+      },
+      {
+        "file": "apps/api-gateway/src/workflow-ui-plugin.ts",
+        "line": 160,
+        "excerpt": "(await store.listPendingApprovals(tenantId)).find((a) => a.id === approvalId)  (first 200 only)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C apps/api-gateway exec vitest run src/gw-mix1-workflow-paging.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/gateway-gw-mix1-workflow-paging.log"
+      }
+    ],
+    "unmet_steps": [
+      "definitions list (workflow-ui-plugin.ts:249 -> listDefinitions with PAGE 200) still truncates",
+      "approval decider lookup scans listPendingApprovals/listInstances capped at 200 (workflow-ui-plugin.ts:160-162), so approvals beyond row 200 are not found"
+    ],
+    "rationale": "Row notes say default pageSize 200 remains; tip narrows that to definitions and the decider lookup."
+  },
+  {
+    "id": "PRC-M179",
+    "severity": "medium",
+    "module": "auth",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "RBAC scope model (area/institution) — notes: needs new schema + shared-RBAC change",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/auth/src/keycloak/roles.ts",
+        "line": 26,
+        "excerpt": "const areaId = options.areaId ?? 'ROOT';"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate: Keycloak principals still default to ROOT area. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M184",
+    "severity": "medium",
+    "module": "billing",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "unique plan-name index + multi-key tx in shared document collection",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/billing/src/billing-service.ts",
+        "line": 129,
+        "excerpt": "const existingByName = await this.repository.findPlanByName(input.name);  (check-then-insert)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M246",
+    "severity": "medium",
+    "module": "fees",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "financial + external PSP integration",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/fees/src/fees-service.ts",
+        "line": 1333,
+        "excerpt": "async recordRefund(  (posts refund + journal; afterStatus: invoice.status, no PSP call)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M251",
+    "severity": "medium",
+    "module": "fees",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "financial reconciliation business rule (settlement, matching key) + import-batch idempotency",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/fees/src/fees-service.ts",
+        "line": 1847,
+        "excerpt": "if (invoice.amountCents !== row.amountCents) { unmatched ... }  (face-amount match, no settlement)"
+      },
+      {
+        "file": "packages/backend/fees/src/fees-service.ts",
+        "line": 1862,
+        "excerpt": "createReconciliationBatch({ id: uuidv4(), ... })  (no idempotency key)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate; exception resolution exists but nothing is settled. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M325",
+    "severity": "medium",
+    "module": "privacy",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "SCHEMA_BATCH",
+    "boundary": "per-subject-table legal-hold triggers need migrations across domain tables",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "db/sql/067_privacy_legal_hold_erasure.sql",
+        "line": 124,
+        "excerpt": "CREATE TRIGGER trg_privacy_block_student_delete_on_legal_hold ... ON students (only trigger of its kind in db/sql)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Row notes still accurate: the DB legal-hold gate exists only on students; no other subject table has a trigger."
+  },
+  {
+    "id": "PRC-M343",
+    "severity": "medium",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_MEDIUM",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/report/src/providers.ts",
+      "packages/backend/report/src/providers-no-fabrication.test.ts",
+      "packages/backend/report/src/providers-no-truncation.test.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/providers.ts",
+        "line": 313,
+        "excerpt": "for (const table of ['examination_results', 'exam_results', 'candidate_results']) {"
+      },
+      {
+        "file": "packages/backend/report/src/providers.ts",
+        "line": 316,
+        "excerpt": "SELECT * FROM ${table} LIMIT $1"
+      },
+      {
+        "file": "packages/backend/report/src/providers.ts",
+        "line": 321,
+        "excerpt": "fieldNames.filter((k) => k !== 'tenant_id').slice(0, 6)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Provider still guesses tables with SELECT * and emits first 6 columns. Binding to real exam marks tables with explicit columns is a provider SQL change under existing RLS (no migration)."
+  },
+  {
+    "id": "PRC-M366",
+    "severity": "medium",
+    "module": "shared-storage",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "INFRA_BATCH",
+    "boundary": "IaC bucket lifecycle/ILM rules",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/shared/storage/src/adapters/s3-adapter.ts",
+        "line": 91,
+        "excerpt": "// PRC-M366: S3/MinIO lifecycle (expiry/transition) rules filter on object tags"
+      },
+      {
+        "file": "infrastructure/",
+        "line": null,
+        "excerpt": "git grep finds no lifecycle_rule / aws_s3_bucket_lifecycle / ILM rule in infrastructure/"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M387",
+    "severity": "medium",
+    "module": "survey",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "runtime enforcement depends on the parked-package mount decision (PRC-L166)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 315,
+        "excerpt": "if (scope && !scope.institutionIds.includes(input.institutionId)) throw new ForbiddenError(...)"
+      },
+      {
+        "file": "packages/backend/survey/src/routes.ts",
+        "line": 501,
+        "excerpt": "institutionIds: getUserInstitutionIds(request),"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Row notes accurate: code-level fix + tests exist, package still unmounted so runtime enforcement unverifiable. No CSV change."
+  },
+  {
+    "id": "PRC-M388",
+    "severity": "medium",
+    "module": "survey",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "runtime enforcement depends on the parked-package mount decision (PRC-L166)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 326,
+        "excerpt": "if (survey.status !== 'published') throw new BusinessRuleError(...)"
+      },
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 164,
+        "excerpt": "// PRC-M388: stored answers reference questionIds - keep ids stable"
+      },
+      {
+        "file": "packages/backend/survey/src/survey-service.ts",
+        "line": 272,
+        "excerpt": "// PRC-M388 / #555 review #12: idempotent, one distribution record per (survey, institution)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Row notes accurate: code-level fix + tests exist, package still unmounted. No CSV change."
+  },
+  {
+    "id": "PRC-M459",
+    "severity": "medium",
+    "module": "workflow",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "file-storage path trust and uploader identity (authz/security)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/case-schemas.ts",
+        "line": 151,
+        "excerpt": "storagePath: Type.String({ minLength: 1, maxLength: 500, description: 'Storage path or URL' }),"
+      },
+      {
+        "file": "packages/backend/workflow/src/case-service.ts",
+        "line": 195,
+        "excerpt": "storagePath: input.storagePath, uploadedBy: input.uploadedBy,"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate: client storagePath/uploadedBy still accepted. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M463",
+    "severity": "medium",
+    "module": "workflow",
+    "old_disposition": "PARTIAL",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Concurrency test added (closes the concurrency gap). Actor-authz already covered by routes-actor.test.ts and worker-wiring by escalation-worker.wiring.test.ts (pre-existing). Marked PARTIAL only because the finding bundled broader coverage expectations I did not exhaustively expand. wave0-triage-2026-10-25: met: concurrency (transition-concurrency.test.ts), actor-authz (routes-actor.test.ts) and worker-wiring (escalation-worker.wiring.test.ts) tests exist and pass; unmet steps: the optimistic transition guard is only proven against InMemoryWorkflowRepository; no PG-backed (live) concurrent-transition test exercises the SQL conditional update"
+    },
+    "eligibility": "ELIGIBLE_MEDIUM",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/workflow/src/pg-workflow-repository.live.test.ts",
+      "packages/backend/workflow/src/pg-workflow-repository.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/workflow/src/transition-concurrency.test.ts",
+        "line": 10,
+        "excerpt": "import { InMemoryWorkflowRepository } from './in-memory-repository.js';  (concurrency proven in-memory only)"
+      },
+      {
+        "file": "packages/backend/workflow/src/routes-actor.test.ts",
+        "line": 79,
+        "excerpt": "describe('workflow transition actor (PRC-M490)', ...)"
+      },
+      {
+        "file": "packages/backend/workflow/src/escalation-worker.wiring.test.ts",
+        "line": 112,
+        "excerpt": "describe('PRC-H110 workflow escalation worker wiring', ...)"
+      },
+      {
+        "file": "packages/backend/workflow/src/pg-workflow-repository.live.test.ts",
+        "line": 114,
+        "excerpt": "it('runs definition → instance → transitions → audit ...')  (no concurrent-transition case)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/workflow exec vitest run src/transition-concurrency.test.ts src/routes-actor.test.ts src/escalation-worker.wiring.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/workflow-m463.log"
+      }
+    ],
+    "unmet_steps": [
+      "the optimistic transition guard is only proven against InMemoryWorkflowRepository; no PG-backed (live) concurrent-transition test exercises the SQL conditional update"
+    ],
+    "rationale": "Narrows the vague residual in the row notes to one concrete test gap."
+  },
+  {
+    "id": "PRC-M465",
+    "severity": "medium",
+    "module": "app-api-gateway",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "NEEDS_DECISION",
+    "boundary": "metric definitions for board rollup (tied to PRC-M008, DECISION_REGISTER group 9)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "apps/api-gateway/src/board-summary.ts",
+        "line": 312,
+        "excerpt": "summary.lmsCompletionPercent = Math.round(Number(row.avg_mastery) * 10000) / 100;  (mastery labelled completion)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M497",
+    "severity": "medium",
+    "module": "auth",
+    "old_disposition": "PARTIAL",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not changed this part: otp-service already HMAC+pepper+timingSafeEqual; binding the OTP challenge to a prior primary-auth step and ignoring body identity requires reworking mfa-routes + gateway wiring (tokenService/sessionService). Deferred; remains PARTIAL. wave0-triage-2026-10-25: met: client tenantId/userId/phone are no longer trusted: host tenant enforced, identity comes only from resolvePrimaryAuth, phone resolved server-side, verify returns an opaque ticket (mfa-routes.ts:55-140; mfa-routes.test.ts 6/6 pass); unmet steps: gateway mounts registerMfaRoutes without resolvePrimaryAuth/issueCompletionTicket (apps/api-gateway/src/app.ts:610-611), so the challenge is never bound to a real login — SMS OTP send fails closed (401) for every caller instead of completing a login"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authentication: gateway login handler must mint/verify a pre-MFA ticket (resolvePrimaryAuth/issueCompletionTicket)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/auth/src/mfa-routes.ts",
+        "line": 100,
+        "excerpt": "// PRC-M497: the tenant comes from the host, never the body. A differing body.tenantId ... is rejected."
+      },
+      {
+        "file": "packages/backend/auth/src/mfa-routes.ts",
+        "line": 109,
+        "excerpt": "const primary = resolvePrimaryAuth ? await resolvePrimaryAuth(request) : null; if (!primary) return 401 PRIMARY_AUTH_REQUIRED"
+      },
+      {
+        "file": "packages/backend/auth/src/mfa-routes.ts",
+        "line": 126,
+        "excerpt": "const phone = resolvePhone ? ((await resolvePhone({ userId, tenantId })) ?? '') : '';  (server-side phone only)"
+      },
+      {
+        "file": "apps/api-gateway/src/app.ts",
+        "line": 610,
+        "excerpt": "await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });  (no resolvePrimaryAuth/issueCompletionTicket wired)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/auth exec vitest run src/mfa-routes.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-mfa-routes.log"
+      }
+    ],
+    "unmet_steps": [
+      "gateway mounts registerMfaRoutes without resolvePrimaryAuth/issueCompletionTicket (apps/api-gateway/src/app.ts:610-611), so the challenge is never bound to a real login — SMS OTP send fails closed (401) for every caller instead of completing a login"
+    ],
+    "rationale": "Row notes say the binding was not changed; tip (PR #552, 2026-10-06) shows the route fix with passing tests. Residual is gateway wiring of a pre-MFA ticket, which is an auth change."
+  },
+  {
+    "id": "PRC-M512",
+    "severity": "medium",
+    "module": "fees",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "financial + external PSP/webhook",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/fees/src/payment-adapter.ts",
+        "line": 34,
+        "excerpt": "export class SandboxPaymentAdapter implements PaymentAdapter {  (always succeeds)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M587",
+    "severity": "medium",
+    "module": "auth",
+    "old_disposition": "PARTIAL",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not changed this part: SAML DefaultSAMLResponseParser still regex-parses with no XML-DSig/InResponseTo/replay checks; integrating node-saml is a dependency+feature change. Unmounted today (latent). Remains PARTIAL. wave0-triage-2026-10-25: met: SAMLProvider refuses parsers that do not verify signatures (fail-closed); RelayState mandatory; InResponseTo checked; assertion replay cache (saml-provider.ts:42-83,208-273; saml-provider.test.ts 18/18 pass); unmet steps: no signature-verifying SAML response parser ships — the only built-in parser is regex-based with verifiesSignature=false, so SAML login cannot work until an XML-DSig parser dependency is added"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authentication + dependency change (XML-DSig verifying parser, e.g. @node-saml/node-saml)",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/auth/src/external-providers/saml-provider.ts",
+        "line": 211,
+        "excerpt": "// PRC-M587: refuse to run without a signature-verifying parser."
+      },
+      {
+        "file": "packages/backend/auth/src/external-providers/saml-provider.ts",
+        "line": 83,
+        "excerpt": "readonly verifiesSignature = false;  (DefaultSAMLResponseParser, regex)"
+      },
+      {
+        "file": "packages/backend/auth/src/external-providers/saml-provider.ts",
+        "line": 273,
+        "excerpt": "// PRC-M587: RelayState is mandatory (no unsolicited IdP-initiated logins)"
+      },
+      {
+        "file": "packages/backend/auth/src/external-providers/saml-provider.ts",
+        "line": 208,
+        "excerpt": "consumed Assertion IDs (replay cache, pruned with pending requests)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/auth exec vitest run src/external-providers/saml-provider.test.ts src/external-providers/external-auth-routes.test.ts src/external-providers/external-auth-handler.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-external-providers.log"
+      }
+    ],
+    "unmet_steps": [
+      "no signature-verifying SAML response parser ships — the only built-in parser is regex-based with verifiesSignature=false, so SAML login cannot work until an XML-DSig parser dependency is added"
+    ],
+    "rationale": "Row notes say no InResponseTo/replay checks; tip has them plus fail-closed refusal. Forged assertions are refused; functional SAML needs a dependency."
+  },
+  {
+    "id": "PRC-M589",
+    "severity": "medium",
+    "module": "auth",
+    "old_disposition": "PARTIAL",
+    "triage_result": "PARTIAL_CONFIRMED",
+    "twin_id": null,
+    "proposed": {
+      "disposition": "PARTIAL",
+      "latest_wave": "wave0-triage-2026-10-25",
+      "notes": "Not changed this part: emailVerified gating already in place; residual browser-bound signed-cookie state + one-time ticket token delivery not implemented. Unmounted today. Remains PARTIAL. wave0-triage-2026-10-25: met: verified-email-only linking/provisioning with safe defaults; browser-bound state cookie with timing-safe compare; one-time ticket redirect delivery (external-auth-handler.ts:142-246; external-auth-routes.ts:33-93; tests pass); unmet steps: pending login state and the default web-ticket store are still process-local (in-memory Map / MemoryWebTicketStore), so a callback served by another replica fails"
+    },
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "authentication: multi-replica external-IdP state store",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/backend/auth/src/external-providers/external-auth-routes.ts",
+        "line": 41,
+        "excerpt": "/** PRC-M589: browser-bound state cookie (also carries SAML RelayState). */"
+      },
+      {
+        "file": "packages/backend/auth/src/external-providers/external-auth-routes.ts",
+        "line": 90,
+        "excerpt": "const ticketStore = options.ticketStore ?? new MemoryWebTicketStore();"
+      },
+      {
+        "file": "packages/backend/auth/src/external-providers/external-auth-handler.ts",
+        "line": 228,
+        "excerpt": "// PRC-M589: only an IdP-verified email may be linked to an existing account."
+      },
+      {
+        "file": "packages/backend/auth/src/external-providers/saml-provider.ts",
+        "line": 241,
+        "excerpt": "this.pendingRequests.set(relayState, {...})  (process-local Map)"
+      }
+    ],
+    "tests_run": [
+      {
+        "command": "pnpm -C packages/backend/auth exec vitest run src/external-providers/saml-provider.test.ts src/external-providers/external-auth-routes.test.ts src/external-providers/external-auth-handler.test.ts",
+        "exit_code": 0,
+        "log": ".agents/tasks/ProctiraErp-docs-ledger-triage-wave0-2026-10-25/logs/triage-g3/auth-external-providers.log"
+      }
+    ],
+    "unmet_steps": [
+      "pending login state and the default web-ticket store are still process-local (in-memory Map / MemoryWebTicketStore), so a callback served by another replica fails"
+    ],
+    "rationale": "Row notes say browser-bound state and one-time ticket were not implemented; tip has both. Process-local state remains."
+  },
+  {
+    "id": "PRC-M612",
+    "severity": "medium",
+    "module": "shared-events",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "INFRA_BATCH",
+    "boundary": "RabbitMQ delayed-exchange plugin / broker config + publisher confirms",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/shared/events/src/rabbitmq/subscriber.ts",
+        "line": 193,
+        "excerpt": "channel.ack(msg);  (ack before republish at :195)"
+      },
+      {
+        "file": "packages/shared/events/src/rabbitmq/subscriber.ts",
+        "line": 203,
+        "excerpt": "'x-delay': backoffDelay,  (no delayed exchange declared)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate: shared/events path unchanged. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M631",
+    "severity": "medium",
+    "module": "report",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "ELIGIBLE_MEDIUM",
+    "boundary": "",
+    "expected_files": [
+      "packages/backend/report/src/pg-report-store.ts",
+      "packages/backend/report/src/catalogue-routes.ts",
+      "packages/backend/report/src/report-access.ts"
+    ],
+    "evidence": [
+      {
+        "file": "packages/backend/report/src/pg-report-store.ts",
+        "line": 123,
+        "excerpt": "async getArtifact(...)  (no *.live.test.ts for PgReportStore in packages/backend/report/src)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Test-only gap: no PgReportStore/RLS live test or gateway role-matrix artifact-access test exists in the report package. New test files would be added (e.g. pg-report-store.live.test.ts); needs live PG in CI."
+  },
+  {
+    "id": "PRC-M633",
+    "severity": "medium",
+    "module": "shared-events",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "tenant isolation: consumer-side topic tenant vs message tenant check",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/shared/events/src/kafka/consumer.ts",
+        "line": 121,
+        "excerpt": "const { topic, message } = payload;  (no tenant equality check before dispatch)"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  },
+  {
+    "id": "PRC-M634",
+    "severity": "medium",
+    "module": "shared-storage",
+    "old_disposition": "PARTIAL",
+    "triage_result": "STILL_OPEN",
+    "twin_id": null,
+    "proposed": null,
+    "eligibility": "BLOCKED_FOR_APPROVAL",
+    "boundary": "tenant isolation: threading caller tenant through every storage caller",
+    "expected_files": [],
+    "evidence": [
+      {
+        "file": "packages/shared/storage/src/__tests__/storage-security.test.ts",
+        "line": 140,
+        "excerpt": "describe('raw-key tenant ownership (PRC-M634)', ...)  (opt-in guard)"
+      },
+      {
+        "file": "packages/",
+        "line": null,
+        "excerpt": "git grep callerTenantId outside packages/shared/storage: only an unrelated developer-portal helper; no storage caller passes it"
+      }
+    ],
+    "tests_run": [],
+    "unmet_steps": [],
+    "rationale": "Notes accurate. Row notes still match tip; no CSV change proposed."
+  }
+]
