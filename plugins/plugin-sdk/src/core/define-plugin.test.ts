@@ -63,7 +63,7 @@ describe('definePlugin', () => {
       manifest: validManifest,
       uiSlots: [
         {
-          slotId: 'dashboard-widget.main',
+          slotId: 'dashboard.widget',
           componentId: 'my-widget',
           label: 'My Widget',
           order: 10,
@@ -72,7 +72,7 @@ describe('definePlugin', () => {
     });
 
     expect(plugin.uiSlots).toHaveLength(1);
-    expect(plugin.uiSlots[0]!.slotId).toBe('dashboard-widget.main');
+    expect(plugin.uiSlots[0]!.slotId).toBe('dashboard.widget');
   });
 
   it('should include lifecycle callbacks when provided', () => {

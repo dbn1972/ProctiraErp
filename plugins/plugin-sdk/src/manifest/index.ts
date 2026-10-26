@@ -4,9 +4,22 @@
  * Validates plugin manifests against the platform's manifest schema.
  * Used during development to catch issues before submission.
  */
-import { Type, type Static, type TSchema } from '@sinclair/typebox';
+import {
+  BUILT_IN_EXTENSION_POINTS,
+  BUILT_IN_UI_SLOTS,
+  PluginManifestSchema,
+  type PluginManifest,
+} from '@proctira/backend-plugin';
 import { Value } from '@sinclair/typebox/value';
-import { PluginManifestSchema, type PluginManifest } from '@proctira/backend-plugin';
+
+/**
+ * Ids a manifest may list in `requiredExtensionPoints`: the platform's built-in
+ * extension points and UI slots (PRC-L483).
+ */
+const KNOWN_EXTENSION_IDS: ReadonlySet<string> = new Set([
+  ...BUILT_IN_EXTENSION_POINTS.map((ep) => ep.id),
+  ...BUILT_IN_UI_SLOTS.map((slot) => slot.id),
+]);
 
 /**
  * Result of manifest validation.
@@ -55,6 +68,7 @@ export class ManifestValidationError extends Error {
  * - supportedProductVersions is a valid semver range
  * - tenantScopeBehavior is 'isolated' or 'shared'
  * - Permissions and extension points are non-empty strings
+ * - Every required extension point / UI slot exists in the platform catalogue
  *
  * @param manifest - The manifest object to validate
  * @returns Validation result with errors and warnings
@@ -107,6 +121,19 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
       message:
         'Plugin declares no required permissions. Most plugins need at least read access to some entity.',
       severity: 'warning',
+    });
+  }
+
+  // PRC-L483: every declared extension point / UI slot must exist in the catalogue.
+  if (Array.isArray(m['requiredExtensionPoints'])) {
+    m['requiredExtensionPoints'].forEach((id: unknown, index: number) => {
+      if (typeof id === 'string' && id.length > 0 && !KNOWN_EXTENSION_IDS.has(id)) {
+        errors.push({
+          path: `/requiredExtensionPoints/${index}`,
+          message: `Unknown extension point or UI slot '${id}'`,
+          severity: 'error',
+        });
+      }
     });
   }
 

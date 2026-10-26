@@ -207,6 +207,83 @@ export class InMemoryPluginRepository implements PluginRepository {
     }
   }
 
+  // ─── Atomic lifecycle operations (PRC-L478) ──────────────────────────────
+  // No `await` between check and writes: each body runs to completion on the
+  // event loop, so concurrent callers are serialised.
+
+  async registerAtomically(
+    plugin: Omit<PluginEntity, 'createdAt' | 'updatedAt'>,
+    manifest: Omit<PluginManifestEntity, 'createdAt'>,
+  ): Promise<PluginEntity | null> {
+    for (const existing of this.plugins.values()) {
+      if (existing.name === plugin.name) return null;
+    }
+    const now = new Date();
+    const created: PluginEntity = { ...plugin, createdAt: now, updatedAt: now };
+    this.plugins.set(created.id, created);
+    this.manifests.set(manifest.id, { ...manifest, createdAt: now });
+    return created;
+  }
+
+  async installAtomically(
+    install: Omit<
+      PluginInstallEntity,
+      'installedAt' | 'enabledAt' | 'disabledAt' | 'uninstalledAt' | 'updatedAt'
+    >,
+    permissions: Omit<PluginPermissionEntity, 'revokedAt' | 'revokedBy'>[],
+  ): Promise<PluginInstallEntity | null> {
+    for (const existing of this.installs.values()) {
+      if (
+        existing.pluginId === install.pluginId &&
+        existing.tenantId === install.tenantId &&
+        existing.status !== 'uninstalled'
+      ) {
+        return null;
+      }
+    }
+    const now = new Date();
+    const created: PluginInstallEntity = {
+      ...install,
+      installedAt: now,
+      enabledAt: null,
+      disabledAt: null,
+      uninstalledAt: null,
+      updatedAt: now,
+    };
+    this.installs.set(created.id, created);
+    for (const entity of permissions) {
+      this.permissions.set(entity.id, { ...entity, revokedAt: null, revokedBy: null });
+    }
+    return created;
+  }
+
+  async uninstallAtomically(
+    installId: string,
+    revokedBy: string,
+    patch: { uninstalledAt: Date },
+  ): Promise<PluginInstallEntity | null> {
+    const install = this.installs.get(installId);
+    if (!install || install.status === 'uninstalled') return null;
+    for (const [id, permission] of this.permissions.entries()) {
+      if (permission.installId === installId && permission.status === 'consented') {
+        this.permissions.set(id, {
+          ...permission,
+          status: 'revoked',
+          revokedAt: patch.uninstalledAt,
+          revokedBy,
+        });
+      }
+    }
+    const updated: PluginInstallEntity = {
+      ...install,
+      status: 'uninstalled',
+      uninstalledAt: patch.uninstalledAt,
+      updatedAt: new Date(),
+    };
+    this.installs.set(installId, updated);
+    return updated;
+  }
+
   // ─── Audit ────────────────────────────────────────────────────────────────
 
   async createAuditEntry(entry: Omit<PluginAuditEntry, 'timestamp'>): Promise<PluginAuditEntry> {

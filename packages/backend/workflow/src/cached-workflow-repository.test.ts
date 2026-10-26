@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CacheClient } from '@proctira/cache';
+import { CacheClient, tenantKey } from '@proctira/cache';
 
 import { CachedWorkflowRepository } from './cached-workflow-repository.js';
 import { InMemoryWorkflowRepository } from './in-memory-repository.js';
@@ -82,6 +82,33 @@ describe('CachedWorkflowRepository', () => {
     expect(first).toBeNull();
     expect(second).toBeNull();
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('never writes a "not found" result to the cache (PRC-L598)', async () => {
+    const setSpy = vi.spyOn(cache, 'set');
+    const result = await repository.findDefinitionById('unknown-id', TENANT_ID);
+    expect(result).toBeNull();
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  it('caches a found definition on read-through (PRC-L598)', async () => {
+    await delegate.createDefinition(definitionInput);
+    const setSpy = vi.spyOn(cache, 'set');
+    await repository.findDefinitionById('wf-1', TENANT_ID);
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy.mock.calls[0]?.[0]).toBe(tenantKey(TENANT_ID, 'workflow-definition', 'wf-1'));
+  });
+
+  it('invalidates a stale cache entry for the id on create (PRC-L598)', async () => {
+    const key = tenantKey(TENANT_ID, 'workflow-definition', 'wf-1');
+    await cache.set(key, { ...definitionInput, name: 'Stale Workflow' }, 600);
+    const delSpy = vi.spyOn(cache, 'del');
+
+    await repository.createDefinition(definitionInput);
+
+    expect(delSpy).toHaveBeenCalledWith(key);
+    const afterCreate = await repository.findDefinitionById('wf-1', TENANT_ID);
+    expect(afterCreate!.name).toBe('Test Workflow');
   });
 
   it('invalidates the cache entry on update', async () => {

@@ -157,6 +157,40 @@ export interface PluginRepository {
   revokePermission(id: string, revokedBy: string): Promise<PluginPermissionEntity>;
   revokeAllPermissionsByInstall(installId: string, revokedBy: string): Promise<void>;
 
+  // Atomic lifecycle operations (PRC-L478). Each one performs its uniqueness or
+  // state check and all of its writes as a single unit (one transaction in a
+  // durable implementation), so concurrent callers cannot both pass the check.
+
+  /**
+   * Create the plugin and its manifest together.
+   * Returns null (and writes nothing) when a plugin with the same name exists.
+   */
+  registerAtomically(
+    plugin: Omit<PluginEntity, 'createdAt' | 'updatedAt'>,
+    manifest: Omit<PluginManifestEntity, 'createdAt'>,
+  ): Promise<PluginEntity | null>;
+  /**
+   * Create the install and its consented permissions together.
+   * Returns null (and writes nothing) when a non-uninstalled install already
+   * exists for the same plugin and tenant.
+   */
+  installAtomically(
+    install: Omit<
+      PluginInstallEntity,
+      'installedAt' | 'enabledAt' | 'disabledAt' | 'uninstalledAt' | 'updatedAt'
+    >,
+    permissions: Omit<PluginPermissionEntity, 'revokedAt' | 'revokedBy'>[],
+  ): Promise<PluginInstallEntity | null>;
+  /**
+   * Revoke every consented permission and mark the install uninstalled together.
+   * Returns null (and writes nothing) when the install is missing or already uninstalled.
+   */
+  uninstallAtomically(
+    installId: string,
+    revokedBy: string,
+    patch: { uninstalledAt: Date },
+  ): Promise<PluginInstallEntity | null>;
+
   // Audit operations
   createAuditEntry(entry: Omit<PluginAuditEntry, 'timestamp'>): Promise<PluginAuditEntry>;
   listAuditEntries(pluginId: string, tenantId: string): Promise<PluginAuditEntry[]>;

@@ -28,6 +28,7 @@ import {
   TrackingNumberParamsSchema,
   LanguageSelectionSchema,
   SchoolFinderQuerySchema,
+  InstitutionMapQuerySchema,
   UpdateApplicationStatusSchema,
   ApplicationParamsSchema,
   CreateInterviewSlotSchema,
@@ -489,10 +490,22 @@ export async function registerRegistrationRoutes(
       reply: FastifyReply,
     ) {
       const tenantId = publicTenantId(request);
-      const query = request.query;
+      // PRC-L140: validate the public querystring (page/pageSize bounds, search length).
+      const validation = validate(InstitutionMapQuerySchema, request.query ?? {}, {
+        convert: true,
+      });
+      if (!validation.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: validation.errors,
+        });
+      }
+      const query = validation.data;
 
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 50;
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 50;
 
       const result = await registrationService.getInstitutionLocations(
         tenantId,
