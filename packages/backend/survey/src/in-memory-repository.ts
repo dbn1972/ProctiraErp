@@ -169,6 +169,25 @@ export class InMemoryDistributionRepository implements DistributionRepository {
     return updated;
   }
 
+  async markCompletedIfOpen(
+    id: string,
+    tenantId: string,
+    submittedAt: string,
+  ): Promise<DistributionRecordEntity | null> {
+    // PRC-L165: synchronous check-and-set (no await) — the in-memory equivalent of a
+    // conditional UPDATE ... WHERE status <> 'completed'.
+    const index = this.records.findIndex((r) => r.id === id && r.tenantId === tenantId);
+    if (index === -1 || this.records[index]!.status === 'completed') return null;
+    const updated: DistributionRecordEntity = {
+      ...this.records[index]!,
+      status: 'completed',
+      submittedAt,
+      updatedAt: new Date(),
+    };
+    this.records[index] = updated;
+    return updated;
+  }
+
   async countByStatus(
     tenantId: string,
     surveyId: string,

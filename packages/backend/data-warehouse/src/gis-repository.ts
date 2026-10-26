@@ -30,6 +30,8 @@ export interface GISRepository {
     updates: Partial<GISLayer>,
   ): Promise<GISLayer>;
   deleteLayer(id: string, warehouseId: string, tenantId: string): Promise<void>;
+  /** PRC-L453: delete every layer of a warehouse (warehouse deletion); returns the count. */
+  deleteLayersForWarehouse(warehouseId: string, tenantId: string): Promise<number>;
   findLayerById(id: string, warehouseId: string, tenantId: string): Promise<GISLayer | null>;
   listLayers(
     warehouseId: string,

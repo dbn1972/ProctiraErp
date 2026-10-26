@@ -56,4 +56,6 @@ export interface TranslationRepository {
     entityType: TranslatableEntityType,
     entityId: string,
   ): Promise<void>;
+  /** PRC-L453: delete every translation of a warehouse (warehouse deletion); returns the count. */
+  deleteTranslationsForWarehouse(warehouseId: string, tenantId: string): Promise<number>;
 }

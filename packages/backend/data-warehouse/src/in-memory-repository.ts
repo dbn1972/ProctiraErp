@@ -52,6 +52,19 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
       throw new NotFoundError(`Warehouse not found: ${id}`);
     }
     this.warehouses.delete(id);
+    // PRC-L453: children are keyed by warehouse and meaningless without it — cascade.
+    for (const children of [
+      this.indicators,
+      this.units,
+      this.subgroups,
+      this.timePeriods,
+      this.areas,
+      this.dataRecords,
+    ] as Map<string, { warehouseId: string; tenantId: string }>[]) {
+      for (const [childId, child] of children) {
+        if (child.warehouseId === id && child.tenantId === tenantId) children.delete(childId);
+      }
+    }
   }
 
   async findWarehouseById(id: string, tenantId: string): Promise<Warehouse | null> {
