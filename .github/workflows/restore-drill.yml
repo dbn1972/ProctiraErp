@@ -20,6 +20,7 @@ on:
       - 'tools/scripts/restore-drill.sh'
       - 'tools/scripts/restore-parity.sh'
       - 'tools/scripts/check-restore-drill-evidence.sh'
+      - 'tools/scripts/verify-evidence-run.mjs'
       - 'tools/scripts/phi-retention-job.mjs'
       - 'docs/audits/evidence/restore-drill-*.json'
       - 'docs/audits/OPS_W1_OPS_20_RESTORE.md'
@@ -44,6 +45,10 @@ jobs:
   restore-drill:
     name: backup → restore → verify
     runs-on: ubuntu-latest
+    # PRC-M431: actions: read for the evidence-pack run verification.
+    permissions:
+      contents: read
+      actions: read
     services:
       postgres:
         image: postgres:16-alpine
@@ -257,6 +262,9 @@ jobs:
       # offsiteTarget and must not claim production restore. Fail closed even
       # when the live Postgres drill above succeeded.
       - name: Verify tip evidence pack (fail closed)
+        # PRC-M431: run URL is verified against the API (mandatory under CI).
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bash tools/scripts/check-restore-drill-evidence.sh
 
       - name: Upload drill evidence

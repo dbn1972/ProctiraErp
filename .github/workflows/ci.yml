@@ -1268,6 +1268,13 @@ jobs:
   restore-drill-evidence:
     name: Restore Drill Evidence (W3-OPS-C6 / W1-OPS-20)
     runs-on: ubuntu-latest
+    # PRC-M431: actions: read lets verify-evidence-run.mjs GET the cited run
+    # (conclusion / workflow path / created_at); CI=true makes it mandatory.
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -1275,8 +1282,15 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Unit-test evidence run verification (PRC-M431)
+        run: node --test tools/scripts/verify-evidence-run.test.mjs
+
       - name: Verify restore-drill evidence pack (fail closed)
         run: bash tools/scripts/check-restore-drill-evidence.sh
+
+      # PRC-M431: the DoD evidence pack gate was only unit-tested; run it on tip.
+      - name: Verify DoD evidence pack (fail closed)
+        run: bash tools/scripts/check-dod-evidence.sh
 
   # ---------------------------------------------------------------------------
   # Prisma ↔ SQL schema drift — data gate (W1-DATA-04 COMPLETE)

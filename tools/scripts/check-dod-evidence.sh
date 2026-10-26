@@ -66,4 +66,9 @@ console.log("  baselineErrors=", baseline.totalErrors);
 console.log("  run=", runUrl);
 ' "$latest"
 
+# PRC-M431: freshness window + run URL verified against the GitHub API
+# (mandatory in CI; explicit UNVERIFIED line locally without a token).
+node tools/scripts/verify-evidence-run.mjs --pack "$latest" --workflow .github/workflows/definition-of-done.yml \
+  || die "evidence pack failed freshness / run verification (PRC-M431)"
+
 echo "check-dod-evidence: PASS ($latest)"
