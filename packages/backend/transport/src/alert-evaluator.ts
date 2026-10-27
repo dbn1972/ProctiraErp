@@ -57,7 +57,19 @@ export interface EvaluateAlertsInput {
   assignments: EvaluatorAssignment[];
   /** Route id → scheduled departure (HH:MM) on tripDate. */
   routeDeparture: Record<string, string | null>;
+  /**
+   * Pings older than this (relative to `now`) are ignored for delay and
+   * geofence rules. Defaults to {@link DEFAULT_MAX_PING_AGE_MS} (PRC-M440).
+   */
+  maxPingAgeMs?: number;
 }
+
+/**
+ * Default staleness cut-off for pings (PRC-M440): 30 minutes tolerates short
+ * GPS gaps while excluding a previous trip's last ping. Callers may override
+ * it via `EvaluateAlertsInput.maxPingAgeMs`.
+ */
+export const DEFAULT_MAX_PING_AGE_MS = 30 * 60_000;
 
 export interface AlertDraft {
   ruleId: string;
@@ -108,8 +120,14 @@ function ruleApplies(rule: EvaluatorRule, routeId: string | null): boolean {
 export function evaluateTransportAlerts(input: EvaluateAlertsInput): AlertDraft[] {
   const drafts: AlertDraft[] = [];
   const active = input.rules.filter((r) => r.isActive);
+  const maxPingAgeMs = input.maxPingAgeMs ?? DEFAULT_MAX_PING_AGE_MS;
+  const nowMs = input.now.getTime();
 
   for (const ping of input.pings) {
+    // PRC-M440: skip undated or stale pings so they cannot raise alerts.
+    const recordedMs = ping.recordedAt instanceof Date ? ping.recordedAt.getTime() : NaN;
+    if (Number.isNaN(recordedMs) || nowMs - recordedMs > maxPingAgeMs) continue;
+
     for (const rule of active) {
       if (!ruleApplies(rule, ping.routeId)) continue;
 

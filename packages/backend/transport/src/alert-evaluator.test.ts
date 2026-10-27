@@ -202,4 +202,68 @@ describe('evaluateTransportAlerts', () => {
     });
     expect(drafts).toHaveLength(0);
   });
+
+  // PRC-M440: stale or undated pings must not raise delay/geofence alerts.
+  it('ignores a ping recorded 2 h before now (PRC-M440)', () => {
+    const drafts = evaluateTransportAlerts({
+      now: new Date('2026-09-09T10:00:00.000Z'),
+      tripDate: '2026-09-09',
+      pings: [ping({ recordedAt: new Date('2026-09-09T08:00:00.000Z') })],
+      stops: [school],
+      rules: [delayRule],
+      attendance: [],
+      assignments: [],
+      routeDeparture: { [ROUTE]: '07:30' },
+    });
+    expect(drafts).toHaveLength(0);
+  });
+
+  it('ignores an undated (invalid Date) ping for delay and geofence (PRC-M440)', () => {
+    const drafts = evaluateTransportAlerts({
+      now: new Date('2026-09-09T08:00:00.000Z'),
+      tripDate: '2026-09-09',
+      pings: [ping({ recordedAt: new Date(NaN), latitude: 18.52, longitude: 73.8567 })],
+      stops: [school],
+      rules: [delayRule, geoRule],
+      attendance: [],
+      assignments: [],
+      routeDeparture: { [ROUTE]: '07:30' },
+    });
+    expect(drafts).toHaveLength(0);
+  });
+
+  it('still alerts on a 5-minute-old ping (PRC-M440)', () => {
+    const drafts = evaluateTransportAlerts({
+      now: new Date('2026-09-09T07:55:00.000Z'),
+      tripDate: '2026-09-09',
+      pings: [
+        ping({
+          recordedAt: new Date('2026-09-09T07:50:00.000Z'),
+          latitude: 18.52,
+          longitude: 73.8567,
+        }),
+      ],
+      stops: [school],
+      rules: [delayRule, geoRule],
+      attendance: [],
+      assignments: [],
+      routeDeparture: { [ROUTE]: '07:30' },
+    });
+    expect(drafts.map((d) => d.kind).sort()).toEqual(['delay_minutes', 'geofence_exit']);
+  });
+
+  it('honours an overridden maxPingAgeMs (PRC-M440)', () => {
+    const drafts = evaluateTransportAlerts({
+      now: new Date('2026-09-09T10:00:00.000Z'),
+      tripDate: '2026-09-09',
+      pings: [ping({ recordedAt: new Date('2026-09-09T08:00:00.000Z') })],
+      stops: [school],
+      rules: [delayRule],
+      attendance: [],
+      assignments: [],
+      routeDeparture: { [ROUTE]: '07:30' },
+      maxPingAgeMs: 3 * 60 * 60_000,
+    });
+    expect(drafts).toHaveLength(1);
+  });
 });
