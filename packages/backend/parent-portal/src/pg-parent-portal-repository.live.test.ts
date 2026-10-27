@@ -10,7 +10,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
-import { NotFoundError } from '@proctira/common';
+import { ConflictError, NotFoundError } from '@proctira/common';
 import { withPgTenant } from '@proctira/database';
 import { ensurePgTestStudent, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
@@ -432,6 +432,65 @@ describe('PgParentPortalRepository (live)', () => {
       expect(Number((chainHead.rows[0] as { head_seq: number }).head_seq)).toBeGreaterThanOrEqual(
         1,
       );
+    },
+  );
+
+  /**
+   * PRC-M601 / PRC-M315: two concurrent guardian decisions on the same open consent version on
+   * live Postgres — exactly one succeeds; the other gets ConflictError (409 at the route layer),
+   * and the chain holds a single open successor.
+   */
+  it.skipIf(!live)(
+    'concurrent decideConsent on one open version: one succeeds, the other ConflictError (PRC-M601)',
+    async () => {
+      const repo = new PgParentPortalRepository(pool!);
+      const service = new ParentPortalService(repo);
+      const tenantId = randomUUID();
+      await seedTenant(tenantId);
+      const householdId = randomUUID();
+      const parentUserId = randomUUID();
+      const studentId = randomUUID();
+      await ensurePgTestStudent(pool!, tenantId, studentId);
+      await service.createHousehold(tenantId, { id: householdId, label: 'Household C' });
+      await service.addHouseholdMember(tenantId, { householdId, parentUserId, role: 'primary' });
+      await service.assignStudentCustody(tenantId, {
+        studentId,
+        householdId,
+        custodyType: 'sole',
+      });
+      await service.linkChild(
+        tenantId,
+        parentUserId,
+        { studentId, householdId },
+        { isStaff: true },
+      );
+      const pending = await service.createConsentRequest(tenantId, 'staff-registrar', {
+        studentId,
+        parentUserId,
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        consentVersion: 'photo-v1',
+      });
+
+      const results = await Promise.allSettled([
+        service.decideConsent(tenantId, parentUserId, pending.id, { status: 'approved' }),
+        service.decideConsent(tenantId, parentUserId, pending.id, { status: 'denied' }),
+      ]);
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect(rejected[0]!.reason).toBeInstanceOf(ConflictError);
+      expect((rejected[0]!.reason as ConflictError).statusCode).toBe(409);
+
+      const open = await withPgTenant(pool!, tenantId, (client) =>
+        client.query(
+          `SELECT id FROM parent_consents
+            WHERE tenant_id = $1 AND consent_chain_id = $2 AND valid_to IS NULL`,
+          [tenantId, pending.consentChainId],
+        ),
+      );
+      expect(open.rows).toHaveLength(1);
     },
   );
 });
