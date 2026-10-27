@@ -50,6 +50,21 @@ const ACTIVE_ASSIGNMENT_INDEXES: Record<string, string> = {
     'Student already has an active transport route assignment. End the current assignment first.',
 };
 
+/**
+ * PRC-M449: a hard delete blocked by dependent rows (db/sql/265 makes GPS pings and bus
+ * attendance RESTRICT; assignments already were) is a 409, not a raw 23503 / 500.
+ */
+function rethrowDependentRowsConflict(entity: string): (error: unknown) => never {
+  return (error: unknown) => {
+    if ((error as { code?: unknown } | null)?.code === '23503') {
+      throw new ConflictError(
+        `${entity} has dependent records (GPS, attendance or assignment history); deactivate it instead of deleting`,
+      );
+    }
+    throw error;
+  };
+}
+
 function rethrowActiveAssignmentConflict(error: unknown): never {
   const pgError = error as { code?: unknown; constraint?: unknown } | null;
   const message =
@@ -491,7 +506,7 @@ export class PgTransportRepository implements TransportRepository {
       tenantId,
       `DELETE FROM transport_routes WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
-    );
+    ).catch(rethrowDependentRowsConflict('Transport route'));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -583,7 +598,7 @@ export class PgTransportRepository implements TransportRepository {
       tenantId,
       `DELETE FROM transport_stops WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
-    );
+    ).catch(rethrowDependentRowsConflict('Route stop'));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -728,7 +743,7 @@ export class PgTransportRepository implements TransportRepository {
       tenantId,
       `DELETE FROM transport_vehicles WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
-    );
+    ).catch(rethrowDependentRowsConflict('Vehicle'));
     return (result.rowCount ?? 0) > 0;
   }
 
