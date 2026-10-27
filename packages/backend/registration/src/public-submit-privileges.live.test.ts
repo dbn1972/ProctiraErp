@@ -15,8 +15,8 @@
  *   validated composite FK exists, and unavailable contexts create nothing);
  * - tenant isolation: another tenant neither sees nor collides with the registration.
  *
- * Fails closed when CI=true or REQUIRE_LIVE_TESTS=1 and DATABASE_URL / MIGRATOR_DATABASE_URL
- * are unset (W3-TEST-03).
+ * Fails closed when CI=true or REQUIRE_LIVE_TESTS=1 and DATABASE_URL is unset (W3-TEST-03).
+ * The owner-only cases need MIGRATOR_DATABASE_URL and run in the live gate.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { bindTenantGuc, withPgTenant, type PgQueryable } from '@proctira/database';
@@ -39,10 +39,16 @@ const liveRequired =
 if (!DATABASE_URL && liveRequired) {
   throw new Error(`[W3-TEST-03] Live suite "${SUITE}" has no DATABASE_URL.`);
 }
-if (!MIGRATOR_DATABASE_URL && liveRequired) {
-  throw new Error(`[W3-TEST-03] Live suite "${SUITE}" has no MIGRATOR_DATABASE_URL.`);
-}
+// MIGRATOR_DATABASE_URL is optional here, as in the sibling live suites: turbo's `test` task
+// env allow-list does not pass it through, so the owner-only cases skip under
+// `turbo run test` and execute in the W3-TEST-03 live gate (`pnpm test:live:gate`), which
+// receives it directly and fails on any skipped test.
 if (!DATABASE_URL) console.warn(`WARNING: [W3-TEST-03] ${SUITE} skipped (no DATABASE_URL).`);
+if (DATABASE_URL && !MIGRATOR_DATABASE_URL) {
+  console.warn(
+    `WARNING: [W3-TEST-03] ${SUITE} owner-only cases skipped (no MIGRATOR_DATABASE_URL).`,
+  );
+}
 
 const FORM_CONFIGURATION_FKEY = 'admission_applications_form_configuration_fkey';
 const HOLD_TIMEOUT_MS = 10_000;
