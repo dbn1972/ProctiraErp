@@ -1668,6 +1668,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             };
           },
         },
+        // PRC-L317: bed assignments, leave decisions, gate passes, visitors, fee structures.
+        auditSink: domainAuditSink('hostel'),
         prefix: '/hostel',
       });
     },

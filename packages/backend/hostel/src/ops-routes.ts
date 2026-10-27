@@ -275,7 +275,7 @@ export async function registerHostelOpsRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
-        const pass = await hostelService.requestGatePass(tenantId, result.data);
+        const pass = await hostelService.requestGatePass(tenantId, result.data, actorId(request));
         return reply.status(201).send({
           id: pass.id,
           tenantId: pass.tenantId,
@@ -471,7 +471,7 @@ export async function registerHostelOpsRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
-        const row = await hostelService.createFeeStructure(tenantId, result.data);
+        const row = await hostelService.createFeeStructure(tenantId, result.data, actorId(request));
         return reply.status(201).send({
           id: row.id,
           tenantId: row.tenantId,
