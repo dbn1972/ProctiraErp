@@ -8,6 +8,7 @@
  * Charter: Section 27 (Security and Compliance)
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type { PolicyType, PolicyStatus, PolicyScope } from './schemas.js';
 
 // ─── Entity Types ────────────────────────────────────────────────────────────
@@ -70,6 +71,21 @@ export interface PolicyFilter {
   search?: string;
 }
 
+/**
+ * Changes produced by an atomic update builder from the current row.
+ * `version`, when present, is recorded in policy_versions in the same step.
+ */
+export interface PolicyAtomicUpdate {
+  data: Partial<PolicyEntity>;
+  version?: Omit<PolicyVersionEntity, 'createdAt'>;
+}
+
+/** Outcome of {@link PolicyRepository.updateAtomically}. */
+export type PolicyAtomicUpdateResult =
+  | { status: 'updated'; entity: PolicyEntity }
+  | { status: 'not_found' }
+  | { status: 'name_conflict' };
+
 // ─── Repository Interface ────────────────────────────────────────────────────
 
 /**
@@ -83,6 +99,18 @@ export interface PolicyRepository {
 
   /** Update an existing policy */
   update(id: string, tenantId: string, data: Partial<PolicyEntity>): Promise<PolicyEntity | null>;
+
+  /**
+   * Read, name-check, record a version and write as one atomic step (PRC-L478).
+   * `build` derives the changes from the current row; a rename that collides
+   * (case-insensitive) with another policy in the tenant yields `name_conflict`
+   * and writes nothing.
+   */
+  updateAtomically(
+    id: string,
+    tenantId: string,
+    build: (existing: PolicyEntity) => PolicyAtomicUpdate,
+  ): Promise<PolicyAtomicUpdateResult>;
 
   /** Find a policy by ID within a tenant */
   findById(id: string, tenantId: string): Promise<PolicyEntity | null>;
