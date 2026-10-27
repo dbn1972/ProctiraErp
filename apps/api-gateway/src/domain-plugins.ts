@@ -1112,6 +1112,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(staffPlugin, {
         repository: createStaffRepository(),
         assignmentRepository: sharedAssignmentRepository(),
+        // PRC-M544: payroll runs, contracts, salary, leave decisions, offboarding, verification.
+        auditSink: domainAuditSink('staff'),
         prefix: '/staff',
       });
     },
