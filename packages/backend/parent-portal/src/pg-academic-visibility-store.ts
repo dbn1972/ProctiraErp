@@ -68,6 +68,15 @@ function strOrNull(value: unknown): string | null {
   return value == null ? null : String(value);
 }
 
+/**
+ * PRC-L083: never expose the raw `report_card_jobs.output_url` storage key to families. Return
+ * the authenticated download path instead (mirrors assessment `report-card-routes.ts`
+ * `downloadUrl`), or null when the job has no output.
+ */
+function reportCardDownloadPath(row: Record<string, unknown>): string | null {
+  return row.output_url ? `/report-cards/jobs/${str(row.id)}/download` : null;
+}
+
 function numOrNull(value: unknown): number | null {
   if (value == null || value === '') return null;
   const n = Number(value);
@@ -354,7 +363,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
         id: str(row.id),
         academicPeriodId: strOrNull(row.academic_period_id),
         status: str(row.status),
-        outputUrl: strOrNull(row.output_url),
+        outputUrl: reportCardDownloadPath(row),
         completedAt: isoOrNull(row.completed_at),
       }));
       return {
@@ -586,7 +595,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
           id: str(row.id),
           academicPeriodId: strOrNull(row.academic_period_id),
           status: str(row.status),
-          outputUrl: strOrNull(row.output_url),
+          outputUrl: reportCardDownloadPath(row),
           completedAt: isoOrNull(row.completed_at),
           subjects: subjectLines,
         });
