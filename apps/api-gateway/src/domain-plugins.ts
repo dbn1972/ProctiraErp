@@ -1236,6 +1236,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         taskQueuePublisher: reportCardQueueHandle?.publisher,
         // PRC-H039: in-process consumer so queued jobs reach 'completed'.
         reportCardWorkerQueue: reportCardQueueHandle?.createConsumerAdapter(),
+        // PRC-M495: score before/after, scheme/item changes, report-card generate/download.
+        auditSink: domainAuditSink('assessment'),
       });
     },
   },
