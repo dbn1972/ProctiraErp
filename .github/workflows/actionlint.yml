@@ -44,6 +44,8 @@ on:
       - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
       - 'tools/scripts/release-image-tag.mjs'
       - 'tools/scripts/release-image-tag.test.mjs'
+      - 'tools/scripts/check-workflow-concurrency.mjs'
+      - 'tools/scripts/check-workflow-concurrency.test.mjs'
   push:
     branches: [main, develop]
     paths:
@@ -69,6 +71,8 @@ on:
       - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
       - 'tools/scripts/release-image-tag.mjs'
       - 'tools/scripts/release-image-tag.test.mjs'
+      - 'tools/scripts/check-workflow-concurrency.mjs'
+      - 'tools/scripts/check-workflow-concurrency.test.mjs'
 
 permissions:
   contents: read
@@ -117,6 +121,11 @@ jobs:
       # PRC-L109: release branch names map to valid OCI image tags.
       - name: Unit-test release image tag sanitiser (PRC-L109)
         run: node --test tools/scripts/release-image-tag.test.mjs
+      # PRC-L110: PR concurrency groups must let superseded PR runs cancel.
+      - name: Unit-test workflow concurrency gate
+        run: node --test tools/scripts/check-workflow-concurrency.test.mjs
+      - name: Fail on per-sha PR concurrency groups (PRC-L110)
+        run: node tools/scripts/check-workflow-concurrency.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:

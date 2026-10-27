@@ -32,8 +32,10 @@ permissions:
   contents: read
 
 concurrency:
-  # Include sha so a queued-but-never-started caller cannot cancel tip scans.
-  group: security-scans-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  # PRC-L110: one group per PR (superseded PR scans cancel); push/schedule/
+  # dispatch stay per-sha so a queued-but-never-started caller cannot cancel
+  # tip scans. github.workflow keeps the CI-called and standalone runs apart.
+  group: security-scans-${{ github.workflow }}-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
   cancel-in-progress: true
 
 env:

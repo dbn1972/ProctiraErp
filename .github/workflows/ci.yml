@@ -18,9 +18,13 @@ on:
     branches: [main, develop, 'integration/**']
 
 concurrency:
-  # Include sha so a queued-but-never-started run cannot hold the group forever
-  # (GHA cancel-in-progress does not always clear stuck queued peers).
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  # PRC-L110: PR runs share one group per PR so a new push cancels the
+  # superseded run. push/schedule/dispatch runs keep the sha (per-commit group)
+  # so every main merge commit keeps its own CI run for deploy/release
+  # workflow_run evidence, and a queued-but-never-started run cannot hold a
+  # shared group forever (GHA cancel-in-progress does not always clear stuck
+  # queued peers; a newer PR run now cancels them).
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
   cancel-in-progress: true
 
 env:
