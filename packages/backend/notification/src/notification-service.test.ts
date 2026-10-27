@@ -372,6 +372,71 @@ describe('NotificationService', () => {
       const fakeId = '99999999-9999-4999-8999-999999999999';
       await expect(service.markAsRead(tenantId, fakeId)).rejects.toThrow('not found');
     });
+
+    it('PRC-L576: marking an already-read notification again keeps the first read_at', async () => {
+      const inAppTemplateId = '77777777-7777-4777-8777-777777777778';
+      await repository.createTemplate({
+        id: inAppTemplateId,
+        tenantId,
+        name: 'In-App 2',
+        channel: 'in_app',
+        subject: null,
+        body: 'Test notification',
+        variables: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      const [sent] = await service.send(tenantId, {
+        channel: 'in_app',
+        templateId: inAppTemplateId,
+        recipients: { userIds: [userId1] },
+        variables: {},
+      });
+
+      const first = await service.markAsRead(tenantId, sent!.id);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const again = await service.markAsRead(tenantId, sent!.id);
+
+      expect(again.status).toBe('read');
+      expect(again.readAt?.getTime()).toBe(first.readAt?.getTime());
+    });
+
+    it('PRC-L576: a delivery claimed by another attempt is not sent again', async () => {
+      const templateId = '77777777-7777-4777-8777-777777777779';
+      await repository.createTemplate({
+        id: templateId,
+        tenantId,
+        name: 'Email',
+        channel: 'email',
+        subject: 'Hi',
+        body: 'Body',
+        variables: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      let calls = 0;
+      const slow = new NotificationService(repository, {
+        send: async () => {
+          calls += 1;
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          return { success: false, error: 'down' };
+        },
+      });
+      const [sent] = await slow.send(tenantId, {
+        channel: 'email',
+        templateId,
+        recipients: { userIds: [userId1] },
+        variables: {},
+      });
+      calls = 0;
+
+      await Promise.all([
+        slow.processQueuedDelivery(tenantId, sent!.id),
+        slow.processQueuedDelivery(tenantId, sent!.id),
+      ]);
+
+      expect(calls).toBe(1);
+    });
   });
 
   // ─── Rule Management ─────────────────────────────────────────────────────

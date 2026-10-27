@@ -129,7 +129,25 @@ export interface NotificationRepository {
       failedAt?: Date | null;
       failureReason?: string | null;
       retryCount?: number;
+      /** PRC-L576: also release this delivery claim (when it is still the holder). */
+      releaseClaimToken?: string;
     },
+  ): Promise<NotificationEntity | null>;
+
+  /**
+   * PRC-L576: claim a notification for delivery (db/sql/271). Wins only when the row is not
+   * delivered/read and holds no unexpired claim; returns false when another attempt owns it.
+   */
+  claimForDelivery(tenantId: string, id: string, token: string, leaseMs: number): Promise<boolean>;
+
+  /**
+   * PRC-L576: conditional mark-read. Writes status 'read' + read_at only from an unread
+   * status; returns null when the row is missing or already read (callers re-read it).
+   */
+  markNotificationRead(
+    tenantId: string,
+    id: string,
+    readAt: Date,
   ): Promise<NotificationEntity | null>;
 
   /** Get notifications for a user with pagination and filtering */
