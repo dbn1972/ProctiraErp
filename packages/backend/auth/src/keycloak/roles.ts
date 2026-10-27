@@ -1,7 +1,17 @@
 import { DEFAULT_ROLES } from '@proctira/auth';
 import type { RoleAssignment, RoleDefinition } from '@proctira/auth';
 
-/** Realm roles Keycloak manages for ProctiraERP. */
+/**
+ * Realm roles Keycloak manages for ProctiraERP.
+ *
+ * The first six are the original realm roles (unchanged, order-first). The
+ * remaining canonical domain/government roles (D2 role-catalogue, PRC-M015)
+ * were already gated on by backend module allow-lists but were silently
+ * dropped by {@link mapKeycloakRoles} because they were absent from this
+ * catalogue. Adding them here lets real Keycloak tokens carry the assignment
+ * they already match in code — a privilege-*preserving* change relative to the
+ * local/HS256-minted tokens those allow-lists were written for.
+ */
 export const KEYCLOAK_REALM_ROLES = [
   'super-admin',
   'admin',
@@ -9,6 +19,40 @@ export const KEYCLOAK_REALM_ROLES = [
   'teacher',
   'staff',
   'guardian',
+  // --- D2 canonical additions (append-only; see packages/shared/auth rbac.ts) ---
+  'platform_admin',
+  'registrar',
+  'bursar',
+  'hr_officer',
+  'staff_admin',
+  'examinations_officer',
+  'admissions_officer',
+  'counsellor',
+  'communications_officer',
+  'notification_admin',
+  'health_admin',
+  'school_nurse',
+  'nurse',
+  'warden',
+  'librarian',
+  'finance_officer',
+  'etl_engineer',
+  'transport_officer',
+  'timetable_officer',
+  'subject_teacher',
+  'class_teacher',
+  'discipline_officer',
+  'marks_clerk',
+  'scholarship_officer',
+  'board_admin',
+  'board_officer',
+  'board_regional_officer',
+  'ministry_admin',
+  'state_admin',
+  'state_director',
+  'parent',
+  'student',
+  'applicant',
 ] as const;
 
 export type KeycloakRealmRole = (typeof KEYCLOAK_REALM_ROLES)[number];
