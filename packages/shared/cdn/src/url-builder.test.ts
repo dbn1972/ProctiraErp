@@ -43,6 +43,25 @@ describe('normalizePath', () => {
   it('should handle empty string', () => {
     expect(normalizePath('')).toBe('/');
   });
+
+  it('is idempotent when a trailing slash hides whitespace', () => {
+    expect(normalizePath('! /')).toBe('/!');
+    expect(normalizePath('/a / /')).toBe('/a');
+    expect(normalizePath(' / /')).toBe('/');
+    for (const input of ['! /', '/a / /', ' / /']) {
+      expect(normalizePath(normalizePath(input))).toBe(normalizePath(input));
+    }
+  });
+
+  it('strips the trailing run in linear time on long whitespace runs', () => {
+    // A long whitespace run followed by a non-matching character is the
+    // worst case for a backtracking trailing-run regex (O(n^2)).
+    const run = ' \t'.repeat(40_000);
+    const start = performance.now();
+    expect(normalizePath(`/a${run}b`)).toBe(`/a${run}b`);
+    expect(normalizePath(`/a${run}b${' /'.repeat(40_000)}`)).toBe(`/a${run}b`);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
 });
 
 describe('buildAssetUrl', () => {

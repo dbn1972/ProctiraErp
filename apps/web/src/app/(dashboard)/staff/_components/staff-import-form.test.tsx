@@ -13,6 +13,11 @@ vi.mock('../hr-actions', () => ({
 import { StaffImportForm } from './staff-import-form';
 
 const commitButton = () => screen.getByRole('button', { name: /commit import/i });
+// The report and checkbox are set after the action's `await`, so React can commit
+// them before the transition's `pending` flag clears (buttons read "Working…" and
+// the checkbox is disabled). Wait until the transition settles before asserting.
+const settled = () =>
+  waitFor(() => expect(screen.getByRole('button', { name: /dry-run/i })).toBeEnabled());
 
 describe('StaffImportForm commit gating (PRC-L246)', () => {
   beforeEach(() => {
@@ -38,6 +43,8 @@ describe('StaffImportForm commit gating (PRC-L246)', () => {
     render(<StaffImportForm />);
     fireEvent.click(screen.getByRole('button', { name: /dry-run/i }));
     const box = await screen.findByLabelText(/commit valid rows only/i);
+    await settled();
+    expect(box).toBeEnabled();
     expect(commitButton()).toBeDisabled();
     fireEvent.click(box);
     expect(commitButton()).toBeEnabled();
@@ -55,7 +62,9 @@ describe('StaffImportForm commit gating (PRC-L246)', () => {
     });
     render(<StaffImportForm />);
     fireEvent.click(screen.getByRole('button', { name: /dry-run/i }));
-    fireEvent.click(await screen.findByLabelText(/commit valid rows only/i));
+    const box = await screen.findByLabelText(/commit valid rows only/i);
+    await settled();
+    fireEvent.click(box);
     fireEvent.click(commitButton());
     const notice = await screen.findByTestId('staff-import-notice');
     expect(notice).toHaveAttribute('data-kind', 'partial');

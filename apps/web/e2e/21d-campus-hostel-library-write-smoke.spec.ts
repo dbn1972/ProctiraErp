@@ -6,6 +6,7 @@
 import { expect, test } from '@playwright/test';
 
 import { createSignedJwt } from './fixtures/fake-session';
+import { backdateLibraryLoan } from './helpers/library-loans';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -365,14 +366,12 @@ test.describe('Library fines → fees (G-603) + Comms send (G-604)', () => {
 
     const loanRes = await request.post(`${GATEWAY_URL}/api/v1/library/circulation/checkout`, {
       headers: gatewayAuthHeaders('librarian-a'),
-      data: {
-        itemId: item.id,
-        studentId: STUDENT_ID,
-        dueAt: '2020-01-01T00:00:00.000Z',
-      },
+      data: { itemId: item.id, studentId: STUDENT_ID },
     });
     const loan = await loanRes.json();
     expect(loanRes.status(), JSON.stringify(loan)).toBe(201);
+    // PRC-M104 refuses past due dates at checkout, so set the overdue state in the DB (as spec 48 does).
+    backdateLibraryLoan(loan.id, '2020-01-01T00:00:00.000Z', TENANT_A);
 
     const assess = await request.post(`${GATEWAY_URL}/api/v1/library/fines/assess`, {
       headers: gatewayAuthHeaders('librarian-a'),
