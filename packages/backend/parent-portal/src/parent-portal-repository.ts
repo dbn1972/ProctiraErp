@@ -1,17 +1,14 @@
 /**
  * Parent portal repository interface (in-memory v1 / Postgres).
  */
+import type { MutationAuditTxnInput } from '@proctira/backend-audit';
 
 export type LinkStatus = 'active' | 'pending' | 'revoked';
 export type LinkRelationship = 'guardian' | 'mother' | 'father' | 'other';
 export type ThreadStatus = 'open' | 'closed';
 export type SenderRole = 'parent' | 'staff' | 'system';
 export type ConsentType =
-  | 'photo_media'
-  | 'medical_treatment'
-  | 'field_trip'
-  | 'data_sharing'
-  | 'other';
+  'photo_media' | 'medical_treatment' | 'field_trip' | 'data_sharing' | 'other';
 export type ConsentStatus = 'pending' | 'approved' | 'denied' | 'revoked';
 export type InvoiceStatus = 'open' | 'paid' | 'void' | 'overdue';
 export type PaymentMethod = 'sandbox' | 'upi' | 'card' | 'cash';
@@ -138,6 +135,10 @@ export interface ConsentEntity {
   validTo: Date | null;
   decidedAt: Date | null;
   createdBy: string | null;
+  /** PRC-M318: free-text reason supplied by the guardian on withdraw. */
+  withdrawalReason: string | null;
+  /** PRC-M318: channel/method the decision was recorded via (e.g. 'portal', 'paper'). */
+  decidedVia: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -200,9 +201,20 @@ export interface FeeReceiptEntity {
   createdAt: Date;
 }
 
+/**
+ * PRC-M533: builds the same-transaction audit row for a domain write, given the
+ * write's own result. Returning undefined (or omitting the factory entirely)
+ * skips the audit append — used by callers that have no actor context (e.g.
+ * seed/test paths) rather than failing the whole mutation.
+ */
+export type ParentPortalAuditFactory<TResult> = (
+  result: TResult,
+) => Omit<MutationAuditTxnInput, 'tenantId'>;
+
 export interface ParentPortalRepository {
   createChildLink(
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
+    auditFactory?: ParentPortalAuditFactory<ParentChildLinkEntity>,
   ): Promise<ParentChildLinkEntity>;
   listChildLinksForParent(tenantId: string, parentUserId: string): Promise<ParentChildLinkEntity[]>;
   listChildLinksForStudent(tenantId: string, studentId: string): Promise<ParentChildLinkEntity[]>;
@@ -266,6 +278,25 @@ export interface ParentPortalRepository {
    * Body/status mutation is refused by the DB + service layer.
    */
   closeConsentValidTo(tenantId: string, id: string, validTo: Date): Promise<ConsentEntity | null>;
+  /**
+   * PRC-M315: atomically close the current open version and insert its successor.
+   * Implementations MUST make this appear atomic from the caller's perspective —
+   * either both the close and the insert happen, or neither does — so two
+   * concurrent decisions on the same open version cannot both succeed. Throws
+   * ConflictError when `currentId` is already closed, or when a concurrent
+   * decision already inserted the next version for the chain.
+   */
+  appendConsentVersion(
+    tenantId: string,
+    input: {
+      currentId: string;
+      successor: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
+        decidedAt?: Date | null;
+      };
+      closedAt: Date;
+    },
+    auditFactory?: ParentPortalAuditFactory<ConsentEntity>,
+  ): Promise<ConsentEntity>;
 
   createFeePlan(data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>): Promise<FeePlanEntity>;
   listFeePlans(tenantId: string): Promise<FeePlanEntity[]>;
@@ -279,9 +310,13 @@ export interface ParentPortalRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<FeeInvoiceEntity, 'status'>>,
+    auditFactory?: ParentPortalAuditFactory<FeeInvoiceEntity>,
   ): Promise<FeeInvoiceEntity | null>;
 
-  createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
+  createPayment(
+    data: Omit<FeePaymentEntity, 'createdAt'>,
+    auditFactory?: ParentPortalAuditFactory<FeePaymentEntity>,
+  ): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;
 
   createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity>;

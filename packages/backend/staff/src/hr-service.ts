@@ -37,6 +37,7 @@ import {
   unpaidAbsenceDeductionCents,
 } from './payroll-compute.js';
 import type { CreateStaffInput } from './schemas.js';
+import { emitStaffAudit, type StaffAuditOptions, type StaffAuditSink } from './staff-audit.js';
 import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
 import type { StaffEntity } from './staff-repository.js';
 import type { StaffService } from './staff-service.js';
@@ -128,7 +129,7 @@ export interface PayrollRow {
   };
 }
 
-export interface StaffHrServiceOptions {
+export interface StaffHrServiceOptions extends StaffAuditOptions {
   /** PRC-H089: mid-month offboard pay policy (config `PAYROLL_PRORATION`). */
   payrollProration?: PayrollProrationPolicy;
 }
@@ -228,10 +229,23 @@ function importRowError(line: number, error: unknown): ImportRowError {
     : { row: line, message };
 }
 
+/** PRC-M544: audit snapshot of a contract (salary fields included). */
+function contractSnapshot(row: StaffContractRecord): Record<string, unknown> {
+  return {
+    contractType: row.contractType,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    salaryBand: row.salaryBand,
+    monthlyGrossCents: row.monthlyGrossCents,
+    status: row.status,
+  };
+}
+
 export class StaffHrService {
   /** W2-HR-01: posted payroll runs keyed by tenant:month (idempotent re-export). */
 
   private readonly payrollProration: PayrollProrationPolicy;
+  private readonly auditSink: StaffAuditSink | null;
 
   constructor(
     private readonly store: StaffHrStore,
@@ -239,11 +253,27 @@ export class StaffHrService {
     options: StaffHrServiceOptions = {},
   ) {
     this.payrollProration = options.payrollProration ?? DEFAULT_PAYROLL_PRORATION;
+    this.auditSink = options.auditSink ?? null;
   }
 
-  async createContract(tenantId: string, input: CreateContractInput): Promise<ContractView> {
+  async createContract(
+    tenantId: string,
+    input: CreateContractInput,
+    actorId: string | null = null,
+  ): Promise<ContractView> {
     await this.staffService.getById(tenantId, input.staffId);
     const record = await this.store.createContract(buildContractRecord(tenantId, input));
+    await emitStaffAudit(this.auditSink, {
+      tenantId,
+      action: 'contract.create',
+      entityType: 'staff_contract',
+      entityId: record.id,
+      actorId,
+      operation: 'CREATE',
+      before: null,
+      after: contractSnapshot(record),
+      metadata: { staffId: record.staffId },
+    });
     return withRenewalAlert(record);
   }
 
@@ -276,6 +306,7 @@ export class StaffHrService {
     tenantId: string,
     id: string,
     input: UpdateContractInput,
+    actorId: string | null = null,
   ): Promise<ContractView> {
     const existing = await this.getContract(tenantId, id);
     const start = input.startDate ?? existing.startDate;
@@ -283,6 +314,20 @@ export class StaffHrService {
     assertDateOrder(start, end);
     const updated = await this.store.updateContract(tenantId, id, input);
     if (!updated) throw new NotFoundError(`Contract with id '${id}' not found`);
+    const salaryChanged =
+      updated.salaryBand !== existing.salaryBand ||
+      updated.monthlyGrossCents !== existing.monthlyGrossCents;
+    await emitStaffAudit(this.auditSink, {
+      tenantId,
+      action: salaryChanged ? 'contract.salary_change' : 'contract.update',
+      entityType: 'staff_contract',
+      entityId: id,
+      actorId,
+      operation: 'UPDATE',
+      before: contractSnapshot(existing),
+      after: contractSnapshot(updated),
+      metadata: { staffId: updated.staffId, salaryChanged },
+    });
     return withRenewalAlert(updated);
   }
 
@@ -324,12 +369,25 @@ export class StaffHrService {
     tenantId: string,
     id: string,
     input: VerifyQualificationInput,
+    actorId: string | null = null,
   ): Promise<StaffQualificationRecord> {
+    const before = this.auditSink ? await this.store.findQualification(tenantId, id) : null;
     const updated = await this.store.updateQualification(tenantId, id, {
       verified: input.verified,
       documentRef: input.documentRef,
     });
     if (!updated) throw new NotFoundError(`Qualification with id '${id}' not found`);
+    await emitStaffAudit(this.auditSink, {
+      tenantId,
+      action: 'qualification.verify',
+      entityType: 'staff_qualification',
+      entityId: id,
+      actorId,
+      operation: 'UPDATE',
+      before: before ? { verified: before.verified, documentRef: before.documentRef } : null,
+      after: { verified: updated.verified, documentRef: updated.documentRef },
+      metadata: { staffId: updated.staffId },
+    });
     return updated;
   }
 
@@ -690,7 +748,11 @@ export class StaffHrService {
     });
   }
 
-  async exportPayroll(tenantId: string, query: PayrollExportQuery): Promise<PayrollExportResult> {
+  async exportPayroll(
+    tenantId: string,
+    query: PayrollExportQuery,
+    actorId: string | null = null,
+  ): Promise<PayrollExportResult> {
     // PRC-M369: no process-local memo. The store is authoritative so a
     // reverse/replace on another replica is never masked by a stale run.
     if (!query.replace) {
@@ -860,6 +922,22 @@ export class StaffHrService {
     } else {
       await this.store.savePayrollExport(exportRecord);
     }
+    await emitStaffAudit(this.auditSink, {
+      tenantId,
+      action: query.replace ? 'payroll.replace' : 'payroll.post',
+      entityType: 'staff_payroll_run',
+      entityId: runId,
+      actorId,
+      operation: 'CREATE',
+      before: null,
+      after: {
+        month: query.month,
+        rows: rows.length,
+        grossCents: grossTotal,
+        deductionsCents: deductionsTotal,
+        netCents: netTotal,
+      },
+    });
 
     // eslint-disable-next-line no-console
     console.info(

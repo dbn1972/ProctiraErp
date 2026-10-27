@@ -2,15 +2,20 @@
  * Parent portal routes — child links, messaging, consents, fees.
  */
 import { getActor } from '@proctira/backend-auth';
-import { AppError } from '@proctira/common';
+import { AppError, UnauthenticatedError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { isAcademicColumnMissingError } from './academic-visibility-errors.js';
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import { isConsentStaff } from './parent-portal-consent-access.js';
 import { isFeesStaff } from './parent-portal-fees-access.js';
 import { deriveSenderRole } from './parent-portal-messaging-access.js';
-import type { ParentPortalService, StudentActor } from './parent-portal-service.js';
+import type {
+  ParentPortalAuditActor,
+  ParentPortalService,
+  StudentActor,
+} from './parent-portal-service.js';
 import {
   AddMessageSchema,
   ConsentParamsSchema,
@@ -53,16 +58,27 @@ export interface ParentPortalRoutesOptions {
   admissionsOffers?: AdmissionsOffersPort;
   prefix?: string;
   studentPrefix?: string;
+  /** PRC-M533: see ParentPortalPluginOptions.auditActor — forwarded unchanged from the plugin. */
+  auditActor?: (request: FastifyRequest) => ParentPortalAuditActor;
 }
 
 function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
-/** Actor from verified JWT only (G-102 / G-306 — never trust x-user-id headers). */
-function getActorId(request: FastifyRequest): string {
+/**
+ * PRC-L135: actor from verified JWT only (G-102 / G-306 — never trust x-user-id headers).
+ * Throws UnauthenticatedError (401) instead of silently resolving a sub-less JWT to an
+ * 'anonymous' sentinel actor id. `packages/backend/auth/src/get-actor.ts`'s shared getActor
+ * already returns userId: '' for a missing `sub` claim — the 'anonymous' fallback was local to
+ * this file, so this fix is entirely local to this package.
+ */
+function requireActorId(request: FastifyRequest): string {
   const actor = getActor(request);
-  return actor.userId || 'anonymous';
+  if (!actor.userId) {
+    throw new UnauthenticatedError('Authentication is required for the parent/student portal');
+  }
+  return actor.userId;
 }
 
 /** Roles from the verified JWT actor (used by the PRC-H073 consent and PRC-C008 fee staff gates). */
@@ -334,7 +350,17 @@ export async function registerParentPortalRoutes(
     admissionsOffers,
     prefix = '/parent-portal',
     studentPrefix = '/student-portal',
+    auditActor,
   } = options;
+
+  /**
+   * PRC-M533: resolve the audit actor for a regulated mutation, when the gateway supplied one.
+   * Absent `auditActor` option ⇒ undefined, so the service appends no audit row for that call
+   * (the mutation itself is unaffected — see ParentPortalPluginOptions.auditActor's doc comment).
+   */
+  function resolveAuditActor(request: FastifyRequest): ParentPortalAuditActor | undefined {
+    return auditActor?.(request);
+  }
 
   fastify.get(
     `${prefix}/children`,
@@ -348,9 +374,16 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-      const children = await parentPortalService.listChildrenForParent(tenantId, parentUserId);
-      return reply.status(200).send({ data: children.map(formatLink) });
+      try {
+        const parentUserId = requireActorId(request);
+        const children = await parentPortalService.listChildrenForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: children.map(formatLink) });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -379,16 +412,16 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      // G-306: parent identity from JWT only — ignore forgeable body.parentUserId.
-      const parentUserId = getActorId(request);
-
       try {
+        // G-306: parent identity from JWT only — ignore forgeable body.parentUserId.
+        const parentUserId = requireActorId(request);
         // PRC-M531: only a staff caller may assert authority flags / create an active
         // link. A self-service guardian creates a pending, zero-authority link.
         const roles = getActorRoles(request);
         const isStaff = isConsentStaff(roles) || isFeesStaff(roles);
         const link = await parentPortalService.linkChild(tenantId, parentUserId, result.data, {
           isStaff,
+          auditActor: resolveAuditActor(request),
         });
         return reply.status(201).send(formatLink(link));
       } catch (error: unknown) {
@@ -412,9 +445,16 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-      const threads = await parentPortalService.listThreadsForParent(tenantId, parentUserId);
-      return reply.status(200).send({ data: threads.map(formatThread) });
+      try {
+        const parentUserId = requireActorId(request);
+        const threads = await parentPortalService.listThreadsForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: threads.map(formatThread) });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -443,9 +483,8 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-
       try {
+        const parentUserId = requireActorId(request);
         const { thread, message } = await parentPortalService.createThread(
           tenantId,
           parentUserId,
@@ -489,9 +528,8 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-
       try {
+        const parentUserId = requireActorId(request);
         const messages = await parentPortalService.listMessages(
           tenantId,
           parentUserId,
@@ -542,10 +580,9 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-      const senderRole = deriveSenderRole(getActorRoles(request));
-
       try {
+        const parentUserId = requireActorId(request);
+        const senderRole = deriveSenderRole(getActorRoles(request));
         const message = await parentPortalService.addMessage(
           tenantId,
           parentUserId,
@@ -575,9 +612,16 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-      const consents = await parentPortalService.listConsentsForParent(tenantId, parentUserId);
-      return reply.status(200).send({ data: consents.map(formatConsent) });
+      try {
+        const parentUserId = requireActorId(request);
+        const consents = await parentPortalService.listConsentsForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: consents.map(formatConsent) });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -608,9 +652,8 @@ export async function registerParentPortalRoutes(
 
       if (forbidNonConsentStaff(request, reply)) return reply;
 
-      const actorId = getActorId(request);
-
       try {
+        const actorId = requireActorId(request);
         const consent = await parentPortalService.createConsentRequest(
           tenantId,
           actorId,
@@ -661,14 +704,14 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-
       try {
+        const parentUserId = requireActorId(request);
         const consent = await parentPortalService.decideConsent(
           tenantId,
           parentUserId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(200).send(formatConsent(consent));
       } catch (error: unknown) {
@@ -715,14 +758,14 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-
       try {
+        const parentUserId = requireActorId(request);
         const consent = await parentPortalService.withdrawConsent(
           tenantId,
           parentUserId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(200).send(formatConsent(consent));
       } catch (error: unknown) {
@@ -771,14 +814,14 @@ export async function registerParentPortalRoutes(
 
       if (forbidNonConsentStaff(request, reply)) return reply;
 
-      const actorId = getActorId(request);
-
       try {
+        const actorId = requireActorId(request);
         const consent = await parentPortalService.supersedeConsent(
           tenantId,
           actorId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(201).send(formatConsent(consent));
       } catch (error: unknown) {
@@ -815,9 +858,8 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-
       try {
+        const parentUserId = requireActorId(request);
         const versions = await parentPortalService.listConsentHistory(
           tenantId,
           parentUserId,
@@ -877,9 +919,9 @@ export async function registerParentPortalRoutes(
       }
 
       if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
-      const actorId = getActorId(request);
 
       try {
+        const actorId = requireActorId(request);
         const plan = await parentPortalService.createFeePlan(tenantId, actorId, result.data);
         return reply.status(201).send(formatPlan(plan));
       } catch (error: unknown) {
@@ -910,14 +952,21 @@ export async function registerParentPortalRoutes(
       // PRC-C008: the tenant-wide staff view is honoured only for finance/admin staff. A
       // guardian/student who passes ?scope=staff is served their own children's invoices, never
       // the tenant-wide list.
-      if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
-        const invoices = await parentPortalService.listInvoicesForStaff(tenantId);
-        return reply.status(200).send({ data: invoices.map(formatInvoice) });
-      }
+      try {
+        if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
+          const invoices = await parentPortalService.listInvoicesForStaff(tenantId);
+          return reply.status(200).send({ data: invoices.map(formatInvoice) });
+        }
 
-      const parentUserId = getActorId(request);
-      const invoices = await parentPortalService.listInvoicesForParent(tenantId, parentUserId);
-      return reply.status(200).send({ data: invoices.map(formatInvoice) });
+        const parentUserId = requireActorId(request);
+        const invoices = await parentPortalService.listInvoicesForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: invoices.map(formatInvoice) });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -947,9 +996,9 @@ export async function registerParentPortalRoutes(
       }
 
       if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
-      const actorId = getActorId(request);
 
       try {
+        const actorId = requireActorId(request);
         const invoice = await parentPortalService.createInvoice(tenantId, actorId, result.data);
         return reply.status(201).send(formatInvoice(invoice));
       } catch (error: unknown) {
@@ -989,7 +1038,8 @@ export async function registerParentPortalRoutes(
       if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
       try {
         const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id, {
-          actorId: getActorId(request),
+          actorId: requireActorId(request),
+          auditActor: resolveAuditActor(request),
         });
         return reply.status(200).send(formatInvoice(invoice));
       } catch (error: unknown) {
@@ -1039,14 +1089,21 @@ export async function registerParentPortalRoutes(
 
       // PRC-C008: staff tenant-wide receipts only for finance/admin; guardians/students always
       // get their own children's receipts regardless of ?scope.
-      if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
-        const receipts = await parentPortalService.listReceiptsForStaff(tenantId);
-        return reply.status(200).send({ data: receipts.map(formatReceipt) });
-      }
+      try {
+        if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
+          const receipts = await parentPortalService.listReceiptsForStaff(tenantId);
+          return reply.status(200).send({ data: receipts.map(formatReceipt) });
+        }
 
-      const parentUserId = getActorId(request);
-      const receipts = await parentPortalService.listReceiptsForParent(tenantId, parentUserId);
-      return reply.status(200).send({ data: receipts.map(formatReceipt) });
+        const parentUserId = requireActorId(request);
+        const receipts = await parentPortalService.listReceiptsForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: receipts.map(formatReceipt) });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -1082,7 +1139,7 @@ export async function registerParentPortalRoutes(
           ? await parentPortalService.getReceipt(tenantId, paramsResult.data.id)
           : await parentPortalService.getReceiptForParent(
               tenantId,
-              getActorId(request),
+              requireActorId(request),
               paramsResult.data.id,
             );
         return reply.status(200).send(formatReceipt(receipt));
@@ -1130,14 +1187,14 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = getActorId(request);
-
       try {
+        const parentUserId = requireActorId(request);
         const { invoice, payment, receipt } = await parentPortalService.payInvoice(
           tenantId,
           parentUserId,
           paramsResult.data.id,
           bodyResult.data,
+          resolveAuditActor(request),
         );
         return reply.status(200).send({
           invoice: formatInvoice(invoice),
@@ -1179,6 +1236,12 @@ export async function registerParentPortalRoutes(
       const payload = await run();
       return reply.status(200).send(payload);
     } catch (error: unknown) {
+      // PRC-M316: a 42703 academic-read error must surface as its own 503, not swallowed or
+      // routed through the generic AppError branch, mirroring gradebook/src/routes.ts's
+      // sendDomainError -> isGradebookSchemaMissingError precedent.
+      if (isAcademicColumnMissingError(error)) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
       if (error instanceof AppError) {
         return reply.status(error.statusCode).send(error.toJSON());
       }
@@ -1330,19 +1393,21 @@ export async function registerParentPortalRoutes(
         }
         const tenantId = await requireTenant(request, reply);
         if (!tenantId) return;
-        const parentUserId = getActorId(request);
-        return sendOrAppError(reply, () =>
-          view.parent(tenantId, parentUserId, paramsResult.data.studentId),
-        );
+        return sendOrAppError(reply, () => {
+          const parentUserId = requireActorId(request);
+          return view.parent(tenantId, parentUserId, paramsResult.data.studentId);
+        });
       },
     );
 
     fastify.get(`${studentPrefix}/me/${view.path}`, async (request, reply) => {
       const tenantId = await requireTenant(request, reply);
       if (!tenantId) return;
-      // PRC-H075: bind on the verified principal id only; the email claim is not an identity link.
-      const actor = { userId: getActorId(request) };
-      return sendOrAppError(reply, () => view.self(tenantId, actor));
+      return sendOrAppError(reply, () => {
+        // PRC-H075: bind on the verified principal id only; the email claim is not an identity link.
+        const actor = { userId: requireActorId(request) };
+        return view.self(tenantId, actor);
+      });
     });
   }
 }

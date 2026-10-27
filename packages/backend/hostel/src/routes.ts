@@ -574,6 +574,7 @@ export async function registerHostelRoutes(
           tenantId,
           paramsResult.data.id,
           bodyResult.data.status,
+          (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null,
         );
         return reply.status(200).send(formatLeave(leave));
       } catch (error: unknown) {
@@ -686,6 +687,7 @@ export async function registerHostelRoutes(
           tenantId,
           paramsResult.data.id,
           bodyResult.data.status,
+          (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null,
         );
         return reply.status(200).send(formatVisitor(visitor));
       } catch (error: unknown) {

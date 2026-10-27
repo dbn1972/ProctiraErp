@@ -10,6 +10,7 @@ import type { QueueAdapter } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import type { AssessmentAuditSink } from './assessment-audit.js';
 import type {
   GradingSchemeRepository,
   AssessmentItemRepository,
@@ -75,6 +76,11 @@ export interface AssessmentPluginOptions {
    * the Postgres directory when a shared pool exists; `null` disables it (jobs fail).
    */
   reportCardDirectory?: ReportCardDirectory | null;
+  /**
+   * PRC-M495: domain audit sink for score writes, grading-scheme/item changes, report-card
+   * generation and downloads. Omitted: no audit events (unchanged behaviour).
+   */
+  auditSink?: AssessmentAuditSink | null;
   /** Route prefix for grading schemes (default: '/grading-schemes') */
   gradingSchemesPrefix?: string;
   /** Route prefix for assessment items (default: '/assessment-items') */
@@ -124,6 +130,7 @@ export const assessmentPlugin = fp(
       pdfGenerator,
       reportCardArtifactStore,
       reportCardDirectory,
+      auditSink = null,
       gradingSchemesPrefix = '/grading-schemes',
       assessmentItemsPrefix = '/assessment-items',
       outcomesPrefix = '/outcomes',
@@ -139,6 +146,7 @@ export const assessmentPlugin = fp(
       // PRC-H037/H038: enables the in-use guards (block item replace / scheme
       // edit-delete once results exist).
       resultRepository,
+      { auditSink },
     );
 
     // Decorate fastify with the assessment service
@@ -162,7 +170,7 @@ export const assessmentPlugin = fp(
         resultRepository,
         assessmentItemRepository,
         gradingSchemeRepository,
-        { studentDirectory: asStudentDirectory(resolvedDirectory) },
+        { studentDirectory: asStudentDirectory(resolvedDirectory), auditSink },
       );
 
       fastify.decorate('resultService', resultService);
@@ -205,6 +213,7 @@ export const assessmentPlugin = fp(
           directory: resolvedDirectory,
           // Without a queue consumer there is no worker, so finish the job in-request.
           processInline: !effectivePublisher,
+          auditSink,
           logger: {
             warn: (obj, msg) => fastify.log.warn(obj, msg),
             error: (obj, msg) => fastify.log.error(obj, msg),

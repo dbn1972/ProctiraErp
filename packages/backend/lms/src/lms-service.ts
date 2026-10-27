@@ -351,8 +351,47 @@ export interface StudentProgress {
   summary: { mastered: number; inProgress: number; notStarted: number; averageMastery: number };
 }
 
+/**
+ * PRC-M527: one domain audit event for a regulated LMS mutation (grades, rubric scores,
+ * deletes, publish/close) or a file download (read audit, `operation: 'CREATE'` with
+ * `metadata.read: true`, as gradebook does).
+ */
+export interface LmsAuditEntry {
+  tenantId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  actorId: string | null;
+  operation: 'CREATE' | 'UPDATE' | 'DELETE';
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * PRC-M527: durable writer for LMS audit events, wired by the gateway to the shared
+ * hash-chained audit log. Awaited after the mutation so a failed write surfaces as an error.
+ */
+export type LmsAuditSink = (entry: LmsAuditEntry) => Promise<void>;
+
+export interface LmsServiceOptions {
+  auditSink?: LmsAuditSink | null;
+}
+
 export class LmsService {
-  constructor(private readonly repository: LmsRepository) {}
+  private readonly auditSink: LmsAuditSink | null;
+
+  constructor(
+    private readonly repository: LmsRepository,
+    options: LmsServiceOptions = {},
+  ) {
+    this.auditSink = options.auditSink ?? null;
+  }
+
+  /** PRC-M527: no sink configured means no behaviour change. */
+  private async audit(entry: LmsAuditEntry): Promise<void> {
+    if (this.auditSink) await this.auditSink(entry);
+  }
 
   // ─── Skills ────────────────────────────────────────────────────────────
 
@@ -561,6 +600,22 @@ export class LmsService {
       replacement,
     );
     if (!updated) throw new NotFoundError('Assignment not found');
+    if (
+      input.status !== undefined &&
+      input.status !== existing.status &&
+      (input.status === 'published' || input.status === 'closed')
+    ) {
+      await this.audit({
+        tenantId,
+        action: input.status === 'published' ? 'assignment.publish' : 'assignment.close',
+        entityType: 'lms_assignment',
+        entityId: id,
+        actorId: actor.userId,
+        operation: 'UPDATE',
+        before: { status: existing.status },
+        after: { status: updated.assignment.status },
+      });
+    }
     return { ...updated.assignment, questions: updated.questions };
   }
 
@@ -634,6 +689,16 @@ export class LmsService {
       throw new BusinessRuleError('Only draft assignments can be deleted; archive instead');
     }
     await this.repository.deleteAssignment(tenantId, id);
+    await this.audit({
+      tenantId,
+      action: 'assignment.delete',
+      entityType: 'lms_assignment',
+      entityId: id,
+      actorId: actor.userId,
+      operation: 'DELETE',
+      before: { status: existing.status, title: existing.title, kind: existing.kind },
+      after: null,
+    });
   }
 
   private async requireAssignment(
@@ -772,6 +837,17 @@ export class LmsService {
       autoGraded: false,
     });
     if (!updated) throw new NotFoundError('Submission not found');
+    await this.audit({
+      tenantId,
+      action: 'submission.grade',
+      entityType: 'lms_submission',
+      entityId: submissionId,
+      actorId: actor.userId,
+      operation: 'UPDATE',
+      before: { score: submission.score, status: submission.status },
+      after: { score: updated.score, status: updated.status },
+      metadata: { assignmentId: assignment.id, studentId: submission.studentId },
+    });
 
     // Homework/assignment grades feed the PAL ledger for the linked skills:
     // ≥ 60 % counts as a correct attempt. PRC-M296: only on the submission's
@@ -1263,6 +1339,25 @@ export class LmsService {
       autoGraded: false,
     });
     if (!updated) throw new NotFoundError('Submission not found');
+    await this.audit({
+      tenantId,
+      action: 'submission.rubric_grade',
+      entityType: 'lms_submission',
+      entityId: submissionId,
+      actorId: actor.userId,
+      operation: 'UPDATE',
+      before: { score: submission.score, status: submission.status },
+      after: {
+        score: updated.score,
+        status: updated.status,
+        rubricScores: input.scores.map((sc) => ({
+          criterionId: sc.criterionId,
+          levelIndex: sc.levelIndex,
+          points: sc.points,
+        })),
+      },
+      metadata: { assignmentId: assignment.id, studentId: submission.studentId, rubricId },
+    });
     return updated;
   }
 
@@ -1414,6 +1509,19 @@ export class LmsService {
     if (!(await this.canReadFile(tenantId, file, actor))) throw new NotFoundError('File not found');
     const verified = verifyLmsFileDownloadToken(tenantId, fileId, token);
     if (!verified.ok) throw new ForbiddenError(verified.reason);
+    await this.audit({
+      tenantId,
+      action: 'file.download',
+      entityType: 'lms_assignment_file',
+      entityId: file.id,
+      actorId: actor.userId,
+      operation: 'CREATE',
+      metadata: {
+        read: true,
+        assignmentId: file.assignmentId,
+        submissionId: file.submissionId ?? null,
+      },
+    });
     return file;
   }
 

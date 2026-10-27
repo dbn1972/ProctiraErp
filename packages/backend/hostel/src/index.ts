@@ -5,7 +5,12 @@
 export { hostelPlugin } from './hostel-plugin.js';
 export type { HostelPluginOptions } from './hostel-plugin.js';
 
-export { HostelService } from './hostel-service.js';
+export {
+  HostelService,
+  type HostelAuditEntry,
+  type HostelAuditSink,
+  type HostelServiceOptions,
+} from './hostel-service.js';
 
 export type {
   HostelEntity,

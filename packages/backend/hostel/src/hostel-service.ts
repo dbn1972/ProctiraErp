@@ -31,11 +31,43 @@ import type {
   CreateVisitorInput,
 } from './schemas.js';
 
+/**
+ * PRC-L317: one domain audit event for a hostel mutation (bed assignment, leave decision,
+ * gate pass, visitor check-in/out, fee structure).
+ */
+export interface HostelAuditEntry {
+  tenantId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  actorId: string | null;
+  operation: 'CREATE' | 'UPDATE' | 'DELETE';
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * PRC-L317: durable writer for hostel audit events, wired by the gateway to the shared
+ * hash-chained audit log. Awaited after the mutation so a failed write surfaces as an error.
+ */
+export type HostelAuditSink = (entry: HostelAuditEntry) => Promise<void>;
+
+export interface HostelServiceOptions {
+  auditSink?: HostelAuditSink | null;
+}
+
 export class HostelService {
   constructor(
     private readonly repository: HostelRepository,
     private readonly feesLedger: HostelFeesPort | null = null,
+    private readonly options: HostelServiceOptions = {},
   ) {}
+
+  /** PRC-L317: no sink configured means no behaviour change. */
+  private async audit(entry: HostelAuditEntry): Promise<void> {
+    if (this.options.auditSink) await this.options.auditSink(entry);
+  }
 
   async createHostel(tenantId: string, input: CreateHostelInput) {
     return this.repository.createHostel({
@@ -131,6 +163,23 @@ export class HostelService {
       });
     }
 
+    await this.audit({
+      tenantId,
+      action: 'bed_assignment.create',
+      entityType: 'hostel_bed_assignment',
+      entityId: assignment.id,
+      actorId,
+      operation: 'CREATE',
+      before: null,
+      after: {
+        studentId: assignment.studentId,
+        bedId: assignment.bedId,
+        startDate: assignment.startDate,
+        endDate: assignment.endDate,
+        isActive: assignment.isActive,
+      },
+      metadata: { feeStructureId: structure?.id ?? null, invoiceId: invoice?.id ?? null },
+    });
     return { ...assignment, invoice };
   }
 
@@ -155,7 +204,12 @@ export class HostelService {
     return this.repository.listLeaves(tenantId, pagination);
   }
 
-  async decideLeave(tenantId: string, leaveId: string, status: 'approved' | 'rejected') {
+  async decideLeave(
+    tenantId: string,
+    leaveId: string,
+    status: 'approved' | 'rejected',
+    actorId: string | null = null,
+  ) {
     const leave = await this.repository.findLeaveById(leaveId, tenantId);
     if (!leave) {
       throw new NotFoundError(`Leave with id '${leaveId}' not found`);
@@ -178,6 +232,17 @@ export class HostelService {
       if (!current) throw new NotFoundError(`Leave with id '${leaveId}' not found`);
       throw new ConflictError(`Leave is already ${current.status}`);
     }
+    await this.audit({
+      tenantId,
+      action: 'leave.decide',
+      entityType: 'hostel_leave',
+      entityId: leaveId,
+      actorId,
+      operation: 'UPDATE',
+      before: { status: leave.status },
+      after: { status: updated.status },
+      metadata: { studentId: leave.studentId, hostelId: leave.hostelId },
+    });
     return updated;
   }
 
@@ -197,7 +262,12 @@ export class HostelService {
     return this.repository.listVisitors(tenantId, pagination);
   }
 
-  async updateVisitorStatus(tenantId: string, visitorId: string, status: VisitorStatus) {
+  async updateVisitorStatus(
+    tenantId: string,
+    visitorId: string,
+    status: VisitorStatus,
+    actorId: string | null = null,
+  ) {
     const visitor = await this.repository.findVisitorById(visitorId, tenantId);
     if (!visitor) {
       throw new NotFoundError(`Visitor with id '${visitorId}' not found`);
@@ -226,6 +296,17 @@ export class HostelService {
       if (!current) throw new NotFoundError(`Visitor with id '${visitorId}' not found`);
       throw new ConflictError(`Cannot transition visitor from ${current.status} to ${status}`);
     }
+    await this.audit({
+      tenantId,
+      action: 'visitor.status',
+      entityType: 'hostel_visitor',
+      entityId: visitorId,
+      actorId,
+      operation: 'UPDATE',
+      before: { status: visitor.status },
+      after: { status: updated.status },
+      metadata: { studentId: visitor.studentId, hostelId: visitor.hostelId },
+    });
     return updated;
   }
 
@@ -329,7 +410,11 @@ export class HostelService {
     return this.repository.listMessSubscriptions(tenantId, planId);
   }
 
-  async requestGatePass(tenantId: string, input: CreateGatePassInput) {
+  async requestGatePass(
+    tenantId: string,
+    input: CreateGatePassInput,
+    actorId: string | null = null,
+  ) {
     const hostel = await this.repository.findHostelById(input.hostelId, tenantId);
     if (!hostel) {
       throw new NotFoundError(`Hostel with id '${input.hostelId}' not found`);
@@ -343,7 +428,7 @@ export class HostelService {
     if (expectedInAt.getTime() <= expectedOutAt.getTime()) {
       throw new BusinessRuleError('expectedInAt must be after expectedOutAt');
     }
-    return this.repository.createGatePass({
+    const pass = await this.repository.createGatePass({
       id: uuidv4(),
       tenantId,
       hostelId: input.hostelId,
@@ -358,6 +443,23 @@ export class HostelService {
       outAt: null,
       inAt: null,
     });
+    await this.audit({
+      tenantId,
+      action: 'gate_pass.request',
+      entityType: 'hostel_gate_pass',
+      entityId: pass.id,
+      actorId,
+      operation: 'CREATE',
+      before: null,
+      after: {
+        status: pass.status,
+        studentId: pass.studentId,
+        expectedOutAt: pass.expectedOutAt.toISOString(),
+        expectedInAt: pass.expectedInAt.toISOString(),
+      },
+      metadata: { hostelId: pass.hostelId },
+    });
+    return pass;
   }
 
   async listGatePasses(tenantId: string, hostelId?: string, now: Date = new Date()) {
@@ -395,6 +497,17 @@ export class HostelService {
       if (!current) throw new NotFoundError(`Gate pass with id '${id}' not found`);
       throw new ConflictError(`Cannot transition gate pass from ${current.status} to ${next}`);
     }
+    await this.audit({
+      tenantId,
+      action: 'gate_pass.transition',
+      entityType: 'hostel_gate_pass',
+      entityId: id,
+      actorId: actorId ?? null,
+      operation: 'UPDATE',
+      before: { status: pass.status },
+      after: { status: updated.status },
+      metadata: { studentId: pass.studentId, hostelId: pass.hostelId },
+    });
     return {
       ...updated,
       overdueReturn: isOverdueReturn(
@@ -405,12 +518,16 @@ export class HostelService {
     };
   }
 
-  async createFeeStructure(tenantId: string, input: CreateFeeStructureInput) {
+  async createFeeStructure(
+    tenantId: string,
+    input: CreateFeeStructureInput,
+    actorId: string | null = null,
+  ) {
     const hostel = await this.repository.findHostelById(input.hostelId, tenantId);
     if (!hostel) {
       throw new NotFoundError(`Hostel with id '${input.hostelId}' not found`);
     }
-    return this.repository.createFeeStructure({
+    const row = await this.repository.createFeeStructure({
       id: uuidv4(),
       tenantId,
       hostelId: input.hostelId,
@@ -419,6 +536,23 @@ export class HostelService {
       amountCents: input.amountCents,
       currency: input.currency ?? 'INR',
     });
+    await this.audit({
+      tenantId,
+      action: 'fee_structure.create',
+      entityType: 'hostel_fee_structure',
+      entityId: row.id,
+      actorId,
+      operation: 'CREATE',
+      before: null,
+      after: {
+        hostelId: row.hostelId,
+        roomType: row.roomType,
+        termLabel: row.termLabel,
+        amountCents: row.amountCents,
+        currency: row.currency,
+      },
+    });
+    return row;
   }
 
   async listFeeStructures(tenantId: string, hostelId?: string) {

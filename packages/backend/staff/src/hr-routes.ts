@@ -241,7 +241,7 @@ export async function registerStaffHrRoutes(
           ))
         )
           return reply;
-        const row = await hrService.createContract(tenantId, result.data);
+        const row = await hrService.createContract(tenantId, result.data, getActorId(request));
         return reply.status(201).send(formatContract(row));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
@@ -316,7 +316,12 @@ export async function registerStaffHrRoutes(
           ))
         )
           return reply;
-        const row = await hrService.updateContract(tenantId, paramsResult.data.id, bodyResult.data);
+        const row = await hrService.updateContract(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+          getActorId(request),
+        );
         return reply.status(200).send(formatContract(row));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
@@ -435,6 +440,7 @@ export async function registerStaffHrRoutes(
           tenantId,
           paramsResult.data.id,
           bodyResult.data,
+          getActorId(request),
         );
         return reply.status(200).send(formatQualification(row));
       } catch (error: unknown) {
@@ -641,7 +647,11 @@ export async function registerStaffHrRoutes(
           errors: result.errors,
         });
       }
-      const exportResult = await hrService.exportPayroll(tenantId, result.data);
+      const exportResult = await hrService.exportPayroll(
+        tenantId,
+        result.data,
+        getActorId(request),
+      );
       return reply.status(200).send(exportResult);
     },
   );

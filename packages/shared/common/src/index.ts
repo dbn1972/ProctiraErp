@@ -38,6 +38,7 @@ export {
   NotFoundError,
   BusinessRuleError,
   ForbiddenError,
+  UnauthenticatedError,
 } from './exceptions/index.js';
 
 // PRC-H004: canonical school-scope rule (gateway hook + per-handler record checks)
