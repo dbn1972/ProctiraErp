@@ -160,7 +160,21 @@ test.describe('Curriculum — live chain (E2E_BACKEND_READY)', () => {
     const row = page.locator(`[data-testid="syllabus-unit-row"][data-unit-code="${unitCode}"]`);
     await expect(row).toBeVisible();
     await page.getByTestId(`mark-taught-${unit.id}`).click();
+    // CI serves `next dev`: the mark-taught server action can sit at "Working…"
+    // for well over 15s while another worker's route compiles (audit merge
+    // train 5 / PR #684: the action POST, /api/auth/session and the webpack
+    // hot-update were all still pending 15s after the confirm click). Wait on
+    // the action POST itself, as 21c-campus-comms-write-smoke does, then on the
+    // row flipping to taught.
+    const markTaughtAction = page.waitForResponse(
+      async (res) =>
+        res.request().method() === 'POST' &&
+        new URL(res.url()).pathname === `/institutions/${INSTITUTION_A}/curriculum` &&
+        (await res.request().headerValue('next-action')) !== null,
+      { timeout: 45_000 },
+    );
     await page.getByTestId('curriculum-taught-confirm-confirm').click();
+    expect((await markTaughtAction).status()).toBe(200);
     await expect(row).toHaveAttribute('data-taught', 'true', { timeout: 15_000 });
     await expect(page.getByTestId('coverage-percent')).toContainText('100%');
 

@@ -47,11 +47,19 @@ export function uniqueGradeOrder(): number {
  * problem: draw from a wide enough space that a real collision is
  * vanishingly unlikely, and let a rare one self-heal on Playwright's retry
  * rather than coordinating shared state across every caller.
+ *
+ * The space was 60 years (2040..2099). Specs 41 and 43 share TENANT_A and
+ * draw several windows per run, so two draws landing on the same year was a
+ * birthday-problem event, not a rare one: audit merge train 5 (PR #684) lost
+ * a first attempt of 43's mark-taught test to `409 Academic year window
+ * overlaps existing year 'E2E Adm Year …' (2052-04-01..2053-03-31)`.
  */
 export function uniqueFarFutureYearWindow(): { startDate: string; endDate: string } {
-  // 2040..2099: 60 candidate years, nowhere near the 2026 baseline/shared
-  // year or 2030-2036 range already used by 38-academic-calendar-write-smoke.
-  const year = 2040 + (randomBytes(1).readUInt8(0) % 60);
+  // 2040..9998: 7959 candidate years, nowhere near the 2026 baseline/shared
+  // year or the 2030-2037 windows hardcoded by 38-academic-calendar-write-smoke.
+  // 9998 is the last start year because the window ends the following March
+  // and the gateway's `format: 'date'` accepts 4-digit years only.
+  const year = 2040 + (randomBytes(2).readUInt16BE(0) % 7959);
   return { startDate: `${year}-04-01`, endDate: `${year + 1}-03-31` };
 }
 
