@@ -39,12 +39,11 @@ export function normalizePath(path: string): string {
     normalized = '/' + normalized;
   }
 
-  // Remove trailing slash (unless it's the root path)
-  if (normalized.length > 1 && normalized.endsWith('/')) {
-    normalized = normalized.slice(0, -1);
-  }
+  // Remove trailing slashes and any whitespace they expose so the result is
+  // idempotent; the root path stays '/'
+  normalized = normalized.replace(/[\s/]+$/, '');
 
-  return normalized;
+  return normalized === '' ? '/' : normalized;
 }
 
 /**

@@ -43,6 +43,15 @@ describe('normalizePath', () => {
   it('should handle empty string', () => {
     expect(normalizePath('')).toBe('/');
   });
+
+  it('is idempotent when a trailing slash hides whitespace', () => {
+    expect(normalizePath('! /')).toBe('/!');
+    expect(normalizePath('/a / /')).toBe('/a');
+    expect(normalizePath(' / /')).toBe('/');
+    for (const input of ['! /', '/a / /', ' / /']) {
+      expect(normalizePath(normalizePath(input))).toBe(normalizePath(input));
+    }
+  });
 });
 
 describe('buildAssetUrl', () => {
