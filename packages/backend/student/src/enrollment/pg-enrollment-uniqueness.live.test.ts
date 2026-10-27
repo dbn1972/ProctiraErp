@@ -4,7 +4,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { ConflictError } from '@proctira/common';
+import { ConflictError, NotFoundError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
@@ -160,6 +160,49 @@ describe('enrollment uniqueness (live Postgres)', () => {
         return Number((row.rows[0] as { count: number }).count);
       });
       expect(count).toBe(1);
+    },
+  );
+});
+
+describe('PRC-M548 enrollment placement ids are tenant-verified (live Postgres)', () => {
+  it.skipIf(!live)(
+    'createEnrollment rejects another tenant’s student / grade / class / period with NotFoundError',
+    async () => {
+      const a = await seedEnrollmentFixture();
+      const b = await seedEnrollmentFixture();
+      const service = new EnrollmentService(new PgEnrollmentRepository(pool!));
+      const input = {
+        studentId: a.studentId,
+        institutionId: a.institutionId,
+        gradeId: a.gradeId,
+        classId: a.classId,
+        academicPeriodId: a.academicPeriodId,
+        enrolledAt: '2026-04-01',
+      };
+      const foreign = [
+        ['studentId', 'Student', b.studentId],
+        ['gradeId', 'Grade', b.gradeId],
+        ['classId', 'Class', b.classId],
+        ['academicPeriodId', 'Academic period', b.academicPeriodId],
+        ['classId', 'Class', randomUUID()],
+      ] as const;
+      for (const [field, label, id] of foreign) {
+        await expect(
+          service.createEnrollment(a.tenantId, { ...input, [field]: id }),
+        ).rejects.toThrow(new NotFoundError(`${label} with id '${id}' not found`));
+      }
+      const count = await withPgTenant(pool!, a.tenantId, async (client) => {
+        const row = await client.query(
+          `SELECT COUNT(*)::int AS count FROM enrollments WHERE tenant_id = $1`,
+          [a.tenantId],
+        );
+        return Number((row.rows[0] as { count: number }).count);
+      });
+      expect(count).toBe(0);
+      // Control: the same input with the caller's own ids succeeds.
+      await expect(service.createEnrollment(a.tenantId, input)).resolves.toMatchObject({
+        classId: a.classId,
+      });
     },
   );
 });

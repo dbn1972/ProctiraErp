@@ -6,6 +6,7 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
+import type { StaffOffboardMeta } from './offboard-meta.js';
 import type { StaffTypeFilter } from './staff-type.js';
 
 /**
@@ -30,6 +31,14 @@ export interface StaffEntity {
 /**
  * Filter options for listing staff.
  */
+/** PRC-M381: first-class offboard columns (db/sql/260); null fields = unknown in backfill. */
+export interface StaffOffboardRecord {
+  effectiveDate: string | null;
+  reason: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+
 export interface StaffFilter {
   status?: 'ACTIVE' | 'INACTIVE';
   position?: string;
@@ -113,4 +122,18 @@ export interface StaffRepository {
     tenantId: string,
     fn: (scope: StaffTransactionScope) => Promise<T>,
   ): Promise<T>;
+  /**
+   * PRC-M381: record the offboard decision in ONE conditional write — status
+   * INACTIVE, the first-class offboard columns, and the legacy
+   * customData.__offboard copy — only when the row is not already offboarded.
+   * Returns null (nothing written) when the staff row is missing or a
+   * concurrent offboard already won.
+   */
+  markOffboarded(
+    id: string,
+    tenantId: string,
+    meta: StaffOffboardMeta,
+  ): Promise<StaffEntity | null>;
+  /** PRC-M381: the persisted offboard columns, or null when not offboarded. */
+  findOffboardRecord(id: string, tenantId: string): Promise<StaffOffboardRecord | null>;
 }

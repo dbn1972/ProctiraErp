@@ -4,7 +4,7 @@
  * Tests for plugin submission workflow, marketplace, documentation,
  * and analytics functionality.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 
 import { DeveloperPortalService, DEFAULT_CONFIG } from './developer-portal-service.js';
@@ -685,5 +685,168 @@ describe('plugin name ownership and publish atomicity (PRC-M219)', () => {
     expect(await repository.getListingByName('owned-plugin')).toBeNull();
     repository.updateSubmissionStatus = original;
     expect((await service.getSubmission(sub.id)).status).toBe('approved');
+  });
+});
+
+describe('webhook delivery claim (PRC-L464)', () => {
+  async function setup() {
+    const repository = new InMemoryDeveloperPortalRepository();
+    let sends = 0;
+    const service = new DeveloperPortalService(repository, DEFAULT_CONFIG, {
+      httpFetch: async () => {
+        sends += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return { status: 200, ok: true };
+      },
+      signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+    });
+    const account = await service.createAccount({ name: 'Claim', email: 'claim@example.com' });
+    const webhook = await service.createWebhook(account.id, TEST_TENANT_ID, {
+      url: 'https://hooks.example.com/claim',
+      events: ['student.enrolled'],
+    });
+    const delivery = await service.createDelivery(webhook.id, 'student.enrolled', { id: 's1' });
+    const job = {
+      tenantId: TEST_TENANT_ID,
+      webhookId: webhook.id,
+      deliveryId: delivery.id,
+      event: 'student.enrolled',
+      url: webhook.url,
+      body: { id: 's1' },
+      attempt: 0,
+    };
+    return { repository, service, delivery, job, sends: () => sends };
+  }
+
+  it('two concurrent processing calls for one pending delivery send exactly once', async () => {
+    const ctx = await setup();
+    await Promise.all([
+      ctx.service.processQueuedDelivery(TEST_TENANT_ID, ctx.job),
+      ctx.service.processQueuedDelivery(TEST_TENANT_ID, ctx.job),
+    ]);
+    expect(ctx.sends()).toBe(1);
+    const after = await ctx.repository.getDeliveryById(ctx.delivery.id);
+    expect(after).toMatchObject({ status: 'delivered', attempts: 1 });
+  });
+
+  it('a live claim blocks a second claim; an expired lease can be reclaimed', async () => {
+    const ctx = await setup();
+    const lease = 60_000;
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w1', lease),
+    ).not.toBeNull();
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w2', lease),
+    ).toBeNull();
+    // The claiming worker crashed: nothing is sent while the lease holds.
+    await ctx.service.processQueuedDelivery(TEST_TENANT_ID, ctx.job);
+    expect(ctx.sends()).toBe(0);
+    const realNow = Date.now();
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(realNow + lease + 1);
+    try {
+      expect(
+        await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w3', lease),
+      ).not.toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('writing the attempt result releases the claim', async () => {
+    const ctx = await setup();
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w1', 60_000),
+    ).not.toBeNull();
+    await ctx.repository.updateDelivery(ctx.delivery.id, { attempts: 1, status: 'pending' });
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w2', 60_000),
+    ).not.toBeNull();
+  });
+});
+
+describe('limit and unique checks are race-safe (PRC-L299)', () => {
+  function limitedService(repository: InMemoryDeveloperPortalRepository) {
+    return new DeveloperPortalService(
+      repository,
+      {
+        ...DEFAULT_CONFIG,
+        maxApiKeysPerAccount: 2,
+        maxWebhooksPerAccount: 2,
+        maxSandboxesPerAccount: 1,
+      },
+      {
+        signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+        signingSecretWriter: { async storeSigningSecret() {} },
+        validateWebhookUrl: async () => undefined,
+      },
+    );
+  }
+
+  it('five concurrent API-key creates with a limit of 2: exactly 2 succeed', async () => {
+    const repository = new InMemoryDeveloperPortalRepository();
+    const service = limitedService(repository);
+    const account = await service.createAccount({ name: 'Lim', email: 'lim@example.com' });
+    const results = await Promise.allSettled(
+      Array.from({ length: 5 }, (_, i) =>
+        service.createApiKey(account.id, TEST_TENANT_ID, { name: `k${i}`, scopes: ['read'] }),
+      ),
+    );
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(rejected).toHaveLength(3);
+    for (const r of rejected) expect(r.reason).toBeInstanceOf(BusinessRuleError);
+    const keys = await repository.listApiKeys(
+      { accountId: account.id, tenantId: TEST_TENANT_ID, status: 'active' },
+      1,
+      10,
+    );
+    expect(keys.total).toBe(2);
+  });
+
+  it('concurrent webhook and sandbox creates respect their limits', async () => {
+    const repository = new InMemoryDeveloperPortalRepository();
+    const service = limitedService(repository);
+    const account = await service.createAccount({ name: 'Lim', email: 'lim2@example.com' });
+    const hooks = await Promise.allSettled(
+      Array.from({ length: 4 }, () =>
+        service.createWebhook(account.id, TEST_TENANT_ID, {
+          url: 'https://hooks.example.com/lim',
+          events: ['student.enrolled'],
+        }),
+      ),
+    );
+    expect(hooks.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
+    const sandboxes = await Promise.allSettled(
+      Array.from({ length: 3 }, (_, i) => service.createSandbox(account.id, { name: `s${i}` })),
+    );
+    expect(sandboxes.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+  });
+
+  it('a unique-index race on account email / doc slug / rating surfaces as ConflictError', async () => {
+    const repository = new InMemoryDeveloperPortalRepository();
+    const service = limitedService(repository);
+    const unique = Object.assign(new Error('duplicate key value violates unique constraint'), {
+      code: '23505',
+    });
+    repository.createAccount = async () => {
+      throw unique;
+    };
+    await expect(
+      service.createAccount({ name: 'Race', email: 'race@example.com' }),
+    ).rejects.toThrow(ConflictError);
+    repository.createDocPage = async () => {
+      throw unique;
+    };
+    await expect(
+      service.createDocPage({ slug: 'race', title: 'Race', content: 'x', category: 'webhooks' }),
+    ).rejects.toThrow(ConflictError);
+    repository.getListingByName = async () => ({}) as never;
+    repository.getRatingByAccountAndPlugin = async () => null;
+    repository.createRating = async () => {
+      throw unique;
+    };
+    await expect(
+      service.ratePlugin('00000000-0000-4000-8000-000000000001', 'race-plugin', { rating: 5 }),
+    ).rejects.toThrow(ConflictError);
   });
 });

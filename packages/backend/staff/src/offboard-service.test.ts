@@ -190,3 +190,28 @@ describe('Staff offboard routes', () => {
     expect(bad.statusCode).toBe(400);
   });
 });
+
+describe('PRC-M381 offboard is a single conditional write', () => {
+  it('two concurrent offboards: exactly one succeeds, the other gets ConflictError', async () => {
+    const repository = new InMemoryStaffRepository();
+    const service = new StaffService(repository);
+    const staff = await service.create(TENANT_A, validCreateInput());
+    const results = await Promise.allSettled([
+      service.offboard(TENANT_A, staff.id, { effectiveDate: '2026-09-30', reason: 'A' }, 'hr-a'),
+      service.offboard(TENANT_A, staff.id, { effectiveDate: '2026-10-31', reason: 'B' }, 'hr-b'),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]!.reason).toBeInstanceOf(ConflictError);
+    const winner = (results.find((r) => r.status === 'fulfilled') as PromiseFulfilledResult<{
+      decidedBy: string | null;
+    }>)!.value;
+    const status = await service.getOffboardStatus(TENANT_A, staff.id);
+    expect(status.offboardStatus).toBe('offboarded');
+    expect(status.decidedBy).toBe(winner.decidedBy);
+    expect(await repository.findOffboardRecord(staff.id, TENANT_A)).toMatchObject({
+      decidedBy: winner.decidedBy,
+    });
+  });
+});

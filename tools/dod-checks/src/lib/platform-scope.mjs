@@ -59,7 +59,8 @@ export const PLATFORM_SCOPED_OPERATIONS = Object.freeze([
       // Sandboxes belong to a developer account. SandboxEntity.tenantId is the
       // sandbox's own freshly minted tenant, not the caller's tenant.
       'listSandboxes',
-      'createSandbox',
+      // PRC-L299: atomic re-count + insert replaces createSandbox.
+      'createSandboxWithinLimit',
       'getSandboxById',
       'updateSandboxStatus',
       // Plugin submissions, marketplace listings and ratings are global

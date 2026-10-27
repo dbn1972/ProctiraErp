@@ -24,6 +24,8 @@ import type {
   EnrollmentEntity,
   EnrollmentFilter,
   EnrollmentHistoryEntity,
+  EnrollmentPlacementRefKind,
+  EnrollmentPlacementRefs,
   EnrollmentRepository,
   TransferRecordDetail,
   TransferRecordEntity,
@@ -74,6 +76,14 @@ export class EnrollmentService {
         'classId is required — students must be placed in a class/section on enrollment',
       );
     }
+
+    // PRC-M548: student, grade, class and academic period must exist in this tenant.
+    await this.assertPlacementRefsInTenant(tenantId, {
+      studentId: input.studentId,
+      gradeId: input.gradeId,
+      classId: input.classId,
+      academicPeriodId: input.academicPeriodId,
+    });
 
     await this.assertNoActiveEnrollment(tenantId, input.studentId, input.academicPeriodId);
 
@@ -414,4 +424,27 @@ export class EnrollmentService {
       );
     }
   }
+
+  /**
+   * PRC-M548: refuse ids that are absent, soft-deleted or owned by another
+   * tenant (same NotFound style as the institution check). The tenant-composite
+   * FKs (db/sql/255-256) enforce the same rule in Postgres.
+   */
+  private async assertPlacementRefsInTenant(
+    tenantId: string,
+    refs: EnrollmentPlacementRefs,
+  ): Promise<void> {
+    const missing = await this.repository.findMissingPlacementRefs(tenantId, refs);
+    const first = missing[0];
+    if (first) {
+      throw new NotFoundError(`${PLACEMENT_REF_LABELS[first]} with id '${refs[first]}' not found`);
+    }
+  }
 }
+
+const PLACEMENT_REF_LABELS: Record<EnrollmentPlacementRefKind, string> = {
+  studentId: 'Student',
+  gradeId: 'Grade',
+  classId: 'Class',
+  academicPeriodId: 'Academic period',
+};

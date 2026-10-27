@@ -25,7 +25,9 @@
  * APPLY_SQL_WRAPPER_SCRIPTS.
  *   6. With --live (or DATABASE_URL / MIGRATOR_DATABASE_URL set under --require-live),
  *      query pg_catalog and fail if any tenant_id → tenants FK is NOT VALID, or if
- *      any uuid tenant_id base table lacks such an FK.
+ *      any uuid tenant_id base table lacks such an FK, or (PRC-M433) if a
+ *      validate_under_force_rls-waived file is ledgered without the FORCE-lifted
+ *      re-proof 257_revalidate_force_rls_fks.sql.
  *
  * Usage:
  *   node tools/scripts/check-strict-tenant-fks.mjs
@@ -59,6 +61,22 @@ export const APPLY_SQL_WRAPPER_SCRIPTS = [
   'tools/scripts/run-target-database-migrations.sh',
   'tools/scripts/setup-live-db-and-onboard.sh',
 ];
+
+/**
+ * PRC-M433: files whose VALIDATE ran with FORCE ROW LEVEL SECURITY still on
+ * (hazard `validate_under_force_rls`). Under FORCE the owner's validation scan
+ * can read zero rows, so `convalidated = true` alone is not proof for them.
+ */
+export const FORCE_RLS_WAIVED_FILES = [
+  '076_transcript_authenticity_complete.sql',
+  '080_enrollment_grade_audit_harden.sql',
+  '082_repair_strict_tenant_fk_validate.sql',
+  '086_validate_cross_domain_fk_staff_ops.sql',
+  '093_developer_portal_tenant_fks.sql',
+  '097_admissions_public_context.sql',
+];
+/** PRC-M216 forward migration that re-proves those FKs with FORCE lifted. */
+export const FORCE_RLS_REVALIDATION_FILE = '257_revalidate_force_rls_fks.sql';
 
 /** SQL used by --live catalog proof (zero unvalidated / missing tenant FKs). */
 export const LIVE_CATALOG_QUERY = `
@@ -123,12 +141,36 @@ text_tenant_tables AS (
     AND NOT EXISTS (
       SELECT 1 FROM tenant_fks f WHERE f.table_name = col.table_name
     )
+),
+-- PRC-M433: convalidated is not proof for FKs validated under FORCE RLS. When
+-- any waived file is ledgered, the FORCE-lifted re-proof must be ledgered too.
+-- proctira_runtime_migration_status (091) is SECURITY DEFINER and executable
+-- by the migrator and runtime roles, so either URL can run this query.
+force_rls_ledger AS (
+  SELECT s.migration_name, s.migration_applied
+  FROM public.proctira_runtime_migration_status(
+    ARRAY[${[...FORCE_RLS_WAIVED_FILES, FORCE_RLS_REVALIDATION_FILE]
+      .map((f) => `'${f}'`)
+      .join(', ')}]::text[]
+  ) AS s
+),
+force_rls_revalidation_missing AS (
+  SELECT l.migration_name AS id
+  FROM force_rls_ledger l
+  WHERE l.migration_applied
+    AND l.migration_name <> '${FORCE_RLS_REVALIDATION_FILE}'
+    AND NOT EXISTS (
+      SELECT 1 FROM force_rls_ledger r
+      WHERE r.migration_name = '${FORCE_RLS_REVALIDATION_FILE}' AND r.migration_applied
+    )
 )
 SELECT 'unvalidated' AS kind, id FROM unvalidated
 UNION ALL
 SELECT 'missing' AS kind, id FROM missing
 UNION ALL
 SELECT 'text_tenant_no_fk' AS kind, id FROM text_tenant_tables
+UNION ALL
+SELECT 'force_rls_revalidation_missing' AS kind, id FROM force_rls_revalidation_missing
 ORDER BY 1, 2;
 `.trim();
 
@@ -470,6 +512,8 @@ export function parseLiveCatalogRows(stdout) {
   const missing = [];
   /** @type {string[]} */
   const textTenantNoFk = [];
+  /** @type {string[]} */
+  const forceRlsRevalidationMissing = [];
   for (const line of stdout.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -479,8 +523,9 @@ export function parseLiveCatalogRows(stdout) {
     if (kind === 'unvalidated' && id) unvalidated.push(id);
     else if (kind === 'missing' && id) missing.push(id);
     else if (kind === 'text_tenant_no_fk' && id) textTenantNoFk.push(id);
+    else if (kind === 'force_rls_revalidation_missing' && id) forceRlsRevalidationMissing.push(id);
   }
-  return { unvalidated, missing, textTenantNoFk };
+  return { unvalidated, missing, textTenantNoFk, forceRlsRevalidationMissing };
 }
 
 /**
@@ -739,6 +784,14 @@ export function evaluateStrictTenantFks({
           notes.push(
             `live catalog: allowlist entries no longer observed, safe to delete: ` +
               `${textReconciled.stale.join(', ')}`,
+          );
+        }
+        if (liveCatalog.forceRlsRevalidationMissing.length) {
+          failures.push(
+            `live catalog: ${liveCatalog.forceRlsRevalidationMissing.join(', ')} ` +
+              `validated FKs under FORCE ROW LEVEL SECURITY (validate_under_force_rls waiver) ` +
+              `but ${FORCE_RLS_REVALIDATION_FILE} is not in schema_migrations, so ` +
+              `convalidated is unproven (apply db/sql/${FORCE_RLS_REVALIDATION_FILE})`,
           );
         }
         if (!liveCatalog.unvalidated.length && !liveCatalog.missing.length) {

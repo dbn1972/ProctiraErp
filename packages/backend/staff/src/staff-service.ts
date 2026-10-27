@@ -19,12 +19,13 @@ import {
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import { readOffboardMeta, writeOffboardMeta, type StaffOffboardMeta } from './offboard-meta.js';
+import { readOffboardMeta, type StaffOffboardMeta } from './offboard-meta.js';
 import type { OffboardStaffInput } from './offboard-schemas.js';
 import type { CreateStaffInput, UpdateStaffInput } from './schemas.js';
 import type {
   StaffEntity,
   StaffFilter,
+  StaffOffboardRecord,
   StaffRepository,
   StaffTransactionScope,
 } from './staff-repository.js';
@@ -351,7 +352,9 @@ export class StaffService {
       throw new NotFoundError(`Staff with id '${id}' not found`);
     }
 
-    const prior = readOffboardMeta(existing.customData);
+    const prior =
+      (await this.repository.findOffboardRecord(id, tenantId)) ??
+      readOffboardMeta(existing.customData);
     if (prior || existing.status === EntityStatus.INACTIVE) {
       throw new ConflictError(`Staff with id '${id}' is already inactive/offboarded`);
     }
@@ -364,15 +367,18 @@ export class StaffService {
       decidedAt: new Date().toISOString(),
     };
 
-    const updated = await this.repository.update(id, tenantId, {
-      status: EntityStatus.INACTIVE,
-      customData: writeOffboardMeta(existing.customData, meta),
-    });
+    // PRC-M381: one conditional write; a concurrent offboard that already won
+    // (offboard_status set) makes this write a no-op.
+    const updated = await this.repository.markOffboarded(id, tenantId, meta);
     if (!updated) {
-      throw new NotFoundError(`Staff with id '${id}' not found`);
+      const current = await this.repository.findById(id, tenantId);
+      if (!current) {
+        throw new NotFoundError(`Staff with id '${id}' not found`);
+      }
+      throw new ConflictError(`Staff with id '${id}' is already inactive/offboarded`);
     }
 
-    return this.toOffboardView(updated);
+    return this.toOffboardView(updated, meta);
   }
 
   /**
@@ -385,11 +391,18 @@ export class StaffService {
     if (!staff) {
       throw new NotFoundError(`Staff with id '${id}' not found`);
     }
-    return this.toOffboardView(staff);
+    return this.toOffboardView(staff, await this.repository.findOffboardRecord(id, tenantId));
   }
 
-  private toOffboardView(staff: StaffEntity): StaffOffboardStatusView {
-    const meta = readOffboardMeta(staff.customData);
+  /**
+   * PRC-M381: the offboard columns are authoritative; customData.__offboard is
+   * the fallback for rows written by an older build before db/sql/260's backfill.
+   */
+  private toOffboardView(
+    staff: StaffEntity,
+    record: StaffOffboardRecord | null,
+  ): StaffOffboardStatusView {
+    const meta = record ?? readOffboardMeta(staff.customData);
     if (!meta) {
       return {
         staffId: staff.id,

@@ -477,3 +477,134 @@ test('findDdlHazards detects VALIDATE CONSTRAINT built dynamically', () => {
     'dynamic VALIDATE CONSTRAINT must not escape the gate',
   );
 });
+
+// PRC-M433: validate_under_force_rls waivers must name a FORCE-lifting
+// remediation migration or carry a future expiry; they can no longer be open-ended.
+const FORCE_RLS_VALIDATE_SQL = `
+  DO $d$ BEGIN
+    EXECUTE format('ALTER TABLE %s VALIDATE CONSTRAINT %s_tenant_fk', 'hot', 'hot');
+  END $d$;
+`;
+const FORCE_RLS_REMEDIATION_SQL = `
+  DO $d$ BEGIN
+    EXECUTE 'ALTER TABLE hot NO FORCE ROW LEVEL SECURITY';
+    EXECUTE 'ALTER TABLE hot VALIDATE CONSTRAINT hot_tenant_fk';
+    EXECUTE 'ALTER TABLE hot FORCE ROW LEVEL SECURITY';
+  END $d$;
+`;
+
+function forceRlsWaiverFixture(extra, sqlFiles = {}) {
+  return writeFixture({
+    sqlFiles: { '002_validate.sql': FORCE_RLS_VALIDATE_SQL, ...sqlFiles },
+    waiver: {
+      baseline: { dbSqlMaxFilename: '001_old.sql', prismaMigrationMaxDir: '20200101_old' },
+      waivers: [
+        {
+          path: 'db/sql/002_validate.sql',
+          hazards: ['validate_under_force_rls'],
+          reason: 'validated before FORCE lifting existed',
+          maintenanceWindow: '2026-09-21 rule introduction',
+          approvedBy: 'repository owner',
+          ...extra,
+        },
+      ],
+    },
+  });
+}
+
+test('PRC-M433: a validate_under_force_rls waiver with neither remediatedBy nor expires fails', () => {
+  const report = evaluateDdlHazards(
+    forceRlsWaiverFixture({}),
+    undefined,
+    undefined,
+    new Date('2026-10-26'),
+  );
+  assert.equal(report.ok, false);
+  assert.ok(
+    report.issues.some((i) =>
+      /002_validate\.sql: validate_under_force_rls waiver needs remediatedBy/.test(i),
+    ),
+    report.issues.join('; '),
+  );
+});
+
+test('PRC-M433: remediatedBy must be an existing db/sql file that lifts and restores FORCE', () => {
+  const missing = evaluateDdlHazards(
+    forceRlsWaiverFixture({ remediatedBy: 'db/sql/003_absent.sql' }),
+    undefined,
+    undefined,
+    new Date('2026-10-26'),
+  );
+  assert.equal(missing.ok, false);
+  assert.ok(
+    missing.issues.some((i) => /not an existing db\/sql file/.test(i)),
+    missing.issues.join('; '),
+  );
+
+  const noLift = evaluateDdlHazards(
+    forceRlsWaiverFixture(
+      { remediatedBy: 'db/sql/003_fix.sql' },
+      { '003_fix.sql': '-- NO FORCE ROW LEVEL SECURITY only in a comment\nSELECT 1;' },
+    ),
+    undefined,
+    undefined,
+    new Date('2026-10-26'),
+  );
+  assert.equal(noLift.ok, false);
+  assert.ok(
+    noLift.issues.some((i) => /does not lift and restore FORCE ROW LEVEL SECURITY/.test(i)),
+    noLift.issues.join('; '),
+  );
+
+  const ok = evaluateDdlHazards(
+    forceRlsWaiverFixture(
+      { remediatedBy: 'db/sql/003_fix.sql' },
+      { '003_fix.sql': FORCE_RLS_REMEDIATION_SQL },
+    ),
+    undefined,
+    undefined,
+    new Date('2026-10-26'),
+  );
+  assert.equal(ok.ok, true, ok.issues.join('; '));
+});
+
+test('PRC-M433: a future expires keeps the waiver; a past one fails', () => {
+  const future = evaluateDdlHazards(
+    forceRlsWaiverFixture({ expires: '2027-01-24' }),
+    undefined,
+    undefined,
+    new Date('2026-10-26'),
+  );
+  assert.equal(future.ok, true, future.issues.join('; '));
+  const past = evaluateDdlHazards(
+    forceRlsWaiverFixture({ expires: '2027-01-24' }),
+    undefined,
+    undefined,
+    new Date('2027-02-01'),
+  );
+  assert.equal(past.ok, false);
+  assert.ok(
+    past.issues.some((i) => /expired 2027-01-24/.test(i)),
+    past.issues.join('; '),
+  );
+});
+
+test('PRC-M433: every shipped validate_under_force_rls waiver is remediated or dated', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
+  const loaded = loadDdlHazardWaiver(join(root, 'tools/scripts/migration-ddl-hazard-waiver.json'));
+  const forceRls = loaded.waivers.filter((w) => w.hazards.includes('validate_under_force_rls'));
+  assert.equal(forceRls.length, 6);
+  for (const w of forceRls) {
+    assert.ok(w.remediatedBy || w.expires, `${w.path} needs remediatedBy or expires`);
+  }
+  assert.deepEqual(
+    forceRls
+      .filter((w) => w.remediatedBy)
+      .map((w) => w.path)
+      .sort(),
+    [
+      'db/sql/086_validate_cross_domain_fk_staff_ops.sql',
+      'db/sql/093_developer_portal_tenant_fks.sql',
+    ],
+  );
+});

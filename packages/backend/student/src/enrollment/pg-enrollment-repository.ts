@@ -8,18 +8,21 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
 
-import type {
-  EnrollmentEntity,
-  EnrollmentFilter,
-  EnrollmentHistoryContext,
-  EnrollmentHistoryEntity,
-  EnrollmentRepository,
-  InstitutionLookup,
-  TransferEnrollmentResult,
-  TransferEnrollmentWrite,
-  TransferRecordDetail,
-  TransferRecordEntity,
-  UpdateEnrollmentOptions,
+import {
+  PLACEMENT_REF_KINDS,
+  type EnrollmentEntity,
+  type EnrollmentFilter,
+  type EnrollmentHistoryContext,
+  type EnrollmentHistoryEntity,
+  type EnrollmentPlacementRefKind,
+  type EnrollmentPlacementRefs,
+  type EnrollmentRepository,
+  type InstitutionLookup,
+  type TransferEnrollmentResult,
+  type TransferEnrollmentWrite,
+  type TransferRecordDetail,
+  type TransferRecordEntity,
+  type UpdateEnrollmentOptions,
 } from './enrollment-repository.js';
 
 export type EnrollmentPgPool = PgQueryable & { connect?: () => Promise<unknown> };
@@ -542,6 +545,25 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
       );
       const row = result.rows[0] as { id: unknown; status: unknown } | undefined;
       return row ? { id: String(row.id), status: String(row.status) } : null;
+    });
+  }
+  async findMissingPlacementRefs(
+    tenantId: string,
+    refs: EnrollmentPlacementRefs,
+  ): Promise<EnrollmentPlacementRefKind[]> {
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT
+           EXISTS (SELECT 1 FROM students WHERE id = $1 AND tenant_id = $5 AND deleted_at IS NULL) AS "studentId",
+           EXISTS (SELECT 1 FROM grades WHERE id = $2 AND tenant_id = $5 AND deleted_at IS NULL) AS "gradeId",
+           EXISTS (SELECT 1 FROM classes WHERE id = $3 AND tenant_id = $5 AND deleted_at IS NULL) AS "classId",
+           EXISTS (
+             SELECT 1 FROM academic_periods WHERE id = $4 AND tenant_id = $5 AND deleted_at IS NULL
+           ) AS "academicPeriodId"`,
+        [refs.studentId, refs.gradeId, refs.classId, refs.academicPeriodId, tenantId],
+      );
+      const row = (result.rows[0] ?? {}) as Partial<Record<EnrollmentPlacementRefKind, unknown>>;
+      return PLACEMENT_REF_KINDS.filter((kind) => row[kind] !== true);
     });
   }
 }
