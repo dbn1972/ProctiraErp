@@ -81,7 +81,7 @@ services:
 
   kafka:
     # Confluent Platform Kafka in KRaft mode — no Zookeeper required.
-    image: confluentinc/cp-kafka:7.6.1
+    image: confluentinc/cp-kafka:8.3.2
     restart: unless-stopped
     environment:
       CLUSTER_ID: proctira-kraft-cluster
