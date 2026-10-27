@@ -1601,8 +1601,9 @@ jobs:
         run: node --test tools/scripts/target-database-migration-contract.test.mjs
       - name: Unit-test tools/scripts hygiene contracts
         run: node --test tools/scripts/no-completion-claims.test.mjs tools/scripts/backend-runtime-deps.test.mjs tools/scripts/check-campus-i18n.test.mjs tools/scripts/operational-script-credentials.test.mjs tools/scripts/dod-script-wiring.test.mjs tools/scripts/simulate-onboard-boards-schools.test.mjs
-      # Local compose stack contract (built services declare healthchecks).
-      - name: Compose contract (PRC-L335)
+      # Local compose stack contract (built services declare healthchecks;
+      # non-superuser migrator and no hard-coded role passwords).
+      - name: Compose contract (PRC-L335, PRC-L460)
         run: |
           set -euo pipefail
           node --test tools/scripts/check-compose-contract.test.mjs
