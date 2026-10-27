@@ -23,6 +23,9 @@ function getCategoryPrefix(category: AssetCategory, config: CdnConfig): string {
   }
 }
 
+/** Matches one character from the same whitespace set as `\s` and `String.prototype.trim`. */
+const WHITESPACE_CHAR_RE = /^\s$/;
+
 /**
  * Normalizes a URL path by removing duplicate slashes and ensuring
  * it starts with a single forward slash.
@@ -40,8 +43,16 @@ export function normalizePath(path: string): string {
   }
 
   // Remove trailing slashes and any whitespace they expose so the result is
-  // idempotent; the root path stays '/'
-  normalized = normalized.replace(/[\s/]+$/, '');
+  // idempotent; the root path stays '/'. A single backward scan keeps this
+  // linear: a trailing-run regex such as /[\s/]+$/ backtracks O(n^2) on a long
+  // whitespace run followed by another character.
+  let end = normalized.length;
+  while (end > 0) {
+    const ch = normalized.charAt(end - 1);
+    if (ch !== '/' && !WHITESPACE_CHAR_RE.test(ch)) break;
+    end--;
+  }
+  normalized = normalized.slice(0, end);
 
   return normalized === '' ? '/' : normalized;
 }
