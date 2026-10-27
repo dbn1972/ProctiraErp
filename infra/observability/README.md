@@ -135,6 +135,7 @@ ALERT_EMAIL_TO=ops@example.org PAGERDUTY_INTEGRATION_KEY=... \
 ```bash
 promtool check config infra/observability/prometheus.yml
 promtool check rules infra/observability/alerts/*.yml
+promtool test rules infra/observability/alerts/tests/*.yml   # PRC-L134: ProcessMemoryHigh = RSS / pod memory limit (k8s only)
 ALERT_EMAIL_TO=ci@example.org sh infra/observability/render-alertmanager.sh \
   infra/observability/alertmanager.yml.tpl /tmp/alertmanager.yml
 amtool check-config /tmp/alertmanager.yml

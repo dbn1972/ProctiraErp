@@ -2,7 +2,7 @@
  * G-923 — curriculum persistence: raw pg (db/sql/033, RLS via withPgTenant)
  * or an in-memory map for dev / unit tests.
  */
-import { ConflictError } from '@proctira/common';
+import { ConflictError, ValidationError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 export interface SyllabusUnitRecord {
@@ -336,11 +336,32 @@ function mapCoverage(row: Record<string, unknown>): UnitCoverageRecord {
   };
 }
 
+/**
+ * PRC-L289: a curriculum write that names a subject / grade / academic period /
+ * syllabus unit that does not exist in the tenant trips a (tenant-composite) FK
+ * (db/sql/033, 071, 255). Surface it as a 400, not a raw Postgres 500.
+ */
+function mapForeignKeyViolation(error: unknown): unknown {
+  const pgError = error as { code?: string; constraint?: string };
+  if (pgError?.code !== '23503') return error;
+  return new ValidationError('A referenced curriculum record does not exist in this tenant', [
+    {
+      field: pgError.constraint ?? 'reference',
+      rule: 'foreign_key',
+      message: 'Referenced record not found in this tenant',
+    },
+  ]);
+}
+
 export class PgCurriculumStore implements CurriculumStore {
   constructor(private readonly pool: CurriculumPool) {}
 
-  private run<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
-    return withPgTenant(this.pool as never, tenantId, fn);
+  private async run<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
+    try {
+      return await withPgTenant(this.pool as never, tenantId, fn);
+    } catch (error) {
+      throw mapForeignKeyViolation(error);
+    }
   }
 
   async createUnit(row: SyllabusUnitRecord): Promise<SyllabusUnitRecord> {

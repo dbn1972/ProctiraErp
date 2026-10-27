@@ -85,8 +85,8 @@ function dateOnlyStr(d: Date): string {
  * PRC-M173: resolver for the institution/tenant's holiday calendar, used to
  * skip EXCUSED writes on non-school days inside an approved leave range.
  * Optional — when unset, no dates are filtered (today's behavior unchanged).
- * Gateway wiring (apps/api-gateway/src/domain-plugins.ts) is an intentional
- * follow-up, not part of this fix.
+ * Wired by the gateway via `attendancePlugin({ holidayLookup })`
+ * (apps/api-gateway/src/attendance-holiday-lookup.ts).
  */
 export type AttendanceHolidayLookup = (
   tenantId: string,

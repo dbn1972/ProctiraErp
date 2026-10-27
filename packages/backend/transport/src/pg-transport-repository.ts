@@ -39,6 +39,42 @@ import type {
 } from './transport-repository.js';
 import { FEE_LINK_LEASE_PREFIX } from './transport-repository.js';
 
+/**
+ * PRC-M447: db/sql/264 partial unique indexes behind the one-active-assignment rules.
+ * A 23505 from either is the race the service pre-check cannot close; report it as 409.
+ */
+const ACTIVE_ASSIGNMENT_INDEXES: Record<string, string> = {
+  transport_driver_assignments_active_vehicle_uidx:
+    'Vehicle already has an active driver assignment. End the current assignment first.',
+  transport_student_assignments_active_student_uidx:
+    'Student already has an active transport route assignment. End the current assignment first.',
+};
+
+/**
+ * PRC-M449: a hard delete blocked by dependent rows (db/sql/265 makes GPS pings and bus
+ * attendance RESTRICT; assignments already were) is a 409, not a raw 23503 / 500.
+ */
+function rethrowDependentRowsConflict(entity: string): (error: unknown) => never {
+  return (error: unknown) => {
+    if ((error as { code?: unknown } | null)?.code === '23503') {
+      throw new ConflictError(
+        `${entity} has dependent records (GPS, attendance or assignment history); deactivate it instead of deleting`,
+      );
+    }
+    throw error;
+  };
+}
+
+function rethrowActiveAssignmentConflict(error: unknown): never {
+  const pgError = error as { code?: unknown; constraint?: unknown } | null;
+  const message =
+    pgError?.code === '23505' && typeof pgError.constraint === 'string'
+      ? ACTIVE_ASSIGNMENT_INDEXES[pgError.constraint]
+      : undefined;
+  if (message) throw new ConflictError(message);
+  throw error;
+}
+
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
 const ensureTransportSchemaReady = createDatabaseSchemaReadinessCheck('transport', 'transport');
@@ -470,7 +506,7 @@ export class PgTransportRepository implements TransportRepository {
       tenantId,
       `DELETE FROM transport_routes WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
-    );
+    ).catch(rethrowDependentRowsConflict('Transport route'));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -562,7 +598,7 @@ export class PgTransportRepository implements TransportRepository {
       tenantId,
       `DELETE FROM transport_stops WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
-    );
+    ).catch(rethrowDependentRowsConflict('Route stop'));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -707,7 +743,7 @@ export class PgTransportRepository implements TransportRepository {
       tenantId,
       `DELETE FROM transport_vehicles WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
-    );
+    ).catch(rethrowDependentRowsConflict('Vehicle'));
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -739,7 +775,7 @@ export class PgTransportRepository implements TransportRepository {
         now,
         now,
       ],
-    );
+    ).catch(rethrowActiveAssignmentConflict);
     return mapDriverAssignmentRow(result.rows[0] as Record<string, unknown>);
   }
 
@@ -764,7 +800,7 @@ export class PgTransportRepository implements TransportRepository {
         endDate: 'end_date::date',
         isActive: 'is_active',
       },
-    );
+    ).catch(rethrowActiveAssignmentConflict);
     return row ? mapDriverAssignmentRow(row) : null;
   }
 
@@ -876,7 +912,7 @@ export class PgTransportRepository implements TransportRepository {
         now,
         now,
       ],
-    );
+    ).catch(rethrowActiveAssignmentConflict);
     return mapStudentAssignmentRow(result.rows[0] as Record<string, unknown>);
   }
 
@@ -901,7 +937,7 @@ export class PgTransportRepository implements TransportRepository {
         endDate: 'end_date::date',
         isActive: 'is_active',
       },
-    );
+    ).catch(rethrowActiveAssignmentConflict);
     return row ? mapStudentAssignmentRow(row) : null;
   }
 

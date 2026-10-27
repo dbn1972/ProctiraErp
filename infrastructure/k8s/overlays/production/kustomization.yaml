@@ -7,7 +7,9 @@ resources:
   - ../../base
   - external-secret.yaml
   - network-policy.yaml
-  - pod-disruption-budget.yaml
+  # PRC-L567: etl-worker has no base PDB; the other services' production PDBs
+  # are patches over the base PDBs (pod-disruption-budget.yaml under patches).
+  - etl-worker-pdb.yaml
 
 # W1-OPS-08 — pin all service images via shared image-tag component
 # W1-OPS-16 — do NOT include components/split-domain-services (canonical in-process)
@@ -15,6 +17,9 @@ components:
   - ../../components/image-tag
 
 patches:
+  # PRC-L567: raise the base PDBs to the production floors in place (one PDB
+  # per app; two PDBs over the same pods block every eviction).
+  - path: pod-disruption-budget.yaml
   # ---------------------------------------------------------------------------
   # W1-OPS-17 — Production replicas / HPA (must match production-replica-policy)
   # Canonical policy: infrastructure/ops/production-replica-policy.yaml

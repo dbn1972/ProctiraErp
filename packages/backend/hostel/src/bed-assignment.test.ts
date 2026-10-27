@@ -141,7 +141,7 @@ describe('unique-active-bed concurrency guard (in-memory)', () => {
 
     const beds = await service.listBeds(TENANT, bed.roomId);
     expect(beds.find((b) => b.id === bed.id)?.isAvailable).toBe(false);
-    const assignments = await service.listAssignments(TENANT);
+    const { data: assignments } = await service.listAssignments(TENANT, { page: 1, pageSize: 100 });
     expect(assignments.filter((a) => a.isActive && a.bedId === bed.id)).toHaveLength(1);
   });
 });
@@ -180,7 +180,10 @@ describe('unique-active-bed concurrency guard (live Pg)', () => {
         expect((r as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError);
       }
 
-      const assignments = await service.listAssignments(tenantId);
+      const { data: assignments } = await service.listAssignments(tenantId, {
+        page: 1,
+        pageSize: 100,
+      });
       expect(assignments.filter((a) => a.isActive && a.bedId === bed.id)).toHaveLength(1);
     },
   );

@@ -72,32 +72,54 @@ function mapApiKey(row: Record<string, unknown>): ApiKeyEntity {
   };
 }
 
+async function insertApiKey(client: PgQueryable, key: ApiKeyEntity): Promise<ApiKeyEntity> {
+  const result = await client.query(
+    `INSERT INTO developer_portal_api_keys (
+       id, tenant_id, account_id, name, key_hash, key_prefix, scopes, status,
+       expires_at, last_used_at, created_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11)
+     RETURNING *`,
+    [
+      key.id,
+      key.tenantId,
+      key.accountId,
+      key.name,
+      key.keyHash,
+      key.keyPrefix,
+      JSON.stringify(key.scopes),
+      key.status,
+      key.expiresAt,
+      key.lastUsedAt,
+      key.createdAt,
+    ],
+  );
+  return mapApiKey(result.rows[0] as Record<string, unknown>);
+}
+
 export class PgApiKeyStore {
   constructor(private readonly pool: PgPoolLike) {}
 
   async createApiKey(key: ApiKeyEntity): Promise<ApiKeyEntity> {
+    return withPgTenant(this.pool, key.tenantId, (client) => insertApiKey(client, key));
+  }
+
+  /**
+   * PRC-L299: serialize "count active keys, then insert" per account with a
+   * transaction-scoped advisory lock, so concurrent creates cannot overshoot
+   * the limit. Returns null (nothing written) when the limit is reached.
+   */
+  async createApiKeyWithinLimit(key: ApiKeyEntity, limit: number): Promise<ApiKeyEntity | null> {
     return withPgTenant(this.pool, key.tenantId, async (client) => {
-      const result = await client.query(
-        `INSERT INTO developer_portal_api_keys (
-           id, tenant_id, account_id, name, key_hash, key_prefix, scopes, status,
-           expires_at, last_used_at, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11)
-         RETURNING *`,
-        [
-          key.id,
-          key.tenantId,
-          key.accountId,
-          key.name,
-          key.keyHash,
-          key.keyPrefix,
-          JSON.stringify(key.scopes),
-          key.status,
-          key.expiresAt,
-          key.lastUsedAt,
-          key.createdAt,
-        ],
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('devportal:apikey:' || $1))`, [
+        key.accountId,
+      ]);
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM developer_portal_api_keys
+          WHERE account_id = $1 AND status = 'active'`,
+        [key.accountId],
       );
-      return mapApiKey(result.rows[0] as Record<string, unknown>);
+      if (Number((count.rows[0] as { total: number }).total) >= limit) return null;
+      return insertApiKey(client, key);
     });
   }
 

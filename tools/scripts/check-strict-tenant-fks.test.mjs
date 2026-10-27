@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  LIVE_CATALOG_QUERY,
   REPAIR_MIGRATION_HINT,
   SKIP_JUSTIFICATION_MARKER,
   VALIDATE_MIGRATION_HINT,
@@ -536,4 +537,49 @@ test('the shipped allowlist is empty now that the text tenant_id debt is cleared
 test('loadTextTenantAllowlist returns an empty set when the file is absent', () => {
   const allow = loadTextTenantAllowlist('/nonexistent-root-for-test');
   assert.equal(allow.size, 0);
+});
+
+// PRC-M433: --live must not trust convalidated for FKs validated under FORCE RLS.
+test('PRC-M433: live catalog fails when a FORCE-RLS-waived file is ledgered without 257', () => {
+  const root = writeFixture();
+  const report = evaluateStrictTenantFks({
+    root,
+    live: true,
+    requireLive: true,
+    databaseUrl: 'postgresql://example',
+    queryLive: () => ({
+      status: 0,
+      stdout:
+        'force_rls_revalidation_missing|086_validate_cross_domain_fk_staff_ops.sql\n' +
+        'force_rls_revalidation_missing|093_developer_portal_tenant_fks.sql',
+      stderr: '',
+      error: '',
+    }),
+  });
+  assert.equal(report.ok, false);
+  assert.ok(
+    report.failures.some(
+      (f) =>
+        /086_validate_cross_domain_fk_staff_ops\.sql, 093_developer_portal_tenant_fks\.sql/.test(
+          f,
+        ) && /257_revalidate_force_rls_fks\.sql is not in schema_migrations/.test(f),
+    ),
+    report.failures.join('; '),
+  );
+});
+
+test('PRC-M433: the live catalog query checks the six waived files against 257', () => {
+  for (const file of [
+    '076_transcript_authenticity_complete.sql',
+    '080_enrollment_grade_audit_harden.sql',
+    '082_repair_strict_tenant_fk_validate.sql',
+    '086_validate_cross_domain_fk_staff_ops.sql',
+    '093_developer_portal_tenant_fks.sql',
+    '097_admissions_public_context.sql',
+    '257_revalidate_force_rls_fks.sql',
+  ]) {
+    assert.ok(LIVE_CATALOG_QUERY.includes(`'${file}'`), `${file} missing from LIVE_CATALOG_QUERY`);
+  }
+  assert.match(LIVE_CATALOG_QUERY, /proctira_runtime_migration_status/);
+  assert.match(LIVE_CATALOG_QUERY, /'force_rls_revalidation_missing' AS kind/);
 });

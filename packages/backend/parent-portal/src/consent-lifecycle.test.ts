@@ -105,6 +105,9 @@ describe('W1-PRIV-01 COMPLETE consent lifecycle', () => {
     expect(withdrawn.status).toBe('revoked');
     expect(withdrawn.version).toBe(3);
     expect(withdrawn.supersedesId).toBe(approved.id);
+    // PRC-M318: the reason passed to withdrawConsent must survive on the successor
+    // row, not be dropped on the floor.
+    expect(withdrawn.withdrawalReason).toBe('parent request');
 
     const closedApproved = await repo.findConsentById(approved.id, TENANT);
     expect(closedApproved?.validTo).not.toBeNull();

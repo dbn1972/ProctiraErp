@@ -16,6 +16,11 @@
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  NO_AUDIT_ACTOR,
+  type AssessmentAuditContext,
+  type AssessmentAuditSink,
+} from './assessment-audit.js';
 import type {
   AssessmentItemEntity,
   AssessmentItemRepository,
@@ -53,6 +58,8 @@ export interface ResultServiceOptions {
    * call). Without it the `assessment_results_student_id_fkey` constraint is the backstop.
    */
   studentDirectory?: ResultStudentDirectory | null;
+  /** PRC-M495: score writes are audited with before/after values (no sink: unchanged). */
+  auditSink?: AssessmentAuditSink | null;
 }
 
 /** PRC-M164: optional page window for subject-wide grade listings. */
@@ -88,6 +95,7 @@ export class ResultService {
   async enterSingleResult(
     tenantId: string,
     input: EnterSingleResultInput,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
   ): Promise<AssessmentResultEntity> {
     // Validate assessment item exists
     const item = await this.assessmentItemRepo.findById(input.assessmentItemId, tenantId);
@@ -124,7 +132,37 @@ export class ResultService {
       score: input.score,
     };
 
-    return this.resultRepo.upsert(entity);
+    const auditSink = this.options.auditSink;
+    const previous = auditSink
+      ? ((
+          await this.resultRepo.findByStudentSubjectPeriod(
+            tenantId,
+            input.studentId,
+            item.subjectId,
+            item.academicPeriodId,
+          )
+        ).find((r) => r.assessmentItemId === input.assessmentItemId) ?? null)
+      : null;
+    const saved = await this.resultRepo.upsert(entity);
+    if (auditSink) {
+      await auditSink({
+        tenantId,
+        action: 'result.enter',
+        entityType: 'assessment_result',
+        entityId: saved.id,
+        actorId: auditContext.actorId,
+        operation: previous ? 'UPDATE' : 'CREATE',
+        before: { score: previous?.score ?? null },
+        after: { score: saved.score },
+        metadata: {
+          studentId: saved.studentId,
+          assessmentItemId: saved.assessmentItemId,
+          subjectId: saved.subjectId,
+          academicPeriodId: saved.academicPeriodId,
+        },
+      });
+    }
+    return saved;
   }
 
   /**
@@ -145,6 +183,8 @@ export class ResultService {
   async enterBulkResults(
     tenantId: string,
     input: BulkResultEntryInput,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
+    source: 'bulk' | 'import' = 'bulk',
   ): Promise<BulkResultEntryResponse> {
     // Validate row count
     if (input.results.length > MAX_BULK_RESULT_ROWS) {
@@ -226,7 +266,46 @@ export class ResultService {
     // Bulk upsert valid entries
     let savedResults: AssessmentResultEntity[] = [];
     if (validEntries.length > 0) {
+      const auditSink = this.options.auditSink;
+      const resultKey = (r: { studentId: string; assessmentItemId: string }) =>
+        `${r.studentId}:${r.assessmentItemId}`;
+      const previousScores = auditSink
+        ? new Map(
+            (
+              await this.resultRepo.findBySubjectPeriod(
+                tenantId,
+                input.subjectId,
+                input.academicPeriodId,
+              )
+            ).map((r) => [resultKey(r), r.score]),
+          )
+        : null;
       savedResults = await this.resultRepo.bulkUpsert(validEntries);
+      if (auditSink && previousScores && savedResults.length > 0) {
+        await auditSink({
+          tenantId,
+          action: 'result.bulk_enter',
+          entityType: 'assessment_result_batch',
+          entityId: uuidv4(),
+          actorId: auditContext.actorId,
+          operation: 'UPDATE',
+          before: null,
+          after: {
+            rows: savedResults.map((r) => ({
+              studentId: r.studentId,
+              assessmentItemId: r.assessmentItemId,
+              before: previousScores.get(resultKey(r)) ?? null,
+              after: r.score,
+            })),
+          },
+          metadata: {
+            source,
+            subjectId: input.subjectId,
+            academicPeriodId: input.academicPeriodId,
+            rowCount: savedResults.length,
+          },
+        });
+      }
     }
 
     return {
@@ -471,6 +550,7 @@ export class ResultService {
     subjectId: string,
     academicPeriodId: string,
     rows: Array<{ studentId: string; assessmentItemId: string; score: number }>,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
   ): Promise<BulkResultEntryResponse> {
     // Validate row count
     if (rows.length > MAX_BULK_RESULT_ROWS) {
@@ -532,11 +612,16 @@ export class ResultService {
     }
 
     // Delegate to bulk entry for business validation
-    const bulkResult = await this.enterBulkResults(tenantId, {
-      subjectId,
-      academicPeriodId,
-      results: validRows,
-    });
+    const bulkResult = await this.enterBulkResults(
+      tenantId,
+      {
+        subjectId,
+        academicPeriodId,
+        results: validRows,
+      },
+      auditContext,
+      'import',
+    );
 
     // Merge format errors with business validation errors
     // Adjust row indices for business errors to account for format-filtered rows

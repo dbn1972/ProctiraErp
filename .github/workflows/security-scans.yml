@@ -32,12 +32,16 @@ permissions:
   contents: read
 
 concurrency:
-  # Include sha so a queued-but-never-started caller cannot cancel tip scans.
-  group: security-scans-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  # PRC-L110: one group per PR (superseded PR scans cancel); push/schedule/
+  # dispatch stay per-sha so a queued-but-never-started caller cannot cancel
+  # tip scans. github.workflow keeps the CI-called and standalone runs apart.
+  group: security-scans-${{ github.workflow }}-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
   cancel-in-progress: true
 
 env:
   GITLEAKS_VERSION: '8.21.2'
+  # PRC-L308: gitleaks_8.21.2_checksums.txt value for linux_x64; change with the version.
+  GITLEAKS_SHA256: 5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba
   SEMGREP_VERSION: '1.97.0'
   # Semgrep 1.97 imports pkg_resources; setuptools 81+ removes it.
   SETUPTOOLS_VERSION: '80.9.0'
@@ -88,9 +92,12 @@ jobs:
       - name: Install gitleaks
         run: |
           set -euo pipefail
-          curl -sSfL \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
+          # PRC-L308: verify the pinned upstream sha256 before extracting.
+          GL_TGZ="/tmp/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$GL_TGZ" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  ${GL_TGZ}" | sha256sum -c -
+          tar -xzf "$GL_TGZ" -C /usr/local/bin gitleaks
           gitleaks version
 
       - name: Run gitleaks

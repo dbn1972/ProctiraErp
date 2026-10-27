@@ -194,6 +194,35 @@ describe('parent/student academic visibility routes', () => {
     expect(other.json().meta.studentId).not.toBe(STUDENT_USER);
   });
 
+  // PRC-L135: a JWT with no `sub` claim must never resolve to an 'anonymous' actor id and
+  // proceed — it must fail closed with 401 before the service runs.
+  describe('unauthenticated (no sub) requests (PRC-L135)', () => {
+    const noSub: Principal = {
+      sub: '',
+      roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+    };
+
+    it('rejects a read route with 401', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/parent-portal/children/${STUDENT_ID}/attendance`,
+        headers: as(noSub),
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json()).toMatchObject({ code: 'UNAUTHENTICATED', statusCode: 401 });
+    });
+
+    it('rejects the student self-service read route with 401', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/student-portal/me/attendance',
+        headers: as(noSub),
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json()).toMatchObject({ code: 'UNAUTHENTICATED', statusCode: 401 });
+    });
+  });
+
   // PRC-H073: consent create/supersede is staff-only; a guardian/student JWT must be rejected
   // before the service runs, so it cannot forge a consent naming any parent+student.
   describe('consent create/supersede authorization (PRC-H073)', () => {

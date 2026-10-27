@@ -24,6 +24,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { isAssessmentAdmin, isReportCardOperator } from './assessment-access.js';
+import { assessmentAuditContextOf } from './assessment-audit.js';
 import { installAssessmentRouteGuard } from './assessment-http-guard.js';
 import {
   CreateReportCardTemplateSchema,
@@ -514,7 +515,11 @@ export async function registerReportCardRoutes(
       }
 
       try {
-        const job = await reportCardService.queueReportCardGeneration(tenantId, result.data);
+        const job = await reportCardService.queueReportCardGeneration(
+          tenantId,
+          result.data,
+          assessmentAuditContextOf(request),
+        );
         return reply.status(202).send(formatJobResponse(job));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -558,6 +563,7 @@ export async function registerReportCardRoutes(
         const bulkResult = await reportCardService.queueBulkReportCardGeneration(
           tenantId,
           result.data,
+          assessmentAuditContextOf(request),
         );
         return reply.status(202).send({
           totalStudents: bulkResult.totalStudents,
@@ -699,6 +705,7 @@ export async function registerReportCardRoutes(
         const artifact = await reportCardService.getReportCardPdf(
           tenantId,
           paramsResult.data.jobId,
+          assessmentAuditContextOf(request),
         );
         return reply
           .status(200)

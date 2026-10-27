@@ -113,6 +113,12 @@ export interface DeveloperPortalRepository {
 
   // API Keys
   createApiKey(key: ApiKeyEntity): Promise<ApiKeyEntity>;
+  /**
+   * PRC-L299: count active keys for (account, tenant) and insert in one
+   * serialized step (Postgres: per-account advisory xact lock). Returns null,
+   * writing nothing, when `limit` active keys already exist.
+   */
+  createApiKeyWithinLimit(key: ApiKeyEntity, limit: number): Promise<ApiKeyEntity | null>;
   getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null>;
   getApiKeyByHash(keyHash: string): Promise<ApiKeyEntity | null>;
   listApiKeys(
@@ -129,6 +135,8 @@ export interface DeveloperPortalRepository {
 
   // Webhooks
   createWebhook(webhook: WebhookEntity): Promise<WebhookEntity>;
+  /** PRC-L299: as createApiKeyWithinLimit, for webhooks per (account, tenant). */
+  createWebhookWithinLimit(webhook: WebhookEntity, limit: number): Promise<WebhookEntity | null>;
   getWebhookById(id: string): Promise<WebhookEntity | null>;
   listWebhooks(
     filter: WebhookFilter,
@@ -162,9 +170,23 @@ export interface DeveloperPortalRepository {
       >
     >,
   ): Promise<WebhookDeliveryEntity | null>;
+  /**
+   * PRC-L464: atomically claim a pending delivery for one send attempt. Succeeds
+   * (returns the row) only when the delivery is `pending` and unclaimed or its
+   * claim is older than `leaseMs`; otherwise returns null. `updateDelivery`
+   * clears the claim when the attempt result is written.
+   */
+  claimDelivery(
+    tenantId: string,
+    id: string,
+    claimToken: string,
+    leaseMs: number,
+  ): Promise<WebhookDeliveryEntity | null>;
 
   // Sandboxes
   createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity>;
+  /** PRC-L299: as createApiKeyWithinLimit, for active/provisioning sandboxes per account. */
+  createSandboxWithinLimit(sandbox: SandboxEntity, limit: number): Promise<SandboxEntity | null>;
   getSandboxById(id: string): Promise<SandboxEntity | null>;
   listSandboxes(accountId: string): Promise<SandboxEntity[]>;
   updateSandboxStatus(id: string, status: SandboxEntity['status']): Promise<SandboxEntity | null>;

@@ -11,6 +11,9 @@ export {
   isLearner,
   isTenantAdmin,
   type LmsActor,
+  type LmsAuditEntry,
+  type LmsAuditSink,
+  type LmsServiceOptions,
   type AssignmentWithQuestions,
   type StudentProgress,
 } from './lms-service.js';

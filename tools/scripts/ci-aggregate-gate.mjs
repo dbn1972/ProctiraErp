@@ -184,6 +184,18 @@ export function evaluate({ changes, results }) {
       result: results.runtimeRoleGate,
       requiredWhen: () => true,
     },
+    // PRC-M428 / PRC-L307: static ops gates (helm-template.yml) and workflow
+    // lint (actionlint.yml) are always required, independent of path filters.
+    {
+      job: 'helm-template',
+      result: results.helmTemplate,
+      requiredWhen: () => true,
+    },
+    {
+      job: 'workflow-lint',
+      result: results.workflowLint,
+      requiredWhen: () => true,
+    },
     {
       job: 'security-scans',
       result: results.securityScans,
@@ -320,6 +332,8 @@ function readEnv() {
       runtimeTablePrivileges: process.env.RUNTIME_TABLE_PRIVILEGES_RESULT,
       runtimeRoleGate: process.env.RUNTIME_ROLE_GATE_RESULT,
       securityScans: process.env.SECURITY_SCANS_RESULT,
+      helmTemplate: process.env.HELM_TEMPLATE_RESULT,
+      workflowLint: process.env.WORKFLOW_LINT_RESULT,
       secondaryAppsE2e: process.env.SECONDARY_APPS_E2E_RESULT,
       mobileFlutter: process.env.MOBILE_FLUTTER_RESULT,
     },

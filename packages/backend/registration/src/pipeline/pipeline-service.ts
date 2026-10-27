@@ -31,7 +31,6 @@ import type {
   CreateEnquiryDto,
   CreateFollowupDto,
   CreateOfferDto,
-  EnquiryStage,
   GenerateMeritListDto,
   ApplicationPlacementDto,
   UpdateEnquiryDto,
@@ -125,9 +124,17 @@ function num(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+/** PRC-M335: a conversion claim older than this is treated as abandoned (crashed caller). */
+const ENQUIRY_CONVERSION_LEASE_MS = 5 * 60_000;
+/** PRC-M335: how long a losing concurrent convert waits for the winner's application. */
+const ENQUIRY_CONVERSION_WAIT_ATTEMPTS = 20;
+const ENQUIRY_CONVERSION_WAIT_MS = 50;
+
 function formatEnquiry(row: EnquiryRecord) {
+  // PRC-M335: `version` is an internal concurrency token; the response shape is unchanged.
+  const { version: _version, ...rest } = row;
   return {
-    ...row,
+    ...rest,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -247,6 +254,7 @@ export class AdmissionsPipelineService {
       testScore: input.testScore ?? null,
       applicationId: null,
       notes: input.notes ?? null,
+      version: 0,
       createdAt: now,
       updatedAt: now,
     };
@@ -271,7 +279,7 @@ export class AdmissionsPipelineService {
       quota: input.quota ?? existing.quota,
       updatedAt: new Date(),
     };
-    return formatEnquiry(await this.store.updateEnquiry(next));
+    return formatEnquiry(await this.store.updateEnquiry(next, existing.version));
   }
 
   async addFollowup(tenantId: string, enquiryId: string, input: CreateFollowupDto) {
@@ -305,34 +313,46 @@ export class AdmissionsPipelineService {
   async convertEnquiry(tenantId: string, enquiryId: string) {
     const enquiry = await this.requireEnquiry(tenantId, enquiryId);
     if (enquiry.applicationId) {
-      const existing = await this.applications.findById(enquiry.applicationId, tenantId);
-      if (existing) {
-        return {
-          enquiry: formatEnquiry(enquiry),
-          application: this.formatApplication(existing),
-        };
-      }
+      const existing = await this.convertedResult(tenantId, enquiry);
+      if (existing) return existing;
     }
 
-    const created = await this.applications.create({
-      id: uuidv4(),
+    // PRC-M335: claim first so concurrent conversions cannot each create an application.
+    const applicationId = uuidv4();
+    const claimed = await this.store.claimEnquiryConversion(
       tenantId,
-      trackingNumber: generateTrackingNumber(),
-      institutionId: enquiry.institutionId,
-      institutionName: enquiry.institutionName ?? 'School',
-      status: 'pending',
-      firstName: enquiry.firstName,
-      lastName: enquiry.lastName,
-      dateOfBirth: enquiry.dateOfBirth,
-      gender: enquiry.gender,
-      guardianName: enquiry.guardianName,
-      guardianPhone: enquiry.guardianPhone,
-      guardianEmail: enquiry.guardianEmail,
-      customFields: [],
-      documents: [],
-      preferredLanguage: null,
-      remarks: null,
-    });
+      enquiryId,
+      enquiry.applicationId,
+      applicationId,
+      ENQUIRY_CONVERSION_LEASE_MS,
+    );
+    if (!claimed) return this.awaitConcurrentConversion(tenantId, enquiryId);
+
+    let created: RegistrationEntity;
+    try {
+      created = await this.applications.create({
+        id: applicationId,
+        tenantId,
+        trackingNumber: generateTrackingNumber(),
+        institutionId: enquiry.institutionId,
+        institutionName: enquiry.institutionName ?? 'School',
+        status: 'pending',
+        firstName: enquiry.firstName,
+        lastName: enquiry.lastName,
+        dateOfBirth: enquiry.dateOfBirth,
+        gender: enquiry.gender,
+        guardianName: enquiry.guardianName,
+        guardianPhone: enquiry.guardianPhone,
+        guardianEmail: enquiry.guardianEmail,
+        customFields: [],
+        documents: [],
+        preferredLanguage: null,
+        remarks: null,
+      });
+    } catch (error) {
+      await this.store.releaseEnquiryConversion(tenantId, enquiryId, applicationId);
+      throw error;
+    }
 
     await this.store.upsertPlacement({
       applicationId: created.id,
@@ -348,17 +368,43 @@ export class AdmissionsPipelineService {
       submittedAt: created.submittedAt,
     });
 
-    const next: EnquiryRecord = {
-      ...enquiry,
-      applicationId: created.id,
-      stage: 'applied' satisfies EnquiryStage,
-      updatedAt: new Date(),
-    };
-    await this.store.updateEnquiry(next);
+    const next = await this.store.completeEnquiryConversion(
+      tenantId,
+      enquiryId,
+      created.id,
+      new Date(),
+    );
+    if (!next) {
+      throw new ConflictError(`Enquiry '${enquiryId}' conversion claim expired; reload and retry`);
+    }
     return {
       enquiry: formatEnquiry(next),
       application: this.formatApplication(created),
     };
+  }
+
+  private async convertedResult(tenantId: string, enquiry: EnquiryRecord) {
+    if (!enquiry.applicationId) return null;
+    const existing = await this.applications.findById(enquiry.applicationId, tenantId);
+    if (!existing) return null;
+    return {
+      enquiry: formatEnquiry(enquiry),
+      application: this.formatApplication(existing),
+    };
+  }
+
+  /**
+   * PRC-M335: another caller holds the conversion claim. Return its application once it
+   * is linked; if it is not linked within a short wait, report a 409 (never a duplicate).
+   */
+  private async awaitConcurrentConversion(tenantId: string, enquiryId: string) {
+    for (let attempt = 0; attempt < ENQUIRY_CONVERSION_WAIT_ATTEMPTS; attempt += 1) {
+      const current = await this.requireEnquiry(tenantId, enquiryId);
+      const existing = await this.convertedResult(tenantId, current);
+      if (existing) return existing;
+      await new Promise((resolve) => setTimeout(resolve, ENQUIRY_CONVERSION_WAIT_MS));
+    }
+    throw new ConflictError(`Enquiry '${enquiryId}' is already being converted; retry shortly`);
   }
 
   async upsertSeat(tenantId: string, input: UpsertSeatMatrixDto): Promise<SeatAvailability> {

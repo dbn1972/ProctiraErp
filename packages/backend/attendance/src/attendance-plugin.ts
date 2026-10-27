@@ -20,7 +20,7 @@ import type {
 import { AttendanceService } from './attendance-service.js';
 import type { AttendanceTimeZoneResolver } from './attendance-service.js';
 import { registerAttendanceOpsRoutes } from './ops-routes.js';
-import { AttendanceOpsService } from './ops-service.js';
+import { AttendanceOpsService, type AttendanceHolidayLookup } from './ops-service.js';
 import type { AttendanceOpsStore } from './ops-store.js';
 import { createAttendanceOpsStore } from './repository-factory.js';
 import { registerAttendanceRoutes } from './routes.js';
@@ -59,6 +59,11 @@ export interface AttendancePluginOptions {
    * production-like envs fail closed (503) on attendance writes made with an actor.
    */
   classMembership?: AttendanceClassMembershipCheck | null;
+  /**
+   * PRC-M173: holiday-calendar lookup used by leave approval to skip EXCUSED writes on
+   * non-school days. Omitted: every weekday in the bounded range is marked (unchanged).
+   */
+  holidayLookup?: AttendanceHolidayLookup;
 }
 
 // Extend Fastify types
@@ -81,7 +86,9 @@ export const attendancePlugin = fp(
       classMembership: options.classMembership ?? null,
     });
     const opsStore = options.opsStore ?? createAttendanceOpsStore();
-    const opsService = new AttendanceOpsService(opsStore, repository, options.punchConfig ?? {});
+    const opsService = new AttendanceOpsService(opsStore, repository, options.punchConfig ?? {}, {
+      holidayLookup: options.holidayLookup,
+    });
 
     // Decorate fastify with the attendance service
     fastify.decorate('attendanceService', attendanceService);

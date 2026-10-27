@@ -13,6 +13,10 @@
  * directory server-side (`/api/directory/search`) so entries beyond the
  * capped first page can be found, and `totalAvailable` renders a
  * truncation notice when the seeded list is partial.
+ *
+ * PRC-L240: `fieldError` is a submit-time validation message (distinct from
+ * `error`, which means the directory failed to load). It marks the control
+ * aria-invalid and links the message via aria-describedby.
  */
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 
@@ -40,6 +44,7 @@ export function EntitySearchSelect({
   remoteSearch,
   totalAvailable,
   onOptionSelected,
+  fieldError,
 }: {
   id: string;
   name: string;
@@ -69,6 +74,8 @@ export function EntitySearchSelect({
   totalAvailable?: number;
   /** Fired with the full option (incl. remote results) when one is chosen. */
   onOptionSelected?: (option: EntityLabelOption | null) => void;
+  /** Submit-time validation message, not a load failure (PRC-L240). */
+  fieldError?: string;
 }) {
   const [query, setQuery] = useState('');
   const [value, setValue] = useState(defaultValue);
@@ -185,6 +192,12 @@ export function EntitySearchSelect({
   // With `remoteSearch`, an empty first page can still be searched (PRC-M083).
   const unavailable = loading || Boolean(error) || (options.length === 0 && !remoteSearch);
   const statusId = `${id}-status`;
+  const fieldErrorId = `${id}-field-error`;
+  const fieldErrorNode = fieldError ? (
+    <p id={fieldErrorId} role="alert" className="text-xs font-medium text-destructive">
+      {fieldError}
+    </p>
+  ) : null;
   const remoteHint = remoteSearch ? (
     <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
       {remoteState === 'loading'
@@ -217,7 +230,8 @@ export function EntitySearchSelect({
             required={required}
             value=""
             onChange={() => undefined}
-            aria-describedby={statusId}
+            aria-describedby={fieldError ? `${statusId} ${fieldErrorId}` : statusId}
+            aria-invalid={fieldError ? true : undefined}
             aria-busy={loading || undefined}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground"
           >
@@ -241,6 +255,7 @@ export function EntitySearchSelect({
               {loading ? loadingMessage : emptyMessage}
             </p>
           )}
+          {fieldErrorNode}
         </div>
       ) : presentation === 'combobox' ? (
         <div className="space-y-1.5">
@@ -264,6 +279,8 @@ export function EntitySearchSelect({
             aria-controls={listboxId}
             aria-autocomplete="list"
             aria-activedescendant={listOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+            aria-invalid={fieldError ? true : undefined}
+            aria-describedby={fieldError ? fieldErrorId : undefined}
           />
           {listOpen && (
             <ul
@@ -297,6 +314,7 @@ export function EntitySearchSelect({
               )}
             </ul>
           )}
+          {fieldErrorNode}
           {remoteHint}
         </div>
       ) : (
@@ -315,6 +333,8 @@ export function EntitySearchSelect({
             required={required}
             value={value}
             onChange={(e) => setChosen(e.target.value)}
+            aria-invalid={fieldError ? true : undefined}
+            aria-describedby={fieldError ? fieldErrorId : undefined}
             className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           >
             <option value="">{selectedLabel ? `Selected: ${selectedLabel}` : 'Select…'}</option>
@@ -329,6 +349,7 @@ export function EntitySearchSelect({
               {selectedLabel}
             </p>
           ) : null}
+          {fieldErrorNode}
           {remoteHint}
         </>
       )}

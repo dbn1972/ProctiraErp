@@ -181,7 +181,7 @@ import {
 import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import { createStorageAdapter } from '@proctira/storage';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import {
   formatAdmissionNumber,
@@ -189,8 +189,10 @@ import {
   offerFeeAmountCents,
   tenantLocalDate,
 } from './admissions-offer-policy.js';
+import { createAttendanceHolidayLookup } from './attendance-holiday-lookup.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
+import { domainAuditSink } from './domain-audit-sink.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
@@ -260,6 +262,9 @@ export function sharedTimetableService(dependencies: DomainPluginDependencies): 
         // assignment at the meeting's institution (same tenant).
         staffBelongsToInstitution: (tenantId, staffId, institutionId) =>
           sharedAssignmentRepository().hasActiveAssignmentAt(staffId, tenantId, institutionId),
+        // PRC-L373: persist timetable audits to the durable audit_log_entries chain when a
+        // shared pool exists; no DATABASE_URL keeps the in-memory-only behaviour.
+        auditPool: getSharedPgPool() ?? undefined,
       }),
     };
   }
@@ -272,7 +277,11 @@ export function sharedLmsService(dependencies: DomainPluginDependencies): {
   const entry = sharedServicesFor(dependencies);
   if (!entry.lms) {
     const repository = createLmsRepository();
-    entry.lms = { repository, service: new LmsService(repository) };
+    entry.lms = {
+      repository,
+      // PRC-M527: grades, rubric scores, deletes, publish/close and file downloads are audited.
+      service: new LmsService(repository, { auditSink: domainAuditSink('lms') }),
+    };
   }
   return entry.lms;
 }
@@ -542,6 +551,31 @@ function gradebookAuditSink() {
         }),
       );
     });
+  };
+}
+
+/**
+ * PRC-M533: resolves the audit actor (userId/userName/ipAddress) for the parent-portal plugin's
+ * same-transaction domain audit from the verified JWT on the request, matching how
+ * fees-plugin.ts's getActorId/getActorDisplayName/request.ip pull the actor at the HTTP layer
+ * (G-102 — never trust a client header). A request with no `sub` claim yields userId '' here;
+ * every one of the 6 call sites this feeds requires an authenticated actor upstream (routes.ts's
+ * requireActorId throws 401 first), so an empty userId is never actually persisted in practice.
+ */
+function parentPortalAuditActor(request: FastifyRequest): {
+  userId: string;
+  userName: string;
+  ipAddress: string;
+} {
+  const user = (
+    request as FastifyRequest & {
+      user?: { sub?: string; displayName?: string; email?: string };
+    }
+  ).user;
+  return {
+    userId: user?.sub ?? '',
+    userName: user?.displayName ?? user?.email ?? user?.sub ?? '',
+    ipAddress: request.ip,
   };
 }
 
@@ -1078,6 +1112,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(staffPlugin, {
         repository: createStaffRepository(),
         assignmentRepository: sharedAssignmentRepository(),
+        // PRC-M544: payroll runs, contracts, salary, leave decisions, offboarding, verification.
+        auditSink: domainAuditSink('staff'),
         prefix: '/staff',
       });
     },
@@ -1110,6 +1146,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         // for date-validation "today" comparisons, rather than constructing
         // a second one.
         timeZone: (tenantId) => attendanceTimeZone(tenantId),
+        // PRC-M173: leave approval skips EXCUSED writes on holiday/break calendar days.
+        holidayLookup: createAttendanceHolidayLookup(getSharedPgPool()),
         prefix: '/attendance',
       });
       type HeatmapDay = { date: string; status: string };
@@ -1200,6 +1238,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         taskQueuePublisher: reportCardQueueHandle?.publisher,
         // PRC-H039: in-process consumer so queued jobs reach 'completed'.
         reportCardWorkerQueue: reportCardQueueHandle?.createConsumerAdapter(),
+        // PRC-M495: score before/after, scheme/item changes, report-card generate/download.
+        auditSink: domainAuditSink('assessment'),
       });
     },
   },
@@ -1630,6 +1670,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             };
           },
         },
+        // PRC-L317: bed assignments, leave decisions, gate passes, visitors, fee structures.
+        auditSink: domainAuditSink('hostel'),
         prefix: '/hostel',
       });
     },
@@ -1738,6 +1780,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         },
         prefix: '/parent-portal',
         studentPrefix: '/student-portal',
+        // PRC-M533: same-transaction domain audit actor for the 6 regulated parent-portal
+        // mutation call sites (consent decide/withdraw/supersede, link create, invoice void,
+        // payment record — the non-fees-ledger fallback branches only). Mirrors how
+        // fees-plugin.ts's buildPaymentAuditBinder/buildMoneyAuditSink pull the actor from the
+        // Fastify request, wired here at the gateway registration site per this FEAT's step 6.
+        auditActor: parentPortalAuditActor,
       });
     },
   },
@@ -1781,9 +1829,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'developer',
     proxyPrefixes: ['/developer'],
     register: async (scope) => {
-      // G-607 / W1-ARCH-01 COMPLETE: AuthZ via gateway RBAC; Postgres for API keys,
-      // accounts, webhooks, deliveries when DATABASE_URL is set (fail-closed otherwise
-      // in production). Marketplace/docs/analytics remain in-memory residuals.
+      // G-607 / W1-ARCH-01: AuthZ via gateway RBAC. When DATABASE_URL is set every
+      // developer-portal surface is Postgres-backed (HybridDeveloperPortalRepository):
+      // API keys (055), accounts/webhooks/deliveries (089), submissions/listings (132),
+      // sandboxes/ratings/docs/analytics (134). Without it, production refuses the
+      // memory fallback (fail-closed); memory is dev/test only (PRC-L097).
       // W2-JOB-07: durable webhook delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       // W1-SEC-08: inject webhook nonce replay store (Redis when REDIS_URL set) so
       // POST /developer/webhooks/verify is fail-closed for skew + replay.

@@ -151,6 +151,40 @@ describe('PolicyService', () => {
         service.update(tenantId, policy2.id, { name: 'Strong Password Policy' }),
       ).rejects.toThrow(ConflictError);
     });
+
+    it('concurrent rule edits mint distinct version numbers (PRC-L478)', async () => {
+      const policy = await service.create(tenantId, validPasswordPolicy);
+      const rulesA = { ...validPasswordPolicy.rules, minLength: 10 };
+      const rulesB = { ...validPasswordPolicy.rules, minLength: 14 };
+
+      const results = await Promise.all([
+        service.update(tenantId, policy.id, { rules: rulesA }),
+        service.update(tenantId, policy.id, { rules: rulesB }),
+      ]);
+
+      expect(results.map((r) => r.version).sort()).toEqual([2, 3]);
+      const versions = await service.getVersions(tenantId, policy.id);
+      expect(versions.map((v) => v.version).sort()).toEqual([1, 2, 3]);
+      const current = await service.getById(tenantId, policy.id);
+      expect(current.version).toBe(3);
+      expect(current.rules).toEqual(versions.find((v) => v.version === 3)!.rules);
+    });
+
+    it('concurrent renames to the same name: one wins, one ConflictError (PRC-L478)', async () => {
+      const p1 = await service.create(tenantId, validPasswordPolicy);
+      const p2 = await service.create(tenantId, validRetentionPolicy);
+
+      const settled = await Promise.allSettled([
+        service.update(tenantId, p1.id, { name: 'Shared Name' }),
+        service.update(tenantId, p2.id, { name: 'Shared Name' }),
+      ]);
+
+      const fulfilled = settled.filter((s) => s.status === 'fulfilled');
+      const rejected = settled.filter((s): s is PromiseRejectedResult => s.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect(rejected[0]!.reason).toBeInstanceOf(ConflictError);
+    });
   });
 
   // ─── Activate / Deactivate ─────────────────────────────────────────────────

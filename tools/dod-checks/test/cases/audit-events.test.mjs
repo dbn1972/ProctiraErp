@@ -113,5 +113,66 @@ export class FeeService {
     message: JSON.stringify(routeCall),
   });
 
+  // PRC-M410: a declaration (type signature or method body) is not a call.
+  const declarations = {
+    'an interface method signature': `interface Deps { recordAudit(e: unknown): Promise<void>; }
+export class FeeService {
+  constructor(private readonly deps: Deps) {}
+  async create(input: any) { return input; }
+}
+`,
+    'a declared-but-uncalled audit method': `export class FeeService {
+  async audit(e: unknown) { return e; }
+  async create(input: any) { return input; }
+}
+`,
+  };
+  for (const [label, service] of Object.entries(declarations)) {
+    const warned = await warningsFor({
+      'fees/src/fee-routes.ts': WRITE_ROUTE,
+      'fees/src/fee-service.ts': service,
+    });
+    results.push({
+      name: `PRC-M410: ${label} is not audit evidence (still warns)`,
+      ok: warned.length === 1,
+      message: JSON.stringify(warned),
+    });
+  }
+
+  // PRC-M410: a regex literal containing a quote/backtick must not hide code.
+  const regexLiteral = await warningsFor({
+    'fees/src/fee-routes.ts': WRITE_ROUTE,
+    'fees/src/fee-service.ts': `export class FeeService {
+  constructor(private readonly auditService: any) {}
+  async create(i: any) {
+    const re = /\`/;
+    await this.auditService.record(i);
+    return re.test(i);
+  }
+}
+`,
+  });
+  results.push({
+    name: 'PRC-M410: an audit call after a regex literal with a backtick is still seen',
+    ok: regexLiteral.length === 0,
+    message: JSON.stringify(regexLiteral),
+  });
+
+  const division = await warningsFor({
+    'fees/src/fee-routes.ts': WRITE_ROUTE,
+    'fees/src/fee-service.ts': `export class FeeService {
+  async create(total: number, x: any) {
+    const half = total / 2; await recordAudit(x);
+    return half;
+  }
+}
+`,
+  });
+  results.push({
+    name: 'PRC-M410: division is not read as a regex literal',
+    ok: division.length === 0,
+    message: JSON.stringify(division),
+  });
+
   return results;
 }

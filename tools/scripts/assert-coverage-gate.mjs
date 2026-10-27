@@ -18,10 +18,20 @@ const DEFAULT_BASELINE = {
   requireArtifacts: true,
 };
 
-export function coverageGateRequired(env = process.env) {
-  if (env.ALLOW_COVERAGE_SKIP === '1') return false;
-  if (env.REQUIRE_COVERAGE_GATE === '1') return true;
+function ciEnv(env) {
   return env.CI === 'true' || env.CI === '1';
+}
+/**
+ * PRC-M558: REQUIRE_COVERAGE_GATE=1 or CI always require the gate, regardless
+ * of ALLOW_COVERAGE_SKIP. The skip variable only matters for local (non-CI)
+ * runs, which are already optional.
+ */
+export function coverageGateRequired(env = process.env) {
+  return env.REQUIRE_COVERAGE_GATE === '1' || ciEnv(env);
+}
+/** True when ALLOW_COVERAGE_SKIP is set but ignored because the gate is required. */
+export function coverageSkipIgnored(env = process.env) {
+  return env.ALLOW_COVERAGE_SKIP !== undefined && coverageGateRequired(env);
 }
 
 function loadBaseline(root) {
@@ -198,6 +208,11 @@ export function evaluateCoverage({ artifactPaths, aggregates, baseline, env = pr
 export function main(argv = process.argv.slice(2), env = process.env) {
   const root = argv[0] ?? join(fileURLToPath(new URL('.', import.meta.url)), '../..');
   const baseline = loadBaseline(root);
+  if (coverageSkipIgnored(env)) {
+    console.warn(
+      '[W3-TEST-04] WARNING: ALLOW_COVERAGE_SKIP is ignored because REQUIRE_COVERAGE_GATE=1 or CI is set (PRC-M558).',
+    );
+  }
   const artifactPaths = walkCoverageArtifacts(root);
   const aggregates = artifactPaths.map((p) => loadArtifactAggregate(p));
 

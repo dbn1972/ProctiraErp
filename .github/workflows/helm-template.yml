@@ -13,6 +13,9 @@
 name: Helm Template
 
 on:
+  # PRC-M428: also called from ci.yml so CI Aggregate (Required) fails closed
+  # when the static ops gates (no-latest tags, topology, replica policy) fail.
+  workflow_call:
   workflow_dispatch:
   pull_request:
     paths:
@@ -80,6 +83,13 @@ on:
       - 'tools/scripts/pg-backup.sh'
       - 'docs/BACKUP_RESTORE.md'
       - 'docs/audits/OPS_W1_OPS_04_COMPLETE.md'
+      # PRC-M428: files scanned by check-no-latest-image-tags.sh,
+      # check-topology-canonical.sh and check-replica-policy.sh.
+      - 'docker-compose*.yml'
+      - 'infrastructure/docker/**'
+      - 'infrastructure/ops/**'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/supply-chain.yml'
   push:
     branches: [main]
     paths:
@@ -141,9 +151,21 @@ on:
       - 'tools/scripts/pg-backup.sh'
       - 'docs/BACKUP_RESTORE.md'
       - 'docs/audits/OPS_W1_OPS_04_COMPLETE.md'
+      # PRC-M428: files scanned by check-no-latest-image-tags.sh,
+      # check-topology-canonical.sh and check-replica-policy.sh.
+      - 'docker-compose*.yml'
+      - 'infrastructure/docker/**'
+      - 'infrastructure/ops/**'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/supply-chain.yml'
+      - '.github/workflows/helm-template.yml'
 
 concurrency:
-  group: helm-template-${{ github.ref }}
+  # PRC-M428: github.workflow is the caller ("CI") under workflow_call, so the
+  # standalone run and the CI-called run never share (and cancel) a group.
+  # PR runs cancel superseded peers; push/schedule/dispatch stay per-SHA so a
+  # main merge commit's CI evidence is never cancelled by the next merge.
+  group: helm-template-${{ github.workflow }}-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
   cancel-in-progress: true
 
 permissions:
