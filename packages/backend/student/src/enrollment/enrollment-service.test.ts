@@ -98,6 +98,45 @@ describe('EnrollmentService', () => {
       await expect(service.createEnrollment(TENANT_ID, input)).rejects.toThrow(NotFoundError);
     });
 
+    describe('PRC-M548: placement ids must exist in the caller tenant', () => {
+      const OTHER_TENANT_ID = uuid();
+      const cases = [
+        ['studentId', 'Student'],
+        ['gradeId', 'Grade'],
+        ['classId', 'Class'],
+        ['academicPeriodId', 'Academic period'],
+      ] as const;
+
+      it.each(cases)('rejects another tenant’s %s with NotFoundError', async (field, label) => {
+        const foreignId = uuid();
+        repository.addPlacementRefs(OTHER_TENANT_ID, { [field]: foreignId });
+        const input = validCreateInput({ [field]: foreignId });
+        await expect(service.createEnrollment(TENANT_ID, input)).rejects.toThrow(
+          new NotFoundError(`${label} with id '${foreignId}' not found`),
+        );
+        const { data } = await service.listEnrollments(TENANT_ID, {}, { page: 1, pageSize: 10 });
+        expect(data).toHaveLength(0);
+      });
+
+      it.each(cases)('rejects a %s that does not exist with NotFoundError', async (field) => {
+        const absentId = uuid();
+        repository.addPlacementRefs(null, { [field]: absentId });
+        const input = validCreateInput({ [field]: absentId });
+        await expect(service.createEnrollment(TENANT_ID, input)).rejects.toThrow(NotFoundError);
+      });
+
+      it('accepts placement ids registered in the caller tenant', async () => {
+        repository.addPlacementRefs(TENANT_ID, {
+          studentId: STUDENT_ID,
+          gradeId: GRADE_ID,
+          classId: CLASS_ID,
+          academicPeriodId: ACADEMIC_PERIOD_ID,
+        });
+        const enrollment = await service.createEnrollment(TENANT_ID, validCreateInput());
+        expect(enrollment.classId).toBe(CLASS_ID);
+      });
+    });
+
     it('should throw ConflictError when student already has an active enrollment in the period', async () => {
       const input = validCreateInput();
       await service.createEnrollment(TENANT_ID, input);

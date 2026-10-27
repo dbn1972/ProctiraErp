@@ -90,6 +90,23 @@ export interface InstitutionLookup {
   id: string;
   status: string;
 }
+/**
+ * PRC-M548: placement ids an enrollment references. Each must exist (not
+ * soft-deleted) in the caller's tenant before the enrollment is written.
+ */
+export interface EnrollmentPlacementRefs {
+  studentId: string;
+  gradeId: string;
+  classId: string;
+  academicPeriodId: string;
+}
+export type EnrollmentPlacementRefKind = keyof EnrollmentPlacementRefs;
+export const PLACEMENT_REF_KINDS: readonly EnrollmentPlacementRefKind[] = [
+  'studentId',
+  'gradeId',
+  'classId',
+  'academicPeriodId',
+];
 
 /**
  * Optional enrichment for DB trigger GUCs (`app.enrollment_history_*`).
@@ -211,4 +228,12 @@ export interface EnrollmentRepository {
   transferEnrollment(write: TransferEnrollmentWrite): Promise<TransferEnrollmentResult>;
   /** Look up an institution by ID (for transfer validation) */
   findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null>;
+  /**
+   * PRC-M548: which of `refs` do not exist in `tenantId` (absent, soft-deleted
+   * or another tenant's). Empty when every reference resolves in-tenant.
+   */
+  findMissingPlacementRefs(
+    tenantId: string,
+    refs: EnrollmentPlacementRefs,
+  ): Promise<EnrollmentPlacementRefKind[]>;
 }
