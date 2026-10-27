@@ -32,8 +32,44 @@ const FIXTURE_FILES = [
   'infrastructure/k8s/base/public-website/hpa.yaml',
   'infrastructure/k8s/base/admin-console/deployment.yaml',
   'infrastructure/k8s/base/developer-portal/deployment.yaml',
+  // PRC-L567: PDB resolution across overlays.
+  'infrastructure/k8s/overlays/production/etl-worker-pdb.yaml',
+  'infrastructure/k8s/overlays/development/kustomization.yaml',
+  'infrastructure/k8s/overlays/staging/kustomization.yaml',
+  'infrastructure/k8s/overlays/lab-split/kustomization.yaml',
+  'infrastructure/k8s/components/image-tag/kustomization.yaml',
+  'infrastructure/k8s/components/split-domain-services/kustomization.yaml',
+  'infrastructure/k8s/base/web/pdb.yaml',
+  'infrastructure/k8s/base/registration-portal/pdb.yaml',
+  'infrastructure/k8s/base/public-website/pdb.yaml',
+  'infrastructure/k8s/base/admin-console/pdb.yaml',
+  'infrastructure/k8s/base/developer-portal/pdb.yaml',
+  'infrastructure/k8s/base/api-gateway/pdb.yaml',
+  'infrastructure/k8s/base/exam-document-worker/pdb.yaml',
 ];
 
+function runOnFixture(mutate: (fixture: string) => void) {
+  const fixture = mkdtempSync(join(tmpdir(), 'w1-ops-17-'));
+  try {
+    for (const rel of FIXTURE_FILES) {
+      const dest = join(fixture, rel);
+      mkdirSync(dirname(dest), { recursive: true });
+      copyFileSync(join(repoRoot, rel), dest);
+    }
+    mutate(fixture);
+    const localScript = join(fixture, 'tools/scripts/check-replica-policy.sh');
+    mkdirSync(dirname(localScript), { recursive: true });
+    writeFileSync(localScript, readFileSync(scriptPath, 'utf8'), { mode: 0o755 });
+    const result = spawnSync('bash', [localScript], {
+      cwd: fixture,
+      encoding: 'utf8',
+      env: { ...process.env, ROOT: fixture },
+    });
+    return { status: result.status, out: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+}
 describe('check-replica-policy (W1-OPS-17)', () => {
   it('passes against the repository tree', () => {
     const result = spawnSync('bash', [scriptPath], {
@@ -87,5 +123,50 @@ describe('check-replica-policy (W1-OPS-17)', () => {
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }
+  });
+  it('PRC-L567: fails when a production PDB is a second resource over a base PDB', () => {
+    const { status, out } = runOnFixture((fixture) => {
+      const kust = join(fixture, 'infrastructure/k8s/overlays/production/kustomization.yaml');
+      writeFileSync(
+        kust,
+        readFileSync(kust, 'utf8').replace(
+          '  - etl-worker-pdb.yaml\n',
+          '  - etl-worker-pdb.yaml\n  - pod-disruption-budget.yaml\n',
+        ),
+        'utf8',
+      );
+    });
+    expect(status, out).not.toBe(0);
+    expect(out).toMatch(/production: 2 PDBs select app\.kubernetes\.io\/name=api-gateway/);
+  });
+  it('PRC-L567: fails when development keeps minAvailable with replicas=1', () => {
+    const { status, out } = runOnFixture((fixture) => {
+      const kust = join(fixture, 'infrastructure/k8s/overlays/development/kustomization.yaml');
+      writeFileSync(
+        kust,
+        readFileSync(kust, 'utf8').replace(
+          /      kind: PodDisruptionBudget\n/,
+          '      kind: Unrelated\n',
+        ),
+        'utf8',
+      );
+    });
+    expect(status, out).not.toBe(0);
+    expect(out).toMatch(/development PDB web minAvailable=1 with replicas=1/);
+  });
+  it('PRC-L567: fails when a PDB patch names no PDB resource', () => {
+    const { status, out } = runOnFixture((fixture) => {
+      const pdb = join(
+        fixture,
+        'infrastructure/k8s/overlays/production/pod-disruption-budget.yaml',
+      );
+      writeFileSync(
+        pdb,
+        readFileSync(pdb, 'utf8').replace('  name: web\n', '  name: web-pdb\n'),
+        'utf8',
+      );
+    });
+    expect(status, out).not.toBe(0);
+    expect(out).toMatch(/PDB patch web-pdb matches no PDB resource/);
   });
 });

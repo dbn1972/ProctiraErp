@@ -1,9 +1,14 @@
 # W1-OPS-17 — PDBs coherent with production-replica-policy.yaml
 # minAvailable < replicas so voluntary disruptions remain possible.
+#
+# PRC-L567: strategic-merge PATCHES (kustomization.yaml `patches: - path:`) over
+# the base PDBs of the same name, not extra resources. Two PDBs selecting the
+# same pods make the eviction API refuse every eviction, so node drains broke.
+# etl-worker has no base PDB and stays a resource (etl-worker-pdb.yaml).
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: api-gateway-pdb
+  name: api-gateway
   namespace: proctira
   labels:
     app.kubernetes.io/name: api-gateway
@@ -17,7 +22,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: web-pdb
+  name: web
   namespace: proctira
   labels:
     app.kubernetes.io/name: web
@@ -31,7 +36,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: registration-portal-pdb
+  name: registration-portal
   namespace: proctira
   labels:
     app.kubernetes.io/name: registration-portal
@@ -45,7 +50,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: public-website-pdb
+  name: public-website
   namespace: proctira
   labels:
     app.kubernetes.io/name: public-website
@@ -59,7 +64,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: admin-console-pdb
+  name: admin-console
   namespace: proctira
   labels:
     app.kubernetes.io/name: admin-console
@@ -73,7 +78,7 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: developer-portal-pdb
+  name: developer-portal
   namespace: proctira
   labels:
     app.kubernetes.io/name: developer-portal
@@ -83,19 +88,3 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: developer-portal
----
-# W1-OPS-16: PDBs for split-domain services removed from production overlay.
-# Reintroduce only with components/split-domain-services (lab).
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: etl-worker-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: etl-worker
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: etl-worker
