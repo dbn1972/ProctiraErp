@@ -35,10 +35,11 @@ describe.skipIf(!DATABASE_URL)('PRC-L557 periods view security_invoker (live)', 
   async function tenantWithPeriod(): Promise<{ tenantId: string; periodId: string }> {
     const tenantId = randomUUID();
     await ensurePgTestTenant(pool, tenantId);
-    const [areaId, institutionId, academicPeriodId, scheduleId, periodId] = Array.from(
-      { length: 5 },
-      () => randomUUID(),
-    );
+    const areaId = randomUUID();
+    const institutionId = randomUUID();
+    const academicPeriodId = randomUUID();
+    const scheduleId = randomUUID();
+    const periodId = randomUUID();
     const suffix = tenantId.slice(0, 8);
     await withPgTenant(pool, tenantId, async (client) => {
       await client.query(
