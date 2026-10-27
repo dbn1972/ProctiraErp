@@ -8,6 +8,5 @@ export default defineConfig({
     root: path.resolve(__dirname),
     include: ['src/**/*.{test,spec}.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
-    passWithNoTests: true,
   },
 });

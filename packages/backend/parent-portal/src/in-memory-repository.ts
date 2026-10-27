@@ -1,6 +1,8 @@
 /**
  * In-memory parent portal repository (v1 gateway default).
  */
+import { ConflictError } from '@proctira/common';
+
 import type {
   ConsentEntity,
   FeeInvoiceEntity,
@@ -14,6 +16,7 @@ import type {
   MessageEntity,
   MessageThreadEntity,
   ParentChildLinkEntity,
+  ParentPortalAuditFactory,
   ParentPortalRepository,
 } from './parent-portal-repository.js';
 
@@ -39,6 +42,10 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
 
   async createChildLink(
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
+    // PRC-M533: no-op here — the in-memory store has no transaction to append the audit
+    // row inside; only the Pg repository (pg-parent-portal-repository.ts) persists it,
+    // mirroring fees-plugin's FeesMoneyAuditSink no-op-when-unbound convention.
+    _auditFactory?: ParentPortalAuditFactory<ParentChildLinkEntity>,
   ): Promise<ParentChildLinkEntity> {
     const now = new Date();
     const entity: ParentChildLinkEntity = { ...data, createdAt: now, updatedAt: now };
@@ -278,6 +285,63 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
       .map((c) => ({ ...c }));
   }
 
+  /**
+   * PRC-M315: atomic-from-the-caller's-perspective close+insert. Mirrors the Pg
+   * method's contract: a missing or already-closed current version, or a
+   * concurrent insert that already created an open successor for the chain,
+   * throws ConflictError instead of corrupting the chain.
+   */
+  async appendConsentVersion(
+    tenantId: string,
+    input: {
+      currentId: string;
+      successor: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
+        decidedAt?: Date | null;
+      };
+      closedAt: Date;
+    },
+    // PRC-M533: no-op here — see createChildLink's comment.
+    _auditFactory?: ParentPortalAuditFactory<ConsentEntity>,
+  ): Promise<ConsentEntity> {
+    const { currentId, successor, closedAt } = input;
+    const index = this.consents.findIndex((c) => c.id === currentId && c.tenantId === tenantId);
+    if (index === -1 || this.consents[index]!.validTo != null) {
+      throw new ConflictError('Consent version was already closed by a concurrent decision');
+    }
+
+    // Exclude currentId itself — it is still open at this point (closed below)
+    // and is expected to be the chain's open row being superseded.
+    const openSuccessor = this.consents.find(
+      (c) =>
+        c.id !== currentId &&
+        c.tenantId === successor.tenantId &&
+        c.consentChainId === successor.consentChainId &&
+        c.validTo == null,
+    );
+    if (openSuccessor) {
+      throw new ConflictError('A concurrent decision already created the next consent version');
+    }
+
+    const prior = this.consents[index]!;
+    const closed: ConsentEntity = { ...prior, validTo: closedAt, updatedAt: new Date() };
+    this.consents[index] = closed;
+
+    const validFrom = successor.validFrom ?? closedAt;
+    const entity: ConsentEntity = {
+      ...successor,
+      supersedesId: successor.supersedesId ?? null,
+      validFrom,
+      validTo: null,
+      decidedAt: successor.decidedAt ?? null,
+      withdrawalReason: successor.withdrawalReason ?? null,
+      decidedVia: successor.decidedVia ?? null,
+      createdAt: validFrom,
+      updatedAt: validFrom,
+    };
+    this.consents.push(entity);
+    return { ...entity };
+  }
+
   async closeConsentValidTo(
     tenantId: string,
     id: string,
@@ -352,6 +416,8 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<FeeInvoiceEntity, 'status'>>,
+    // PRC-M533: no-op here — see createChildLink's comment.
+    _auditFactory?: ParentPortalAuditFactory<FeeInvoiceEntity>,
   ): Promise<FeeInvoiceEntity | null> {
     const index = this.invoices.findIndex(
       (invoice) => invoice.id === id && invoice.tenantId === tenantId,
@@ -366,7 +432,11 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return updated;
   }
 
-  async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {
+  async createPayment(
+    data: Omit<FeePaymentEntity, 'createdAt'>,
+    // PRC-M533: no-op here — see createChildLink's comment.
+    _auditFactory?: ParentPortalAuditFactory<FeePaymentEntity>,
+  ): Promise<FeePaymentEntity> {
     const entity: FeePaymentEntity = { ...data, createdAt: new Date() };
     this.payments.push(entity);
     return entity;

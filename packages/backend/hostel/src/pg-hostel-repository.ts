@@ -3,6 +3,7 @@
  *
  * When DATABASE_URL is set, occupancy persists via db/sql/008_hostel_schema.sql.
  */
+import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
@@ -267,6 +268,35 @@ export class PgHostelRepository implements HostelRepository {
     );
   }
 
+  /** PRC-M278: COUNT + LIMIT/OFFSET page under one tenant-bound connection. */
+  private page<T>(
+    tenantId: string,
+    dataSql: string,
+    countSql: string,
+    pagination: PaginationOptions,
+    map: (row: Record<string, unknown>) => T,
+  ): Promise<PaginatedResult<T>> {
+    return this.withTenant(tenantId, async (client) => {
+      const count = (await client.query(countSql, [tenantId])) as unknown as pg.QueryResult;
+      const totalItems = Number((count.rows[0] as { total: number }).total);
+      const offset = (pagination.page - 1) * pagination.pageSize;
+      const rows = (await client.query(dataSql, [
+        tenantId,
+        pagination.pageSize,
+        offset,
+      ])) as unknown as pg.QueryResult;
+      return {
+        data: (rows.rows as Record<string, unknown>[]).map(map),
+        meta: {
+          page: pagination.page,
+          pageSize: pagination.pageSize,
+          totalItems,
+          totalPages: Math.ceil(totalItems / pagination.pageSize),
+        },
+      };
+    });
+  }
+
   async ensureSchema(): Promise<void> {
     await ensureHostelSchema(this.pool);
   }
@@ -393,14 +423,19 @@ export class PgHostelRepository implements HostelRepository {
     }
   }
 
-  async listAssignments(tenantId: string): Promise<HostelAssignmentEntity[]> {
+  async listAssignments(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelAssignmentEntity>> {
     await this.ensureSchema();
-    const result = await this.query(
+    // PRC-M278: bounded page; `id` tiebreak keeps pages stable.
+    return this.page(
       tenantId,
-      `SELECT * FROM hostel_assignments WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId],
+      `SELECT * FROM hostel_assignments WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      `SELECT COUNT(*)::int AS total FROM hostel_assignments WHERE tenant_id = $1`,
+      pagination,
+      mapAssignment,
     );
-    return result.rows.map((row) => mapAssignment(row as Record<string, unknown>));
   }
 
   async createLeave(
@@ -426,14 +461,19 @@ export class PgHostelRepository implements HostelRepository {
     return mapLeave(result.rows[0] as Record<string, unknown>);
   }
 
-  async listLeaves(tenantId: string): Promise<HostelLeaveEntity[]> {
+  async listLeaves(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelLeaveEntity>> {
     await this.ensureSchema();
-    const result = await this.query(
+    // PRC-M278: bounded page; `id` tiebreak keeps pages stable.
+    return this.page(
       tenantId,
-      `SELECT * FROM hostel_leaves WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId],
+      `SELECT * FROM hostel_leaves WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      `SELECT COUNT(*)::int AS total FROM hostel_leaves WHERE tenant_id = $1`,
+      pagination,
+      mapLeave,
     );
-    return result.rows.map((row) => mapLeave(row as Record<string, unknown>));
   }
 
   async findLeaveById(id: string, tenantId: string): Promise<HostelLeaveEntity | null> {
@@ -494,14 +534,19 @@ export class PgHostelRepository implements HostelRepository {
     return mapVisitor(result.rows[0] as Record<string, unknown>);
   }
 
-  async listVisitors(tenantId: string): Promise<HostelVisitorEntity[]> {
+  async listVisitors(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelVisitorEntity>> {
     await this.ensureSchema();
-    const result = await this.query(
+    // PRC-M278: bounded page; `id` tiebreak keeps pages stable.
+    return this.page(
       tenantId,
-      `SELECT * FROM hostel_visitors WHERE tenant_id = $1 ORDER BY visit_date DESC`,
-      [tenantId],
+      `SELECT * FROM hostel_visitors WHERE tenant_id = $1 ORDER BY visit_date DESC, id DESC LIMIT $2 OFFSET $3`,
+      `SELECT COUNT(*)::int AS total FROM hostel_visitors WHERE tenant_id = $1`,
+      pagination,
+      mapVisitor,
     );
-    return result.rows.map((row) => mapVisitor(row as Record<string, unknown>));
   }
 
   async findVisitorById(id: string, tenantId: string): Promise<HostelVisitorEntity | null> {

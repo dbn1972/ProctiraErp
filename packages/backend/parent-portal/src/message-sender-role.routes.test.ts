@@ -151,6 +151,24 @@ describe('parent-portal message senderRole derivation (PRC-M314 / NEW-g4_apps_au
     expect(msg.senderRole).toBe('staff');
   });
 
+  // PRC-L135: a JWT with no `sub` claim must never resolve to an 'anonymous' actor id and
+  // proceed — it must fail closed with 401 before the service runs.
+  it('rejects a sub-less JWT on a mutating route with 401 (PRC-L135)', async () => {
+    const threadId = await createThread();
+    const noSub: Principal = {
+      sub: '',
+      roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+    };
+    const res = await app.inject({
+      method: 'POST',
+      url: `/parent-portal/messages/threads/${threadId}/messages`,
+      headers: as(noSub),
+      payload: { body: 'No identity' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toMatchObject({ code: 'UNAUTHENTICATED', statusCode: 401 });
+  });
+
   it('never lets an unlinked parent post as parent (link check still enforced)', async () => {
     const threadId = await createThread();
     const stranger: Principal = {

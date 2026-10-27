@@ -21,6 +21,8 @@ import { createFeePlanAction } from '../../fees-actions';
 export function NewFeePlanForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  // PRC-L240: per-field errors so the invalid control is announced, not just a form alert.
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<'name' | 'amount', string>>>({});
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
 
@@ -37,8 +39,14 @@ export function NewFeePlanForm() {
     const amountRupees = Number(String(fd.get('amount') ?? '').trim());
     const frequency = String(fd.get('frequency') ?? 'term') as 'once' | 'term' | 'month' | 'year';
 
-    if (!name || !Number.isFinite(amountRupees) || amountRupees < 0) {
-      setError('Name and a non-negative amount are required.');
+    const nextErrors: typeof fieldErrors = {};
+    if (!name) nextErrors.name = 'Name is required.';
+    if (!Number.isFinite(amountRupees) || amountRupees < 0) {
+      nextErrors.amount = 'Enter a non-negative amount.';
+    }
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError(null);
       return;
     }
 
@@ -48,7 +56,7 @@ export function NewFeePlanForm() {
       try {
         amountCents = majorUnitsToCents(amountRupees);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Invalid amount');
+        setFieldErrors({ amount: err instanceof Error ? err.message : 'Invalid amount' });
         return;
       }
       const result = await createFeePlanAction({
@@ -75,13 +83,13 @@ export function NewFeePlanForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" aria-busy={pending}>
-          <FormField id="plan-name" label="Name" required>
+          <FormField id="plan-name" label="Name" required error={fieldErrors.name}>
             <Input id="plan-name" name="name" required disabled={!hydrated || pending} />
           </FormField>
           <FormField id="plan-code" label="Code (optional)">
             <Input id="plan-code" name="code" disabled={!hydrated || pending} />
           </FormField>
-          <FormField id="plan-amount" label="Amount (INR)" required>
+          <FormField id="plan-amount" label="Amount (INR)" required error={fieldErrors.amount}>
             <Input
               id="plan-amount"
               name="amount"

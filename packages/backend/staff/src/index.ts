@@ -20,6 +20,7 @@ export type { StaffPluginOptions } from './staff-plugin.js';
 
 // Service
 export { StaffService } from './staff-service.js';
+export type { StaffAuditEntry, StaffAuditOptions, StaffAuditSink } from './staff-audit.js';
 
 // Repository
 export type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';

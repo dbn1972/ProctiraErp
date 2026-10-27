@@ -67,14 +67,49 @@ describe('PgHostelRepository', () => {
       isActive: true,
     });
 
-    const assignments = await repo.listAssignments(tenantId);
-    expect(assignments.some((a) => a.id === assignmentId)).toBe(true);
+    const assignmentPage = await repo.listAssignments(tenantId, { page: 1, pageSize: 100 });
+    expect(assignmentPage.data.some((a) => a.id === assignmentId)).toBe(true);
+    expect(assignmentPage.meta).toEqual({ page: 1, pageSize: 100, totalItems: 1, totalPages: 1 });
+
+    // PRC-M278: leaves/visitors page with COUNT + LIMIT/OFFSET in SQL.
+    for (let i = 1; i <= 3; i++) {
+      await repo.createLeave({
+        id: randomUUID(),
+        tenantId,
+        studentId,
+        hostelId,
+        startDate: `2026-10-0${i}`,
+        endDate: `2026-10-0${i + 1}`,
+        reason: null,
+        status: 'pending',
+      });
+      await repo.createVisitor({
+        id: randomUUID(),
+        tenantId,
+        hostelId,
+        visitorName: `Visitor ${i}`,
+        studentId,
+        visitDate: `2026-10-0${i}`,
+        status: 'expected',
+      });
+    }
+    for (const list of [repo.listLeaves.bind(repo), repo.listVisitors.bind(repo)]) {
+      const first = await list(tenantId, { page: 1, pageSize: 2 });
+      const second = await list(tenantId, { page: 2, pageSize: 2 });
+      expect(first.data).toHaveLength(2);
+      expect(first.meta).toEqual({ page: 1, pageSize: 2, totalItems: 3, totalPages: 2 });
+      expect(second.data).toHaveLength(1);
+      expect(first.data.map((r) => r.id)).not.toContain(second.data[0]!.id);
+    }
 
     // G-710: FORCE RLS + tenant GUC — another tenant sees nothing, and a
     // direct query without the GUC bound sees nothing either.
     const otherTenant = randomUUID();
+    const none = { page: 1, pageSize: 100 };
     expect(await repo.listHostels(otherTenant)).toHaveLength(0);
-    expect(await repo.listAssignments(otherTenant)).toHaveLength(0);
+    expect((await repo.listAssignments(otherTenant, none)).meta.totalItems).toBe(0);
+    expect((await repo.listLeaves(otherTenant, none)).meta.totalItems).toBe(0);
+    expect((await repo.listVisitors(otherTenant, none)).meta.totalItems).toBe(0);
     const unscoped = await pool!.query('SELECT id FROM hostels WHERE id = $1', [hostelId]);
     expect(unscoped.rowCount).toBe(0);
   });

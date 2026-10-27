@@ -1,6 +1,14 @@
 import { createHmac } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
+// PRC-L413: sign only with the local gateway's secret from the environment.
+const SECRET = process.env.JWT_SECRET?.trim();
+if (!SECRET) {
+  console.error(
+    'JWT_SECRET is required (same value as the local gateway); refusing to sign with a default secret.',
+  );
+  process.exit(1);
+}
 
 const OUT = '/workspace/docs/audits/captures/institutions-timetable/';
 const MAYUR = '00000000-0000-4000-8000-00000000a551';
@@ -46,9 +54,7 @@ function signedJwt() {
   };
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const encoded = Buffer.from(JSON.stringify(body)).toString('base64url');
-  const sig = createHmac('sha256', 'dev-secret-change-in-production')
-    .update(`${header}.${encoded}`)
-    .digest('base64url');
+  const sig = createHmac('sha256', SECRET).update(`${header}.${encoded}`).digest('base64url');
   return `${header}.${encoded}.${sig}`;
 }
 

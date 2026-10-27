@@ -16,6 +16,12 @@ import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  NO_AUDIT_ACTOR,
+  type AssessmentAuditContext,
+  type AssessmentAuditEntry,
+  type AssessmentAuditSink,
+} from './assessment-audit.js';
 import type {
   GradingSchemeEntity,
   GradingSchemeFilter,
@@ -53,6 +59,33 @@ export const REQUIRED_WEIGHT_TOTAL = 100;
 const MAX_BAND_GAP = 1;
 const GRADE_EPSILON = 1e-9;
 
+export interface AssessmentServiceOptions {
+  auditSink?: AssessmentAuditSink | null;
+}
+
+/** PRC-M495: audit snapshot of a grading scheme. */
+function schemeSnapshot(scheme: GradingSchemeEntity): Record<string, unknown> {
+  return {
+    name: scheme.name,
+    type: scheme.type,
+    minValue: scheme.minValue,
+    maxValue: scheme.maxValue,
+    thresholds: scheme.thresholds,
+  };
+}
+
+/** PRC-M495: audit snapshot of an assessment item. */
+function itemSnapshot(item: AssessmentItemEntity): Record<string, unknown> {
+  return {
+    id: item.id,
+    name: item.name,
+    weight: item.weight,
+    minScore: item.minScore,
+    maxScore: item.maxScore,
+    gradingSchemeId: item.gradingSchemeId,
+  };
+}
+
 export class AssessmentService {
   constructor(
     private readonly gradingSchemeRepo: GradingSchemeRepository,
@@ -64,7 +97,14 @@ export class AssessmentService {
      * Optional so existing wirings/tests that do not pass it still construct.
      */
     private readonly resultRepo?: AssessmentResultRepository,
+    /** PRC-M495: optional domain audit sink (no sink: unchanged behaviour). */
+    private readonly options: AssessmentServiceOptions = {},
   ) {}
+
+  /** PRC-M495: emit one domain audit entry when a sink is configured. */
+  private async audit(entry: AssessmentAuditEntry): Promise<void> {
+    if (this.options.auditSink) await this.options.auditSink(entry);
+  }
 
   // ─── Grading Scheme Operations ───────────────────────────────────────────
 
@@ -82,6 +122,7 @@ export class AssessmentService {
   async createGradingScheme(
     tenantId: string,
     input: CreateGradingSchemeInput,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
   ): Promise<GradingSchemeEntity> {
     // Validate min < max
     if (input.minValue >= input.maxValue) {
@@ -107,7 +148,18 @@ export class AssessmentService {
       thresholds: input.thresholds,
     };
 
-    return this.gradingSchemeRepo.create(entity);
+    const created = await this.gradingSchemeRepo.create(entity);
+    await this.audit({
+      tenantId,
+      action: 'grading_scheme.create',
+      entityType: 'grading_scheme',
+      entityId: created.id,
+      actorId: auditContext.actorId,
+      operation: 'CREATE',
+      before: null,
+      after: schemeSnapshot(created),
+    });
+    return created;
   }
 
   /**
@@ -121,6 +173,7 @@ export class AssessmentService {
     tenantId: string,
     id: string,
     input: UpdateGradingSchemeInput,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
   ): Promise<GradingSchemeEntity> {
     const existing = await this.gradingSchemeRepo.findById(id, tenantId);
     if (!existing) {
@@ -181,6 +234,16 @@ export class AssessmentService {
       throw new NotFoundError(`Grading scheme with id '${id}' not found`);
     }
 
+    await this.audit({
+      tenantId,
+      action: 'grading_scheme.update',
+      entityType: 'grading_scheme',
+      entityId: id,
+      actorId: auditContext.actorId,
+      operation: 'UPDATE',
+      before: schemeSnapshot(existing),
+      after: schemeSnapshot(updated),
+    });
     return updated;
   }
 
@@ -202,7 +265,11 @@ export class AssessmentService {
    *
    * @throws NotFoundError if not found
    */
-  async deleteGradingScheme(tenantId: string, id: string): Promise<void> {
+  async deleteGradingScheme(
+    tenantId: string,
+    id: string,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
+  ): Promise<void> {
     // PRC-H037/H038: deleting a scheme referenced by assessment items makes
     // grade calculation throw NotFound (subjects silently drop from report
     // cards). Block delete while any item references it.
@@ -212,10 +279,23 @@ export class AssessmentService {
         `Grading scheme '${id}' is referenced by ${itemsUsing.length} assessment item(s) and cannot be deleted.`,
       );
     }
+    const before = this.options.auditSink
+      ? await this.gradingSchemeRepo.findById(id, tenantId)
+      : null;
     const deleted = await this.gradingSchemeRepo.delete(id, tenantId);
     if (!deleted) {
       throw new NotFoundError(`Grading scheme with id '${id}' not found`);
     }
+    await this.audit({
+      tenantId,
+      action: 'grading_scheme.delete',
+      entityType: 'grading_scheme',
+      entityId: id,
+      actorId: auditContext.actorId,
+      operation: 'DELETE',
+      before: before ? schemeSnapshot(before) : null,
+      after: null,
+    });
   }
 
   /**
@@ -292,6 +372,7 @@ export class AssessmentService {
   async defineAssessmentItems(
     tenantId: string,
     input: DefineAssessmentItemsInput,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
   ): Promise<AssessmentItemEntity[]> {
     // Validate grading scheme exists
     const gradingScheme = await this.gradingSchemeRepo.findById(input.gradingSchemeId, tenantId);
@@ -387,13 +468,33 @@ export class AssessmentService {
       }
     }
 
+    const previous = this.options.auditSink
+      ? await this.assessmentItemRepo.findBySubjectAndPeriod(
+          tenantId,
+          input.subjectId,
+          input.academicPeriodId,
+        )
+      : [];
+
     // Replace existing items for this subject+period
-    return this.assessmentItemRepo.replaceItemsForSubjectPeriod(
+    const defined = await this.assessmentItemRepo.replaceItemsForSubjectPeriod(
       tenantId,
       input.subjectId,
       input.academicPeriodId,
       itemEntities,
     );
+    await this.audit({
+      tenantId,
+      action: 'assessment_items.define',
+      entityType: 'assessment_item_set',
+      entityId: `${input.subjectId}:${input.academicPeriodId}`,
+      actorId: auditContext.actorId,
+      operation: 'UPDATE',
+      before: { items: previous.map(itemSnapshot) },
+      after: { items: defined.map(itemSnapshot) },
+      metadata: { subjectId: input.subjectId, academicPeriodId: input.academicPeriodId },
+    });
+    return defined;
   }
 
   /**

@@ -27,6 +27,12 @@ export {
   REQUIRED_WEIGHT_TOTAL,
 } from './assessment-service.js';
 export { ResultService } from './result-service.js';
+export {
+  assessmentAuditContextOf,
+  type AssessmentAuditContext,
+  type AssessmentAuditEntry,
+  type AssessmentAuditSink,
+} from './assessment-audit.js';
 
 // Repository interfaces
 export type {

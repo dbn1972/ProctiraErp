@@ -2066,6 +2066,9 @@ importers:
 
   packages/backend/parent-portal:
     dependencies:
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@proctira/backend-auth':
         specifier: workspace:*
         version: link:../auth

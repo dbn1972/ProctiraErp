@@ -2,7 +2,7 @@
  * Library routes — catalog and circulation.
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { resolvePaginationQuery, validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { hasLibraryAccess } from './library-access.js';
@@ -60,6 +60,28 @@ export interface LibraryRoutesOptions {
 
 function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
+}
+
+/**
+ * PRC-M294: resolves `page` / `pageSize` with platform defaults and caps.
+ * Sends 400 VALIDATION_ERROR and returns undefined on bad input.
+ */
+function resolveListPaging(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): { page: number; pageSize: number } | undefined {
+  const paging = resolvePaginationQuery((request.query ?? {}) as Record<string, unknown>);
+  if (!paging.success) {
+    void reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'Validation failed',
+      statusCode: 400,
+      errors: paging.errors,
+    });
+    return undefined;
+  }
+  const data = paging.data as { page: number; pageSize: number };
+  return { page: data.page, pageSize: data.pageSize };
 }
 
 interface JwtUserLike {
@@ -342,18 +364,12 @@ export async function registerLibraryRoutes(
         });
       }
 
-      const institutionId =
-        typeof (request.query as { institutionId?: string }).institutionId === 'string'
-          ? (request.query as { institutionId?: string }).institutionId
-          : undefined;
-      let items = await libraryService.listItems(tenantId);
-      if (institutionId) {
-        items = items.filter((item) => {
-          const id = (item as { institutionId?: string | null }).institutionId;
-          return id == null || id === institutionId;
-        });
-      }
-      return reply.status(200).send({ data: items.map(formatItem) });
+      // PRC-M294: `library_items` has no institution_id column (db/sql/009_library_schema.sql),
+      // so the former `institutionId` query filter matched every item; it is ignored.
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return reply;
+      const items = await libraryService.listItemsPage(tenantId, paging);
+      return reply.status(200).send({ data: items.data.map(formatItem), meta: items.meta });
     },
   );
 
@@ -523,8 +539,10 @@ export async function registerLibraryRoutes(
 
       // PRC-H067: tenant-wide overdue list is staff-only.
       if (!requireLibraryStaffRead(request, reply)) return reply;
-      const overdues = await libraryService.listOverdues(tenantId);
-      return reply.status(200).send({ data: overdues.map(formatLoan) });
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return reply;
+      const overdues = await libraryService.listOverduesPage(tenantId, paging);
+      return reply.status(200).send({ data: overdues.data.map(formatLoan), meta: overdues.meta });
     },
   );
 
@@ -549,11 +567,18 @@ export async function registerLibraryRoutes(
           : undefined;
       const bound = await bindPatronStudent(request, reply, tenantId, studentId, patronBinding);
       if (!('studentId' in bound)) return bound;
-      let loans = await libraryService.listLoans(tenantId, bound.studentId);
-      if (patronUserId) {
-        loans = loans.filter((loan) => loan.patronUserId === patronUserId);
-      }
-      return reply.status(200).send({ data: loans.map(formatLoan) });
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return reply;
+      // PRC-M294: the bound student and patron filters run in the repository (SQL).
+      const loans = await libraryService.listLoansPage(
+        tenantId,
+        {
+          ...(bound.studentId ? { studentId: bound.studentId } : {}),
+          ...(patronUserId ? { patronUserId } : {}),
+        },
+        paging,
+      );
+      return reply.status(200).send({ data: loans.data.map(formatLoan), meta: loans.meta });
     },
   );
 
@@ -677,8 +702,10 @@ export async function registerLibraryRoutes(
       // when no studentId is given).
       const bound = await bindPatronStudent(request, reply, tenantId, requested, patronBinding);
       if (!('studentId' in bound)) return bound;
-      const fines = await libraryService.listFines(tenantId, bound.studentId);
-      return reply.status(200).send({ data: fines.map(formatFine) });
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return reply;
+      const fines = await libraryService.listFinesPage(tenantId, bound.studentId, paging);
+      return reply.status(200).send({ data: fines.data.map(formatFine), meta: fines.meta });
     },
   );
 
@@ -1089,15 +1116,19 @@ export async function registerLibraryRoutes(
           : undefined;
       const bound = await bindPatronStudent(request, reply, tenantId, studentId, patronBinding);
       if (!('studentId' in bound)) return bound;
-      let holds = await libraryService.listHolds(tenantId, itemId);
-      if (bound.studentId) {
-        const boundStudentId = bound.studentId;
-        holds = holds.filter((h) => h.studentId === boundStudentId);
-      }
-      if (patronUserId) {
-        holds = holds.filter((h) => h.patronUserId === patronUserId);
-      }
-      return reply.status(200).send({ data: holds.map(formatHold) });
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return reply;
+      // PRC-M294: item, bound student and patron filters run in the repository (SQL).
+      const holds = await libraryService.listHoldsPage(
+        tenantId,
+        {
+          ...(itemId ? { itemId } : {}),
+          ...(bound.studentId ? { studentId: bound.studentId } : {}),
+          ...(patronUserId ? { patronUserId } : {}),
+        },
+        paging,
+      );
+      return reply.status(200).send({ data: holds.data.map(formatHold), meta: holds.meta });
     },
   );
 

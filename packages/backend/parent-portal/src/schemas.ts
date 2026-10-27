@@ -93,6 +93,7 @@ export type SupersedeConsentInput = Static<typeof SupersedeConsentSchema>;
 
 export const WithdrawConsentSchema = Type.Object({
   reason: Type.Optional(Type.String({ maxLength: 2000 })),
+  decidedVia: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
 });
 
 export type WithdrawConsentInput = Static<typeof WithdrawConsentSchema>;

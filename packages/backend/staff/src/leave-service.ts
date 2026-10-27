@@ -19,6 +19,7 @@ import {
   type CreateStaffLeaveInput,
   type DecideStaffLeaveInput,
 } from './leave-schemas.js';
+import { emitStaffAudit, type StaffAuditOptions } from './staff-audit.js';
 import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
 
 /** Inclusive calendar-day count between ISO dates (YYYY-MM-DD). */
@@ -40,6 +41,8 @@ export class StaffLeaveService {
     private readonly repository: StaffLeaveRepository,
     /** PRC-M374: tenant-scoped staff existence check. */
     private readonly staffExists?: StaffExistsCheck,
+    /** PRC-M544: leave decisions are audited (no sink: unchanged behaviour). */
+    private readonly options: StaffAuditOptions = {},
   ) {}
 
   async getBalance(tenantId: string, staffId: string, leaveType: StaffLeaveType) {
@@ -202,6 +205,17 @@ export class StaffLeaveService {
         debitDays,
       });
       if (!updated) throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+      await emitStaffAudit(this.options.auditSink, {
+        tenantId,
+        action: 'leave.decide',
+        entityType: 'staff_leave',
+        entityId: leaveId,
+        actorId,
+        operation: 'UPDATE',
+        before: { status: leave.status },
+        after: { status: updated.status, debitDays },
+        metadata: { staffId: leave.staffId, leaveType: leave.leaveType },
+      });
       return updated;
     } catch (error) {
       if (error instanceof LeaveNotPendingError) throw new ConflictError(error.message);

@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { readOffboardMeta, type StaffOffboardMeta } from './offboard-meta.js';
 import type { OffboardStaffInput } from './offboard-schemas.js';
 import type { CreateStaffInput, UpdateStaffInput } from './schemas.js';
+import { emitStaffAudit, type StaffAuditOptions } from './staff-audit.js';
 import type {
   StaffEntity,
   StaffFilter,
@@ -74,7 +75,11 @@ function reservedCustomData(
  * Service handling staff business logic.
  */
 export class StaffService {
-  constructor(private readonly repository: StaffRepository) {}
+  constructor(
+    private readonly repository: StaffRepository,
+    /** PRC-M544: offboarding is audited (no sink: unchanged behaviour). */
+    private readonly options: StaffAuditOptions = {},
+  ) {}
 
   /**
    * Create a new staff record.
@@ -377,6 +382,16 @@ export class StaffService {
       }
       throw new ConflictError(`Staff with id '${id}' is already inactive/offboarded`);
     }
+    await emitStaffAudit(this.options.auditSink, {
+      tenantId,
+      action: 'staff.offboard',
+      entityType: 'staff',
+      entityId: id,
+      actorId: decidedBy,
+      operation: 'UPDATE',
+      before: { status: existing.status },
+      after: { status: updated.status, effectiveDate: meta.effectiveDate, reason: meta.reason },
+    });
 
     return this.toOffboardView(updated, meta);
   }

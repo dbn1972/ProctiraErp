@@ -5,7 +5,12 @@
 export { hostelPlugin } from './hostel-plugin.js';
 export type { HostelPluginOptions } from './hostel-plugin.js';
 
-export { HostelService } from './hostel-service.js';
+export {
+  HostelService,
+  type HostelAuditEntry,
+  type HostelAuditSink,
+  type HostelServiceOptions,
+} from './hostel-service.js';
 
 export type {
   HostelEntity,
@@ -73,11 +78,7 @@ export { registerHostelRoutes } from './routes.js';
 export type { HostelRoutesOptions } from './routes.js';
 
 // RBAC (W1-SEC-02 residual)
-export {
-  assertHostelAccess,
-  hasHostelAccess,
-  normalizeHostelRoles,
-} from './hostel-access.js';
+export { assertHostelAccess, hasHostelAccess, normalizeHostelRoles } from './hostel-access.js';
 export type { HostelAction } from './hostel-access.js';
 export { requireHostelAction } from './hostel-http-guard.js';
 

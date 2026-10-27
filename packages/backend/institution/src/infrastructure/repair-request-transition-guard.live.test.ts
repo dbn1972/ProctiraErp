@@ -29,6 +29,8 @@ import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { tenantContext } from '../tenant-context.js';
+import { PgInfrastructureStore } from './pg-store.js';
 
 const DATABASE_URL = requireLiveDatabaseUrl({
   suite: 'repair-request-transition-guard.live.test',
@@ -186,6 +188,66 @@ describe.skipIf(!DATABASE_URL)('PRC-M209 repair request transition guard (live)'
     } finally {
       client.release();
     }
+  });
+
+  /**
+   * PRC-L124: the production store path. Before 247 (grant revoked) the store refuses with
+   * "not enabled in this deployment yet"; after 247 it closes and reopens the request.
+   */
+  it('PRC-L124: PgInfrastructureStore.updateRepairRequestStatus closes then reopens', async () => {
+    const tenantId = randomUUID();
+    await ensurePgTestTenant(pool, tenantId);
+    const store = new PgInfrastructureStore(pool);
+    const institutionId = randomUUID();
+    const now = new Date();
+    const requestId = randomUUID();
+    await tenantContext.run({ tenantId }, async () => {
+      const infra = await store.create({
+        id: randomUUID(),
+        institutionId,
+        parentId: null,
+        type: 'LAND',
+        name: 'Land fixture',
+        capacity: 10,
+        condition: 'Good',
+        description: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await store.createRepairRequest({
+        id: requestId,
+        institutionId,
+        infrastructureId: infra.id,
+        summary: 'Leak',
+        status: 'open',
+        createdAt: now,
+      });
+    });
+
+    if (migrator) {
+      // RED: the pre-247 grant state surfaces as the explicit "not enabled" business rule.
+      try {
+        await migrator.query(
+          `REVOKE UPDATE (status) ON TABLE institution_repair_requests FROM proctira_app`,
+        );
+        await expect(
+          tenantContext.run({ tenantId }, () =>
+            store.updateRepairRequestStatus(requestId, 'open', 'closed'),
+          ),
+        ).rejects.toThrow(/not enabled in this deployment yet/);
+      } finally {
+        await migrator.query(load247());
+      }
+    }
+
+    const closed = await tenantContext.run({ tenantId }, () =>
+      store.updateRepairRequestStatus(requestId, 'open', 'closed'),
+    );
+    expect(closed?.status).toBe('closed');
+    const reopened = await tenantContext.run({ tenantId }, () =>
+      store.updateRepairRequestStatus(requestId, 'closed', 'open'),
+    );
+    expect(reopened?.status).toBe('open');
   });
 
   it.skipIf(!MIGRATOR_DATABASE_URL)(
