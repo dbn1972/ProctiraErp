@@ -11,7 +11,8 @@
       "hazards": ["blocking_index", "validating_constraint", "validate_under_force_rls"],
       "reason": "W1-DATA-08 authenticity remediation on live transcript_issuances: non-concurrent index + validating FK/CHECK applied in a controlled Wave-1 maintenance window. Checksum-locked; online rewrite would break schema_migrations digests. Follow-up expand/contract must use CONCURRENTLY / NOT VALID for any residual hot-path DDL.  W1-DATA-18: validates a constraint without lifting FORCE ROW LEVEL SECURITY. Under FORCE RLS the tenant policy applies to the table owner, so Postgres runs the validation scan under it, a migration session has no app.tenant_id bound, the scan sees zero rows, and VALIDATE CONSTRAINT reports success without comparing anything. Demonstrated while fixing 098: one planted orphan row and VALIDATE returned success. These files predate the rule and are checksum-locked, so they cannot be edited. Waived rather than fixed in place, on this evidence: a live scan of every validated single-column FK on a FORCE-RLS table, run as superuser with session_replication_role = replica so all rows were visible, found 0 violations. The constraints are therefore unproven rather than known-wrong. Remedy is a forward-only re-validation migration using the 100 pattern (lift FORCE, validate, restore, in one transaction), not an edit to these files.",
       "maintenanceWindow": "2026-09-14 Wave-1 DATA-08 remediation (single-tenant staging + production maintenance)",
-      "approvedBy": "wave1-reaudit-controller"
+      "approvedBy": "wave1-reaudit-controller",
+      "expires": "2027-01-24"
     },
     {
       "path": "db/sql/077_guardian_custody_restrictions.sql",
@@ -32,7 +33,8 @@
       "hazards": ["validating_constraint", "validate_under_force_rls"],
       "reason": "W1-DATA-14 enrollment_history FK RESTRICT without NOT VALID (grade_change_audit path already NOT VALID). Applied during audit-harden maintenance; checksum-locked. Future FK swaps must ADD \u2026 NOT VALID then VALIDATE.  W1-DATA-18: validates a constraint without lifting FORCE ROW LEVEL SECURITY. Under FORCE RLS the tenant policy applies to the table owner, so Postgres runs the validation scan under it, a migration session has no app.tenant_id bound, the scan sees zero rows, and VALIDATE CONSTRAINT reports success without comparing anything. Demonstrated while fixing 098: one planted orphan row and VALIDATE returned success. These files predate the rule and are checksum-locked, so they cannot be edited. Waived rather than fixed in place, on this evidence: a live scan of every validated single-column FK on a FORCE-RLS table, run as superuser with session_replication_role = replica so all rows were visible, found 0 violations. The constraints are therefore unproven rather than known-wrong. Remedy is a forward-only re-validation migration using the 100 pattern (lift FORCE, validate, restore, in one transaction), not an edit to these files.",
       "maintenanceWindow": "2026-09-14 Wave-1 DATA-14 audit harden",
-      "approvedBy": "wave1-reaudit-controller"
+      "approvedBy": "wave1-reaudit-controller",
+      "expires": "2027-01-24"
     },
     {
       "path": "db/sql/081_prisma_sql_catalog_parity.sql",
@@ -67,21 +69,24 @@
       "hazards": ["validate_under_force_rls"],
       "reason": "W1-DATA-18: validates a constraint without lifting FORCE ROW LEVEL SECURITY. Under FORCE RLS the tenant policy applies to the table owner, so Postgres runs the validation scan under it, a migration session has no app.tenant_id bound, the scan sees zero rows, and VALIDATE CONSTRAINT reports success without comparing anything. Demonstrated while fixing 098: one planted orphan row and VALIDATE returned success. These files predate the rule and are checksum-locked, so they cannot be edited. Waived rather than fixed in place, on this evidence: a live scan of every validated single-column FK on a FORCE-RLS table, run as superuser with session_replication_role = replica so all rows were visible, found 0 violations. The constraints are therefore unproven rather than known-wrong. Remedy is a forward-only re-validation migration using the 100 pattern (lift FORCE, validate, restore, in one transaction), not an edit to these files.",
       "maintenanceWindow": "2026-09-21 W1-DATA-18 rule introduction \u2014 pre-existing files grandfathered pending forward-only re-validation",
-      "approvedBy": "repository owner (W1-DATA-18 gate introduction)"
+      "approvedBy": "repository owner (W1-DATA-18 gate introduction)",
+      "expires": "2027-01-24"
     },
     {
       "path": "db/sql/086_validate_cross_domain_fk_staff_ops.sql",
       "hazards": ["validate_under_force_rls"],
       "reason": "W1-DATA-18: validates a constraint without lifting FORCE ROW LEVEL SECURITY. Under FORCE RLS the tenant policy applies to the table owner, so Postgres runs the validation scan under it, a migration session has no app.tenant_id bound, the scan sees zero rows, and VALIDATE CONSTRAINT reports success without comparing anything. Demonstrated while fixing 098: one planted orphan row and VALIDATE returned success. These files predate the rule and are checksum-locked, so they cannot be edited. Waived rather than fixed in place, on this evidence: a live scan of every validated single-column FK on a FORCE-RLS table, run as superuser with session_replication_role = replica so all rows were visible, found 0 violations. The constraints are therefore unproven rather than known-wrong. Remedy is a forward-only re-validation migration using the 100 pattern (lift FORCE, validate, restore, in one transaction), not an edit to these files.",
       "maintenanceWindow": "2026-09-21 W1-DATA-18 rule introduction \u2014 pre-existing files grandfathered pending forward-only re-validation",
-      "approvedBy": "repository owner (W1-DATA-18 gate introduction)"
+      "approvedBy": "repository owner (W1-DATA-18 gate introduction)",
+      "remediatedBy": "db/sql/257_revalidate_force_rls_fks.sql"
     },
     {
       "path": "db/sql/093_developer_portal_tenant_fks.sql",
       "hazards": ["validate_under_force_rls"],
       "reason": "W1-DATA-18: validates a constraint without lifting FORCE ROW LEVEL SECURITY. Under FORCE RLS the tenant policy applies to the table owner, so Postgres runs the validation scan under it, a migration session has no app.tenant_id bound, the scan sees zero rows, and VALIDATE CONSTRAINT reports success without comparing anything. Demonstrated while fixing 098: one planted orphan row and VALIDATE returned success. These files predate the rule and are checksum-locked, so they cannot be edited. Waived rather than fixed in place, on this evidence: a live scan of every validated single-column FK on a FORCE-RLS table, run as superuser with session_replication_role = replica so all rows were visible, found 0 violations. The constraints are therefore unproven rather than known-wrong. Remedy is a forward-only re-validation migration using the 100 pattern (lift FORCE, validate, restore, in one transaction), not an edit to these files.",
       "maintenanceWindow": "2026-09-21 W1-DATA-18 rule introduction \u2014 pre-existing files grandfathered pending forward-only re-validation",
-      "approvedBy": "repository owner (W1-DATA-18 gate introduction)"
+      "approvedBy": "repository owner (W1-DATA-18 gate introduction)",
+      "remediatedBy": "db/sql/257_revalidate_force_rls_fks.sql"
     },
     {
       "path": "db/sql/248_academic_fee_overlap_exclusion.sql",
@@ -95,7 +100,8 @@
       "hazards": ["validate_under_force_rls"],
       "reason": "W1-DATA-18: validates a constraint without lifting FORCE ROW LEVEL SECURITY. Under FORCE RLS the tenant policy applies to the table owner, so Postgres runs the validation scan under it, a migration session has no app.tenant_id bound, the scan sees zero rows, and VALIDATE CONSTRAINT reports success without comparing anything. Demonstrated while fixing 098: one planted orphan row and VALIDATE returned success. These files predate the rule and are checksum-locked, so they cannot be edited. Waived rather than fixed in place, on this evidence: a live scan of every validated single-column FK on a FORCE-RLS table, run as superuser with session_replication_role = replica so all rows were visible, found 0 violations. The constraints are therefore unproven rather than known-wrong. Remedy is a forward-only re-validation migration using the 100 pattern (lift FORCE, validate, restore, in one transaction), not an edit to these files.",
       "maintenanceWindow": "2026-09-21 W1-DATA-18 rule introduction \u2014 pre-existing files grandfathered pending forward-only re-validation",
-      "approvedBy": "repository owner (W1-DATA-18 gate introduction)"
+      "approvedBy": "repository owner (W1-DATA-18 gate introduction)",
+      "expires": "2027-01-24"
     }
   ]
 }
