@@ -49,6 +49,8 @@ on:
       - '.github/dependabot.yml'
       - 'tools/scripts/check-dependabot-coverage.mjs'
       - 'tools/scripts/check-dependabot-coverage.test.mjs'
+      - 'tools/scripts/check-ci-download-integrity.mjs'
+      - 'tools/scripts/check-ci-download-integrity.test.mjs'
   push:
     branches: [main, develop]
     paths:
@@ -79,6 +81,8 @@ on:
       - '.github/dependabot.yml'
       - 'tools/scripts/check-dependabot-coverage.mjs'
       - 'tools/scripts/check-dependabot-coverage.test.mjs'
+      - 'tools/scripts/check-ci-download-integrity.mjs'
+      - 'tools/scripts/check-ci-download-integrity.test.mjs'
 
 permissions:
   contents: read
@@ -137,6 +141,11 @@ jobs:
         run: node --test tools/scripts/check-dependabot-coverage.test.mjs
       - name: Fail on Dockerfile/compose directories Dependabot does not cover (PRC-L111)
         run: node tools/scripts/check-dependabot-coverage.mjs
+      # PRC-L308: tool/key downloads in workflows must be digest/fingerprint verified.
+      - name: Unit-test CI download integrity gate
+        run: node --test tools/scripts/check-ci-download-integrity.test.mjs
+      - name: Fail on unverified CI downloads (PRC-L308)
+        run: node tools/scripts/check-ci-download-integrity.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:

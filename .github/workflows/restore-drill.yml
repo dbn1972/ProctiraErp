@@ -40,6 +40,8 @@ env:
   NODE_VERSION: '20'
   DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
   ARTIFACT_DIR: /tmp/restore-drill
+  # PRC-L308: apt.postgresql.org signing key (ACCC4CF8) full fingerprint.
+  PGDG_KEY_FINGERPRINT: B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
 
 jobs:
   restore-drill:
@@ -88,8 +90,15 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
-            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          # PRC-L308: the downloaded key must be exactly the pinned pgdg signing
+          # key before apt trusts it.
+          curl -fsSL -o /tmp/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          FPRS="$(gpg --show-keys --with-colons /tmp/pgdg.asc | awk -F: '/^pub:/ {p=1; next} p && /^fpr:/ {print $10; p=0}')"
+          if [ "${FPRS}" != "${PGDG_KEY_FINGERPRINT}" ]; then
+            echo "::error::pgdg key fingerprint mismatch (got '${FPRS}')"
+            exit 1
+          fi
+          sudo install -m 0644 /tmp/pgdg.asc /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
