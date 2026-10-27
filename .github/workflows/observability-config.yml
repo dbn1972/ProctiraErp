@@ -90,6 +90,8 @@ jobs:
           cp infra/observability/scrape-lab/*.yml /tmp/prom-lab/scrape.d/
           /tmp/promtool check config /tmp/prom-lab/prometheus.yml
           /tmp/promtool check rules infra/observability/alerts/*.yml
+          # PRC-L134: alert-rule unit tests (fixture series -> expected alerts).
+          /tmp/promtool test rules infra/observability/alerts/tests/*.yml
 
       - name: Scrape targets must be real /metrics services
         # Guard against re-adding phantom targets: every static target must be
