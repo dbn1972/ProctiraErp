@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 
-import { NotFoundError } from '@proctira/common';
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
 
 import { TransportService } from './transport-service.js';
 import { InMemoryTransportRepository } from './in-memory-repository.js';
@@ -359,6 +359,33 @@ describe('TransportService', () => {
 
       expect(updated.isActive).toBe(false);
       expect(updated.endDate).toBe('2024-06-30');
+    });
+
+    it('PRC-M447: re-activating an assignment re-runs the one-active-per-vehicle check', async () => {
+      const vehicle = await service.createVehicle(tenantId, {
+        registrationNumber: 'REACT-001',
+        capacity: 30,
+      });
+      const first = await service.createDriverAssignment(tenantId, {
+        vehicleId: vehicle.id,
+        driverId: uuidv4(),
+        startDate: '2024-01-01',
+      });
+      await service.updateDriverAssignment(tenantId, first.id, { isActive: false });
+      await service.createDriverAssignment(tenantId, {
+        vehicleId: vehicle.id,
+        driverId: uuidv4(),
+        startDate: '2024-02-01',
+      });
+
+      await expect(
+        service.updateDriverAssignment(tenantId, first.id, { isActive: true }),
+      ).rejects.toBeInstanceOf(BusinessRuleError);
+      // Re-sending isActive=true for the assignment that is already the active one is fine.
+      const active = await repository.findActiveDriverAssignment(vehicle.id, tenantId);
+      await expect(
+        service.updateDriverAssignment(tenantId, active!.id, { isActive: true }),
+      ).resolves.toMatchObject({ isActive: true });
     });
   });
 

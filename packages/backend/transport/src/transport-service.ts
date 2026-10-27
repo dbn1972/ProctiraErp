@@ -568,6 +568,16 @@ export class TransportService {
       }
     }
 
+    // PRC-M447: re-activation must pass the same one-active-per-vehicle rule as create.
+    if (input.isActive === true && !existing.isActive) {
+      const active = await this.repository.findActiveDriverAssignment(existing.vehicleId, tenantId);
+      if (active && active.id !== existing.id) {
+        throw new BusinessRuleError(
+          'Vehicle already has an active driver assignment. End the current assignment first.',
+        );
+      }
+    }
+
     const updateData: Partial<DriverAssignmentEntity> = {};
     if (input.routeId !== undefined) updateData.routeId = input.routeId;
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
@@ -686,6 +696,19 @@ export class TransportService {
       }
       if (stop.routeId !== existing.routeId) {
         throw new BusinessRuleError('The specified stop does not belong to the assigned route');
+      }
+    }
+
+    // PRC-M447: re-activation must pass the same one-active-per-student rule as create.
+    if (input.isActive === true && !existing.isActive) {
+      const active = await this.repository.findActiveStudentAssignment(
+        existing.studentId,
+        tenantId,
+      );
+      if (active && active.id !== existing.id) {
+        throw new BusinessRuleError(
+          'Student already has an active transport route assignment. End the current assignment first.',
+        );
       }
     }
 
