@@ -260,6 +260,9 @@ export function sharedTimetableService(dependencies: DomainPluginDependencies): 
         // assignment at the meeting's institution (same tenant).
         staffBelongsToInstitution: (tenantId, staffId, institutionId) =>
           sharedAssignmentRepository().hasActiveAssignmentAt(staffId, tenantId, institutionId),
+        // PRC-L373: persist timetable audits to the durable audit_log_entries chain when a
+        // shared pool exists; no DATABASE_URL keeps the in-memory-only behaviour.
+        auditPool: getSharedPgPool() ?? undefined,
       }),
     };
   }
