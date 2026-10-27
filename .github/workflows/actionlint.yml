@@ -37,6 +37,11 @@ on:
       - 'tools/scripts/services.json'
       - 'tools/scripts/deploy-diff-base.mjs'
       - 'tools/scripts/deploy-diff-base.test.mjs'
+      - 'tools/scripts/scheduled-gates.json'
+      - 'tools/scripts/scheduled-gate-freshness.mjs'
+      - 'tools/scripts/scheduled-gate-freshness.test.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
   push:
     branches: [main, develop]
     paths:
@@ -55,6 +60,11 @@ on:
       - 'tools/scripts/services.json'
       - 'tools/scripts/deploy-diff-base.mjs'
       - 'tools/scripts/deploy-diff-base.test.mjs'
+      - 'tools/scripts/scheduled-gates.json'
+      - 'tools/scripts/scheduled-gate-freshness.mjs'
+      - 'tools/scripts/scheduled-gate-freshness.test.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
 
 permissions:
   contents: read
@@ -95,6 +105,11 @@ jobs:
       # #555 review #1: deploy/release diff base recorded per scope.
       - name: Unit-test deploy/release diff-base recorder
         run: node --test tools/scripts/deploy-diff-base.test.mjs
+      # PRC-L108: every scheduled workflow is watched by scheduled-gates-watchdog.yml.
+      - name: Unit-test scheduled-gate watchdog and registry
+        run: node --test tools/scripts/scheduled-gate-freshness.test.mjs tools/scripts/check-scheduled-gates-registry.test.mjs
+      - name: Fail on unregistered scheduled workflows (PRC-L108)
+        run: node tools/scripts/check-scheduled-gates-registry.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:

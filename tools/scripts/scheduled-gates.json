@@ -1,0 +1,16 @@
+{
+  "$comment": "PRC-L108: every workflow with a schedule: trigger must be listed under gates or exempt (enforced by check-scheduled-gates-registry.mjs). maxAgeHours = cron period + 24h slack (nightly 48, weekly 192): a gate is stale when it has no successful scheduled run in that window. Read by scheduled-gate-freshness.mjs (scheduled-gates-watchdog.yml).",
+  "gates": [
+    { "workflow": "e2e-backend-ready.yml", "maxAgeHours": 48 },
+    { "workflow": "restore-drill.yml", "maxAgeHours": 192 },
+    { "workflow": "security-scans.yml", "maxAgeHours": 192 },
+    { "workflow": "supply-chain.yml", "maxAgeHours": 48 },
+    { "workflow": "visual-regression.yml", "maxAgeHours": 192 }
+  ],
+  "exempt": [
+    {
+      "workflow": "scheduled-gates-watchdog.yml",
+      "reason": "The watchdog itself: a red watchdog run is the notification, so it must not flag its own failures."
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+# =============================================================================
+# PRC-L108 — Scheduled gates watchdog
+# =============================================================================
+# Scheduled gates (nightly E2E, restore drill, security scans, supply chain,
+# visual regression) had no failure notification and no freshness check: a
+# red or silently-stopped nightly went unnoticed. This single watchdog reads
+# tools/scripts/scheduled-gates.json, flags any gate whose latest scheduled run
+# failed/cancelled/timed out or that has no successful scheduled run within
+# its maxAgeHours, opens or updates one `scheduled-gate-failure` issue per
+# flagged gate, and goes red.
+#
+# One watchdog instead of a notify job per workflow: security-scans.yml is
+# also called from ci.yml with contents: read, so a nested job asking for
+# issues: write would fail every CI run at startup. issues: write lives only
+# in this scheduled job.
+#
+# Registration of new scheduled workflows is enforced in workflow lint
+# (check-scheduled-gates-registry.mjs).
+# =============================================================================
+name: Scheduled Gates Watchdog
+
+on:
+  schedule:
+    # Daily 07:00 UTC, after the 04:15 / 05:30 / 06:15 scheduled gates.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print verdicts only; do not create or update issues'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: scheduled-gates-watchdog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  watchdog:
+    name: Scheduled gates freshness (PRC-L108)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      issues: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check scheduled gate runs and report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # PRC-M256: dispatch input via env, not inline in the script.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          ARGS=()
+          if [[ "$DRY_RUN" == "true" ]]; then
+            ARGS+=(--dry-run)
+          fi
+          node tools/scripts/scheduled-gate-freshness.mjs "${ARGS[@]}"
