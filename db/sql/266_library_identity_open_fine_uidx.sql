@@ -20,6 +20,16 @@
 -- Rollback (future forward migration):
 --   DROP INDEX IF EXISTS library_items_tenant_isbn_uidx;
 --   DROP INDEX IF EXISTS library_items_tenant_barcode_uidx;
+--   DROP INDEX IF EXISTS library_fines_open_per_loan_uidx;
+--
+-- PRC-M206 (a): assessFine checked findOpenFineForLoan and then inserted, so
+-- two concurrent assessments of one overdue loan created two open fines.
+--   library_fines_open_per_loan_uidx (tenant_id, loan_id) WHERE status = 'open'
+-- mirrors the app rule exactly (one OPEN fine per loan; paid/waived fines do
+-- not block a later one). A plain UNIQUE (loan_id) would be a new business
+-- rule. The repository maps its 23505 to ConflictError. Residual (finance,
+-- BLOCKED_FOR_APPROVAL): assessFine posts the fee-ledger invoice before the
+-- fine insert; reordering that posting flow is out of scope here.
 DO $l130_isbn_preflight$
 DECLARE
   was_forced boolean;
@@ -142,3 +152,64 @@ BEGIN
   END IF;
 END
 $l130_assert_barcode$;
+DO $m206_fines_preflight$
+DECLARE
+  was_forced boolean;
+  duplicate_groups bigint;
+BEGIN
+  SELECT relforcerowsecurity INTO was_forced FROM pg_class WHERE oid = 'public.library_fines'::regclass;
+  IF was_forced THEN
+    ALTER TABLE library_fines NO FORCE ROW LEVEL SECURITY;
+  END IF;
+  SELECT count(*) INTO duplicate_groups
+    FROM (
+      SELECT tenant_id, loan_id FROM library_fines
+       WHERE status = 'open'
+       GROUP BY tenant_id, loan_id
+      HAVING count(*) > 1
+    ) d;
+  IF was_forced THEN
+    ALTER TABLE library_fines FORCE ROW LEVEL SECURITY;
+  END IF;
+  IF duplicate_groups > 0 THEN
+    RAISE EXCEPTION
+      'PRC-M206: % loan(s) already have more than one open library fine; reconcile before re-running',
+      duplicate_groups;
+  END IF;
+END
+$m206_fines_preflight$;
+DO $m206_drop_invalid_fines$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'library_fines_open_per_loan_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE NOTICE 'dropping invalid library_fines_open_per_loan_uidx before rebuild';
+    EXECUTE 'DROP INDEX IF EXISTS public.library_fines_open_per_loan_uidx';
+  END IF;
+END
+$m206_drop_invalid_fines$;
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS library_fines_open_per_loan_uidx
+  ON library_fines (tenant_id, loan_id)
+  WHERE status = 'open';
+DO $m206_assert_fines$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'library_fines_open_per_loan_uidx'
+       AND i.indisvalid
+       AND i.indisunique
+  ) THEN
+    RAISE EXCEPTION 'PRC-M206: library_fines_open_per_loan_uidx missing or INVALID';
+  END IF;
+END
+$m206_assert_fines$;

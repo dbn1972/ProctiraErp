@@ -151,12 +151,14 @@ function mapFine(row: Record<string, unknown>): LibraryFineEntity {
 }
 
 /**
- * PRC-L130 (db/sql/266): catalog identity unique indexes. Their 23505 means the tenant
- * already has a catalog item with this ISBN / barcode; report a 409, not a raw 500.
+ * db/sql/266 unique indexes: catalog identity (PRC-L130) and one open fine per loan
+ * (PRC-M206). Their 23505 is a business conflict; report a 409, not a raw 500.
  */
 const UNIQUE_CONFLICT_MESSAGES: Record<string, string> = {
   library_items_tenant_isbn_uidx: 'A catalog item with this ISBN already exists',
   library_items_tenant_barcode_uidx: 'A catalog item with this barcode already exists',
+  // PRC-M206: one open fine per loan (same message as the service pre-check).
+  library_fines_open_per_loan_uidx: 'An open fine already exists for this loan',
 };
 
 function rethrowUniqueConflict(error: unknown): never {
@@ -629,7 +631,7 @@ export class PgLibraryRepository implements LibraryRepository {
         data.invoiceId,
         data.paidAt,
       ],
-    );
+    ).catch(rethrowUniqueConflict);
     return mapFine(result.rows[0] as Record<string, unknown>);
   }
 
