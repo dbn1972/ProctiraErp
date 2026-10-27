@@ -3,8 +3,15 @@
  * it starts listening, so a SIGTERM during or right after listen is handled.
  */
 import { describe, expect, it, vi } from 'vitest';
+// Loaded at collection so the import cost of the workflow module graph is not
+// bounded by the 5 s test timeout (PRC-L397 CI flake); the vi.mock / vi.hoisted
+// blocks below are hoisted above this import, so the mocks and PORT still apply.
+import './standalone-server.js';
 
-const calls = vi.hoisted(() => [] as string[]);
+const calls = vi.hoisted(() => {
+  process.env['PORT'] = '0';
+  return [] as string[];
+});
 
 vi.mock('@proctira/common', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@proctira/common')>();
@@ -41,8 +48,6 @@ vi.mock('fastify', () => {
 
 describe('workflow standalone server startup (PRC-L397)', () => {
   it('registers graceful shutdown before app.listen', async () => {
-    process.env['PORT'] = '0';
-    await import('./standalone-server.js');
     await vi.waitFor(() => {
       expect(calls).toContain('listen');
     });
