@@ -357,6 +357,14 @@ services:
       GATEWAY_URL: ${GATEWAY_URL:-http://api-gateway:3000}
     ports:
       - '${REGISTRATION_PORTAL_PORT:-3002}:3002'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3002/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -381,6 +389,14 @@ services:
       STATUS_PROBE_AUTH_URL: ${STATUS_PROBE_AUTH_URL:-http://api-gateway:3000/health/live}
     ports:
       - '${PUBLIC_WEBSITE_PORT:-3003}:3003'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3003/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -402,6 +418,14 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET}
     ports:
       - '${ADMIN_CONSOLE_PORT:-3004}:3004'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3004/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -421,6 +445,14 @@ services:
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
       - '${DEVELOPER_PORTAL_PORT:-3005}:3005'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3005/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -444,6 +476,14 @@ services:
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
       - '${INSTALL_WIZARD_PORT:-3100}:3100'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3100/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
