@@ -16,7 +16,7 @@
 
 services:
   api-gateway:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/api-gateway dev"
@@ -40,7 +40,7 @@ services:
       start_period: 180s
 
   etl-worker:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/etl-worker dev"
@@ -63,7 +63,7 @@ services:
       start_period: 180s
 
   web:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/web dev"
@@ -87,7 +87,7 @@ services:
       start_period: 180s
 
   registration-portal:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/registration-portal dev"
@@ -99,7 +99,7 @@ services:
       - proctira-node-modules:/app/node_modules
 
   public-website:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/public-website dev"
@@ -111,7 +111,7 @@ services:
       - proctira-node-modules:/app/node_modules
 
   admin-console:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/admin-console dev"
@@ -123,7 +123,7 @@ services:
       - proctira-node-modules:/app/node_modules
 
   developer-portal:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/developer-portal dev"
@@ -135,7 +135,7 @@ services:
       - proctira-node-modules:/app/node_modules
 
   install-wizard:
-    image: node:20-alpine
+    image: node:26-alpine
     build: !reset null
     working_dir: /app
     command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/install-wizard dev"
