@@ -2,6 +2,9 @@
 # W1-OPS-12 — run Chromium Playwright smokes for affected secondary Next apps.
 # Ungated public/auth surfaces always execute; live-backend describes skip unless
 # E2E_BACKEND_READY=1 (not set here — honest residual for gateway-backed paths).
+# This lane has no backend, so it declares E2E_LIVE_LANE=none: the PRC-M568
+# registration live gate skips on main instead of failing (E2E_REQUIRE_LIVE=1
+# still enforces; see apps/registration-portal/e2e/helpers/live-gate.ts).
 #
 # Env (from ci.yml paths-filter outputs): ADMIN_CONSOLE, DEVELOPER_PORTAL,
 # INSTALL_WIZARD, PUBLIC_WEBSITE, REGISTRATION_PORTAL, HARNESS — each "true"/"false".
@@ -15,6 +18,7 @@ truthy() {
   esac
 }
 
+export E2E_LIVE_LANE=none
 RUN_ALL=0
 if truthy "${HARNESS:-}"; then
   RUN_ALL=1
@@ -47,6 +51,7 @@ fi
   echo "- Apps: ${SELECTED[*]}"
   echo "- Browser project: chromium only (mobile-chrome deferred)"
   echo "- E2E_BACKEND_READY: unset (live-backend describes skip)"
+  echo "- E2E_LIVE_LANE: none (backend-less lane; PRC-M568 live gate skips on main)"
   echo ""
 } >> "${GITHUB_STEP_SUMMARY:-/dev/null}" 2>/dev/null || true
 
