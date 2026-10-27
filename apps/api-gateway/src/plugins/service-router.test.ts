@@ -208,13 +208,36 @@ describe('PRC-L528 service-router rejects path traversal', () => {
       req.on('error', reject);
       req.end();
     });
+  // This suite owns its upstream and capture list. The shared `captured` array
+  // is fed by the module-level upstream, where an aborted forward from a
+  // sibling test (e.g. the 504 case) can still be parsed and pushed after that
+  // test has finished, so it cannot be used to prove "upstream not called".
+  let traversalUpstream: Server;
+  let traversalCaptured: CapturedRequest[] = [];
   beforeAll(async () => {
-    app = await buildGateway(upstreamUrl);
+    traversalUpstream = createServer((req: IncomingMessage, res: ServerResponse) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        traversalCaptured.push({
+          method: req.method ?? '',
+          url: req.url ?? '',
+          headers: req.headers,
+          body: Buffer.concat(chunks).toString('utf8'),
+        });
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, path: req.url }));
+      });
+    });
+    await new Promise<void>((resolve) => traversalUpstream.listen(0, '127.0.0.1', resolve));
+    const traversalUpstreamUrl = `http://127.0.0.1:${(traversalUpstream.address() as AddressInfo).port}`;
+    app = await buildGateway(traversalUpstreamUrl);
     await app.listen({ port: 0, host: '127.0.0.1' });
     gatewayPort = (app.server.address() as AddressInfo).port;
   });
   afterAll(async () => {
     await app.close();
+    await new Promise<void>((resolve) => traversalUpstream.close(() => resolve()));
   });
 
   for (const url of [
@@ -229,23 +252,22 @@ describe('PRC-L528 service-router rejects path traversal', () => {
     '/api/v1/students/a\\..\\admin',
   ]) {
     it(`${url} → 400, upstream not called`, async () => {
-      const before = captured.length;
+      const before = traversalCaptured.length;
       const res = await rawGet(url);
       expect(res.status, res.body).toBe(400);
       // The 400 proves the gateway rejected the path before proxying. Assert no
-      // NEW upstream capture appeared for this request rather than that the shared
-      // `captured` array is globally empty: these tests run over a real socket and
-      // a late push from a sibling forwarding test could otherwise race in and make
-      // `toHaveLength(0)` flaky.
-      expect(captured.length).toBe(before);
+      // NEW capture appeared on this suite's own upstream for this request; no
+      // sibling test forwards to it, so no late push can race in.
+      expect(traversalCaptured.length).toBe(before);
     });
   }
 
   it('ordinary nested paths and queries are still forwarded', async () => {
-    captured = [];
+    traversalCaptured = [];
     const res = await rawGet('/api/v1/students/a/b..c/d?x=1');
     expect(res.status).toBe(200);
-    expect(captured[0]?.url).toBe('/students/a/b..c/d?x=1');
+    // Positive control: the dedicated upstream does receive real forwards.
+    expect(traversalCaptured[0]?.url).toBe('/students/a/b..c/d?x=1');
   });
 
   it('buildUpstreamUrl keeps the pathname under the route prefix', () => {
