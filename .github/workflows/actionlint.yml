@@ -42,6 +42,8 @@ on:
       - 'tools/scripts/scheduled-gate-freshness.test.mjs'
       - 'tools/scripts/check-scheduled-gates-registry.mjs'
       - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
+      - 'tools/scripts/release-image-tag.mjs'
+      - 'tools/scripts/release-image-tag.test.mjs'
   push:
     branches: [main, develop]
     paths:
@@ -65,6 +67,8 @@ on:
       - 'tools/scripts/scheduled-gate-freshness.test.mjs'
       - 'tools/scripts/check-scheduled-gates-registry.mjs'
       - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
+      - 'tools/scripts/release-image-tag.mjs'
+      - 'tools/scripts/release-image-tag.test.mjs'
 
 permissions:
   contents: read
@@ -110,6 +114,9 @@ jobs:
         run: node --test tools/scripts/scheduled-gate-freshness.test.mjs tools/scripts/check-scheduled-gates-registry.test.mjs
       - name: Fail on unregistered scheduled workflows (PRC-L108)
         run: node tools/scripts/check-scheduled-gates-registry.mjs
+      # PRC-L109: release branch names map to valid OCI image tags.
+      - name: Unit-test release image tag sanitiser (PRC-L109)
+        run: node --test tools/scripts/release-image-tag.test.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:
