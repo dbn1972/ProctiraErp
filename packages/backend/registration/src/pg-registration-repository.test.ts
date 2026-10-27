@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { withPgTenant } from '@proctira/database';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createRegistrationRepository,
@@ -15,6 +15,7 @@ import {
   getSharedRegistrationPool,
   PgRegistrationRepository,
 } from './pg-registration-repository.js';
+import type { NewRegistrationEntity } from './registration-repository.js';
 
 describe('createRegistrationRepository', () => {
   it('falls back to in-memory when DATABASE_URL is unset', () => {
@@ -114,5 +115,117 @@ describe('W1-DATA-13 PgRegistrationRepository denies missing tenant', () => {
     const repo = new PgRegistrationRepository(dummyPool as never);
     await expect(repo.findById('id-1')).rejects.toThrow(/tenantId is required/);
     await expect(repo.findById('id-1', '')).rejects.toThrow(/tenantId is required/);
+  });
+});
+
+describe('PRC-M568 PgRegistrationRepository.createIdempotent without config row lock', () => {
+  const tenantId = randomUUID();
+  const institutionId = randomUUID();
+  const configurationId = randomUUID();
+
+  function entity(): NewRegistrationEntity {
+    return {
+      id: randomUUID(),
+      tenantId,
+      trackingNumber: 'REG-UNIT0001',
+      institutionId,
+      status: 'pending',
+      firstName: 'Asha',
+      lastName: 'Rao',
+      dateOfBirth: '2018-04-01',
+      gender: 'female',
+      guardianName: 'Guardian',
+      guardianPhone: '+910000000000',
+      guardianEmail: null,
+      customFields: [],
+      documents: [],
+      preferredLanguage: null,
+      remarks: null,
+      formConfigurationId: configurationId,
+      formConfigurationVersion: 1,
+      submissionKey: 'unit-submission-key',
+      submissionPayloadHash: 'a'.repeat(64),
+    };
+  }
+
+  /** Scripted single-connection pool; `insertError` is thrown by the application INSERT. */
+  function scriptedPool(insertError: unknown) {
+    const statements: string[] = [];
+    const client = {
+      query: async (text: string) => {
+        statements.push(text);
+        if (/^\s*SELECT i\.name AS institution_name/.test(text)) {
+          return {
+            rows: [
+              {
+                institution_name: 'Unit School',
+                id: configurationId,
+                institution_id: institutionId,
+                version: 1,
+                published_at: new Date('2026-10-01T00:00:00.000Z'),
+                fields: [],
+              },
+            ],
+          };
+        }
+        if (/^\s*INSERT INTO admission_applications/.test(text)) throw insertError;
+        return { rows: [] };
+      },
+      release: () => undefined,
+    };
+    const pool = {
+      query: async () => ({ rows: [] }),
+      end: async () => undefined,
+      connect: async () => client,
+    };
+    return { pool, statements };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('locks only the institution row (no lock clause naming the append-only config table)', async () => {
+    vi.spyOn(PgRegistrationRepository.prototype, 'ensureSchema').mockResolvedValue();
+    const { pool, statements } = scriptedPool(
+      Object.assign(new Error('fk'), {
+        code: '23503',
+        constraint: 'admission_applications_form_configuration_fkey',
+      }),
+    );
+    await new PgRegistrationRepository(pool as never).createIdempotent(entity());
+    const context = statements.find((s) => /SELECT i\.name AS institution_name/.test(s));
+    expect(context).toMatch(/FOR KEY SHARE OF i\s*$/);
+    expect(context).not.toMatch(/FOR KEY SHARE OF i,/);
+  });
+
+  it('maps the form-configuration FK violation to context_unavailable after rolling back', async () => {
+    vi.spyOn(PgRegistrationRepository.prototype, 'ensureSchema').mockResolvedValue();
+    const { pool, statements } = scriptedPool(
+      Object.assign(new Error('insert or update violates foreign key constraint'), {
+        code: '23503',
+        constraint: 'admission_applications_form_configuration_fkey',
+      }),
+    );
+    await expect(
+      new PgRegistrationRepository(pool as never).createIdempotent(entity()),
+    ).resolves.toEqual({ outcome: 'context_unavailable' });
+    expect(statements).toContain('ROLLBACK');
+    expect(statements).not.toContain('COMMIT');
+  });
+
+  it('rethrows other foreign-key and privilege errors', async () => {
+    vi.spyOn(PgRegistrationRepository.prototype, 'ensureSchema').mockResolvedValue();
+    const otherFk = Object.assign(new Error('other fk'), {
+      code: '23503',
+      constraint: 'admission_applications_tenant_id_fkey',
+    });
+    const denied = Object.assign(new Error('permission denied'), { code: '42501' });
+    await expect(
+      new PgRegistrationRepository(scriptedPool(otherFk).pool as never).createIdempotent(entity()),
+    ).rejects.toBe(otherFk);
+    await expect(
+      new PgRegistrationRepository(scriptedPool(denied).pool as never).createIdempotent(entity()),
+    ).rejects.toBe(denied);
   });
 });
