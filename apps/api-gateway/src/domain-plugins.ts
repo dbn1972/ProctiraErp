@@ -189,6 +189,7 @@ import {
   offerFeeAmountCents,
   tenantLocalDate,
 } from './admissions-offer-policy.js';
+import { createAttendanceHolidayLookup } from './attendance-holiday-lookup.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
@@ -1138,6 +1139,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         // for date-validation "today" comparisons, rather than constructing
         // a second one.
         timeZone: (tenantId) => attendanceTimeZone(tenantId),
+        // PRC-M173: leave approval skips EXCUSED writes on holiday/break calendar days.
+        holidayLookup: createAttendanceHolidayLookup(getSharedPgPool()),
         prefix: '/attendance',
       });
       type HeatmapDay = { date: string; status: string };
