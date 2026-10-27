@@ -101,6 +101,11 @@ export interface DeveloperPortalServiceConfig {
   deliveryClaimLeaseMs?: number;
 }
 
+/** PRC-L299: Postgres unique_violation (a check-then-insert race lost on a unique index). */
+function isUniqueViolation(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === '23505';
+}
+
 /** PRC-L464 default delivery claim lease (5 minutes). */
 export const DEFAULT_DELIVERY_CLAIM_LEASE_MS = 5 * 60 * 1000;
 
@@ -312,7 +317,16 @@ export class DeveloperPortalService {
       updatedAt: now,
     };
 
-    return this.repository.createAccount(account);
+    try {
+      return await this.repository.createAccount(account);
+    } catch (err) {
+      // PRC-L299: a concurrent create that passed the pre-check loses on the
+      // lower(email) unique index (db/sql/089) — 409, not a raw 500.
+      if (isUniqueViolation(err)) {
+        throw new ConflictError(`Developer account with email '${input.email}' already exists`);
+      }
+      throw err;
+    }
   }
 
   /**
@@ -422,7 +436,17 @@ export class DeveloperPortalService {
       createdAt: new Date(),
     };
 
-    const created = await this.repository.createApiKey(entity);
+    // PRC-L299: the pre-check above fails fast; this write re-counts and inserts
+    // atomically so concurrent creates cannot exceed the limit.
+    const created = await this.repository.createApiKeyWithinLimit(
+      entity,
+      this.config.maxApiKeysPerAccount,
+    );
+    if (!created) {
+      throw new BusinessRuleError(
+        `Maximum of ${this.config.maxApiKeysPerAccount} active API keys per account`,
+      );
+    }
     return { entity: created, rawKey };
   }
 
@@ -515,7 +539,16 @@ export class DeveloperPortalService {
       updatedAt: now,
     };
     const writer = this.requireSigningSecretWriter();
-    const created = await this.repository.createWebhook(webhook);
+    // PRC-L299: atomic re-count + insert (the pre-check above only fails fast).
+    const created = await this.repository.createWebhookWithinLimit(
+      webhook,
+      this.config.maxWebhooksPerAccount,
+    );
+    if (!created) {
+      throw new BusinessRuleError(
+        `Maximum of ${this.config.maxWebhooksPerAccount} webhooks per account`,
+      );
+    }
     // PRC-M211: the envelope row references the webhook row (FK), so it is written second; a
     // failed write removes the webhook rather than leaving one that can never be signed.
     try {
@@ -897,7 +930,17 @@ export class DeveloperPortalService {
       createdAt: new Date(),
     };
 
-    return this.repository.createSandbox(sandbox);
+    // PRC-L299: atomic re-count + insert (the pre-check above only fails fast).
+    const created = await this.repository.createSandboxWithinLimit(
+      sandbox,
+      this.config.maxSandboxesPerAccount,
+    );
+    if (!created) {
+      throw new BusinessRuleError(
+        `Maximum of ${this.config.maxSandboxesPerAccount} active sandboxes per account`,
+      );
+    }
+    return created;
   }
 
   async getSandbox(accountId: string, sandboxId: string): Promise<SandboxEntity> {
@@ -1178,7 +1221,17 @@ export class DeveloperPortalService {
       updatedAt: new Date(),
     };
 
-    const created = await this.repository.createRating(rating);
+    let created: PluginRatingEntity;
+    try {
+      created = await this.repository.createRating(rating);
+    } catch (err) {
+      // PRC-L299: concurrent first ratings race on UNIQUE (plugin_name, account_id)
+      // (db/sql/134) — surface the loser as 409, not a raw 500.
+      if (isUniqueViolation(err)) {
+        throw new ConflictError(`Plugin '${pluginName}' was already rated by this account`);
+      }
+      throw err;
+    }
 
     // Update listing stats
     const { average, count } = await this.repository.getAverageRating(pluginName);
@@ -1212,7 +1265,15 @@ export class DeveloperPortalService {
       updatedAt: now,
     };
 
-    return this.repository.createDocPage(page);
+    try {
+      return await this.repository.createDocPage(page);
+    } catch (err) {
+      // PRC-L299: concurrent creates race on the slug unique index (db/sql/134) — 409.
+      if (isUniqueViolation(err)) {
+        throw new ConflictError(`Documentation page with slug '${input.slug}' already exists`);
+      }
+      throw err;
+    }
   }
 
   async getDocPage(slug: string): Promise<DocPageEntity> {

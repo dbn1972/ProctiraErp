@@ -79,6 +79,16 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     return { ...key };
   }
 
+  /** PRC-L299: count + insert with no await in between (atomic on the event loop). */
+  async createApiKeyWithinLimit(key: ApiKeyEntity, limit: number): Promise<ApiKeyEntity | null> {
+    const active = Array.from(this.apiKeys.values()).filter(
+      (k) => k.accountId === key.accountId && k.tenantId === key.tenantId && k.status === 'active',
+    ).length;
+    if (active >= limit) return null;
+    this.apiKeys.set(key.id, { ...key });
+    return { ...key };
+  }
+
   async getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null> {
     const key = this.apiKeys.get(id);
     return key?.tenantId === tenantId ? { ...key } : null;
@@ -133,6 +143,19 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   // ─── Webhooks ─────────────────────────────────────────────────────────────
 
   async createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
+    this.webhooks.set(webhook.id, { ...webhook });
+    return { ...webhook };
+  }
+
+  /** PRC-L299: count + insert with no await in between (atomic on the event loop). */
+  async createWebhookWithinLimit(
+    webhook: WebhookEntity,
+    limit: number,
+  ): Promise<WebhookEntity | null> {
+    const count = Array.from(this.webhooks.values()).filter(
+      (w) => w.accountId === webhook.accountId && w.tenantId === webhook.tenantId,
+    ).length;
+    if (count >= limit) return null;
     this.webhooks.set(webhook.id, { ...webhook });
     return { ...webhook };
   }
@@ -251,6 +274,20 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   // ─── Sandboxes ────────────────────────────────────────────────────────────
 
   async createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+    this.sandboxes.set(sandbox.id, { ...sandbox });
+    return { ...sandbox };
+  }
+
+  /** PRC-L299: count + insert with no await in between (atomic on the event loop). */
+  async createSandboxWithinLimit(
+    sandbox: SandboxEntity,
+    limit: number,
+  ): Promise<SandboxEntity | null> {
+    const active = Array.from(this.sandboxes.values()).filter(
+      (s) =>
+        s.accountId === sandbox.accountId && (s.status === 'active' || s.status === 'provisioning'),
+    ).length;
+    if (active >= limit) return null;
     this.sandboxes.set(sandbox.id, { ...sandbox });
     return { ...sandbox };
   }

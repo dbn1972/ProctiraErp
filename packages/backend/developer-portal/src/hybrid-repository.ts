@@ -45,6 +45,11 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.createApiKey(key);
   }
 
+  async createApiKeyWithinLimit(key: ApiKeyEntity, limit: number): Promise<ApiKeyEntity | null> {
+    if (this.apiKeys) return this.apiKeys.createApiKeyWithinLimit(key, limit);
+    return this.memory.createApiKeyWithinLimit(key, limit);
+  }
+
   async getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null> {
     if (this.apiKeys) return this.apiKeys.getApiKeyById(id, tenantId);
     return this.memory.getApiKeyById(id, tenantId);
@@ -113,6 +118,11 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
   createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
     if (this.durable) return this.durable.createWebhook(webhook);
     return this.memory.createWebhook(webhook);
+  }
+
+  createWebhookWithinLimit(webhook: WebhookEntity, limit: number): Promise<WebhookEntity | null> {
+    if (this.durable) return this.durable.createWebhookWithinLimit(webhook, limit);
+    return this.memory.createWebhookWithinLimit(webhook, limit);
   }
 
   getWebhookById(id: string): Promise<WebhookEntity | null> {
@@ -198,6 +208,11 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
   createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
     if (this.durable) return this.durable.createSandbox(sandbox);
     return this.memory.createSandbox(sandbox);
+  }
+
+  createSandboxWithinLimit(sandbox: SandboxEntity, limit: number): Promise<SandboxEntity | null> {
+    if (this.durable) return this.durable.createSandboxWithinLimit(sandbox, limit);
+    return this.memory.createSandboxWithinLimit(sandbox, limit);
   }
 
   getSandboxById(id: string): Promise<SandboxEntity | null> {

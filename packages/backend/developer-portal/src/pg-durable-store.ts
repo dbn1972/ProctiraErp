@@ -131,6 +131,49 @@ function mapDelivery(row: Record<string, unknown>): WebhookDeliveryEntity {
   };
 }
 
+async function insertWebhook(client: PgQueryable, webhook: WebhookEntity): Promise<WebhookEntity> {
+  const result = await client.query(
+    `INSERT INTO developer_portal_webhooks (
+       id, tenant_id, account_id, url, events, secret_hash, description,
+       active, created_at, updated_at
+     ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10)
+     RETURNING *`,
+    [
+      webhook.id,
+      webhook.tenantId,
+      webhook.accountId,
+      webhook.url,
+      JSON.stringify(webhook.events),
+      webhook.secretHash,
+      webhook.description,
+      webhook.active,
+      webhook.createdAt,
+      webhook.updatedAt,
+    ],
+  );
+  return mapWebhook(result.rows[0] as Record<string, unknown>);
+}
+
+async function insertSandbox(client: PgQueryable, sandbox: SandboxEntity): Promise<SandboxEntity> {
+  const result = await client.query(
+    `INSERT INTO developer_portal_sandboxes (
+       id, account_id, name, description, sandbox_tenant_id, status, expires_at, api_endpoint, created_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [
+      sandbox.id,
+      sandbox.accountId,
+      sandbox.name,
+      sandbox.description,
+      sandbox.tenantId,
+      sandbox.status,
+      sandbox.expiresAt,
+      sandbox.apiEndpoint,
+      sandbox.createdAt,
+    ],
+  );
+  return mapSandbox(result.rows[0] as Record<string, unknown>);
+}
+
 /**
  * Durable store for accounts / webhooks / deliveries.
  * API keys remain in {@link PgApiKeyStore}.
@@ -224,29 +267,29 @@ export class PgDeveloperPortalDurableStore {
 
   // ─── Webhooks (tenant scope) ──────────────────────────────────────────────
 
-  async createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
+  /**
+   * PRC-L299: count the account's webhooks in this tenant and insert under a
+   * per-account advisory xact lock. Returns null (nothing written) at the limit.
+   */
+  async createWebhookWithinLimit(
+    webhook: WebhookEntity,
+    limit: number,
+  ): Promise<WebhookEntity | null> {
     return withPgTenant(this.pool, webhook.tenantId, async (client) => {
-      const result = await client.query(
-        `INSERT INTO developer_portal_webhooks (
-           id, tenant_id, account_id, url, events, secret_hash, description,
-           active, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10)
-         RETURNING *`,
-        [
-          webhook.id,
-          webhook.tenantId,
-          webhook.accountId,
-          webhook.url,
-          JSON.stringify(webhook.events),
-          webhook.secretHash,
-          webhook.description,
-          webhook.active,
-          webhook.createdAt,
-          webhook.updatedAt,
-        ],
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('devportal:webhook:' || $1))`, [
+        webhook.accountId,
+      ]);
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM developer_portal_webhooks WHERE account_id = $1`,
+        [webhook.accountId],
       );
-      return mapWebhook(result.rows[0] as Record<string, unknown>);
+      if (Number((count.rows[0] as { total: number }).total) >= limit) return null;
+      return insertWebhook(client, webhook);
     });
+  }
+
+  async createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
+    return withPgTenant(this.pool, webhook.tenantId, (client) => insertWebhook(client, webhook));
   }
 
   async getWebhookById(id: string): Promise<WebhookEntity | null> {
@@ -775,26 +818,30 @@ export class PgDeveloperPortalDurableStore {
 
   // ─── Sandboxes (platform scope — PRC-H049 residual) ───────────────────────
 
-  async createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+  /**
+   * PRC-L299: count the account's active/provisioning sandboxes and insert under
+   * a per-account advisory xact lock. Returns null (nothing written) at the limit.
+   */
+  async createSandboxWithinLimit(
+    sandbox: SandboxEntity,
+    limit: number,
+  ): Promise<SandboxEntity | null> {
     return withPlatformScope(this.pool, async (client: PgQueryable) => {
-      const result = await client.query(
-        `INSERT INTO developer_portal_sandboxes (
-           id, account_id, name, description, sandbox_tenant_id, status, expires_at, api_endpoint, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [
-          sandbox.id,
-          sandbox.accountId,
-          sandbox.name,
-          sandbox.description,
-          sandbox.tenantId,
-          sandbox.status,
-          sandbox.expiresAt,
-          sandbox.apiEndpoint,
-          sandbox.createdAt,
-        ],
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('devportal:sandbox:' || $1))`, [
+        sandbox.accountId,
+      ]);
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM developer_portal_sandboxes
+          WHERE account_id = $1 AND status IN ('active', 'provisioning')`,
+        [sandbox.accountId],
       );
-      return mapSandbox(result.rows[0] as Record<string, unknown>);
+      if (Number((count.rows[0] as { total: number }).total) >= limit) return null;
+      return insertSandbox(client, sandbox);
     });
+  }
+
+  async createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+    return withPlatformScope(this.pool, (client: PgQueryable) => insertSandbox(client, sandbox));
   }
 
   async getSandboxById(id: string): Promise<SandboxEntity | null> {
