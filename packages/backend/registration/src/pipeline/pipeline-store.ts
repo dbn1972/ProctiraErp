@@ -1,3 +1,4 @@
+import { ConflictError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { sliceForPage, type ListPage } from '../pagination.js';
@@ -25,6 +26,8 @@ export interface EnquiryRecord {
   testScore: number | null;
   applicationId: string | null;
   notes: string | null;
+  /** PRC-M335: optimistic-lock token (db/sql/262); every write increments it. */
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -134,7 +137,39 @@ export interface AdmissionsPipelineStore {
   listEnquiries(tenantId: string, page?: ListPage): Promise<EnquiryRecord[]>;
   findEnquiryByApplication(tenantId: string, applicationId: string): Promise<EnquiryRecord | null>;
   findEnquiry(tenantId: string, id: string): Promise<EnquiryRecord | null>;
-  updateEnquiry(record: EnquiryRecord): Promise<EnquiryRecord>;
+  /**
+   * PRC-M335: optimistic update. Writes only when the stored version still equals
+   * `expectedVersion` (then increments it); otherwise throws ConflictError.
+   */
+  updateEnquiry(record: EnquiryRecord, expectedVersion: number): Promise<EnquiryRecord>;
+  /**
+   * PRC-M335: claim an enquiry for conversion (compare-and-swap). Succeeds only while
+   * application_id still equals `seenApplicationId` and no other unexpired claim exists;
+   * the claim reserves `applicationId` for the application the caller is about to create.
+   */
+  claimEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    seenApplicationId: string | null,
+    applicationId: string,
+    leaseMs: number,
+  ): Promise<boolean>;
+  /**
+   * PRC-M335: link the created application (application_id, stage 'applied') and clear the
+   * claim. Returns null when the claim is no longer held by `applicationId`.
+   */
+  completeEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    applicationId: string,
+    updatedAt: Date,
+  ): Promise<EnquiryRecord | null>;
+  /** PRC-M335: drop a claim whose application create failed (no-op if no longer held). */
+  releaseEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    applicationId: string,
+  ): Promise<void>;
   createFollowup(record: FollowupRecord): Promise<FollowupRecord>;
   listFollowups(tenantId: string, enquiryId: string): Promise<FollowupRecord[]>;
 
@@ -185,6 +220,8 @@ function clone<T>(value: T): T {
 
 export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore {
   private enquiries = new Map<string, EnquiryRecord>();
+  /** PRC-M335: pending conversion claims (mirrors conversion_claim_id/_claimed_at). */
+  private conversionClaims = new Map<string, { applicationId: string; claimedAt: number }>();
   private followups = new Map<string, FollowupRecord>();
   private seats = new Map<string, SeatMatrixRecord>();
   private placements = new Map<string, ApplicationPlacement>();
@@ -245,9 +282,64 @@ export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore 
     return row && row.tenantId === tenantId ? clone(row) : null;
   }
 
-  async updateEnquiry(record: EnquiryRecord): Promise<EnquiryRecord> {
-    this.enquiries.set(record.id, clone(record));
-    return clone(record);
+  async updateEnquiry(record: EnquiryRecord, expectedVersion: number): Promise<EnquiryRecord> {
+    const current = this.enquiries.get(record.id);
+    if (!current || current.tenantId !== record.tenantId || current.version !== expectedVersion) {
+      throw new ConflictError(`Enquiry '${record.id}' was modified concurrently; reload and retry`);
+    }
+    const next = { ...clone(record), version: current.version + 1 };
+    this.enquiries.set(record.id, next);
+    return clone(next);
+  }
+
+  async claimEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    seenApplicationId: string | null,
+    applicationId: string,
+    leaseMs: number,
+  ): Promise<boolean> {
+    const current = this.enquiries.get(enquiryId);
+    if (!current || current.tenantId !== tenantId) return false;
+    if (current.applicationId !== seenApplicationId) return false;
+    const claim = this.conversionClaims.get(enquiryId);
+    if (claim && claim.claimedAt > Date.now() - leaseMs) return false;
+    this.conversionClaims.set(enquiryId, { applicationId, claimedAt: Date.now() });
+    this.enquiries.set(enquiryId, { ...current, version: current.version + 1 });
+    return true;
+  }
+
+  async completeEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    applicationId: string,
+    updatedAt: Date,
+  ): Promise<EnquiryRecord | null> {
+    const current = this.enquiries.get(enquiryId);
+    if (!current || current.tenantId !== tenantId) return null;
+    if (this.conversionClaims.get(enquiryId)?.applicationId !== applicationId) return null;
+    this.conversionClaims.delete(enquiryId);
+    const next: EnquiryRecord = {
+      ...current,
+      applicationId,
+      stage: 'applied',
+      version: current.version + 1,
+      updatedAt,
+    };
+    this.enquiries.set(enquiryId, next);
+    return clone(next);
+  }
+
+  async releaseEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    applicationId: string,
+  ): Promise<void> {
+    const current = this.enquiries.get(enquiryId);
+    if (!current || current.tenantId !== tenantId) return;
+    if (this.conversionClaims.get(enquiryId)?.applicationId !== applicationId) return;
+    this.conversionClaims.delete(enquiryId);
+    this.enquiries.set(enquiryId, { ...current, version: current.version + 1 });
   }
 
   async createFollowup(record: FollowupRecord): Promise<FollowupRecord> {

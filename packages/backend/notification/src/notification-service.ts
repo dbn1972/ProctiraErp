@@ -140,6 +140,8 @@ export interface NotificationServiceConfig {
   webhookMaxRetries: number;
   /** Maximum retries for SMS delivery (default: 3) */
   smsMaxRetries: number;
+  /** PRC-L576: a delivery claim older than this is abandoned and may be re-claimed (default: 5 min) */
+  deliveryClaimLeaseMs: number;
 }
 
 const DEFAULT_CONFIG: NotificationServiceConfig = {
@@ -148,6 +150,7 @@ const DEFAULT_CONFIG: NotificationServiceConfig = {
   pushMaxRetries: 2,
   webhookMaxRetries: 2,
   smsMaxRetries: 3,
+  deliveryClaimLeaseMs: 5 * 60_000,
 };
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -266,6 +269,16 @@ export class NotificationService {
     notification: NotificationEntity,
     template: NotificationTemplateEntity,
   ): Promise<void> {
+    // PRC-L576: only the attempt that wins the delivery claim (db/sql/271) may send.
+    const claimToken = uuidv4();
+    const claimed = await this.repository.claimForDelivery(
+      notification.tenantId,
+      notification.id,
+      claimToken,
+      this.config.deliveryClaimLeaseMs,
+    );
+    if (!claimed) return;
+
     const renderedBody = this.renderTemplate(template.body, notification.variables);
     const renderedSubject = template.subject
       ? this.renderTemplate(template.subject, notification.variables)
@@ -363,9 +376,10 @@ export class NotificationService {
       await this.repository.updateNotificationStatus(notification.id, notification.tenantId, {
         status: 'delivered',
         deliveredAt: new Date(),
+        releaseClaimToken: claimToken,
       });
     } else {
-      await this.handleDeliveryFailure(notification, errorMessage ?? 'Delivery failed');
+      await this.handleDeliveryFailure(notification, errorMessage ?? 'Delivery failed', claimToken);
     }
   }
 
@@ -408,6 +422,7 @@ export class NotificationService {
   private async handleDeliveryFailure(
     notification: NotificationEntity,
     errorMessage: string,
+    claimToken?: string,
   ): Promise<void> {
     const newRetryCount = notification.retryCount + 1;
 
@@ -420,6 +435,7 @@ export class NotificationService {
         failedAt: new Date(),
         failureReason: errorMessage,
         retryCount: newRetryCount,
+        releaseClaimToken: claimToken,
       });
 
       // Queue for retry via RabbitMQ dead-letter exchange
@@ -439,6 +455,7 @@ export class NotificationService {
         failedAt: new Date(),
         failureReason: `${errorMessage} (max retries exhausted)`,
         retryCount: newRetryCount,
+        releaseClaimToken: claimToken,
       });
     }
   }
@@ -493,12 +510,19 @@ export class NotificationService {
       throw new NotFoundError(`Notification '${notificationId}' not found`);
     }
 
-    const updated = await this.repository.updateNotificationStatus(notificationId, tenantId, {
-      status: 'read',
-      readAt: new Date(),
-    });
-
-    return updated!;
+    // PRC-L576: conditional write. An already-read notification is returned unchanged
+    // (idempotent; the first read_at is kept) instead of being overwritten.
+    const updated = await this.repository.markNotificationRead(
+      tenantId,
+      notificationId,
+      new Date(),
+    );
+    if (updated) return updated;
+    const current = await this.repository.getNotificationById(tenantId, notificationId);
+    if (!current) {
+      throw new NotFoundError(`Notification '${notificationId}' not found`);
+    }
+    return current;
   }
 
   /**

@@ -5,7 +5,7 @@ import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from
 import { v4 as uuidv4 } from 'uuid';
 
 import type { FeesLedgerPort } from './fees-ledger-port.js';
-import { createIsbnLookup, type IsbnLookup } from './isbn-lookup.js';
+import { createIsbnLookup, normalizeIsbn, type IsbnLookup } from './isbn-lookup.js';
 import {
   computeFineCents,
   DEFAULT_CAP_CENTS,
@@ -81,7 +81,8 @@ export class LibraryService implements LibraryFinesPort {
     const item = await this.repository.createItem({
       id: uuidv4(),
       tenantId,
-      isbn: input.isbn ?? null,
+      // PRC-L130: one catalog row per ISBN per tenant (db/sql/266); compare normalised.
+      isbn: input.isbn != null ? normalizeIsbn(input.isbn) : null,
       title: input.title,
       author: input.author ?? null,
       copies,

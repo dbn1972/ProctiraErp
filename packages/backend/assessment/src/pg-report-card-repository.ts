@@ -370,24 +370,36 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
     data: Omit<ReportCardJobEntity, 'createdAt' | 'updatedAt' | 'completedAt'>,
   ): Promise<ReportCardJobEntity> {
     return this.run(data.tenantId, async (c) => {
-      const res = await c.query(
-        `INSERT INTO report_card_jobs
+      const res = await c
+        .query(
+          `INSERT INTO report_card_jobs
            (id, tenant_id, student_id, academic_period_id, template_id, institution_id,
             status, error_message, output_url)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING *`,
-        [
-          data.id,
-          data.tenantId,
-          data.studentId,
-          data.academicPeriodId,
-          data.templateId,
-          data.institutionId,
-          data.status,
-          data.errorMessage,
-          data.outputUrl,
-        ],
-      );
+          [
+            data.id,
+            data.tenantId,
+            data.studentId,
+            data.academicPeriodId,
+            data.templateId,
+            data.institutionId,
+            data.status,
+            data.errorMessage,
+            data.outputUrl,
+          ],
+        )
+        .catch((error: unknown) => {
+          // PRC-M166: db/sql/268 allows one `queued` job per card; the caller reuses it.
+          const pgError = error as { code?: unknown; constraint?: unknown } | null;
+          if (
+            pgError?.code === '23505' &&
+            pgError.constraint === 'report_card_jobs_queued_card_uidx'
+          ) {
+            throw new ConflictError('A queued report-card job already exists for this card');
+          }
+          throw error;
+        });
       return mapJob(res.rows[0] as Row);
     });
   }

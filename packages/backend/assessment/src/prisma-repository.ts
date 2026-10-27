@@ -12,7 +12,7 @@
  * Ids are supplied by the service layer (uuidv4) — the columns have no
  * database default — so they are passed through verbatim.
  */
-import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError, type PaginationOptions, type PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
@@ -113,6 +113,20 @@ function toOutcomeEntity(row: OutcomeRow): OutcomeEntity {
 
 // ─── Grading Scheme Repository ───────────────────────────────────────────────
 
+/**
+ * PRC-L082: db/sql/269 grading_schemes_tenant_lower_name_uidx (tenant_id, lower(name)).
+ * Prisma reports its 23505 as P2002; a concurrent duplicate name is a 409, not a 500.
+ */
+function rethrowSchemeNameConflict(name: string | undefined): (error: unknown) => never {
+  return (error: unknown) => {
+    const code = (error as { code?: unknown } | null)?.code;
+    if (code === 'P2002' || code === '23505') {
+      throw new ConflictError(`Grading scheme with name '${name ?? ''}' already exists`);
+    }
+    throw error;
+  };
+}
+
 export class PrismaGradingSchemeRepository implements GradingSchemeRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -132,7 +146,7 @@ export class PrismaGradingSchemeRepository implements GradingSchemeRepository {
         },
       })) as GradingSchemeRow;
       return toSchemeEntity(row);
-    });
+    }).catch(rethrowSchemeNameConflict(data.name));
   }
 
   async update(
@@ -159,7 +173,7 @@ export class PrismaGradingSchemeRepository implements GradingSchemeRepository {
         },
       })) as GradingSchemeRow;
       return toSchemeEntity(row);
-    });
+    }).catch(rethrowSchemeNameConflict(data.name));
   }
 
   async findById(id: string, tenantId: string): Promise<GradingSchemeEntity | null> {

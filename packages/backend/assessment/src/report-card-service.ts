@@ -12,7 +12,7 @@
  *         per subject, teacher comments (up to 500 chars), overall grade summary,
  *         and institution logo and name
  */
-import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError, ForbiddenError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { AssessmentItemEntity, AssessmentItemRepository } from './assessment-repository.js';
@@ -424,17 +424,23 @@ export class ReportCardService {
     // earlier publish failed still progresses; the claim CAS dedupes delivery.
     const job =
       inFlight ??
-      (await this.jobRepo.create({
-        id: uuidv4(),
-        tenantId,
-        studentId: input.studentId,
-        academicPeriodId: input.academicPeriodId,
-        templateId,
-        institutionId: input.institutionId,
-        status: 'queued',
-        errorMessage: null,
-        outputUrl: null,
-      }));
+      (await this.createQueuedJobOrReuse(
+        {
+          id: uuidv4(),
+          tenantId,
+          studentId: input.studentId,
+          academicPeriodId: input.academicPeriodId,
+          templateId,
+          institutionId: input.institutionId,
+          status: 'queued',
+          errorMessage: null,
+          outputUrl: null,
+        },
+        staleBefore,
+      ));
+    if (job.status === 'processing') {
+      return job;
+    }
 
     // Publish to durable queue for background processing. On publish failure the
     // job row stays `queued` so reclaimQueuedJobs / worker start can recover
@@ -521,17 +527,24 @@ export class ReportCardService {
       // A reused `queued` job is dispatched again, as in the single-job path.
       const job =
         inFlight ??
-        (await this.jobRepo.create({
-          id: uuidv4(),
-          tenantId,
-          studentId,
-          academicPeriodId: input.academicPeriodId,
-          templateId,
-          institutionId: input.institutionId,
-          status: 'queued',
-          errorMessage: null,
-          outputUrl: null,
-        }));
+        (await this.createQueuedJobOrReuse(
+          {
+            id: uuidv4(),
+            tenantId,
+            studentId,
+            academicPeriodId: input.academicPeriodId,
+            templateId,
+            institutionId: input.institutionId,
+            status: 'queued',
+            errorMessage: null,
+            outputUrl: null,
+          },
+          staleBefore,
+        ));
+      if (job.status === 'processing') {
+        jobs.push(job);
+        continue;
+      }
 
       // Publish to durable queue (W2-JOB-02: publish failure leaves job queued)
       if (this.taskQueuePublisher) {
@@ -571,6 +584,31 @@ export class ReportCardService {
       jobsCreated: jobs.length,
       jobs,
     };
+  }
+
+  /**
+   * PRC-M166: create the `queued` job, or, when a concurrent request won the race to the
+   * db/sql/268 partial unique index (ConflictError from the repository), re-read and reuse
+   * the in-flight job for the same card.
+   */
+  private async createQueuedJobOrReuse(
+    data: Omit<ReportCardJobEntity, 'createdAt' | 'updatedAt' | 'completedAt'>,
+    staleBefore: Date,
+  ): Promise<ReportCardJobEntity> {
+    try {
+      return await this.jobRepo.create(data);
+    } catch (error: unknown) {
+      if (!(error instanceof ConflictError)) throw error;
+      const existing = (
+        await this.jobRepo.findByStudentAndPeriod(
+          data.tenantId,
+          data.studentId,
+          data.academicPeriodId,
+        )
+      ).find((job) => isInFlightJobFor(job, data.templateId, data.institutionId, staleBefore));
+      if (!existing) throw error;
+      return existing;
+    }
   }
 
   /**

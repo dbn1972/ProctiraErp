@@ -102,6 +102,20 @@
       "maintenanceWindow": "2026-09-21 W1-DATA-18 rule introduction \u2014 pre-existing files grandfathered pending forward-only re-validation",
       "approvedBy": "repository owner (W1-DATA-18 gate introduction)",
       "expires": "2027-01-24"
+    },
+    {
+      "path": "db/sql/267_exam_session_room_overlap_excl.sql",
+      "hazards": ["blocking_unique_or_pk"],
+      "reason": "PRC-M206: ADD CONSTRAINT exam_sessions_room_overlap_excl EXCLUDE USING gist (tenant_id =, room_id =, tsrange(date+start, date+end, '[)') &&) so a room cannot be double-booked by a writer that skips the app advisory lock. Postgres has no NOT VALID for EXCLUDE, so the add is a blocking ACCESS EXCLUSIVE build for its duration with no online equivalent. exam_sessions is a small per-examination schedule table (not transactional volume), so the window is brief. An in-file preflight (FORCE RLS lifted and restored in the same transaction) refuses to add the constraint over existing overlaps; it never deletes data.",
+      "maintenanceWindow": "PRC-M206 remediation window (small schedule table; brief ACCESS EXCLUSIVE acceptable)",
+      "approvedBy": "audit-gap-fast-mode batch (migration/audit-schema-wave4-b), pending human reviewer sign-off in the PR"
+    },
+    {
+      "path": "db/sql/270_grading_scale_band_overlap_excl.sql",
+      "hazards": ["blocking_unique_or_pk"],
+      "reason": "PRC-L555: ADD CONSTRAINT grading_scale_bands_no_overlap_excl EXCLUDE USING gist (grading_scale_id =, numrange(min_percent, max_percent, '[]') &&) so one grading scale cannot carry overlapping bands. Postgres has no NOT VALID for EXCLUDE, so the add is a blocking ACCESS EXCLUSIVE build with no online equivalent. grading_scale_bands is a small per-board reference table (tens of rows per tenant), so the window is brief. The in-file preflight (FORCE RLS lifted and restored in the same transaction) refuses to add the constraint over existing overlaps; the bands seeded by db/seeds/002, 003 and 006 were checked and have none.",
+      "maintenanceWindow": "PRC-L555 remediation window (small reference table; brief ACCESS EXCLUSIVE acceptable)",
+      "approvedBy": "audit-gap-fast-mode batch (migration/audit-schema-wave4-b), pending human reviewer sign-off in the PR"
     }
   ]
 }

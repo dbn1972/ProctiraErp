@@ -4,6 +4,7 @@
  * Catalog/loans: db/sql/009_library_schema.sql
  * Copies/holds/fines: db/sql/039_library_ops_schema.sql
  */
+import { ConflictError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
@@ -149,6 +150,27 @@ function mapFine(row: Record<string, unknown>): LibraryFineEntity {
   };
 }
 
+/**
+ * db/sql/266 unique indexes: catalog identity (PRC-L130) and one open fine per loan
+ * (PRC-M206). Their 23505 is a business conflict; report a 409, not a raw 500.
+ */
+const UNIQUE_CONFLICT_MESSAGES: Record<string, string> = {
+  library_items_tenant_isbn_uidx: 'A catalog item with this ISBN already exists',
+  library_items_tenant_barcode_uidx: 'A catalog item with this barcode already exists',
+  // PRC-M206: one open fine per loan (same message as the service pre-check).
+  library_fines_open_per_loan_uidx: 'An open fine already exists for this loan',
+};
+
+function rethrowUniqueConflict(error: unknown): never {
+  const pgError = error as { code?: unknown; constraint?: unknown } | null;
+  const message =
+    pgError?.code === '23505' && typeof pgError.constraint === 'string'
+      ? UNIQUE_CONFLICT_MESSAGES[pgError.constraint]
+      : undefined;
+  if (message) throw new ConflictError(message);
+  throw error;
+}
+
 export class PgLibraryRepository implements LibraryRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -186,7 +208,7 @@ export class PgLibraryRepository implements LibraryRepository {
         data.publisher,
         data.publishedYear,
       ],
-    );
+    ).catch(rethrowUniqueConflict);
     return mapItem(result.rows[0] as Record<string, unknown>);
   }
 
@@ -609,7 +631,7 @@ export class PgLibraryRepository implements LibraryRepository {
         data.invoiceId,
         data.paidAt,
       ],
-    );
+    ).catch(rethrowUniqueConflict);
     return mapFine(result.rows[0] as Record<string, unknown>);
   }
 

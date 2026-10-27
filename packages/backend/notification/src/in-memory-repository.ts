@@ -15,6 +15,8 @@ import type { DeliveryStatus, NotificationRuleEvent, RecipientQuery } from './sc
 
 export class InMemoryNotificationRepository implements NotificationRepository {
   private notifications: NotificationEntity[] = [];
+  /** PRC-L576: delivery claims (mirrors notifications.delivery_claim_token / _claimed_at). */
+  private deliveryClaims = new Map<string, { token: string; claimedAt: number }>();
   private rules: NotificationRuleEntity[] = [];
   private templates: NotificationTemplateEntity[] = [];
   private users: Map<
@@ -56,8 +58,15 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       failedAt?: Date | null;
       failureReason?: string | null;
       retryCount?: number;
+      releaseClaimToken?: string;
     },
   ): Promise<NotificationEntity | null> {
+    if (
+      update.releaseClaimToken !== undefined &&
+      this.deliveryClaims.get(id)?.token === update.releaseClaimToken
+    ) {
+      this.deliveryClaims.delete(id);
+    }
     const index = this.notifications.findIndex((n) => n.id === id && n.tenantId === tenantId);
     if (index === -1) return null;
 
@@ -75,6 +84,37 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       updatedAt: new Date(),
     };
 
+    this.notifications[index] = updated;
+    return { ...updated };
+  }
+
+  async claimForDelivery(
+    tenantId: string,
+    id: string,
+    token: string,
+    leaseMs: number,
+  ): Promise<boolean> {
+    const found = this.notifications.find((n) => n.id === id && n.tenantId === tenantId);
+    if (!found || found.status === 'delivered' || found.status === 'read') return false;
+    const claim = this.deliveryClaims.get(id);
+    if (claim && claim.claimedAt > Date.now() - leaseMs) return false;
+    this.deliveryClaims.set(id, { token, claimedAt: Date.now() });
+    return true;
+  }
+
+  async markNotificationRead(
+    tenantId: string,
+    id: string,
+    readAt: Date,
+  ): Promise<NotificationEntity | null> {
+    const index = this.notifications.findIndex((n) => n.id === id && n.tenantId === tenantId);
+    if (index === -1 || this.notifications[index]!.status === 'read') return null;
+    const updated: NotificationEntity = {
+      ...this.notifications[index]!,
+      status: 'read',
+      readAt,
+      updatedAt: new Date(),
+    };
     this.notifications[index] = updated;
     return { ...updated };
   }

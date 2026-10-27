@@ -670,6 +670,12 @@ function toReeval(row: ReevalRow): ExamReevaluationRecord {
 
 export type ExamOpsPool = PgQueryable & { connect?: unknown };
 
+/** PRC-M206: 23P01 from db/sql/267 = a room double-booking that bypassed the advisory lock. */
+function isRoomOverlapExclusion(error: unknown): boolean {
+  const pgError = error as { code?: unknown; constraint?: unknown } | null;
+  return pgError?.code === '23P01' && pgError.constraint === 'exam_sessions_room_overlap_excl';
+}
+
 export class PgExamOpsStore implements ExamOpsStore {
   constructor(private readonly pool: ExamOpsPool) {}
 
@@ -719,25 +725,57 @@ export class PgExamOpsStore implements ExamOpsStore {
       const conflicts = findRoomClashes(sessionToSlot(record), existing.map(sessionToSlot));
       if (conflicts.length > 0) return { ok: false, conflicts };
 
-      const { rows } = await client.query(
-        `INSERT INTO exam_sessions
+      // PRC-M206: db/sql/267's EXCLUDE constraint backs the check above for writers that
+      // skip this lock. A savepoint keeps the transaction usable to report the clash.
+      await client.query('SAVEPOINT exam_session_insert');
+      let rows: unknown[];
+      try {
+        ({ rows } = await client.query(
+          `INSERT INTO exam_sessions
            (id, tenant_id, examination_id, subject_id, session_date, start_time, end_time, room_id, center_id, created_at, updated_at)
          VALUES ($1,$2,$3,$4,$5::date,$6::time,$7::time,$8,$9,$10,$11)
          RETURNING *`,
-        [
-          record.id,
-          record.tenantId,
-          record.examinationId,
-          record.subjectId,
-          record.date,
-          record.startTime,
-          record.endTime,
-          record.roomId,
-          record.centerId,
-          record.createdAt,
-          record.updatedAt,
-        ],
-      );
+          [
+            record.id,
+            record.tenantId,
+            record.examinationId,
+            record.subjectId,
+            record.date,
+            record.startTime,
+            record.endTime,
+            record.roomId,
+            record.centerId,
+            record.createdAt,
+            record.updatedAt,
+          ],
+        ));
+      } catch (error) {
+        if (!isRoomOverlapExclusion(error)) throw error;
+        await client.query('ROLLBACK TO SAVEPOINT exam_session_insert');
+        const { rows: clashRows } = await client.query(
+          `SELECT * FROM exam_sessions WHERE tenant_id = $1 AND room_id = $2 AND session_date = $3::date`,
+          [record.tenantId, record.roomId, record.date],
+        );
+        const raced = findRoomClashes(
+          sessionToSlot(record),
+          (clashRows as SessionRow[]).map(toSession).map(sessionToSlot),
+        );
+        return {
+          ok: false,
+          conflicts:
+            raced.length > 0
+              ? raced
+              : [
+                  {
+                    kind: 'room_overlap',
+                    sessionId: record.id,
+                    otherSessionId: '',
+                    roomId: record.roomId,
+                    message: `Room '${record.roomId}' is already booked for an overlapping session`,
+                  },
+                ],
+        };
+      }
       return { ok: true, session: toSession(rows[0] as SessionRow) };
     });
   }

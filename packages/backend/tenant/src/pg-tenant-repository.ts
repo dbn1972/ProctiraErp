@@ -7,9 +7,11 @@
  * so RLS applies. Filtering/sorting mirrors InMemoryTenantRepository so the
  * service layer is unchanged.
  */
-import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError, type PaginationOptions, type PaginatedResult } from '@proctira/common';
 import {
+  canonicalizeDocumentTenantId,
   PgDocumentCollection,
+  reviveDates,
   withPgTenant,
   withPlatformScope,
   type PgPoolWithConnect,
@@ -688,17 +690,52 @@ export class PgTenantRepository implements TenantRepository {
       publishedAt?: Date;
     },
   ): Promise<TenantThemeVersionEntity> {
-    const existing = await this.themeVersions.byTenant(data.tenantId);
-    const maxRevision = existing.reduce((acc, row) => (row.revision > acc ? row.revision : acc), 0);
-    const entity: TenantThemeVersionEntity = {
-      id: data.id ?? uuidv4(),
-      tenantId: data.tenantId,
-      revision: maxRevision + 1,
-      tokens: structuredClone(data.tokens),
-      publishedAt: data.publishedAt ?? new Date(),
-      publishedBy: data.publishedBy,
-    };
-    return this.themeVersions.put(entity.id, entity, entity.tenantId);
+    // PRC-M389: allocate max + 1 under a per-tenant transaction advisory lock, in the same
+    // transaction as the insert, so parallel publishes cannot mint the same revision.
+    // db/sql/263's partial unique index backs this for any writer; a 23505 (e.g. a writer
+    // that skipped the lock) is retried once, then surfaced as ConflictError.
+    const tenantId = canonicalizeDocumentTenantId(data.tenantId);
+    const id = data.id ?? uuidv4();
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await withPgTenant(this.assertPool(), tenantId, async (client) => {
+          await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+            `tenant.theme_versions:${tenantId}`,
+          ]);
+          const max = await client.query(
+            `SELECT COALESCE(max((data->>'revision')::int), 0) AS max_revision
+               FROM control_plane_documents
+              WHERE collection = 'tenant.theme_versions' AND tenant_id = $1`,
+            [tenantId],
+          );
+          const maxRevision = Number(
+            (max.rows[0] as { max_revision?: unknown } | undefined)?.max_revision ?? 0,
+          );
+          const entity: TenantThemeVersionEntity = {
+            id,
+            tenantId: data.tenantId,
+            revision: maxRevision + 1,
+            tokens: structuredClone(data.tokens),
+            publishedAt: data.publishedAt ?? new Date(),
+            publishedBy: data.publishedBy,
+          };
+          const inserted = await client.query(
+            `INSERT INTO control_plane_documents (collection, id, tenant_id, data)
+             VALUES ('tenant.theme_versions', $1, $2, $3::jsonb)
+             RETURNING data`,
+            [id, tenantId, JSON.stringify(entity)],
+          );
+          return reviveDates((inserted.rows[0] as { data: TenantThemeVersionEntity }).data);
+        });
+      } catch (err) {
+        if ((err as { code?: unknown } | null)?.code !== '23505') throw err;
+        if (attempt >= 1) {
+          throw new ConflictError(
+            `Theme version could not be allocated for tenant '${data.tenantId}'; retry`,
+          );
+        }
+      }
+    }
   }
 
   async findThemeVersion(
