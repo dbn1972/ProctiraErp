@@ -162,6 +162,18 @@ export interface DeveloperPortalRepository {
       >
     >,
   ): Promise<WebhookDeliveryEntity | null>;
+  /**
+   * PRC-L464: atomically claim a pending delivery for one send attempt. Succeeds
+   * (returns the row) only when the delivery is `pending` and unclaimed or its
+   * claim is older than `leaseMs`; otherwise returns null. `updateDelivery`
+   * clears the claim when the attempt result is written.
+   */
+  claimDelivery(
+    tenantId: string,
+    id: string,
+    claimToken: string,
+    leaseMs: number,
+  ): Promise<WebhookDeliveryEntity | null>;
 
   // Sandboxes
   createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity>;

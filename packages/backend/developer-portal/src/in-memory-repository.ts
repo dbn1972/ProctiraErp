@@ -31,6 +31,8 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   private apiKeys: Map<string, ApiKeyEntity> = new Map();
   private webhooks: Map<string, WebhookEntity> = new Map();
   private deliveries: Map<string, WebhookDeliveryEntity> = new Map();
+  /** PRC-L464: delivery id → active claim (lease start, token). */
+  private deliveryClaims: Map<string, { claimedAt: number; claimToken: string }> = new Map();
   private sandboxes: Map<string, SandboxEntity> = new Map();
   private submissions: Map<string, PluginSubmissionEntity> = new Map();
   private listings: Map<string, MarketplaceListingEntity> = new Map();
@@ -225,7 +227,25 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     if (!delivery) return null;
     const updated = { ...delivery, ...updates };
     this.deliveries.set(id, updated);
+    // PRC-L464: writing the attempt result releases the claim.
+    this.deliveryClaims.delete(id);
     return { ...updated };
+  }
+
+  /** PRC-L464: same contract as the Postgres conditional UPDATE (synchronous = atomic here). */
+  async claimDelivery(
+    _tenantId: string,
+    id: string,
+    claimToken: string,
+    leaseMs: number,
+  ): Promise<WebhookDeliveryEntity | null> {
+    const delivery = this.deliveries.get(id);
+    if (!delivery || delivery.status !== 'pending') return null;
+    const claim = this.deliveryClaims.get(id);
+    const now = Date.now();
+    if (claim && claim.claimedAt > now - leaseMs) return null;
+    this.deliveryClaims.set(id, { claimedAt: now, claimToken });
+    return { ...delivery };
   }
 
   // ─── Sandboxes ────────────────────────────────────────────────────────────

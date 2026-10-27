@@ -4,7 +4,7 @@
  * Tests for plugin submission workflow, marketplace, documentation,
  * and analytics functionality.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 
 import { DeveloperPortalService, DEFAULT_CONFIG } from './developer-portal-service.js';
@@ -685,5 +685,81 @@ describe('plugin name ownership and publish atomicity (PRC-M219)', () => {
     expect(await repository.getListingByName('owned-plugin')).toBeNull();
     repository.updateSubmissionStatus = original;
     expect((await service.getSubmission(sub.id)).status).toBe('approved');
+  });
+});
+
+describe('webhook delivery claim (PRC-L464)', () => {
+  async function setup() {
+    const repository = new InMemoryDeveloperPortalRepository();
+    let sends = 0;
+    const service = new DeveloperPortalService(repository, DEFAULT_CONFIG, {
+      httpFetch: async () => {
+        sends += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return { status: 200, ok: true };
+      },
+      signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+    });
+    const account = await service.createAccount({ name: 'Claim', email: 'claim@example.com' });
+    const webhook = await service.createWebhook(account.id, TEST_TENANT_ID, {
+      url: 'https://hooks.example.com/claim',
+      events: ['student.enrolled'],
+    });
+    const delivery = await service.createDelivery(webhook.id, 'student.enrolled', { id: 's1' });
+    const job = {
+      tenantId: TEST_TENANT_ID,
+      webhookId: webhook.id,
+      deliveryId: delivery.id,
+      event: 'student.enrolled',
+      url: webhook.url,
+      body: { id: 's1' },
+      attempt: 0,
+    };
+    return { repository, service, delivery, job, sends: () => sends };
+  }
+
+  it('two concurrent processing calls for one pending delivery send exactly once', async () => {
+    const ctx = await setup();
+    await Promise.all([
+      ctx.service.processQueuedDelivery(TEST_TENANT_ID, ctx.job),
+      ctx.service.processQueuedDelivery(TEST_TENANT_ID, ctx.job),
+    ]);
+    expect(ctx.sends()).toBe(1);
+    const after = await ctx.repository.getDeliveryById(ctx.delivery.id);
+    expect(after).toMatchObject({ status: 'delivered', attempts: 1 });
+  });
+
+  it('a live claim blocks a second claim; an expired lease can be reclaimed', async () => {
+    const ctx = await setup();
+    const lease = 60_000;
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w1', lease),
+    ).not.toBeNull();
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w2', lease),
+    ).toBeNull();
+    // The claiming worker crashed: nothing is sent while the lease holds.
+    await ctx.service.processQueuedDelivery(TEST_TENANT_ID, ctx.job);
+    expect(ctx.sends()).toBe(0);
+    const realNow = Date.now();
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(realNow + lease + 1);
+    try {
+      expect(
+        await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w3', lease),
+      ).not.toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('writing the attempt result releases the claim', async () => {
+    const ctx = await setup();
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w1', 60_000),
+    ).not.toBeNull();
+    await ctx.repository.updateDelivery(ctx.delivery.id, { attempts: 1, status: 'pending' });
+    expect(
+      await ctx.repository.claimDelivery(TEST_TENANT_ID, ctx.delivery.id, 'w2', 60_000),
+    ).not.toBeNull();
   });
 });

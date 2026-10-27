@@ -183,6 +183,16 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.updateDelivery(id, updates);
   }
 
+  claimDelivery(
+    tenantId: string,
+    id: string,
+    claimToken: string,
+    leaseMs: number,
+  ): Promise<WebhookDeliveryEntity | null> {
+    if (this.durable) return this.durable.claimDelivery(tenantId, id, claimToken, leaseMs);
+    return this.memory.claimDelivery(tenantId, id, claimToken, leaseMs);
+  }
+
   // ─── Sandboxes (Postgres when durable store configured — PRC-H049) ────────
 
   createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {

@@ -94,7 +94,15 @@ export interface DeveloperPortalServiceConfig {
   sandboxBaseUrl: string;
   /** Maximum webhook delivery retries (default: 5) */
   maxWebhookRetries: number;
+  /**
+   * PRC-L464: how long a worker's delivery claim holds before another worker may
+   * reclaim the delivery (crash recovery). Default 5 minutes.
+   */
+  deliveryClaimLeaseMs?: number;
 }
+
+/** PRC-L464 default delivery claim lease (5 minutes). */
+export const DEFAULT_DELIVERY_CLAIM_LEASE_MS = 5 * 60 * 1000;
 
 export const DEFAULT_CONFIG: DeveloperPortalServiceConfig = {
   maxApiKeysPerAccount: 10,
@@ -103,6 +111,7 @@ export const DEFAULT_CONFIG: DeveloperPortalServiceConfig = {
   sandboxExpiryDays: 30,
   sandboxBaseUrl: 'https://sandbox.proctira.org',
   maxWebhookRetries: 5,
+  deliveryClaimLeaseMs: DEFAULT_DELIVERY_CLAIM_LEASE_MS,
 };
 
 // ─── Crypto Utilities (Node crypto — P0-11) ───────────────────────────────────
@@ -693,6 +702,18 @@ export class DeveloperPortalService {
       return;
     }
     if (delivery.status === 'delivered' || delivery.status === 'failed') {
+      return;
+    }
+    // PRC-L464: only the worker that wins the claim sends. A concurrent or
+    // redelivered job for a claimed delivery returns (the message is acked); a
+    // crashed worker's claim expires after the lease and can be reclaimed.
+    const claimed = await this.repository.claimDelivery(
+      tenantId,
+      job.deliveryId,
+      uuidv4(),
+      this.config.deliveryClaimLeaseMs ?? DEFAULT_DELIVERY_CLAIM_LEASE_MS,
+    );
+    if (!claimed) {
       return;
     }
 

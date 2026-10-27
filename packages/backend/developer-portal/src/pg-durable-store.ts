@@ -461,13 +461,41 @@ export class PgDeveloperPortalDurableStore {
           updates.lastAttemptAt !== undefined ? updates.lastAttemptAt : existing.lastAttemptAt,
         nextRetryAt: updates.nextRetryAt !== undefined ? updates.nextRetryAt : existing.nextRetryAt,
       };
+      // PRC-L464: writing the attempt result releases the delivery claim.
       const result = await client.query(
         `UPDATE developer_portal_webhook_deliveries
          SET status = $2, http_status = $3, attempts = $4,
-             last_attempt_at = $5, next_retry_at = $6
+             last_attempt_at = $5, next_retry_at = $6,
+             claimed_at = NULL, claim_token = NULL
          WHERE id = $1
          RETURNING *`,
         [id, next.status, next.httpStatus, next.attempts, next.lastAttemptAt, next.nextRetryAt],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapDelivery(row) : null;
+    });
+  }
+
+  /**
+   * PRC-L464: one conditional UPDATE under the tenant claims the delivery. Two
+   * concurrent callers serialize on the row lock; the loser re-checks the
+   * predicate against the winner's claim and updates nothing.
+   */
+  async claimDelivery(
+    tenantId: string,
+    id: string,
+    claimToken: string,
+    leaseMs: number,
+  ): Promise<WebhookDeliveryEntity | null> {
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE developer_portal_webhook_deliveries
+         SET claimed_at = now(), claim_token = $2
+         WHERE id = $1
+           AND status = 'pending'
+           AND (claimed_at IS NULL OR claimed_at < now() - ($3::bigint * interval '1 millisecond'))
+         RETURNING *`,
+        [id, claimToken, Math.max(0, Math.trunc(leaseMs))],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapDelivery(row) : null;
