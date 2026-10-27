@@ -22,7 +22,7 @@ services:
   # PRC-M311: data ports bind to BIND_ADDRESS (default 127.0.0.1) and every
   # credential is required from .env (no baked-in default passwords).
   postgres:
-    image: postgis/postgis:16-3.4-alpine
+    image: postgis/postgis:17-3.5-alpine
     restart: unless-stopped
     environment:
       # PRC-L460: the container superuser is a separate bootstrap user. The
