@@ -102,10 +102,11 @@ export class InMemoryPipelineRepository implements PipelineRepository {
       throw new Error('updateExecution: tenantId is required');
     }
     const existing = this.executions.get(id);
-    if (!existing) {
+    // PRC-L101: another tenant's run is "not found", same as PgPipelineRepository.
+    if (!existing || existing.tenantId !== updates.tenantId) {
       throw new Error(`Execution not found: ${id}`);
     }
-    const updated = { ...existing, ...updates };
+    const updated = { ...existing, ...updates, id, tenantId: existing.tenantId };
     this.executions.set(id, updated);
     return { ...updated };
   }

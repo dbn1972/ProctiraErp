@@ -2,6 +2,23 @@
  * Hostel service client.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { MAX_API_PAGE_SIZE } from './pagination';
+
+/**
+ * PRC-M278: hostel list endpoints are paged (`{ data, meta }`). The list
+ * readers below follow `meta.totalPages`; this hard stop bounds a bad
+ * `totalPages`.
+ */
+export const MAX_HOSTEL_LIST_PAGES = 1000;
+
+interface PagedList<T> {
+  data?: T[];
+  meta?: { totalPages?: number };
+}
+
+function pagedPath(path: string, page: number): string {
+  return `${path}?page=${page}&pageSize=${MAX_API_PAGE_SIZE}`;
+}
 
 export interface Hostel {
   id: string;
@@ -57,12 +74,28 @@ export async function createHostel(input: CreateHostelInput): Promise<Hostel> {
   return result.data;
 }
 
+/**
+ * Every page of `/hostel/assignments`. First-page failure returns `[]` (unchanged
+ * contract); a later-page failure returns the pages already read.
+ */
 export async function listHostelAssignments(): Promise<HostelAssignment[]> {
-  const result = await gatewayFetch<{ data: HostelAssignment[] }>('/hostel/assignments', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const items: HostelAssignment[] = [];
+  for (let page = 1; page <= MAX_HOSTEL_LIST_PAGES; page += 1) {
+    const result = await gatewayFetch<PagedList<HostelAssignment>>(
+      pagedPath('/hostel/assignments', page),
+      {
+        throwOnError: false,
+        next: { revalidate: 0 },
+      },
+    );
+    if (!result.ok || !result.data) {
+      if (page === 1) return [];
+      break;
+    }
+    items.push(...(result.data.data ?? []));
+    if (page >= (result.data.meta?.totalPages ?? 0)) break;
+  }
+  return items;
 }
 
 export async function createHostelAssignment(input: {
@@ -112,12 +145,25 @@ export interface HostelVisitor {
   updatedAt: string;
 }
 
+/**
+ * Every page of `/hostel/leaves`. First-page failure returns `[]` (unchanged
+ * contract); a later-page failure returns the pages already read.
+ */
 export async function listHostelLeaves(): Promise<HostelLeave[]> {
-  const result = await gatewayFetch<{ data: HostelLeave[] }>('/hostel/leaves', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const items: HostelLeave[] = [];
+  for (let page = 1; page <= MAX_HOSTEL_LIST_PAGES; page += 1) {
+    const result = await gatewayFetch<PagedList<HostelLeave>>(pagedPath('/hostel/leaves', page), {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    });
+    if (!result.ok || !result.data) {
+      if (page === 1) return [];
+      break;
+    }
+    items.push(...(result.data.data ?? []));
+    if (page >= (result.data.meta?.totalPages ?? 0)) break;
+  }
+  return items;
 }
 
 export async function createHostelLeave(input: {
@@ -183,12 +229,28 @@ export async function updateHostelVisitorStatus(
   return result.data;
 }
 
+/**
+ * Every page of `/hostel/visitors`. First-page failure returns `[]` (unchanged
+ * contract); a later-page failure returns the pages already read.
+ */
 export async function listHostelVisitors(): Promise<HostelVisitor[]> {
-  const result = await gatewayFetch<{ data: HostelVisitor[] }>('/hostel/visitors', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const items: HostelVisitor[] = [];
+  for (let page = 1; page <= MAX_HOSTEL_LIST_PAGES; page += 1) {
+    const result = await gatewayFetch<PagedList<HostelVisitor>>(
+      pagedPath('/hostel/visitors', page),
+      {
+        throwOnError: false,
+        next: { revalidate: 0 },
+      },
+    );
+    if (!result.ok || !result.data) {
+      if (page === 1) return [];
+      break;
+    }
+    items.push(...(result.data.data ?? []));
+    if (page >= (result.data.meta?.totalPages ?? 0)) break;
+  }
+  return items;
 }
 
 export async function createHostelVisitor(input: {

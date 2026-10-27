@@ -192,6 +192,79 @@ describe('ETL audit events (PRC-L302)', () => {
     expect(events[0]!.executionId).toEqual(expect.any(String));
   });
 
+  it('a retry-path execution that throws still emits one pipeline.execute event and rethrows', async () => {
+    const events: CapturedEvent[] = [];
+    const service = new ETLService(new InMemoryPipelineRepository(), {
+      defaultRetryPolicy: { maxRetries: 0, backoffMs: 1 },
+      testMode: true,
+      logSink: new InMemoryLogSink(),
+      connectorFactory: memoryConnectorFactory(),
+      eventPublisher: {
+        publish: async (event: { eventType?: string; type?: string }) => {
+          throw new Error(`event bus down (${event.eventType ?? event.type ?? 'event'})`);
+        },
+      },
+      auditSink: (event: CapturedEvent) => {
+        events.push(event);
+      },
+    } as unknown as ETLServiceConfig);
+    const created = await service.createPipeline(TENANT, input(), { actorId: 'user-1' });
+    events.length = 0;
+    await expect(
+      service.executePipelineWithRetry(TENANT, created.id, false, { actorId: 'user-1' }),
+    ).rejects.toThrow(/event bus down/);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      action: 'pipeline.execute',
+      tenantId: TENANT,
+      actorId: 'user-1',
+      pipelineId: created.id,
+    });
+    expect(events[0]!.executionId).toEqual(expect.any(String));
+  });
+
+  it('an audit sink failure never masks the original execution error', async () => {
+    const logSink = new InMemoryLogSink();
+    const failingSink = {
+      load: async () => {
+        throw new Error('destination unavailable');
+      },
+      validate: async () => ({ valid: true }),
+    };
+    let auditCalls = 0;
+    const service = new ETLService(new InMemoryPipelineRepository(), {
+      defaultRetryPolicy: { maxRetries: 0, backoffMs: 1 },
+      testMode: true,
+      logSink,
+      connectorFactory: memoryConnectorFactory(failingSink),
+      eventPublisher: {
+        publish: async () => {
+          throw new Error('event bus down');
+        },
+      },
+      auditSink: (event: CapturedEvent) => {
+        if (event.action === 'pipeline.execute') {
+          auditCalls += 1;
+          throw new Error('audit store down');
+        }
+      },
+    } as unknown as ETLServiceConfig);
+    const retried = await service.createPipeline(TENANT, input({ name: 'retry-path' }));
+    const direct = await service.createPipeline(TENANT, input({ name: 'direct-path' }));
+    await expect(service.executePipelineWithRetry(TENANT, retried.id)).rejects.toThrow(
+      'event bus down',
+    );
+    await expect(service.executePipeline(TENANT, direct.id)).rejects.toThrow(
+      'destination unavailable',
+    );
+    expect(auditCalls).toBe(2);
+    expect(
+      logSink
+        .getByPhase('audit')
+        .filter((e) => e.level === 'error' && /audit store down/.test(e.message)),
+    ).toHaveLength(2);
+  });
+
   it('routes pass the JWT subject as the actor', async () => {
     const { service, events } = build();
     const app = Fastify();

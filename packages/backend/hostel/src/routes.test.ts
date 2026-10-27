@@ -442,3 +442,140 @@ describe('Hostel Routes', () => {
     });
   });
 });
+
+// PRC-M278: hostel list endpoints are bounded and tenant-scoped.
+describe('Hostel list paging (PRC-M278)', () => {
+  const TENANT_B = '660e8400-e29b-41d4-a716-446655440001';
+  let app: FastifyInstance;
+
+  const studentId = (n: number) => `33333333-3333-4333-8333-${String(n).padStart(12, '0')}`;
+
+  beforeEach(async () => {
+    app = Fastify({ logger: false });
+    app.decorateRequest('tenantId', '');
+    app.addHook('onRequest', async (request) => {
+      const header = request.headers['x-test-tenant'];
+      (request as { tenantId: string; user?: { roles: string[] } }).tenantId =
+        typeof header === 'string' ? header : TENANT_ID;
+      (request as { tenantId: string; user?: { roles: string[] } }).user = { roles: ['warden'] };
+    });
+    await app.register(hostelPlugin, { repository: new InMemoryHostelRepository() });
+    await app.ready();
+  });
+
+  async function seedHostel(): Promise<string> {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/hostel',
+      payload: { name: 'Paging Hall', code: 'PG-01' },
+    });
+    return res.json().id as string;
+  }
+
+  async function seedLeaves(hostelId: string, count: number): Promise<void> {
+    for (let i = 1; i <= count; i++) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/hostel/leaves',
+        payload: {
+          studentId: studentId(i),
+          hostelId,
+          startDate: '2026-02-01',
+          endDate: '2026-02-05',
+        },
+      });
+      expect(res.statusCode).toBe(201);
+    }
+  }
+
+  it('defaults to page 1 of 20 with meta', async () => {
+    await seedLeaves(await seedHostel(), 25);
+    const res = await app.inject({ method: 'GET', url: '/hostel/leaves' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toHaveLength(20);
+    expect(res.json().meta).toEqual({ page: 1, pageSize: 20, totalItems: 25, totalPages: 2 });
+  });
+
+  it('pageSize=2 returns 2 rows and page 2 returns the next rows', async () => {
+    await seedLeaves(await seedHostel(), 5);
+    const first = await app.inject({ method: 'GET', url: '/hostel/leaves?pageSize=2' });
+    const second = await app.inject({ method: 'GET', url: '/hostel/leaves?page=2&pageSize=2' });
+    expect(first.json().data).toHaveLength(2);
+    expect(first.json().meta.totalItems).toBe(5);
+    expect(second.json().data).toHaveLength(2);
+    const firstIds = (first.json().data as { id: string }[]).map((r) => r.id);
+    const secondIds = (second.json().data as { id: string }[]).map((r) => r.id);
+    expect(secondIds.some((id) => firstIds.includes(id))).toBe(false);
+  });
+
+  it.each(['/hostel/assignments', '/hostel/leaves', '/hostel/visitors'])(
+    '%s rejects pageSize=0 and pageSize=101 with 400',
+    async (url) => {
+      for (const size of [0, 101]) {
+        const res = await app.inject({ method: 'GET', url: `${url}?pageSize=${size}` });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().code).toBe('VALIDATION_ERROR');
+      }
+    },
+  );
+
+  it('pages assignments and visitors with meta.totalItems', async () => {
+    const hostelId = await seedHostel();
+    const block = await app.inject({
+      method: 'POST',
+      url: '/hostel/blocks',
+      payload: { hostelId, name: 'P', floor: 1 },
+    });
+    const room = await app.inject({
+      method: 'POST',
+      url: '/hostel/rooms',
+      payload: { blockId: block.json().id, roomNumber: '201', capacity: 3 },
+    });
+    for (let i = 1; i <= 3; i++) {
+      const bed = await app.inject({
+        method: 'POST',
+        url: '/hostel/beds',
+        payload: { roomId: room.json().id, bedLabel: `B${i}` },
+      });
+      const assigned = await app.inject({
+        method: 'POST',
+        url: '/hostel/assignments',
+        payload: { studentId: studentId(i), bedId: bed.json().id, startDate: '2026-01-15' },
+      });
+      expect(assigned.statusCode).toBe(201);
+      const visitor = await app.inject({
+        method: 'POST',
+        url: '/hostel/visitors',
+        payload: {
+          hostelId,
+          visitorName: `Visitor ${i}`,
+          studentId: studentId(i),
+          visitDate: '2026-03-01',
+        },
+      });
+      expect(visitor.statusCode).toBe(201);
+    }
+    for (const url of ['/hostel/assignments', '/hostel/visitors']) {
+      const res = await app.inject({ method: 'GET', url: `${url}?pageSize=2` });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toHaveLength(2);
+      expect(res.json().meta).toEqual({ page: 1, pageSize: 2, totalItems: 3, totalPages: 2 });
+    }
+  });
+
+  it("tenant B never sees tenant A's rows", async () => {
+    const hostelId = await seedHostel();
+    await seedLeaves(hostelId, 2);
+    await app.inject({
+      method: 'POST',
+      url: '/hostel/visitors',
+      payload: { hostelId, visitorName: 'A', studentId: studentId(1), visitDate: '2026-03-01' },
+    });
+    for (const url of ['/hostel/assignments', '/hostel/leaves', '/hostel/visitors']) {
+      const res = await app.inject({ method: 'GET', url, headers: { 'x-test-tenant': TENANT_B } });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual([]);
+      expect(res.json().meta.totalItems).toBe(0);
+    }
+  });
+});

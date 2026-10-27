@@ -1,6 +1,8 @@
 /**
  * In-memory hostel repository (v1 gateway default).
  */
+import type { PaginatedResult, PaginationOptions } from '@proctira/common';
+
 import {
   BedAssignmentConflictError,
   type GatePassEntity,
@@ -27,6 +29,19 @@ import {
   type NewMessSubscription,
   type VisitorStatus,
 } from './hostel-repository.js';
+
+function pageOf<T>(rows: T[], pagination: PaginationOptions): PaginatedResult<T> {
+  const start = (pagination.page - 1) * pagination.pageSize;
+  return {
+    data: rows.slice(start, start + pagination.pageSize),
+    meta: {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: rows.length,
+      totalPages: Math.ceil(rows.length / pagination.pageSize),
+    },
+  };
+}
 
 export class InMemoryHostelRepository implements HostelRepository {
   private hostels: HostelEntity[] = [];
@@ -116,8 +131,14 @@ export class InMemoryHostelRepository implements HostelRepository {
     return entity;
   }
 
-  async listAssignments(tenantId: string): Promise<HostelAssignmentEntity[]> {
-    return this.assignments.filter((a) => a.tenantId === tenantId);
+  async listAssignments(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelAssignmentEntity>> {
+    return pageOf(
+      this.assignments.filter((a) => a.tenantId === tenantId),
+      pagination,
+    );
   }
 
   async createLeave(
@@ -129,8 +150,14 @@ export class InMemoryHostelRepository implements HostelRepository {
     return entity;
   }
 
-  async listLeaves(tenantId: string): Promise<HostelLeaveEntity[]> {
-    return this.leaves.filter((l) => l.tenantId === tenantId);
+  async listLeaves(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelLeaveEntity>> {
+    return pageOf(
+      this.leaves.filter((l) => l.tenantId === tenantId),
+      pagination,
+    );
   }
 
   async findLeaveById(id: string, tenantId: string): Promise<HostelLeaveEntity | null> {
@@ -165,8 +192,14 @@ export class InMemoryHostelRepository implements HostelRepository {
     return entity;
   }
 
-  async listVisitors(tenantId: string): Promise<HostelVisitorEntity[]> {
-    return this.visitors.filter((v) => v.tenantId === tenantId);
+  async listVisitors(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelVisitorEntity>> {
+    return pageOf(
+      this.visitors.filter((v) => v.tenantId === tenantId),
+      pagination,
+    );
   }
 
   async findVisitorById(id: string, tenantId: string): Promise<HostelVisitorEntity | null> {
