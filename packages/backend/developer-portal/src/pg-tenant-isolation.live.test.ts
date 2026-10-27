@@ -8,7 +8,12 @@
  * otherwise skips loudly for local unit-only runs.
  */
 import { randomUUID } from 'node:crypto';
-import { closeSharedPgPools, getSharedPgPool, withPgTenant } from '@proctira/database';
+import {
+  closeSharedPgPools,
+  getSharedPgPool,
+  withPgTenant,
+  withPlatformScope,
+} from '@proctira/database';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ApiKeyEntity, WebhookEntity } from './developer-portal-repository.js';
@@ -74,6 +79,14 @@ describe.skipIf(!pool)('developer portal Postgres tenant isolation (PRC-L466)', 
   beforeAll(async () => {
     await ensurePgTestTenant(pool!, TENANT_A);
     await ensurePgTestTenant(pool!, TENANT_B);
+    // PRC-M212 (db/sql/258): developer_portal_webhooks.account_id now references
+    // developer_portal_accounts (platform-scoped), so the owning account must exist.
+    await withPlatformScope(pool!, (client) =>
+      client.query(
+        `INSERT INTO developer_portal_accounts (id, name, email) VALUES ($1, 'L466 dev', $2)`,
+        [ACCOUNT_A, `l466-${ACCOUNT_A}@example.test`],
+      ),
+    );
     keyA = await keys.createApiKey(apiKey(TENANT_A, ACCOUNT_A));
     hookA = await durable.createWebhook(webhook(TENANT_A, ACCOUNT_A));
   });
