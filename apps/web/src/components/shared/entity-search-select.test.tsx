@@ -83,6 +83,46 @@ describe('EntitySearchSelect (PRC-M063)', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 });
+describe('EntitySearchSelect field validation error (PRC-L240)', () => {
+  it('marks the select invalid and links the field error only when fieldError is set', () => {
+    const { rerender } = render(
+      <EntitySearchSelect
+        id="fe"
+        name="studentId"
+        label="Student"
+        options={options}
+        fieldError="Select a student."
+      />,
+    );
+    const select = document.getElementById('fe')!;
+    expect(select.getAttribute('aria-invalid')).toBe('true');
+    expect(select.getAttribute('aria-describedby') ?? '').toContain('fe-field-error');
+    const alert = document.getElementById('fe-field-error')!;
+    expect(alert.getAttribute('role')).toBe('alert');
+    expect(alert.textContent).toBe('Select a student.');
+
+    rerender(<EntitySearchSelect id="fe" name="studentId" label="Student" options={options} />);
+    expect(document.getElementById('fe')!.getAttribute('aria-invalid')).toBeNull();
+    expect(document.getElementById('fe')!.getAttribute('aria-describedby')).toBeNull();
+    expect(document.getElementById('fe-field-error')).toBeNull();
+  });
+
+  it('marks the combobox input invalid when fieldError is set', () => {
+    render(
+      <EntitySearchSelect
+        id="fc"
+        name="studentId"
+        label="Student"
+        options={options}
+        presentation="combobox"
+        fieldError="Select a student."
+      />,
+    );
+    const input = document.getElementById('fc')!;
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby') ?? '').toContain('fc-field-error');
+  });
+});
 
 describe('EntitySearchSelect remote search (PRC-M083)', () => {
   it('finds entries beyond the seeded page via the directory search route', async () => {

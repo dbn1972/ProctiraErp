@@ -6,8 +6,11 @@
  * single, path-pinned sub-tree to the gateway. Every proxy must:
  *   • bound the upstream call with `AbortSignal.timeout` so a hung gateway
  *     cannot pin an SSR worker (504 Gateway Timeout on abort);
- *   • cap the request body it buffers so a client cannot force unbounded
- *     memory use (413);
+ *   • cap the request body so a client cannot force unbounded memory use
+ *     (413): a declared Content-Length over the cap is rejected unread, and
+ *     the body stream is byte-counted and cancelled as soon as it passes the
+ *     cap, so an oversized body is never fully buffered;
+ *   • stream the upstream response body through instead of buffering it;
  *   • map transport failures to 502 Bad Gateway instead of a thrown 500.
  */
 import { NextResponse } from 'next/server';
@@ -32,6 +35,39 @@ export interface GatewayProxyOptions {
   maxBodyBytes?: number;
   /** Human label used in validation errors. */
   label?: string;
+}
+
+/**
+ * Reads the request body, stopping as soon as it exceeds `maxBodyBytes`.
+ * Returns null when the cap is exceeded (declared or counted).
+ */
+async function readCappedBody(
+  request: Request,
+  maxBodyBytes: number,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  const declared = Number(request.headers.get('content-length') ?? '');
+  if (Number.isFinite(declared) && declared > maxBodyBytes) return null;
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBodyBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 /**
@@ -78,14 +114,14 @@ export async function proxyToGateway(
   const method = request.method.toUpperCase();
   const init: RequestInit = { method, headers, cache: 'no-store' };
   if (method !== 'GET' && method !== 'HEAD') {
-    const buffered = await request.arrayBuffer();
-    if (buffered.byteLength > maxBodyBytes) {
+    const body = await readCappedBody(request, maxBodyBytes);
+    if (!body) {
       return NextResponse.json(
         { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
         { status: 413 },
       );
     }
-    init.body = Buffer.from(buffered);
+    init.body = body;
   }
   init.signal = AbortSignal.timeout(timeoutMs);
 
@@ -102,8 +138,7 @@ export async function proxyToGateway(
     );
   }
 
-  const body = await upstream.arrayBuffer();
-  return new NextResponse(body, {
+  return new NextResponse(upstream.body, {
     status: upstream.status,
     headers: {
       'content-type': upstream.headers.get('content-type') ?? 'application/json',
