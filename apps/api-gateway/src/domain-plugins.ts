@@ -192,6 +192,7 @@ import {
 import { createAttendanceHolidayLookup } from './attendance-holiday-lookup.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
+import { domainAuditSink } from './domain-audit-sink.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
@@ -276,7 +277,11 @@ export function sharedLmsService(dependencies: DomainPluginDependencies): {
   const entry = sharedServicesFor(dependencies);
   if (!entry.lms) {
     const repository = createLmsRepository();
-    entry.lms = { repository, service: new LmsService(repository) };
+    entry.lms = {
+      repository,
+      // PRC-M527: grades, rubric scores, deletes, publish/close and file downloads are audited.
+      service: new LmsService(repository, { auditSink: domainAuditSink('lms') }),
+    };
   }
   return entry.lms;
 }
