@@ -1781,9 +1781,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'developer',
     proxyPrefixes: ['/developer'],
     register: async (scope) => {
-      // G-607 / W1-ARCH-01 COMPLETE: AuthZ via gateway RBAC; Postgres for API keys,
-      // accounts, webhooks, deliveries when DATABASE_URL is set (fail-closed otherwise
-      // in production). Marketplace/docs/analytics remain in-memory residuals.
+      // G-607 / W1-ARCH-01: AuthZ via gateway RBAC. When DATABASE_URL is set every
+      // developer-portal surface is Postgres-backed (HybridDeveloperPortalRepository):
+      // API keys (055), accounts/webhooks/deliveries (089), submissions/listings (132),
+      // sandboxes/ratings/docs/analytics (134). Without it, production refuses the
+      // memory fallback (fail-closed); memory is dev/test only (PRC-L097).
       // W2-JOB-07: durable webhook delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       // W1-SEC-08: inject webhook nonce replay store (Redis when REDIS_URL set) so
       // POST /developer/webhooks/verify is fail-closed for skew + replay.
