@@ -2,7 +2,7 @@
  * Hostel routes — hostels, assignments, leaves, visitors.
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { resolvePaginationQuery, validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { requireHostelAction } from './hostel-http-guard.js';
@@ -42,6 +42,28 @@ export interface HostelRoutesOptions {
 
 function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
+}
+
+/**
+ * PRC-M278: resolves `page` / `pageSize` with platform defaults and caps.
+ * Sends 400 VALIDATION_ERROR and returns undefined on bad input.
+ */
+function resolveListPaging(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): { page: number; pageSize: number } | undefined {
+  const paging = resolvePaginationQuery((request.query ?? {}) as Record<string, unknown>);
+  if (!paging.success) {
+    void reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'Validation failed',
+      statusCode: 400,
+      errors: paging.errors,
+    });
+    return undefined;
+  }
+  const data = paging.data as { page: number; pageSize: number };
+  return { page: data.page, pageSize: data.pageSize };
 }
 
 function formatHostel(entity: {
@@ -401,8 +423,12 @@ export async function registerHostelRoutes(
         });
       }
 
-      const assignments = await hostelService.listAssignments(tenantId);
-      return reply.status(200).send({ data: assignments.map(formatAssignment) });
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return;
+      const assignments = await hostelService.listAssignments(tenantId, paging);
+      return reply
+        .status(200)
+        .send({ data: assignments.data.map(formatAssignment), meta: assignments.meta });
     },
   );
 
@@ -462,8 +488,10 @@ export async function registerHostelRoutes(
         });
       }
 
-      const leaves = await hostelService.listLeaves(tenantId);
-      return reply.status(200).send({ data: leaves.map(formatLeave) });
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return;
+      const leaves = await hostelService.listLeaves(tenantId, paging);
+      return reply.status(200).send({ data: leaves.data.map(formatLeave), meta: leaves.meta });
     },
   );
 
@@ -570,8 +598,12 @@ export async function registerHostelRoutes(
         });
       }
 
-      const visitors = await hostelService.listVisitors(tenantId);
-      return reply.status(200).send({ data: visitors.map(formatVisitor) });
+      const paging = resolveListPaging(request, reply);
+      if (!paging) return;
+      const visitors = await hostelService.listVisitors(tenantId, paging);
+      return reply
+        .status(200)
+        .send({ data: visitors.data.map(formatVisitor), meta: visitors.meta });
     },
   );
 

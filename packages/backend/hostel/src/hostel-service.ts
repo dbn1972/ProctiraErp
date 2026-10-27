@@ -2,6 +2,7 @@
  * Hostel service — occupancy shell operations.
  */
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
+import type { PaginationOptions } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { HostelFeesPort } from './fees-ledger-port.js';
@@ -133,8 +134,8 @@ export class HostelService {
     return { ...assignment, invoice };
   }
 
-  async listAssignments(tenantId: string) {
-    return this.repository.listAssignments(tenantId);
+  async listAssignments(tenantId: string, pagination: PaginationOptions) {
+    return this.repository.listAssignments(tenantId, pagination);
   }
 
   async createLeave(tenantId: string, input: CreateLeaveInput) {
@@ -150,8 +151,8 @@ export class HostelService {
     });
   }
 
-  async listLeaves(tenantId: string) {
-    return this.repository.listLeaves(tenantId);
+  async listLeaves(tenantId: string, pagination: PaginationOptions) {
+    return this.repository.listLeaves(tenantId, pagination);
   }
 
   async decideLeave(tenantId: string, leaveId: string, status: 'approved' | 'rejected') {
@@ -192,8 +193,8 @@ export class HostelService {
     });
   }
 
-  async listVisitors(tenantId: string) {
-    return this.repository.listVisitors(tenantId);
+  async listVisitors(tenantId: string, pagination: PaginationOptions) {
+    return this.repository.listVisitors(tenantId, pagination);
   }
 
   async updateVisitorStatus(tenantId: string, visitorId: string, status: VisitorStatus) {
