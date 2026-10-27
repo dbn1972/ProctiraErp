@@ -5,10 +5,10 @@
  * Gated (E2E_BACKEND_READY): hold → copy returned → hold ready → checkout by
  * barcode → overdue → assess fine → mark paid; tenant B cannot see tenant A.
  */
-import { execFileSync } from 'node:child_process';
 import { expect, test, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { backdateLibraryLoan } from './helpers/library-loans';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -36,36 +36,6 @@ function headers(tenantId = TENANT_A) {
 
 function stamp() {
   return Date.now().toString(36).slice(-6).toUpperCase();
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Test-only: move a tenant A loan's due date into the past. The API refuses
- * past due dates (PRC-M104), so the overdue → fine path is set up in the DB.
- */
-function backdateLoan(loanId: string, dueAt: string): void {
-  const url = process.env.MIGRATOR_DATABASE_URL ?? process.env.DATABASE_URL;
-  if (!url) throw new Error('MIGRATOR_DATABASE_URL or DATABASE_URL is required to backdate a loan');
-  if (!UUID_RE.test(loanId)) throw new Error(`Unexpected loan id: ${loanId}`);
-  if (Number.isNaN(Date.parse(dueAt))) throw new Error(`Unexpected due date: ${dueAt}`);
-  // One psql session: the session-level tenant setting satisfies RLS when the
-  // URL is the non-owner app role; RETURNING proves exactly this row changed.
-  const out = execFileSync(
-    'psql',
-    [
-      url,
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-qAt',
-      '-c',
-      `SELECT set_config('app.tenant_id', '${TENANT_A}', false)`,
-      '-c',
-      `UPDATE library_loans SET due_at = '${dueAt}'::timestamptz WHERE id = '${loanId}'::uuid AND tenant_id = '${TENANT_A}'::uuid RETURNING id`,
-    ],
-    { encoding: 'utf8', stdio: 'pipe' },
-  );
-  if (!out.includes(loanId)) throw new Error(`Loan ${loanId} was not backdated: ${out}`);
 }
 
 /**
@@ -228,7 +198,7 @@ test.describe('Library ops — live chain (E2E_BACKEND_READY)', () => {
     });
     expect(overdueLoan.status(), await overdueLoan.text()).toBe(201);
     const overdue = await overdueLoan.json();
-    backdateLoan(overdue.id, '2020-01-01T00:00:00.000Z');
+    backdateLibraryLoan(overdue.id, '2020-01-01T00:00:00.000Z', TENANT_A);
 
     const assessed = await request.post(`${GATEWAY_URL}/api/v1/library/fines/assess`, {
       headers: headers(),
