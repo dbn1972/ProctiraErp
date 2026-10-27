@@ -19,9 +19,11 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
+import { writeOffboardMeta, type StaffOffboardMeta } from './offboard-meta.js';
 import type {
   StaffEntity,
   StaffFilter,
+  StaffOffboardRecord,
   StaffRepository,
   StaffTransactionScope,
 } from './staff-repository.js';
@@ -234,6 +236,66 @@ export class PrismaStaffRepository implements StaffRepository {
         },
       })) as StaffRow;
       return toEntity(row);
+    });
+  }
+
+  /**
+   * PRC-M381: one conditional UPDATE (`offboard_status IS NULL`). A concurrent
+   * offboard blocks on the row lock, re-checks the predicate after the winner
+   * commits and updates nothing (count 0 → null → service ConflictError).
+   */
+  async markOffboarded(
+    id: string,
+    tenantId: string,
+    meta: StaffOffboardMeta,
+  ): Promise<StaffEntity | null> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const existing = (await tx.staff.findFirst({
+        where: { id, tenantId, deletedAt: null },
+      })) as StaffRow | null;
+      if (!existing) return null;
+      const current = toEntity(existing);
+      const next: StaffEntity = {
+        ...current,
+        status: 'INACTIVE',
+        customData: writeOffboardMeta(current.customData, meta),
+      };
+      const { count } = await tx.staff.updateMany({
+        where: { id, tenantId, deletedAt: null, offboardStatus: null },
+        data: {
+          offboardStatus: 'offboarded',
+          offboardedAt: new Date(meta.decidedAt),
+          offboardEffectiveDate: new Date(meta.effectiveDate),
+          offboardReason: meta.reason,
+          offboardedBy: meta.decidedBy,
+          customData: buildCustomData(next) as Prisma.InputJsonValue,
+        },
+      });
+      if (count === 0) return null;
+      const row = (await tx.staff.findFirst({ where: { id, tenantId } })) as StaffRow | null;
+      return row ? toEntity(row) : null;
+    });
+  }
+
+  async findOffboardRecord(id: string, tenantId: string): Promise<StaffOffboardRecord | null> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const row = await tx.staff.findFirst({
+        where: { id, tenantId, deletedAt: null },
+        select: {
+          offboardStatus: true,
+          offboardedAt: true,
+          offboardEffectiveDate: true,
+          offboardReason: true,
+          offboardedBy: true,
+        },
+      });
+      if (!row || row.offboardStatus !== 'offboarded') return null;
+      return {
+        effectiveDate: row.offboardEffectiveDate ? toIsoDate(row.offboardEffectiveDate) : null,
+        reason: row.offboardReason,
+        decidedBy: row.offboardedBy,
+        decidedAt: row.offboardedAt ? row.offboardedAt.toISOString() : null,
+      };
     });
   }
 
