@@ -1,0 +1,57 @@
+# =============================================================================
+# PRC-L309 — Repository-wide lint debt ratchet (nightly)
+# =============================================================================
+# PR CI lints only changed files (ci.yml "Run ESLint (full change range)"), so
+# debt in untouched files is never enforced and can grow through config or
+# dependency changes. This nightly job lints every git-tracked TS/JS file and
+# fails when any file's ESLint error count rises above
+# tools/scripts/lint-ratchet-baseline.json or a new file has errors. The
+# baseline may only shrink (--write-baseline refuses growth).
+#
+# Watched by scheduled-gates-watchdog.yml (tools/scripts/scheduled-gates.json).
+# Residual: runs on the default-branch checkout, not on PR merge refs.
+# =============================================================================
+name: Lint Ratchet
+
+on:
+  schedule:
+    # Nightly 03:30 UTC.
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: lint-ratchet-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.33.2'
+
+jobs:
+  lint-ratchet:
+    name: Full-repository ESLint ratchet (PRC-L309)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit-test ratchet compare logic
+        run: node --test tools/scripts/lint-ratchet.test.mjs
+
+      - name: ESLint every tracked file against the baseline
+        run: node tools/scripts/lint-ratchet.mjs --check

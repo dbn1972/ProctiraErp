@@ -8,10 +8,11 @@
 --   - proctira      : table-owning migrator (Prisma + apply-sql.sh), NOSUPERUSER NOBYPASSRLS
 --   - proctira_app  : non-owner application runtime (DATABASE_URL), NOSUPERUSER NOBYPASSRLS
 --
--- Local docker-compose may already create POSTGRES_USER=proctira as a superuser;
--- CREATE ROLE is skipped when the role exists. Attribute pinning for the migrator
--- is opt-in via bootstrap-db-roles.sh (BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1) so
--- local compose is not demoted.
+-- CREATE ROLE is skipped when the role already exists. Local docker-compose runs
+-- as a separate bootstrap superuser (POSTGRES_BOOTSTRAP_USER, default postgres)
+-- and db/docker-init/02_local_passwords.sh pins proctira NOSUPERUSER NOBYPASSRLS
+-- (PRC-L460). Elsewhere, attribute pinning for the migrator is opt-in via
+-- bootstrap-db-roles.sh (BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1).
 
 DO $$
 BEGIN

@@ -111,6 +111,11 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_namespace]
         action: replace
         target_label: namespace
+      # PRC-L134: ProcessMemoryHigh joins RSS to kube-state-metrics memory
+      # limits on (namespace, pod).
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
 
   # ─── kube-state-metrics (PRC-L473: DrCronJobFailed alert input) ───────────
   # Scrapes the cluster's kube-state-metrics Deployment so kube_job_failed is

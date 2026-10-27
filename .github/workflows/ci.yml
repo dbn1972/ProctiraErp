@@ -18,9 +18,13 @@ on:
     branches: [main, develop, 'integration/**']
 
 concurrency:
-  # Include sha so a queued-but-never-started run cannot hold the group forever
-  # (GHA cancel-in-progress does not always clear stuck queued peers).
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
+  # PRC-L110: PR runs share one group per PR so a new push cancels the
+  # superseded run. push/schedule/dispatch runs keep the sha (per-commit group)
+  # so every main merge commit keeps its own CI run for deploy/release
+  # workflow_run evidence, and a queued-but-never-started run cannot hold a
+  # shared group forever (GHA cancel-in-progress does not always clear stuck
+  # queued peers; a newer PR run now cancels them).
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
   cancel-in-progress: true
 
 env:
@@ -1082,6 +1086,31 @@ jobs:
       - name: Run DoD check unit tests
         run: pnpm run check:dod:test
 
+      # PRC-M551: tools/dod-checks/reports/baseline.json may only shrink
+      # versus the base revision (totals, per-check counts, error fingerprints).
+      # Event values pass via env (PRC-M256) and are SHA-validated.
+      - name: DoD baseline never increases (PRC-M551)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE="$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ] && [[ ! "$PUSH_BEFORE_SHA" =~ ^0{40}$ ]]; then
+            BASE="$PUSH_BEFORE_SHA"
+          else
+            git fetch --no-tags --depth=1 origin main
+            BASE="$(git rev-parse FETCH_HEAD)"
+          fi
+          [[ "$BASE" =~ ^[0-9a-fA-F]{40}$ ]] \
+            || { echo "Invalid DoD ratchet base SHA" >&2; exit 1; }
+          git cat-file -e "${BASE}^{commit}" 2>/dev/null \
+            || git fetch --no-tags --depth=1 origin "$BASE"
+          node --test tools/scripts/check-dod-baseline-ratchet.test.mjs
+          node tools/scripts/check-dod-baseline-ratchet.mjs --base "$BASE"
+
       - name: Page-wise regression matrix is complete and current (G-804)
         run: node tools/scripts/page-regression-matrix.mjs --check
 
@@ -1268,6 +1297,13 @@ jobs:
   restore-drill-evidence:
     name: Restore Drill Evidence (W3-OPS-C6 / W1-OPS-20)
     runs-on: ubuntu-latest
+    # PRC-M431: actions: read lets verify-evidence-run.mjs GET the cited run
+    # (conclusion / workflow path / created_at); CI=true makes it mandatory.
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -1275,8 +1311,15 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Unit-test evidence run verification (PRC-M431)
+        run: node --test tools/scripts/verify-evidence-run.test.mjs
+
       - name: Verify restore-drill evidence pack (fail closed)
         run: bash tools/scripts/check-restore-drill-evidence.sh
+
+      # PRC-M431: the DoD evidence pack gate was only unit-tested; run it on tip.
+      - name: Verify DoD evidence pack (fail closed)
+        run: bash tools/scripts/check-dod-evidence.sh
 
   # ---------------------------------------------------------------------------
   # Prisma ↔ SQL schema drift — data gate (W1-DATA-04 COMPLETE)
@@ -1558,6 +1601,14 @@ jobs:
         run: node --test tools/scripts/target-database-migration-contract.test.mjs
       - name: Unit-test tools/scripts hygiene contracts
         run: node --test tools/scripts/no-completion-claims.test.mjs tools/scripts/backend-runtime-deps.test.mjs tools/scripts/check-campus-i18n.test.mjs tools/scripts/operational-script-credentials.test.mjs tools/scripts/dod-script-wiring.test.mjs tools/scripts/simulate-onboard-boards-schools.test.mjs
+      # Local compose stack contract (built services declare healthchecks;
+      # non-superuser migrator and no hard-coded role passwords).
+      - name: Compose contract (PRC-L335, PRC-L460)
+        run: |
+          set -euo pipefail
+          node --test tools/scripts/check-compose-contract.test.mjs
+          node tools/scripts/check-compose-contract.mjs
+          docker compose --env-file .env.example -f docker-compose.yml config -q
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs
@@ -1580,6 +1631,28 @@ jobs:
     uses: ./.github/workflows/security-scans.yml
     permissions:
       contents: read
+
+  # ---------------------------------------------------------------------------
+  # Static ops gates + workflow lint (PRC-M428 / PRC-L307)
+  # ---------------------------------------------------------------------------
+  # helm-template.yml (helm lint/template, no-latest image tags, topology,
+  # replica/PDB policy) and actionlint.yml (actionlint, pin/injection gates)
+  # are path-filtered standalone; calling them here makes every PR run them
+  # and CI Aggregate (Required) fail closed on failure or skip.
+  # ---------------------------------------------------------------------------
+  helm-template:
+    name: Helm Template (PRC-M428)
+    uses: ./.github/workflows/helm-template.yml
+    permissions:
+      contents: read
+
+  workflow-lint:
+    name: Workflow Lint (PRC-M428)
+    uses: ./.github/workflows/actionlint.yml
+    permissions:
+      contents: read
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
 
   # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
@@ -1766,6 +1839,8 @@ jobs:
       - runtime-table-privileges
       - runtime-role-gate
       - security-scans
+      - helm-template
+      - workflow-lint
       - secondary-apps-e2e
       - mobile-flutter
     if: always()
@@ -1818,6 +1893,8 @@ jobs:
           RUNTIME_TABLE_PRIVILEGES_RESULT: ${{ needs.runtime-table-privileges.result }}
           RUNTIME_ROLE_GATE_RESULT: ${{ needs.runtime-role-gate.result }}
           SECURITY_SCANS_RESULT: ${{ needs.security-scans.result }}
+          HELM_TEMPLATE_RESULT: ${{ needs.helm-template.result }}
+          WORKFLOW_LINT_RESULT: ${{ needs.workflow-lint.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
           MOBILE_FLUTTER_RESULT: ${{ needs.mobile-flutter.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

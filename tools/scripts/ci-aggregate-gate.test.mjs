@@ -52,6 +52,8 @@ function allSkipped() {
     runtimeTablePrivileges: 'success',
     runtimeRoleGate: 'success',
     securityScans: 'success',
+    helmTemplate: 'success',
+    workflowLint: 'success',
     secondaryAppsE2e: 'skipped',
     mobileFlutter: 'skipped',
   };
@@ -79,6 +81,8 @@ function allSucceeded() {
     runtimeTablePrivileges: 'success',
     runtimeRoleGate: 'success',
     securityScans: 'success',
+    helmTemplate: 'success',
+    workflowLint: 'success',
     secondaryAppsE2e: 'success',
     mobileFlutter: 'success',
   };
@@ -383,5 +387,47 @@ test('PRC-M427 fails closed when a change flag is a non-boolean string', () => {
 test('PRC-M427 still passes when all change flags are well-formed booleans', () => {
   const report = evaluate({ changes: noChanges, results: allSkipped() });
   // noChanges + all skipped is a valid proven-skip scenario.
+  assert.equal(report.ok, true);
+});
+
+test('PRC-M428 helm-template skip fails closed even on docs-only PRs', () => {
+  const results = allSkipped();
+  results.helmTemplate = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'helm-template'));
+});
+
+test('PRC-M428 cancelled helm-template fails closed', () => {
+  const results = allSucceeded();
+  results.helmTemplate = 'cancelled';
+  const report = evaluate({ changes: codeChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((item) => item.job === 'helm-template'));
+});
+
+test('PRC-M428 workflow-lint skip fails closed even on docs-only PRs', () => {
+  const results = allSkipped();
+  results.workflowLint = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'workflow-lint'));
+});
+
+test('PRC-M428 missing helm-template / workflow-lint result fails closed', () => {
+  const results = allSucceeded();
+  delete results.helmTemplate;
+  delete results.workflowLint;
+  const report = evaluate({ changes: codeChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((item) => item.job === 'helm-template'));
+  assert.ok(report.failures.some((item) => item.job === 'workflow-lint'));
+});
+
+test('PRC-M428 helm-template and workflow-lint succeeding passes', () => {
+  const results = allSucceeded();
+  assert.equal(results.helmTemplate, 'success');
+  assert.equal(results.workflowLint, 'success');
+  const report = evaluate({ changes: codeChanges, results });
   assert.equal(report.ok, true);
 });

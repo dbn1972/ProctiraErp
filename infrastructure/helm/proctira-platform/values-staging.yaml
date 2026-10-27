@@ -11,6 +11,8 @@ global:
   domain: staging.proctira.io
   nodeEnv: production
   logLevel: info
+  # PRC-M599: reject mutable/default image tags at render time.
+  requireImmutableImageTags: true
 
 ingress:
   enabled: true

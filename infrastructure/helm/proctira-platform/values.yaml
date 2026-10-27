@@ -25,6 +25,10 @@ global:
   nodeEnv: production
   # -- Log level (debug, info, warn, error)
   logLevel: info
+  # -- PRC-M599: fail the render when an image tag is empty, the chart
+  # appVersion, `latest` or not an immutable form. Off for default renders;
+  # values-staging.yaml / values-production.yaml turn it on.
+  requireImmutableImageTags: false
 
 # -- Multi-tenancy configuration
 multiTenancy:

@@ -16,7 +16,7 @@
  *   node tools/scripts/check-platform-deploy-render.mjs
  *       render staging + production with CI placeholder coordinates
  *   node tools/scripts/check-platform-deploy-render.mjs --rendered <file> \
- *       [--registry ghcr.io --namespace example-owner --tag sha-ci]
+ *       [--registry ghcr.io --namespace example-owner --tag 0123abc-20260101000000]
  *       check an existing `helm template` output (e.g. a pre-fix render)
  *
  * Env: HELM (default `helm`) is forwarded to deploy-platform-helm.sh.
@@ -48,7 +48,9 @@ export const DR_CONTAINERS = { 'pg-backup': 'dr-tools', 'phi-retention': 'dr-too
 export const CI_COORDS = Object.freeze({
   registry: 'ghcr.io',
   namespace: 'Example-Owner',
-  tag: 'sha-ci',
+  // PRC-M599: same shape as deploy.yml's IMAGE_TAG (<gitsha>-<YYYYMMDDHHMMSS>);
+  // staging/production renders now reject non-immutable tags such as `sha-ci`.
+  tag: '0123abc-20260101000000',
   secret: 'ci-platform-secret',
 });
 

@@ -1,0 +1,54 @@
+# PRC-L134 — promtool unit tests for ProcessMemoryHigh (RSS / pod memory limit).
+# Run: promtool test rules infra/observability/alerts/tests/*.yml
+# Label shapes are the assumed in-cluster ones: kubernetes-pods relabels
+# namespace/pod/service; kube-state-metrics' own namespace label becomes
+# exported_namespace because that job sets a namespace target label.
+rule_files:
+  - ../saturation.yml
+
+evaluation_interval: 1m
+
+tests:
+  # RSS 300Mi, V8 heap 100Mi, limit 512Mi: healthy (58% of limit). The old
+  # RSS / heap-total rule (ratio 3.0) fired here.
+  - interval: 1m
+    input_series:
+      - series: 'process_resident_memory_bytes{job="kubernetes-pods",namespace="proctira-production",pod="api-gateway-abc",service="api-gateway"}'
+        values: '314572800x15'
+      - series: 'nodejs_heap_size_total_bytes{job="kubernetes-pods",namespace="proctira-production",pod="api-gateway-abc",service="api-gateway"}'
+        values: '104857600x15'
+      - series: 'kube_pod_container_resource_limits{job="kube-state-metrics",namespace="kube-state-metrics",service="kube-state-metrics",exported_namespace="proctira-production",pod="api-gateway-abc",container="api-gateway",resource="memory",unit="byte"}'
+        values: '536870912x15'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ProcessMemoryHigh
+        exp_alerts: []
+
+  # RSS 480Mi of a 512Mi limit (93.75%) for 5m: fires; pending before that.
+  - interval: 1m
+    input_series:
+      - series: 'process_resident_memory_bytes{job="kubernetes-pods",namespace="proctira-production",pod="api-gateway-def",service="api-gateway"}'
+        values: '503316480x15'
+      - series: 'kube_pod_container_resource_limits{job="kube-state-metrics",namespace="kube-state-metrics",service="kube-state-metrics",exported_namespace="proctira-production",pod="api-gateway-def",container="api-gateway",resource="memory",unit="byte"}'
+        values: '536870912x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ProcessMemoryHigh
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: ProcessMemoryHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              team: ops
+              slo: saturation
+              namespace: proctira-production
+              pod: api-gateway-def
+              service: api-gateway
+            exp_annotations:
+              summary: 'api-gateway memory usage above 90%'
+              description: |
+                Resident memory on api-gateway (proctira-production/api-gateway-def)
+                is at 93.75% of pod memory limit. Risk of OOM kill and restart.
+              runbook_url: 'https://runbooks.proctira.org/services/api-gateway.md#memory-saturation'
+              dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
