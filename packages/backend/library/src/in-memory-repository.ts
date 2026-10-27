@@ -1,13 +1,18 @@
 /**
  * In-memory library repository (v1 gateway default).
  */
+import type { PaginatedResult, PaginationOptions } from '@proctira/common';
+
 import type {
   LibraryCopyEntity,
   LibraryFineEntity,
+  LibraryFineFilter,
   LibraryFinePolicyEntity,
   LibraryHoldEntity,
+  LibraryHoldFilter,
   LibraryItemEntity,
   LibraryLoanEntity,
+  LibraryLoanFilter,
   LibraryRepository,
   NewCopy,
   NewFine,
@@ -16,6 +21,22 @@ import type {
   NewItem,
   NewLoan,
 } from './library-repository.js';
+
+/** PRC-M294: page slice + meta, mirroring the PG repository's COUNT + LIMIT/OFFSET. */
+function pageOf<T>(rows: T[], pagination: PaginationOptions): PaginatedResult<T> {
+  const start = (pagination.page - 1) * pagination.pageSize;
+  return {
+    data: rows.slice(start, start + pagination.pageSize),
+    meta: {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalItems: rows.length,
+      totalPages: Math.ceil(rows.length / pagination.pageSize),
+    },
+  };
+}
+
+const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export class InMemoryLibraryRepository implements LibraryRepository {
   private items: LibraryItemEntity[] = [];
@@ -34,6 +55,16 @@ export class InMemoryLibraryRepository implements LibraryRepository {
 
   async listItems(tenantId: string): Promise<LibraryItemEntity[]> {
     return this.items.filter((i) => i.tenantId === tenantId);
+  }
+
+  async listItemsPage(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryItemEntity>> {
+    const rows = this.items
+      .filter((i) => i.tenantId === tenantId)
+      .sort((a, b) => byText(a.title, b.title) || byText(a.id, b.id));
+    return pageOf(rows, pagination);
   }
 
   async findItemById(id: string, tenantId: string): Promise<LibraryItemEntity | null> {
@@ -125,8 +156,41 @@ export class InMemoryLibraryRepository implements LibraryRepository {
     return updated;
   }
 
-  async listLoans(tenantId: string): Promise<LibraryLoanEntity[]> {
-    return this.loans.filter((l) => l.tenantId === tenantId);
+  async listLoans(
+    tenantId: string,
+    filter: { studentId?: string } = {},
+  ): Promise<LibraryLoanEntity[]> {
+    return this.loans.filter(
+      (l) =>
+        l.tenantId === tenantId &&
+        (filter.studentId === undefined || l.studentId === filter.studentId),
+    );
+  }
+
+  async listLoansPage(
+    tenantId: string,
+    filter: LibraryLoanFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryLoanEntity>> {
+    const overdueMs = filter.overdueAt?.getTime();
+    const rows = this.loans
+      .filter(
+        (l) =>
+          l.tenantId === tenantId &&
+          (filter.studentId === undefined || l.studentId === filter.studentId) &&
+          (filter.patronUserId === undefined || l.patronUserId === filter.patronUserId) &&
+          (overdueMs === undefined || (l.status !== 'returned' && l.dueAt.getTime() < overdueMs)),
+      )
+      .sort((a, b) => b.checkoutAt.getTime() - a.checkoutAt.getTime() || byText(b.id, a.id));
+    return pageOf(rows, pagination);
+  }
+
+  async findOpenLoanByCopyId(tenantId: string, copyId: string): Promise<LibraryLoanEntity | null> {
+    return (
+      this.loans.find(
+        (l) => l.tenantId === tenantId && l.copyId === copyId && l.status !== 'returned',
+      ) ?? null
+    );
   }
 
   async createCopy(data: NewCopy): Promise<LibraryCopyEntity> {
@@ -178,6 +242,28 @@ export class InMemoryLibraryRepository implements LibraryRepository {
     return this.holds.filter(
       (h) => h.tenantId === tenantId && (itemId === undefined || h.itemId === itemId),
     );
+  }
+
+  async listHoldsPage(
+    tenantId: string,
+    filter: LibraryHoldFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryHoldEntity>> {
+    const rows = this.holds
+      .filter(
+        (h) =>
+          h.tenantId === tenantId &&
+          (filter.itemId === undefined || h.itemId === filter.itemId) &&
+          (filter.studentId === undefined || h.studentId === filter.studentId) &&
+          (filter.patronUserId === undefined || h.patronUserId === filter.patronUserId),
+      )
+      .sort(
+        (a, b) =>
+          (filter.itemId !== undefined ? a.position - b.position : 0) ||
+          a.createdAt.getTime() - b.createdAt.getTime() ||
+          byText(a.id, b.id),
+      );
+    return pageOf(rows, pagination);
   }
 
   async findHoldById(id: string, tenantId: string): Promise<LibraryHoldEntity | null> {
@@ -232,6 +318,21 @@ export class InMemoryLibraryRepository implements LibraryRepository {
     return this.fines.filter(
       (f) => f.tenantId === tenantId && (studentId === undefined || f.studentId === studentId),
     );
+  }
+
+  async listFinesPage(
+    tenantId: string,
+    filter: LibraryFineFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryFineEntity>> {
+    const rows = this.fines
+      .filter(
+        (f) =>
+          f.tenantId === tenantId &&
+          (filter.studentId === undefined || f.studentId === filter.studentId),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || byText(b.id, a.id));
+    return pageOf(rows, pagination);
   }
 
   async findFineById(id: string, tenantId: string): Promise<LibraryFineEntity | null> {

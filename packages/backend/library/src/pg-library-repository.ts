@@ -4,6 +4,7 @@
  * Catalog/loans: db/sql/009_library_schema.sql
  * Copies/holds/fines: db/sql/039_library_ops_schema.sql
  */
+import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
@@ -17,10 +18,13 @@ import type {
   HoldStatus,
   LibraryCopyEntity,
   LibraryFineEntity,
+  LibraryFineFilter,
   LibraryFinePolicyEntity,
   LibraryHoldEntity,
+  LibraryHoldFilter,
   LibraryItemEntity,
   LibraryLoanEntity,
+  LibraryLoanFilter,
   LibraryRepository,
   LoanStatus,
   NewCopy,
@@ -161,6 +165,43 @@ export class PgLibraryRepository implements LibraryRepository {
     );
   }
 
+  /**
+   * PRC-M294: COUNT + LIMIT/OFFSET page under one tenant-bound connection.
+   * `where` uses `$1..$n` for `params`; LIMIT/OFFSET are appended after them.
+   */
+  private page<T>(
+    tenantId: string,
+    table: string,
+    where: string,
+    params: unknown[],
+    orderBy: string,
+    pagination: PaginationOptions,
+    map: (row: Record<string, unknown>) => T,
+  ): Promise<PaginatedResult<T>> {
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const count = (await client.query(
+        `SELECT COUNT(*)::int AS total FROM ${table} WHERE ${where}`,
+        params,
+      )) as unknown as pg.QueryResult;
+      const totalItems = Number((count.rows[0] as { total: number }).total);
+      const offset = (pagination.page - 1) * pagination.pageSize;
+      const rows = (await client.query(
+        `SELECT * FROM ${table} WHERE ${where} ORDER BY ${orderBy}
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, pagination.pageSize, offset],
+      )) as unknown as pg.QueryResult;
+      return {
+        data: (rows.rows as Record<string, unknown>[]).map(map),
+        meta: {
+          page: pagination.page,
+          pageSize: pagination.pageSize,
+          totalItems,
+          totalPages: Math.ceil(totalItems / pagination.pageSize),
+        },
+      };
+    });
+  }
+
   async ensureSchema(): Promise<void> {
     await ensureLibrarySchema(this.pool);
   }
@@ -198,6 +239,22 @@ export class PgLibraryRepository implements LibraryRepository {
       [tenantId],
     );
     return result.rows.map((row) => mapItem(row as Record<string, unknown>));
+  }
+
+  async listItemsPage(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryItemEntity>> {
+    await this.ensureSchema();
+    return this.page(
+      tenantId,
+      'library_items',
+      'tenant_id = $1',
+      [tenantId],
+      'title, id',
+      pagination,
+      mapItem,
+    );
   }
 
   async findItemById(id: string, tenantId: string): Promise<LibraryItemEntity | null> {
@@ -392,14 +449,68 @@ export class PgLibraryRepository implements LibraryRepository {
     return mapLoan(result.rows[0] as Record<string, unknown>);
   }
 
-  async listLoans(tenantId: string): Promise<LibraryLoanEntity[]> {
+  async listLoans(
+    tenantId: string,
+    filter: { studentId?: string } = {},
+  ): Promise<LibraryLoanEntity[]> {
+    await this.ensureSchema();
+    const params: unknown[] = [tenantId];
+    let where = 'tenant_id = $1';
+    if (filter.studentId !== undefined) {
+      params.push(filter.studentId);
+      where += ` AND student_id = $${params.length}`;
+    }
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM library_loans WHERE ${where} ORDER BY checkout_at DESC`,
+      params,
+    );
+    return result.rows.map((row) => mapLoan(row as Record<string, unknown>));
+  }
+
+  async listLoansPage(
+    tenantId: string,
+    filter: LibraryLoanFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryLoanEntity>> {
+    await this.ensureSchema();
+    const params: unknown[] = [tenantId];
+    const conditions = ['tenant_id = $1'];
+    if (filter.studentId !== undefined) {
+      params.push(filter.studentId);
+      conditions.push(`student_id = $${params.length}`);
+    }
+    if (filter.patronUserId !== undefined) {
+      params.push(filter.patronUserId);
+      conditions.push(`patron_user_id = $${params.length}`);
+    }
+    if (filter.overdueAt !== undefined) {
+      params.push(filter.overdueAt);
+      conditions.push(`status <> 'returned' AND due_at < $${params.length}`);
+    }
+    return this.page(
+      tenantId,
+      'library_loans',
+      conditions.join(' AND '),
+      params,
+      'checkout_at DESC, id DESC',
+      pagination,
+      mapLoan,
+    );
+  }
+
+  async findOpenLoanByCopyId(tenantId: string, copyId: string): Promise<LibraryLoanEntity | null> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
-      `SELECT * FROM library_loans WHERE tenant_id = $1 ORDER BY checkout_at DESC`,
-      [tenantId],
+      `SELECT * FROM library_loans
+       WHERE tenant_id = $1 AND copy_id = $2 AND status <> 'returned'
+       ORDER BY checkout_at DESC
+       LIMIT 1`,
+      [tenantId, copyId],
     );
-    return result.rows.map((row) => mapLoan(row as Record<string, unknown>));
+    if (!result.rows[0]) return null;
+    return mapLoan(result.rows[0] as Record<string, unknown>);
   }
 
   async createCopy(data: NewCopy): Promise<LibraryCopyEntity> {
@@ -510,6 +621,37 @@ export class PgLibraryRepository implements LibraryRepository {
       [tenantId],
     );
     return result.rows.map((row) => mapHold(row as Record<string, unknown>));
+  }
+
+  async listHoldsPage(
+    tenantId: string,
+    filter: LibraryHoldFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryHoldEntity>> {
+    await this.ensureSchema();
+    const params: unknown[] = [tenantId];
+    const conditions = ['tenant_id = $1'];
+    if (filter.itemId !== undefined) {
+      params.push(filter.itemId);
+      conditions.push(`item_id = $${params.length}`);
+    }
+    if (filter.studentId !== undefined) {
+      params.push(filter.studentId);
+      conditions.push(`student_id = $${params.length}`);
+    }
+    if (filter.patronUserId !== undefined) {
+      params.push(filter.patronUserId);
+      conditions.push(`patron_user_id = $${params.length}`);
+    }
+    return this.page(
+      tenantId,
+      'library_holds',
+      conditions.join(' AND '),
+      params,
+      filter.itemId !== undefined ? 'position, created_at, id' : 'created_at, id',
+      pagination,
+      mapHold,
+    );
   }
 
   async findHoldById(id: string, tenantId: string): Promise<LibraryHoldEntity | null> {
@@ -630,6 +772,29 @@ export class PgLibraryRepository implements LibraryRepository {
       [tenantId],
     );
     return result.rows.map((row) => mapFine(row as Record<string, unknown>));
+  }
+
+  async listFinesPage(
+    tenantId: string,
+    filter: LibraryFineFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryFineEntity>> {
+    await this.ensureSchema();
+    const params: unknown[] = [tenantId];
+    let where = 'tenant_id = $1';
+    if (filter.studentId !== undefined) {
+      params.push(filter.studentId);
+      where += ` AND student_id = $${params.length}`;
+    }
+    return this.page(
+      tenantId,
+      'library_fines',
+      where,
+      params,
+      'created_at DESC, id DESC',
+      pagination,
+      mapFine,
+    );
   }
 
   async findFineById(id: string, tenantId: string): Promise<LibraryFineEntity | null> {

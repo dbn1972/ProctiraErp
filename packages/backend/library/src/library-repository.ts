@@ -1,6 +1,7 @@
 /**
  * Library repository interface (catalog, copies, holds, fines).
  */
+import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 
 export type LoanStatus = 'checked_out' | 'returned' | 'overdue';
 export type CopyStatus = 'available' | 'on_loan' | 'reserved';
@@ -96,9 +97,34 @@ export type NewHold = Omit<LibraryHoldEntity, 'createdAt' | 'updatedAt'>;
 export type NewFinePolicy = Omit<LibraryFinePolicyEntity, 'createdAt' | 'updatedAt'>;
 export type NewFine = Omit<LibraryFineEntity, 'createdAt' | 'updatedAt'>;
 
+/** PRC-M294: loan list filters applied in the repository (SQL), not in Node. */
+export interface LibraryLoanFilter {
+  studentId?: string;
+  patronUserId?: string;
+  /** Open (not returned) loans whose due date is before this instant. */
+  overdueAt?: Date;
+}
+
+/** PRC-M294: hold list filters applied in the repository. */
+export interface LibraryHoldFilter {
+  itemId?: string;
+  studentId?: string;
+  patronUserId?: string;
+}
+
+/** PRC-M294: fine list filters applied in the repository. */
+export interface LibraryFineFilter {
+  studentId?: string;
+}
+
 export interface LibraryRepository {
   createItem(data: NewItem): Promise<LibraryItemEntity>;
   listItems(tenantId: string): Promise<LibraryItemEntity[]>;
+  /** PRC-M294: one page of the catalog (COUNT + LIMIT/OFFSET), ordered by title, id. */
+  listItemsPage(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryItemEntity>>;
   findItemById(id: string, tenantId: string): Promise<LibraryItemEntity | null>;
   searchItems(tenantId: string, query: string): Promise<LibraryItemEntity[]>;
   updateItem(
@@ -136,7 +162,16 @@ export interface LibraryRepository {
     tenantId: string,
     data: Partial<Pick<LibraryLoanEntity, 'returnedAt' | 'status' | 'dueAt'>>,
   ): Promise<LibraryLoanEntity | null>;
-  listLoans(tenantId: string): Promise<LibraryLoanEntity[]>;
+  /** All loans for the tenant; `filter.studentId` is applied in the repository (PRC-M294). */
+  listLoans(tenantId: string, filter?: { studentId?: string }): Promise<LibraryLoanEntity[]>;
+  /** PRC-M294: one page of loans, newest checkout first. */
+  listLoansPage(
+    tenantId: string,
+    filter: LibraryLoanFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryLoanEntity>>;
+  /** PRC-M294: the open (not returned) loan for a copy, if any. */
+  findOpenLoanByCopyId(tenantId: string, copyId: string): Promise<LibraryLoanEntity | null>;
 
   createCopy(data: NewCopy): Promise<LibraryCopyEntity>;
   listCopies(tenantId: string, itemId?: string): Promise<LibraryCopyEntity[]>;
@@ -150,6 +185,12 @@ export interface LibraryRepository {
 
   createHold(data: NewHold): Promise<LibraryHoldEntity>;
   listHolds(tenantId: string, itemId?: string): Promise<LibraryHoldEntity[]>;
+  /** PRC-M294: one page of holds (queue order when `itemId` is given, else oldest first). */
+  listHoldsPage(
+    tenantId: string,
+    filter: LibraryHoldFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryHoldEntity>>;
   findHoldById(id: string, tenantId: string): Promise<LibraryHoldEntity | null>;
   updateHold(
     id: string,
@@ -161,6 +202,12 @@ export interface LibraryRepository {
   upsertFinePolicy(data: NewFinePolicy): Promise<LibraryFinePolicyEntity>;
   createFine(data: NewFine): Promise<LibraryFineEntity>;
   listFines(tenantId: string, studentId?: string): Promise<LibraryFineEntity[]>;
+  /** PRC-M294: one page of fines, newest first. */
+  listFinesPage(
+    tenantId: string,
+    filter: LibraryFineFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LibraryFineEntity>>;
   findFineById(id: string, tenantId: string): Promise<LibraryFineEntity | null>;
   findOpenFineForLoan(tenantId: string, loanId: string): Promise<LibraryFineEntity | null>;
   updateFine(
