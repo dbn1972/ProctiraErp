@@ -4,6 +4,7 @@
  * When DATABASE_URL is set, data persists via db/sql/010_parent_portal_schema.sql
  * and db/sql/011_fees_finance_schema.sql.
  */
+import { ConflictError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
@@ -207,6 +208,8 @@ function mapConsent(row: Record<string, unknown>): ConsentEntity {
     validTo: row.valid_to == null ? null : toDate(row.valid_to),
     decidedAt: row.decided_at == null ? null : toDate(row.decided_at),
     createdBy: row.created_by == null ? null : String(row.created_by),
+    withdrawalReason: row.withdrawal_reason == null ? null : String(row.withdrawal_reason),
+    decidedVia: row.decided_via == null ? null : String(row.decided_via),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -589,8 +592,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
       data.tenantId,
       `INSERT INTO parent_consents (
          id, tenant_id, student_id, parent_user_id, consent_type, title, description, status,
-         consent_version, consent_chain_id, version, supersedes_id, valid_from, decided_at, created_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+         consent_version, consent_chain_id, version, supersedes_id, valid_from, decided_at, created_by,
+         withdrawal_reason, decided_via
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
       [
         data.id,
         data.tenantId,
@@ -607,9 +611,83 @@ export class PgParentPortalRepository implements ParentPortalRepository {
         validFrom,
         data.decidedAt ?? null,
         data.createdBy,
+        data.withdrawalReason ?? null,
+        data.decidedVia ?? null,
       ],
     );
     return mapConsent(result.rows[0] as Record<string, unknown>);
+  }
+
+  /**
+   * PRC-M315: close the current open version and insert its successor inside a
+   * single withPgTenant callback (one BEGIN/COMMIT), so the pair is atomic from
+   * the caller's perspective.
+   */
+  async appendConsentVersion(
+    tenantId: string,
+    input: {
+      currentId: string;
+      successor: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
+        decidedAt?: Date | null;
+      };
+      closedAt: Date;
+    },
+  ): Promise<ConsentEntity> {
+    await this.ensureSchema();
+    const { currentId, successor, closedAt } = input;
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const closeResult = await client.query(
+        `UPDATE parent_consents
+         SET valid_to = $1, updated_at = now()
+         WHERE id = $2 AND tenant_id = $3 AND valid_to IS NULL
+         RETURNING id`,
+        [closedAt, currentId, tenantId],
+      );
+      if (closeResult.rows.length === 0) {
+        throw new ConflictError('Consent version was already closed by a concurrent decision');
+      }
+
+      const validFrom = successor.validFrom ?? closedAt;
+      try {
+        const insertResult = await client.query(
+          `INSERT INTO parent_consents (
+             id, tenant_id, student_id, parent_user_id, consent_type, title, description, status,
+             consent_version, consent_chain_id, version, supersedes_id, valid_from, decided_at, created_by,
+             withdrawal_reason, decided_via
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+          [
+            successor.id,
+            successor.tenantId,
+            successor.studentId,
+            successor.parentUserId,
+            successor.consentType,
+            successor.title,
+            successor.description,
+            successor.status,
+            successor.consentVersion,
+            successor.consentChainId,
+            successor.version,
+            successor.supersedesId,
+            validFrom,
+            successor.decidedAt ?? null,
+            successor.createdBy,
+            successor.withdrawalReason ?? null,
+            successor.decidedVia ?? null,
+          ],
+        );
+        return mapConsent((insertResult.rows as Record<string, unknown>[])[0]!);
+      } catch (error) {
+        // The parent_consents_chain_open_uidx unique partial index (090) is the real
+        // race guard: a concurrent decision that wins the close above but loses the
+        // insert race (vanishingly unlikely given the close already serialised on
+        // `currentId`, but possible across two different currentIds in the same
+        // chain) hits this unique violation instead of corrupting the chain.
+        if ((error as { code?: string }).code === '23505') {
+          throw new ConflictError('A concurrent decision already created the next consent version');
+        }
+        throw error;
+      }
+    });
   }
 
   async listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]> {

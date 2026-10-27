@@ -290,6 +290,8 @@ describe('ParentPortalService', () => {
         supersedesId: null,
         validFrom: new Date(),
         createdBy: 'staff-admin',
+        withdrawalReason: null,
+        decidedVia: null,
       });
 
       await expect(

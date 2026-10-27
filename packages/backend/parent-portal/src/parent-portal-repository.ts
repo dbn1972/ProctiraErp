@@ -7,11 +7,7 @@ export type LinkRelationship = 'guardian' | 'mother' | 'father' | 'other';
 export type ThreadStatus = 'open' | 'closed';
 export type SenderRole = 'parent' | 'staff' | 'system';
 export type ConsentType =
-  | 'photo_media'
-  | 'medical_treatment'
-  | 'field_trip'
-  | 'data_sharing'
-  | 'other';
+  'photo_media' | 'medical_treatment' | 'field_trip' | 'data_sharing' | 'other';
 export type ConsentStatus = 'pending' | 'approved' | 'denied' | 'revoked';
 export type InvoiceStatus = 'open' | 'paid' | 'void' | 'overdue';
 export type PaymentMethod = 'sandbox' | 'upi' | 'card' | 'cash';
@@ -138,6 +134,10 @@ export interface ConsentEntity {
   validTo: Date | null;
   decidedAt: Date | null;
   createdBy: string | null;
+  /** PRC-M318: free-text reason supplied by the guardian on withdraw. */
+  withdrawalReason: string | null;
+  /** PRC-M318: channel/method the decision was recorded via (e.g. 'portal', 'paper'). */
+  decidedVia: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -266,6 +266,24 @@ export interface ParentPortalRepository {
    * Body/status mutation is refused by the DB + service layer.
    */
   closeConsentValidTo(tenantId: string, id: string, validTo: Date): Promise<ConsentEntity | null>;
+  /**
+   * PRC-M315: atomically close the current open version and insert its successor.
+   * Implementations MUST make this appear atomic from the caller's perspective —
+   * either both the close and the insert happen, or neither does — so two
+   * concurrent decisions on the same open version cannot both succeed. Throws
+   * ConflictError when `currentId` is already closed, or when a concurrent
+   * decision already inserted the next version for the chain.
+   */
+  appendConsentVersion(
+    tenantId: string,
+    input: {
+      currentId: string;
+      successor: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
+        decidedAt?: Date | null;
+      };
+      closedAt: Date;
+    },
+  ): Promise<ConsentEntity>;
 
   createFeePlan(data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>): Promise<FeePlanEntity>;
   listFeePlans(tenantId: string): Promise<FeePlanEntity[]>;

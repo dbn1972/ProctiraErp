@@ -474,6 +474,8 @@ export class ParentPortalService {
       supersedesId: null,
       validFrom,
       createdBy: actorId,
+      withdrawalReason: null,
+      decidedVia: null,
     });
   }
 
@@ -532,23 +534,30 @@ export class ParentPortalService {
     }
 
     const decidedAt = new Date();
-    await this.repository.closeConsentValidTo(tenantId, consent.id, decidedAt);
-    return this.repository.createConsent({
-      id: uuidv4(),
-      tenantId,
-      studentId: consent.studentId,
-      parentUserId: consent.parentUserId,
-      consentType: consent.consentType,
-      title: consent.title,
-      description: consent.description,
-      status: input.status,
-      consentVersion: consent.consentVersion,
-      consentChainId: consent.consentChainId,
-      version: consent.version + 1,
-      supersedesId: consent.id,
-      validFrom: decidedAt,
-      decidedAt,
-      createdBy: consent.createdBy,
+    // PRC-M315: close+insert run as one atomic call so two concurrent decisions
+    // on the same open version cannot both succeed.
+    return this.repository.appendConsentVersion(tenantId, {
+      currentId: consent.id,
+      closedAt: decidedAt,
+      successor: {
+        id: uuidv4(),
+        tenantId,
+        studentId: consent.studentId,
+        parentUserId: consent.parentUserId,
+        consentType: consent.consentType,
+        title: consent.title,
+        description: consent.description,
+        status: input.status,
+        consentVersion: consent.consentVersion,
+        consentChainId: consent.consentChainId,
+        version: consent.version + 1,
+        supersedesId: consent.id,
+        validFrom: decidedAt,
+        decidedAt,
+        createdBy: consent.createdBy,
+        withdrawalReason: null,
+        decidedVia: null,
+      },
     });
   }
 
@@ -559,7 +568,7 @@ export class ParentPortalService {
     tenantId: string,
     parentUserId: string,
     consentId: string,
-    _input: WithdrawConsentInput = {},
+    input: WithdrawConsentInput = {},
   ) {
     const consent = await this.repository.findConsentById(consentId, tenantId);
     if (!consent || consent.parentUserId !== parentUserId) {
@@ -589,23 +598,30 @@ export class ParentPortalService {
     }
 
     const at = new Date();
-    await this.repository.closeConsentValidTo(tenantId, consent.id, at);
-    return this.repository.createConsent({
-      id: uuidv4(),
-      tenantId,
-      studentId: consent.studentId,
-      parentUserId: consent.parentUserId,
-      consentType: consent.consentType,
-      title: consent.title,
-      description: consent.description,
-      status: 'revoked',
-      consentVersion: consent.consentVersion,
-      consentChainId: consent.consentChainId,
-      version: consent.version + 1,
-      supersedesId: consent.id,
-      validFrom: at,
-      decidedAt: at,
-      createdBy: parentUserId,
+    // PRC-M315: atomic close+insert. PRC-M318: persist the withdrawal reason /
+    // decision channel instead of dropping them on the floor.
+    return this.repository.appendConsentVersion(tenantId, {
+      currentId: consent.id,
+      closedAt: at,
+      successor: {
+        id: uuidv4(),
+        tenantId,
+        studentId: consent.studentId,
+        parentUserId: consent.parentUserId,
+        consentType: consent.consentType,
+        title: consent.title,
+        description: consent.description,
+        status: 'revoked',
+        consentVersion: consent.consentVersion,
+        consentChainId: consent.consentChainId,
+        version: consent.version + 1,
+        supersedesId: consent.id,
+        validFrom: at,
+        decidedAt: at,
+        createdBy: parentUserId,
+        withdrawalReason: input.reason ?? null,
+        decidedVia: input.decidedVia ?? null,
+      },
     });
   }
 
@@ -639,22 +655,29 @@ export class ParentPortalService {
     }
 
     const at = new Date();
-    await this.repository.closeConsentValidTo(tenantId, consent.id, at);
-    return this.repository.createConsent({
-      id: uuidv4(),
-      tenantId,
-      studentId: consent.studentId,
-      parentUserId: consent.parentUserId,
-      consentType: consent.consentType,
-      title: input.title ?? consent.title,
-      description: input.description ?? consent.description,
-      status: 'pending',
-      consentVersion: input.consentVersion,
-      consentChainId: consent.consentChainId,
-      version: consent.version + 1,
-      supersedesId: consent.id,
-      validFrom: at,
-      createdBy: actorId,
+    // PRC-M315: atomic close+insert so two concurrent supersede/decide/withdraw
+    // calls on the same open version cannot both succeed.
+    return this.repository.appendConsentVersion(tenantId, {
+      currentId: consent.id,
+      closedAt: at,
+      successor: {
+        id: uuidv4(),
+        tenantId,
+        studentId: consent.studentId,
+        parentUserId: consent.parentUserId,
+        consentType: consent.consentType,
+        title: input.title ?? consent.title,
+        description: input.description ?? consent.description,
+        status: 'pending',
+        consentVersion: input.consentVersion,
+        consentChainId: consent.consentChainId,
+        version: consent.version + 1,
+        supersedesId: consent.id,
+        validFrom: at,
+        createdBy: actorId,
+        withdrawalReason: null,
+        decidedVia: null,
+      },
     });
   }
 

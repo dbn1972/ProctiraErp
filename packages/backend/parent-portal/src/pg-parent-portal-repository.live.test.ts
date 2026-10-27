@@ -166,6 +166,8 @@ describe('PgParentPortalRepository (live)', () => {
         version: 1,
         supersedesId: null,
         validFrom: new Date(),
+        withdrawalReason: null,
+        decidedVia: null,
       });
       expect(consent.consentVersion).toBe(consentVersion);
       expect(consent.version).toBe(1);
