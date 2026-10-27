@@ -446,6 +446,56 @@ grep -Eqi 'W1-OPS-04|offsite' "$no_offsite_err" \
 rm -f "$no_offsite_err"
 echo "OK W1-OPS-04 backup encrypt/offsite (prod require + disable refuse)"
 
+# PRC-M599 — staging/production renders must refuse mutable or default image
+# tags (global.requireImmutableImageTags). Default chart renders are unaffected.
+echo "==> PRC-M599 production/staging immutable image tag guard"
+for bad_tag in latest 1.0.0 ""; do
+  m599_err="$(mktemp)"
+  if helm template proctira "${PLATFORM_CHART}" \
+    --namespace proctira-production \
+    --set global.environment=production \
+    --set secrets.jwtSecret=ci-placeholder \
+    --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+    -f "${PLATFORM_CHART}/values-production.yaml" \
+    --set-string apiGateway.image.tag="${bad_tag}" \
+    >/dev/null 2>"$m599_err"; then
+    rm -f "$m599_err"
+    die "PRC-M599: production render with apiGateway.image.tag='${bad_tag}' must fail"
+  fi
+  grep -q 'PRC-M599' "$m599_err" \
+    || die "PRC-M599: expected a PRC-M599 failure for tag '${bad_tag}', got: $(cat "$m599_err")"
+  rm -f "$m599_err"
+done
+m599_err="$(mktemp)"
+if helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-staging \
+  --set global.environment=staging \
+  --set secrets.jwtSecret=ci-placeholder \
+  --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  -f "${PLATFORM_CHART}/values-staging.yaml" \
+  --set-string etlWorker.image.tag=latest \
+  >/dev/null 2>"$m599_err"; then
+  rm -f "$m599_err"
+  die "PRC-M599: staging render with etlWorker.image.tag=latest must fail"
+fi
+grep -q 'PRC-M599' "$m599_err" || die "PRC-M599: expected a PRC-M599 failure for staging latest"
+rm -f "$m599_err"
+for env_name in production staging; do
+  for good_tag in sha-0123456789abcdef0123456789abcdef01234567 0123abc-20260101000000; do
+    helm template proctira "${PLATFORM_CHART}" \
+      --namespace "proctira-${env_name}" \
+      --set global.environment="${env_name}" \
+      --set secrets.jwtSecret=ci-placeholder \
+      --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+      -f "${PLATFORM_CHART}/values-${env_name}.yaml" \
+      --set-string apiGateway.image.tag="${good_tag}" \
+      --set-string etlWorker.image.tag="${good_tag}" \
+      --set-string dr.image.tag="${good_tag}" \
+      >/dev/null || die "PRC-M599: ${env_name} render with immutable tag ${good_tag} must pass"
+  done
+done
+echo "OK PRC-M599 immutable image tags (prod/staging refuse latest/appVersion/empty; sha + CI tags pass)"
+
 # W1-OPS-02 (B4) — etl-worker Helm probes must match Fastify handlers (/health/live, /health/ready).
 etl_deploy="$(awk '/Source: proctira-platform\/templates\/etl-worker\/deployment.yaml/,/^---$/' "$platform_out")"
 [[ -n "$etl_deploy" ]] || die "missing etl-worker Deployment in platform render"

@@ -359,4 +359,67 @@ describe.skipIf(!DATABASE_URL)('PRC-M213 academic/fee overlap EXCLUDE constraint
       clientB.release();
     }
   });
+
+  /**
+   * PRC-M213 (c): db/sql/083's header says corrections "INSERT a successor (and
+   * optionally close prior valid_to)". Observed behaviour, recorded here and in
+   * db/README.md: fee_structures may close / narrow valid_to (never reopen or
+   * extend); academic_periods effective dates are fully immutable, so a prior
+   * academic period cannot be closed by UPDATE and a correction must be a
+   * non-overlapping successor.
+   */
+  it('W1-DATA-07: fee_structures valid_to can close/narrow; academic_periods valid_to cannot change', async () => {
+    const tenantId = randomUUID();
+    await ensurePgTestTenant(pool, tenantId);
+    const client = await pool.connect();
+    const step = async (sql: string, params: unknown[]): Promise<unknown> => {
+      await client.query('SAVEPOINT s');
+      try {
+        await client.query(sql, params);
+        await client.query('RELEASE SAVEPOINT s');
+        return null;
+      } catch (error) {
+        await client.query('ROLLBACK TO SAVEPOINT s');
+        return error;
+      }
+    };
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+      const feeId = randomUUID();
+      await client.query(
+        `INSERT INTO fee_structures (
+           id, tenant_id, category, code, name, amount_cents, valid_from, valid_to, version, status
+         ) VALUES ($1, $2, 'tuition', 'CLOSE1', 'Fee', 1000, '2026-01-01', '2026-12-31', 1, 'active')`,
+        [feeId, tenantId],
+      );
+      // Close (narrow) the prior window: allowed.
+      expect(
+        await step(`UPDATE fee_structures SET valid_to = '2026-06-30' WHERE id = $1`, [feeId]),
+      ).toBeNull();
+      // Extend it again: rejected (successor version required).
+      expect(
+        await step(`UPDATE fee_structures SET valid_to = '2026-12-31' WHERE id = $1`, [feeId]),
+      ).toMatchObject({ code: '23000' });
+      // Reopen (NULL): rejected.
+      expect(
+        await step(`UPDATE fee_structures SET valid_to = NULL WHERE id = $1`, [feeId]),
+      ).toMatchObject({ code: '23000' });
+
+      const periodId = randomUUID();
+      await client.query(
+        `INSERT INTO academic_periods (
+           id, tenant_id, name, code, start_date, end_date, valid_from, valid_to, version
+         ) VALUES ($1, $2, 'P', 'CLOSE1', '2026-01-01', '2026-12-31', '2026-01-01', '2026-12-31', 1)`,
+        [periodId, tenantId],
+      );
+      // "Close prior valid_to" on an academic period: rejected by 083's immutability trigger.
+      expect(
+        await step(`UPDATE academic_periods SET valid_to = '2026-06-30' WHERE id = $1`, [periodId]),
+      ).toMatchObject({ code: '23000' });
+    } finally {
+      await client.query('ROLLBACK').catch(() => undefined);
+      client.release();
+    }
+  });
 });

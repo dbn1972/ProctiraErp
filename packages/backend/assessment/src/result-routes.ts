@@ -13,6 +13,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { assessmentAuditContextOf } from './assessment-audit.js';
 import { installAssessmentRouteGuard } from './assessment-http-guard.js';
 import {
   EnterSingleResultSchema,
@@ -85,7 +86,11 @@ export async function registerResultRoutes(
       }
 
       try {
-        const entry = await resultService.enterSingleResult(tenantId, result.data);
+        const entry = await resultService.enterSingleResult(
+          tenantId,
+          result.data,
+          assessmentAuditContextOf(request),
+        );
         return reply.status(201).send({
           id: entry.id,
           studentId: entry.studentId,
@@ -134,7 +139,11 @@ export async function registerResultRoutes(
       }
 
       try {
-        const response = await resultService.enterBulkResults(tenantId, result.data);
+        const response = await resultService.enterBulkResults(
+          tenantId,
+          result.data,
+          assessmentAuditContextOf(request),
+        );
         return reply.status(200).send(response);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -192,6 +201,7 @@ export async function registerResultRoutes(
           body.subjectId,
           body.academicPeriodId,
           body.rows,
+          assessmentAuditContextOf(request),
         );
         return reply.status(200).send(response);
       } catch (error: unknown) {

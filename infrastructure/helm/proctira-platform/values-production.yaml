@@ -14,6 +14,8 @@ global:
   domain: proctira.io
   nodeEnv: production
   logLevel: warn
+  # PRC-M599: reject mutable/default image tags at render time.
+  requireImmutableImageTags: true
 
 ingress:
   enabled: true

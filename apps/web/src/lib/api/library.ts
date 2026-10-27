@@ -3,6 +3,36 @@
  */
 import { GatewayError, gatewayFetch } from './gateway';
 import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
+import { MAX_API_PAGE_SIZE } from './pagination';
+
+/**
+ * PRC-M294: library list endpoints are paged (`{ data, meta }`). Readers follow
+ * `meta.totalPages`; this hard stop bounds a bad `totalPages`.
+ */
+export const MAX_LIBRARY_LIST_PAGES = 1000;
+
+function libraryPagePath(path: string, page: number): string {
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}page=${page}&pageSize=${MAX_API_PAGE_SIZE}`;
+}
+
+/**
+ * Every page of a library list via {@link fetchList}. A first-page failure is
+ * returned as that failure; a later-page failure keeps the pages already read.
+ */
+async function fetchAllLibraryPages<T>(path: string): Promise<ListResult<T>> {
+  const items: T[] = [];
+  for (let page = 1; page <= MAX_LIBRARY_LIST_PAGES; page += 1) {
+    const result = await fetchList<T>(libraryPagePath(path, page), { next: { revalidate: 0 } });
+    if (!result.ok) {
+      if (page === 1) return result;
+      break;
+    }
+    items.push(...result.items);
+    if (page >= (result.meta?.totalPages ?? 0)) break;
+  }
+  return { ok: true, items };
+}
 
 export interface LibraryItem {
   id: string;
@@ -52,7 +82,7 @@ export interface CreateLibraryItemInput {
 }
 
 export async function listLibraryItemsResult(): Promise<ListResult<LibraryItem>> {
-  return fetchList<LibraryItem>('/library/items', { next: { revalidate: 0 } });
+  return fetchAllLibraryPages<LibraryItem>('/library/items');
 }
 
 export async function listLibraryItems(): Promise<LibraryItem[]> {
@@ -75,7 +105,7 @@ export async function createLibraryItem(input: CreateLibraryItemInput): Promise<
 }
 
 export async function listLibraryOverduesResult(): Promise<ListResult<LibraryLoan>> {
-  return fetchList<LibraryLoan>('/library/overdues', { next: { revalidate: 0 } });
+  return fetchAllLibraryPages<LibraryLoan>('/library/overdues');
 }
 
 export async function listLibraryOverdues(): Promise<LibraryLoan[]> {
@@ -228,7 +258,7 @@ export async function listLibraryLoansResult(opts?: {
   if (opts?.studentId) params.set('studentId', opts.studentId);
   if (opts?.patronUserId) params.set('patronUserId', opts.patronUserId);
   const suffix = params.size ? `?${params.toString()}` : '';
-  return fetchList<LibraryLoan>(`/library/loans${suffix}`, { next: { revalidate: 0 } });
+  return fetchAllLibraryPages<LibraryLoan>(`/library/loans${suffix}`);
 }
 
 export async function listLibraryLoans(opts?: {
@@ -248,7 +278,7 @@ export async function listLibraryHoldsResult(opts?: {
   if (opts?.studentId) params.set('studentId', opts.studentId);
   if (opts?.patronUserId) params.set('patronUserId', opts.patronUserId);
   const suffix = params.size ? `?${params.toString()}` : '';
-  return fetchList<LibraryHold>(`/library/holds${suffix}`, { next: { revalidate: 0 } });
+  return fetchAllLibraryPages<LibraryHold>(`/library/holds${suffix}`);
 }
 
 export async function listLibraryHolds(opts?: {
@@ -336,13 +366,30 @@ export async function assessLibraryFine(loanId: string): Promise<{
   return result.data;
 }
 
+/**
+ * Every page of `/library/fines` (PRC-M294). First-page failure returns `[]`
+ * (unchanged contract); a later-page failure returns the pages already read.
+ */
 export async function listLibraryFines(studentId?: string): Promise<LibraryFine[]> {
   const query = studentId ? `?studentId=${encodeURIComponent(studentId)}` : '';
-  const result = await gatewayFetch<{ data: LibraryFine[] }>(`/library/fines${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const fines: LibraryFine[] = [];
+  for (let page = 1; page <= MAX_LIBRARY_LIST_PAGES; page += 1) {
+    const path = libraryPagePath(`/library/fines${query}`, page);
+    const result = await gatewayFetch<{ data?: LibraryFine[]; meta?: { totalPages?: number } }>(
+      path,
+      {
+        throwOnError: false,
+        next: { revalidate: 0 },
+      },
+    );
+    if (!result.ok || !result.data) {
+      if (page === 1) return [];
+      break;
+    }
+    fines.push(...(result.data.data ?? []));
+    if (page >= (result.data.meta?.totalPages ?? 0)) break;
+  }
+  return fines;
 }
 
 export interface LibraryItemDetail extends LibraryItem {

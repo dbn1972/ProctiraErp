@@ -146,4 +146,9 @@ grep -qiE 'not (a )?production|does not (claim|prove) production|≠ production|
   docs/audits/OPS_W1_OPS_20_RESTORE.md \
   || die "OPS_W1_OPS_20_RESTORE.md must state tip pack is not production restore proof"
 
+# PRC-M431: freshness window + run URL verified against the GitHub API
+# (mandatory in CI; explicit UNVERIFIED line locally without a token).
+node tools/scripts/verify-evidence-run.mjs --pack "$latest" --workflow .github/workflows/restore-drill.yml \
+  || die "evidence pack failed freshness / run verification (PRC-M431)"
+
 echo "check-restore-drill-evidence: PASS ($latest)"

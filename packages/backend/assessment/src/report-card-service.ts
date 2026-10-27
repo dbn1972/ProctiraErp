@@ -12,9 +12,15 @@
  *         per subject, teacher comments (up to 500 chars), overall grade summary,
  *         and institution logo and name
  */
-import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError, ForbiddenError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  NO_AUDIT_ACTOR,
+  type AssessmentAuditContext,
+  type AssessmentAuditEntry,
+  type AssessmentAuditSink,
+} from './assessment-audit.js';
 import type { AssessmentItemEntity, AssessmentItemRepository } from './assessment-repository.js';
 import type { ReportCardArtifactStore } from './report-card-artifact-store.js';
 import type { ReportCardDirectory } from './report-card-directory.js';
@@ -174,6 +180,8 @@ export interface ReportCardServiceOptions {
   directory?: ReportCardDirectory | null;
   /** PRC-M165: structured logger for publish / processing failures. */
   logger?: ReportCardServiceLogger;
+  /** PRC-M495: report-card generation and downloads are audited (no sink: unchanged). */
+  auditSink?: AssessmentAuditSink | null;
   /**
    * PRC-M165: a `processing` job untouched for this long is considered abandoned
    * by a crashed worker and may be reclaimed. Default 15 minutes.
@@ -250,6 +258,11 @@ export class ReportCardService {
     private readonly pdfGenerator: PdfGenerator | null,
     private readonly options: ReportCardServiceOptions = {},
   ) {}
+
+  /** PRC-M495: emit one domain audit entry when a sink is configured. */
+  private async audit(entry: AssessmentAuditEntry): Promise<void> {
+    if (this.options.auditSink) await this.options.auditSink(entry);
+  }
 
   // ─── Template Operations ─────────────────────────────────────────────────
 
@@ -392,6 +405,7 @@ export class ReportCardService {
   async queueReportCardGeneration(
     tenantId: string,
     input: GenerateReportCardInput,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
   ): Promise<ReportCardJobEntity> {
     // Resolve template
     let templateId = input.templateId;
@@ -422,19 +436,43 @@ export class ReportCardService {
     // Create job record (durable source of truth — W2-JOB-02). A reused `queued`
     // job is dispatched again below (as reclaimQueuedJobs does) so a job whose
     // earlier publish failed still progresses; the claim CAS dedupes delivery.
+    const newJobId = uuidv4();
     const job =
       inFlight ??
-      (await this.jobRepo.create({
-        id: uuidv4(),
-        tenantId,
+      (await this.createQueuedJobOrReuse(
+        {
+          id: newJobId,
+          tenantId,
+          studentId: input.studentId,
+          academicPeriodId: input.academicPeriodId,
+          templateId,
+          institutionId: input.institutionId,
+          status: 'queued',
+          errorMessage: null,
+          outputUrl: null,
+        },
+        staleBefore,
+      ));
+    if (job.status === 'processing') {
+      return job;
+    }
+    await this.audit({
+      tenantId,
+      action: 'report_card.generate',
+      entityType: 'report_card_job',
+      entityId: job.id,
+      actorId: auditContext.actorId,
+      operation: 'CREATE',
+      before: null,
+      after: { status: job.status },
+      metadata: {
         studentId: input.studentId,
         academicPeriodId: input.academicPeriodId,
         templateId,
         institutionId: input.institutionId,
-        status: 'queued',
-        errorMessage: null,
-        outputUrl: null,
-      }));
+        reusedQueuedJob: job.id !== newJobId,
+      },
+    });
 
     // Publish to durable queue for background processing. On publish failure the
     // job row stays `queued` so reclaimQueuedJobs / worker start can recover
@@ -478,6 +516,7 @@ export class ReportCardService {
   async queueBulkReportCardGeneration(
     tenantId: string,
     input: BulkGenerateReportCardInput,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
   ): Promise<{ totalStudents: number; jobsCreated: number; jobs: ReportCardJobEntity[] }> {
     // Resolve template
     let templateId = input.templateId;
@@ -521,17 +560,24 @@ export class ReportCardService {
       // A reused `queued` job is dispatched again, as in the single-job path.
       const job =
         inFlight ??
-        (await this.jobRepo.create({
-          id: uuidv4(),
-          tenantId,
-          studentId,
-          academicPeriodId: input.academicPeriodId,
-          templateId,
-          institutionId: input.institutionId,
-          status: 'queued',
-          errorMessage: null,
-          outputUrl: null,
-        }));
+        (await this.createQueuedJobOrReuse(
+          {
+            id: uuidv4(),
+            tenantId,
+            studentId,
+            academicPeriodId: input.academicPeriodId,
+            templateId,
+            institutionId: input.institutionId,
+            status: 'queued',
+            errorMessage: null,
+            outputUrl: null,
+          },
+          staleBefore,
+        ));
+      if (job.status === 'processing') {
+        jobs.push(job);
+        continue;
+      }
 
       // Publish to durable queue (W2-JOB-02: publish failure leaves job queued)
       if (this.taskQueuePublisher) {
@@ -566,11 +612,54 @@ export class ReportCardService {
       jobs.push(job);
     }
 
+    await this.audit({
+      tenantId,
+      action: 'report_card.bulk_generate',
+      entityType: 'report_card_batch',
+      entityId: uuidv4(),
+      actorId: auditContext.actorId,
+      operation: 'CREATE',
+      before: null,
+      after: { jobsCreated: jobs.length },
+      metadata: {
+        academicPeriodId: input.academicPeriodId,
+        templateId,
+        institutionId: input.institutionId,
+        studentIds: input.studentIds,
+        jobIds: jobs.map((j) => j.id),
+      },
+    });
+
     return {
       totalStudents: input.studentIds.length,
       jobsCreated: jobs.length,
       jobs,
     };
+  }
+
+  /**
+   * PRC-M166: create the `queued` job, or, when a concurrent request won the race to the
+   * db/sql/268 partial unique index (ConflictError from the repository), re-read and reuse
+   * the in-flight job for the same card.
+   */
+  private async createQueuedJobOrReuse(
+    data: Omit<ReportCardJobEntity, 'createdAt' | 'updatedAt' | 'completedAt'>,
+    staleBefore: Date,
+  ): Promise<ReportCardJobEntity> {
+    try {
+      return await this.jobRepo.create(data);
+    } catch (error: unknown) {
+      if (!(error instanceof ConflictError)) throw error;
+      const existing = (
+        await this.jobRepo.findByStudentAndPeriod(
+          data.tenantId,
+          data.studentId,
+          data.academicPeriodId,
+        )
+      ).find((job) => isInFlightJobFor(job, data.templateId, data.institutionId, staleBefore));
+      if (!existing) throw error;
+      return existing;
+    }
   }
 
   /**
@@ -859,7 +948,11 @@ export class ReportCardService {
    * @throws NotFoundError when the job or its artifact does not exist
    * @throws BusinessRuleError when the job has not completed successfully
    */
-  async getReportCardPdf(tenantId: string, jobId: string): Promise<ReportCardPdfArtifact> {
+  async getReportCardPdf(
+    tenantId: string,
+    jobId: string,
+    auditContext: AssessmentAuditContext = NO_AUDIT_ACTOR,
+  ): Promise<ReportCardPdfArtifact> {
     const job = await this.jobRepo.findById(jobId, tenantId);
     if (!job) {
       throw new NotFoundError(`Report card job with id '${jobId}' not found`);
@@ -874,6 +967,19 @@ export class ReportCardService {
     if (!bytes) {
       throw new NotFoundError(`Report card artifact for job '${jobId}' is not available`);
     }
+    await this.audit({
+      tenantId,
+      action: 'report_card.download',
+      entityType: 'report_card_job',
+      entityId: job.id,
+      actorId: auditContext.actorId,
+      operation: 'CREATE',
+      metadata: {
+        read: true,
+        studentId: job.studentId,
+        academicPeriodId: job.academicPeriodId,
+      },
+    });
     return {
       filename: `report-card-${job.studentId}-${job.academicPeriodId}.pdf`,
       contentType: 'application/pdf',

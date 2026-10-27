@@ -2,10 +2,11 @@
  * Library service — catalog, circulation, holds, OPAC, and fines (G-916).
  */
 import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
+import type { PaginationOptions } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { FeesLedgerPort } from './fees-ledger-port.js';
-import { createIsbnLookup, type IsbnLookup } from './isbn-lookup.js';
+import { createIsbnLookup, normalizeIsbn, type IsbnLookup } from './isbn-lookup.js';
 import {
   computeFineCents,
   DEFAULT_CAP_CENTS,
@@ -16,6 +17,7 @@ import {
 import type {
   LibraryCopyEntity,
   LibraryHoldEntity,
+  LibraryHoldFilter,
   LibraryItemEntity,
   LibraryRepository,
 } from './library-repository.js';
@@ -81,7 +83,8 @@ export class LibraryService implements LibraryFinesPort {
     const item = await this.repository.createItem({
       id: uuidv4(),
       tenantId,
-      isbn: input.isbn ?? null,
+      // PRC-L130: one catalog row per ISBN per tenant (db/sql/266); compare normalised.
+      isbn: input.isbn != null ? normalizeIsbn(input.isbn) : null,
       title: input.title,
       author: input.author ?? null,
       copies,
@@ -109,6 +112,11 @@ export class LibraryService implements LibraryFinesPort {
 
   async listItems(tenantId: string) {
     return this.repository.listItems(tenantId);
+  }
+
+  /** PRC-M294: one page of the catalog. */
+  async listItemsPage(tenantId: string, pagination: PaginationOptions) {
+    return this.repository.listItemsPage(tenantId, pagination);
   }
 
   async getItem(tenantId: string, id: string) {
@@ -261,8 +269,8 @@ export class LibraryService implements LibraryFinesPort {
     if (!copy) {
       throw new NotFoundError(`Copy with barcode '${barcode}' not found`);
     }
-    const loans = await this.repository.listLoans(tenantId);
-    const open = loans.find((l) => l.copyId === copy.id && l.status !== 'returned');
+    // PRC-M294: look the open loan up in the repository instead of loading every loan.
+    const open = await this.repository.findOpenLoanByCopyId(tenantId, copy.id);
     if (!open) {
       throw new NotFoundError(`No open loan for barcode '${barcode}'`);
     }
@@ -299,20 +307,31 @@ export class LibraryService implements LibraryFinesPort {
     );
   }
 
+  /** PRC-M294: one page of open loans past their due date (filtered in the repository). */
+  async listOverduesPage(tenantId: string, pagination: PaginationOptions) {
+    return this.repository.listLoansPage(tenantId, { overdueAt: new Date() }, pagination);
+  }
+
   async listLoans(tenantId: string, studentId?: string) {
-    const loans = await this.repository.listLoans(tenantId);
-    if (!studentId) return loans;
-    return loans.filter((loan) => loan.studentId === studentId);
+    return this.repository.listLoans(tenantId, studentId ? { studentId } : {});
+  }
+
+  /** PRC-M294: one page of loans, student/patron filters applied in the repository. */
+  async listLoansPage(
+    tenantId: string,
+    filter: { studentId?: string; patronUserId?: string },
+    pagination: PaginationOptions,
+  ) {
+    return this.repository.listLoansPage(tenantId, filter, pagination);
   }
 
   /**
    * Student-transfer checklist hook: clear when no open loans remain.
    */
   async getStudentClearance(tenantId: string, studentId: string) {
-    const loans = await this.repository.listLoans(tenantId);
-    const openLoans = loans.filter(
-      (loan) => loan.studentId === studentId && loan.status !== 'returned',
-    );
+    // PRC-M294: the student filter runs in the repository.
+    const loans = await this.repository.listLoans(tenantId, { studentId });
+    const openLoans = loans.filter((loan) => loan.status !== 'returned');
     const overdueCount = openLoans.filter((loan) => loan.dueAt.getTime() < Date.now()).length;
 
     // PRC-L131: a student with unpaid library fines is not clear for transfer.
@@ -373,6 +392,14 @@ export class LibraryService implements LibraryFinesPort {
       await this.expireReadyHolds(tenantId, itemId);
     }
     return this.repository.listHolds(tenantId, itemId);
+  }
+
+  /** PRC-M294: one page of holds; expires stale ready holds first when scoped to an item. */
+  async listHoldsPage(tenantId: string, filter: LibraryHoldFilter, pagination: PaginationOptions) {
+    if (filter.itemId) {
+      await this.expireReadyHolds(tenantId, filter.itemId);
+    }
+    return this.repository.listHoldsPage(tenantId, filter, pagination);
   }
 
   async cancelHold(tenantId: string, holdId: string) {
@@ -528,6 +555,15 @@ export class LibraryService implements LibraryFinesPort {
 
   async listFines(tenantId: string, studentId?: string) {
     return this.repository.listFines(tenantId, studentId);
+  }
+
+  /** PRC-M294: one page of fines. */
+  async listFinesPage(
+    tenantId: string,
+    studentId: string | undefined,
+    pagination: PaginationOptions,
+  ) {
+    return this.repository.listFinesPage(tenantId, studentId ? { studentId } : {}, pagination);
   }
 
   async markFinePaid(

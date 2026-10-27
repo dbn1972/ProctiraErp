@@ -31,6 +31,8 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   private apiKeys: Map<string, ApiKeyEntity> = new Map();
   private webhooks: Map<string, WebhookEntity> = new Map();
   private deliveries: Map<string, WebhookDeliveryEntity> = new Map();
+  /** PRC-L464: delivery id → active claim (lease start, token). */
+  private deliveryClaims: Map<string, { claimedAt: number; claimToken: string }> = new Map();
   private sandboxes: Map<string, SandboxEntity> = new Map();
   private submissions: Map<string, PluginSubmissionEntity> = new Map();
   private listings: Map<string, MarketplaceListingEntity> = new Map();
@@ -73,6 +75,16 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   // ─── API Keys ─────────────────────────────────────────────────────────────
 
   async createApiKey(key: ApiKeyEntity): Promise<ApiKeyEntity> {
+    this.apiKeys.set(key.id, { ...key });
+    return { ...key };
+  }
+
+  /** PRC-L299: count + insert with no await in between (atomic on the event loop). */
+  async createApiKeyWithinLimit(key: ApiKeyEntity, limit: number): Promise<ApiKeyEntity | null> {
+    const active = Array.from(this.apiKeys.values()).filter(
+      (k) => k.accountId === key.accountId && k.tenantId === key.tenantId && k.status === 'active',
+    ).length;
+    if (active >= limit) return null;
     this.apiKeys.set(key.id, { ...key });
     return { ...key };
   }
@@ -131,6 +143,19 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   // ─── Webhooks ─────────────────────────────────────────────────────────────
 
   async createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
+    this.webhooks.set(webhook.id, { ...webhook });
+    return { ...webhook };
+  }
+
+  /** PRC-L299: count + insert with no await in between (atomic on the event loop). */
+  async createWebhookWithinLimit(
+    webhook: WebhookEntity,
+    limit: number,
+  ): Promise<WebhookEntity | null> {
+    const count = Array.from(this.webhooks.values()).filter(
+      (w) => w.accountId === webhook.accountId && w.tenantId === webhook.tenantId,
+    ).length;
+    if (count >= limit) return null;
     this.webhooks.set(webhook.id, { ...webhook });
     return { ...webhook };
   }
@@ -225,12 +250,44 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     if (!delivery) return null;
     const updated = { ...delivery, ...updates };
     this.deliveries.set(id, updated);
+    // PRC-L464: writing the attempt result releases the claim.
+    this.deliveryClaims.delete(id);
     return { ...updated };
+  }
+
+  /** PRC-L464: same contract as the Postgres conditional UPDATE (synchronous = atomic here). */
+  async claimDelivery(
+    _tenantId: string,
+    id: string,
+    claimToken: string,
+    leaseMs: number,
+  ): Promise<WebhookDeliveryEntity | null> {
+    const delivery = this.deliveries.get(id);
+    if (!delivery || delivery.status !== 'pending') return null;
+    const claim = this.deliveryClaims.get(id);
+    const now = Date.now();
+    if (claim && claim.claimedAt > now - leaseMs) return null;
+    this.deliveryClaims.set(id, { claimedAt: now, claimToken });
+    return { ...delivery };
   }
 
   // ─── Sandboxes ────────────────────────────────────────────────────────────
 
   async createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+    this.sandboxes.set(sandbox.id, { ...sandbox });
+    return { ...sandbox };
+  }
+
+  /** PRC-L299: count + insert with no await in between (atomic on the event loop). */
+  async createSandboxWithinLimit(
+    sandbox: SandboxEntity,
+    limit: number,
+  ): Promise<SandboxEntity | null> {
+    const active = Array.from(this.sandboxes.values()).filter(
+      (s) =>
+        s.accountId === sandbox.accountId && (s.status === 'active' || s.status === 'provisioning'),
+    ).length;
+    if (active >= limit) return null;
     this.sandboxes.set(sandbox.id, { ...sandbox });
     return { ...sandbox };
   }

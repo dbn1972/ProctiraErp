@@ -12,6 +12,7 @@ import test from 'node:test';
 import {
   aggregateCoverage,
   aggregateFromCoverageFinal,
+  coverageGateRequired,
   evaluateCoverage,
 } from './assert-coverage-gate.mjs';
 
@@ -130,4 +131,32 @@ test('main reports the no-artifacts reason instead of throwing on a null aggrega
   } finally {
     console.error = originalError;
   }
+});
+
+test('PRC-M558 CI ignores ALLOW_COVERAGE_SKIP=1', () => {
+  assert.equal(coverageGateRequired({ CI: 'true', ALLOW_COVERAGE_SKIP: '1' }), true);
+  assert.equal(coverageGateRequired({ CI: '1', ALLOW_COVERAGE_SKIP: '1' }), true);
+});
+
+test('PRC-M558 REQUIRE_COVERAGE_GATE=1 ignores ALLOW_COVERAGE_SKIP=1', () => {
+  assert.equal(
+    coverageGateRequired({ REQUIRE_COVERAGE_GATE: '1', ALLOW_COVERAGE_SKIP: '1' }),
+    true,
+  );
+});
+
+test('PRC-M558 local runs stay optional', () => {
+  assert.equal(coverageGateRequired({}), false);
+  assert.equal(coverageGateRequired({ ALLOW_COVERAGE_SKIP: '1' }), false);
+});
+
+test('PRC-M558 CI with ALLOW_COVERAGE_SKIP=1 and no artifacts still fails closed', () => {
+  const result = evaluateCoverage({
+    artifactPaths: [],
+    aggregates: [],
+    baseline: { globalMinimum: { lines: 5 }, requireArtifacts: true },
+    env: { CI: 'true', ALLOW_COVERAGE_SKIP: '1' },
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors[0], /No coverage artifacts/);
 });

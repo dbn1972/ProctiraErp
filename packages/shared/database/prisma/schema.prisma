@@ -345,6 +345,15 @@ model Staff {
   /// db/sql/098_staff_identity_link.sql. Nullable: most staff have no login.
   userId         String?                  @map("user_id") @db.Uuid
 
+  /// PRC-M381 (db/sql/260_staff_offboard_status.sql): first-class offboard state,
+  /// written by one conditional update (offboard_status IS NULL) so concurrent
+  /// offboards cannot both win. NULL = not offboarded; CHECK allows 'offboarded'.
+  offboardStatus        String?   @map("offboard_status")
+  offboardedAt          DateTime? @map("offboarded_at") @db.Timestamptz(6)
+  offboardEffectiveDate DateTime? @map("offboard_effective_date") @db.Date
+  offboardReason        String?   @map("offboard_reason")
+  offboardedBy          String?   @map("offboarded_by")
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")

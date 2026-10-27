@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { LmsRepository } from './lms-repository.js';
-import { LmsService } from './lms-service.js';
+import { LmsService, type LmsAuditSink } from './lms-service.js';
 import { registerLmsRoutes } from './routes.js';
 
 export interface LmsPluginOptions {
@@ -14,6 +14,8 @@ export interface LmsPluginOptions {
   prefix?: string;
   /** PRC-L320: pre-built service shared with in-process callers (rollover). */
   service?: LmsService;
+  /** PRC-M527: domain audit sink, used when the plugin builds its own service. */
+  auditSink?: LmsAuditSink | null;
 }
 
 declare module 'fastify' {
@@ -25,7 +27,8 @@ declare module 'fastify' {
 export const lmsPlugin = fp(
   async function lmsPluginImpl(fastify: FastifyInstance, options: LmsPluginOptions) {
     const { repository, prefix = '/lms' } = options;
-    const lmsService = options.service ?? new LmsService(repository);
+    const lmsService =
+      options.service ?? new LmsService(repository, { auditSink: options.auditSink ?? null });
     fastify.decorate('lmsService', lmsService);
     await registerLmsRoutes(fastify, { lmsService, prefix });
   },

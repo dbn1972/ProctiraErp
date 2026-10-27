@@ -27,12 +27,22 @@ groups:
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 
       - alert: ProcessMemoryHigh
+        # PRC-L134: RSS / pod memory limit. The old RSS / V8 heap-total ratio is
+        # normally > 1 (RSS includes code, stacks and buffers), so it fired on
+        # healthy pods. Inputs: kubernetes-pods (process_resident_memory_bytes,
+        # relabelled namespace/pod) and kube-state-metrics (limits; its own
+        # namespace label arrives as exported_namespace). Compose stacks and
+        # pods without a memory limit do not evaluate this alert.
         expr: |
-          (
-            process_resident_memory_bytes
-            /
-            on (service) group_left() (nodejs_heap_size_total_bytes + 1)
-          ) > 0.9
+          max by (namespace, pod, service) (process_resident_memory_bytes{job="kubernetes-pods"})
+            / on (namespace, pod) group_left()
+          max by (namespace, pod) (
+            label_replace(
+              sum by (exported_namespace, pod) (kube_pod_container_resource_limits{resource="memory"}),
+              "namespace", "$1", "exported_namespace", "(.+)"
+            )
+          )
+          > 0.9
         for: 5m
         labels:
           severity: warning
@@ -41,8 +51,8 @@ groups:
         annotations:
           summary: '{{ $labels.service }} memory usage above 90%'
           description: |
-            Resident memory on {{ $labels.service }} is at {{ $value | humanizePercentage }}
-            of heap capacity. Risk of OOM and restart.
+            Resident memory on {{ $labels.service }} ({{ $labels.namespace }}/{{ $labels.pod }})
+            is at {{ $value | humanizePercentage }} of pod memory limit. Risk of OOM kill and restart.
           runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#memory-saturation'
           dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 

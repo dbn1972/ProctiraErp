@@ -201,6 +201,26 @@ ephemeral in-memory HMAC key per process when `TRANSCRIPT_SIGNING_SECRET` is
 unset (`kmsKeyRef=dev:ephemeral-in-memory`, warning log, key bytes not logged).
 See `.env.example` and `docs/audits/DATA_W1_DATA_08_COMPLETE.md`.
 
+## Effective-dated academic / fee versions (W1-DATA-07, PRC-M213)
+
+`083_w1_data_07_append_only_versions.sql` makes `academic_periods` and
+`fee_structures` append-only versions; `248_academic_fee_overlap_exclusion.sql`
+replaced 083's SELECT-then-raise overlap triggers with `EXCLUDE USING gist`
+constraints (concurrency-safe, `23P01`). 083's header says corrections
+"INSERT a successor (and optionally close prior valid_to)". That is only true
+for one of the two tables (checksum-locked, so the header stays as shipped;
+this is the authoritative behaviour, proven in
+`packages/shared/database/src/academic-fee-overlap-exclusion.live.test.ts`):
+
+- `fee_structures`: `valid_to` may be **closed or narrowed** by UPDATE; it can
+  never be reopened (set back to NULL) or extended, and amount / identity /
+  `valid_from` are immutable (`23000`). Close the prior window, then INSERT the
+  successor version.
+- `academic_periods`: `start_date`, `end_date`, `valid_from`, `valid_to`,
+  `version`, `supersedes_id` and `code` are **fully immutable** (`23000`). A
+  prior period cannot be closed by UPDATE; a correction is a new,
+  non-overlapping successor version.
+
 ## Enrollment / grade audit completeness (W1-DATA-14)
 
 `071_enrollment_grade_audit_completeness.sql` writes `enrollment_history` /

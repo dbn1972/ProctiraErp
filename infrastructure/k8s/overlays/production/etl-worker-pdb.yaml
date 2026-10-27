@@ -1,0 +1,16 @@
+# W1-OPS-17 / PRC-L567 — etl-worker has no base PDB, so production adds one.
+# W1-OPS-16: PDBs for split-domain services removed from production overlay.
+# Reintroduce only with components/split-domain-services (lab).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: etl-worker-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: etl-worker
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: etl-worker

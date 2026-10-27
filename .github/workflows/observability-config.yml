@@ -51,6 +51,10 @@ permissions:
 env:
   PROMETHEUS_VERSION: 2.54.1
   ALERTMANAGER_VERSION: 0.27.0
+  # PRC-L308: upstream sha256sums.txt values for the exact pinned versions.
+  # Change together with the version.
+  PROMETHEUS_SHA256: 31715ef65e8a898d0f97c8c08c03b6b9afe485ac84e1698bcfec90fc6e62924f
+  ALERTMANAGER_SHA256: 23c3f5a3c73de91dbaec419f3c492bef636deb02680808e5d842e6553aa16074
   NODE_VERSION: '20'
   PNPM_VERSION: '10.33.2'
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -66,10 +70,17 @@ jobs:
       - name: Install promtool + amtool
         run: |
           set -euo pipefail
-          curl -fsSL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
-            | tar xz -C /tmp --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
-          curl -fsSL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz" \
-            | tar xz -C /tmp --strip-components=1 "alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool"
+          # PRC-L308: verify the pinned upstream sha256 before extracting.
+          PROM_TGZ="/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          curl -fsSL -o "$PROM_TGZ" \
+            "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          echo "${PROMETHEUS_SHA256}  ${PROM_TGZ}" | sha256sum -c -
+          tar xzf "$PROM_TGZ" -C /tmp --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
+          AM_TGZ="/tmp/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz"
+          curl -fsSL -o "$AM_TGZ" \
+            "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz"
+          echo "${ALERTMANAGER_SHA256}  ${AM_TGZ}" | sha256sum -c -
+          tar xzf "$AM_TGZ" -C /tmp --strip-components=1 "alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool"
           sudo apt-get install -y -qq gettext-base
 
       - name: promtool check config + rules
@@ -90,6 +101,8 @@ jobs:
           cp infra/observability/scrape-lab/*.yml /tmp/prom-lab/scrape.d/
           /tmp/promtool check config /tmp/prom-lab/prometheus.yml
           /tmp/promtool check rules infra/observability/alerts/*.yml
+          # PRC-L134: alert-rule unit tests (fixture series -> expected alerts).
+          /tmp/promtool test rules infra/observability/alerts/tests/*.yml
 
       - name: Scrape targets must be real /metrics services
         # Guard against re-adding phantom targets: every static target must be

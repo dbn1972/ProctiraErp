@@ -160,6 +160,8 @@ export class CurriculumService {
     id: string,
     input: { code?: string; statement?: string; unitId?: string | null; gradeId?: string | null },
   ) {
+    // PRC-L289: a re-linked unit must belong to this tenant (same check as createOutcome).
+    if (input.unitId) await this.getUnit(tenantId, input.unitId);
     // PRC-L288: `null` clears a nullable column; `undefined` leaves it unchanged.
     const updated = await this.store.updateOutcome(tenantId, id, {
       code: input.code?.trim(),

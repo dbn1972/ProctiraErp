@@ -1,11 +1,15 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { AcademicVisibilityStore } from './academic-visibility.js';
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import { createAcademicVisibilityStore } from './create-parent-portal-repository.js';
 import type { ParentPortalRepository } from './parent-portal-repository.js';
-import { ParentPortalService, type FeesLedgerPort } from './parent-portal-service.js';
+import {
+  ParentPortalService,
+  type FeesLedgerPort,
+  type ParentPortalAuditActor,
+} from './parent-portal-service.js';
 import { registerParentPortalRoutes } from './routes.js';
 
 export interface ParentPortalPluginOptions {
@@ -15,6 +19,14 @@ export interface ParentPortalPluginOptions {
   prefix?: string;
   studentPrefix?: string;
   feesService?: FeesLedgerPort;
+  /**
+   * PRC-M533: resolves the same-transaction audit actor (userId/userName/ipAddress) from the
+   * Fastify request for the 6 regulated mutation call sites (consent decide/withdraw/supersede,
+   * link create, invoice void, payment record). Absent ⇒ no audit row is appended for any of
+   * them (the mutations themselves are unaffected) — wired at the gateway registration site,
+   * mirroring fees-plugin.ts's buildPaymentAuditBinder/buildMoneyAuditSink convention.
+   */
+  auditActor?: (request: FastifyRequest) => ParentPortalAuditActor;
 }
 
 declare module 'fastify' {
@@ -35,6 +47,7 @@ export const parentPortalPlugin = fp(
       prefix = '/parent-portal',
       studentPrefix = '/student-portal',
       feesService,
+      auditActor,
     } = options;
     const parentPortalService = new ParentPortalService(
       repository,
@@ -47,6 +60,7 @@ export const parentPortalPlugin = fp(
       admissionsOffers,
       prefix,
       studentPrefix,
+      auditActor,
     });
   },
   {

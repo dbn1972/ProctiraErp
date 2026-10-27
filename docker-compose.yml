@@ -25,18 +25,28 @@ services:
     image: postgis/postgis:16-3.4-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-proctira}
+      # PRC-L460: the container superuser is a separate bootstrap user. The
+      # migrator (proctira) and runtime (proctira_app) roles are created
+      # NOSUPERUSER NOBYPASSRLS with passwords from .env, as in CI/production.
+      POSTGRES_USER: ${POSTGRES_BOOTSTRAP_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-proctira}
+      MIGRATOR_PASSWORD: ${MIGRATOR_PASSWORD:?Set MIGRATOR_PASSWORD in .env (see .env.example)}
+      APP_ROLE_PASSWORD: ${APP_ROLE_PASSWORD:?Set APP_ROLE_PASSWORD in .env (see .env.example)}
     ports:
       - '${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # W1-DATA-10: canonical role bootstrap + local passwords (fresh volumes only).
+      # W1-DATA-10: canonical role bootstrap + local passwords (fresh volumes only;
+      # existing volumes keep their roles and passwords).
       - ./db/bootstrap/01_runtime_roles.sql:/docker-entrypoint-initdb.d/01_runtime_roles.sql:ro
-      - ./db/docker-init/02_local_passwords.sql:/docker-entrypoint-initdb.d/02_local_passwords.sql:ro
+      - ./db/docker-init/02_local_passwords.sh:/docker-entrypoint-initdb.d/02_local_passwords.sh:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-proctira} -d ${POSTGRES_DB:-proctira}']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_BOOTSTRAP_USER:-postgres} -d ${POSTGRES_DB:-proctira}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -357,6 +367,14 @@ services:
       GATEWAY_URL: ${GATEWAY_URL:-http://api-gateway:3000}
     ports:
       - '${REGISTRATION_PORTAL_PORT:-3002}:3002'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3002/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -381,6 +399,14 @@ services:
       STATUS_PROBE_AUTH_URL: ${STATUS_PROBE_AUTH_URL:-http://api-gateway:3000/health/live}
     ports:
       - '${PUBLIC_WEBSITE_PORT:-3003}:3003'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3003/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -402,6 +428,14 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET}
     ports:
       - '${ADMIN_CONSOLE_PORT:-3004}:3004'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3004/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -421,6 +455,14 @@ services:
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
       - '${DEVELOPER_PORTAL_PORT:-3005}:3005'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3005/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 
@@ -444,6 +486,14 @@ services:
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
       - '${INSTALL_WIZARD_PORT:-3100}:3100'
+    # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
+    # so compose dependents can use service_healthy; same probe as web.
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3100/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
     networks:
       - proctira
 

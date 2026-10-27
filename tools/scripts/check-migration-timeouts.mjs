@@ -452,7 +452,7 @@ export function loadDdlHazardWaiver(waiverPath) {
   if (!prismaMigrationMaxDir) throw new Error('waiver baseline.prismaMigrationMaxDir required');
 
   const waivers = Array.isArray(raw?.waivers) ? raw.waivers : [];
-  /** @type {{ path: string, hazards: string[], reason: string, maintenanceWindow: string, approvedBy?: string, expires?: string }[]} */
+  /** @type {{ path: string, hazards: string[], reason: string, maintenanceWindow: string, approvedBy?: string, expires?: string, remediatedBy?: string }[]} */
   const out = [];
   for (const entry of waivers) {
     if (!entry || typeof entry !== 'object') {
@@ -477,6 +477,9 @@ export function loadDdlHazardWaiver(waiverPath) {
       maintenanceWindow,
       approvedBy: entry.approvedBy ? String(entry.approvedBy) : undefined,
       expires: entry.expires ? String(entry.expires) : undefined,
+      remediatedBy: entry.remediatedBy
+        ? String(entry.remediatedBy).trim().replace(/\\/g, '/')
+        : undefined,
     });
   }
   return {
@@ -528,6 +531,74 @@ export function isAtOrBeforeBaseline(candidate, maxInclusive) {
 }
 
 /**
+ * PRC-M433: a `validate_under_force_rls` waiver must not live forever. Each one
+ * needs either `remediatedBy` — an existing db/sql file that lifts FORCE ROW
+ * LEVEL SECURITY and restores it — or an `expires` date that is still in the
+ * future (a dated maintenance-window rescan).
+ *
+ * @param {string} root
+ * @param {ReturnType<typeof loadDdlHazardWaiver>['waivers']} waivers
+ * @param {Date} now
+ * @returns {string[]}
+ */
+export function forceRlsWaiverRemediationIssues(root, waivers, now) {
+  /** @type {string[]} */
+  const issues = [];
+  for (const w of waivers) {
+    if (!w.hazards.includes('validate_under_force_rls')) continue;
+    if (w.remediatedBy) {
+      const abs = join(root, w.remediatedBy);
+      if (!/^db\/sql\/[0-9][^/]*\.sql$/.test(w.remediatedBy) || !existsSync(abs)) {
+        issues.push(
+          `${w.path}: validate_under_force_rls waiver remediatedBy ${w.remediatedBy} is not an existing db/sql file`,
+        );
+        continue;
+      }
+      const text = stripSqlComments(readFileSync(abs, 'utf8'));
+      if (!liftsAndRestoresForceRls(text)) {
+        issues.push(
+          `${w.path}: validate_under_force_rls waiver remediatedBy ${w.remediatedBy} does not lift ` +
+            'and restore FORCE ROW LEVEL SECURITY',
+        );
+      }
+      continue;
+    }
+    if (w.expires) {
+      const exp = new Date(w.expires);
+      if (Number.isNaN(exp.getTime())) {
+        issues.push(
+          `${w.path}: validate_under_force_rls waiver expires "${w.expires}" is not a date`,
+        );
+      } else if (exp.getTime() < now.getTime()) {
+        issues.push(
+          `${w.path}: validate_under_force_rls waiver expired ${w.expires} — rescan with FORCE lifted ` +
+            'or set remediatedBy',
+        );
+      }
+      continue;
+    }
+    issues.push(
+      `${w.path}: validate_under_force_rls waiver needs remediatedBy (db/sql file that lifts and ` +
+        'restores FORCE ROW LEVEL SECURITY) or a future expires date',
+    );
+  }
+  return issues;
+}
+
+/**
+ * True when SQL (comments stripped) both lifts FORCE (NO FORCE ROW LEVEL
+ * SECURITY) and restores it (FORCE ROW LEVEL SECURITY without NO).
+ * @param {string} sql
+ */
+function liftsAndRestoresForceRls(sql) {
+  const lifts = /\bNO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY\b/i.test(sql);
+  const restores = /\bFORCE\s+ROW\s+LEVEL\s+SECURITY\b/i.test(
+    sql.replace(/\bNO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY\b/gi, ''),
+  );
+  return lifts && restores;
+}
+
+/**
  * @param {string} root
  * @param {ReturnType<typeof defaultPaths>} [paths]
  * @param {ReturnType<typeof loadDdlHazardWaiver>} [waiver]
@@ -558,6 +629,8 @@ export function evaluateDdlHazards(root, paths = defaultPaths(root), waiver, now
   }
 
   const waiverByPath = new Map(loaded.waivers.map((w) => [w.path, w]));
+
+  issues.push(...forceRlsWaiverRemediationIssues(root, loaded.waivers, now));
 
   /** @type {{ rel: string, abs: string, track: 'db_sql'|'prisma' }[]} */
   const candidates = [];

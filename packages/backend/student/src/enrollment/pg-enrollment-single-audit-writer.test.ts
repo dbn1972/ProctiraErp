@@ -130,6 +130,7 @@ describe('W1-DATA-14 PgEnrollmentRepository single history writer', () => {
       createHistoryEntry,
       findInstitutionById,
       findActiveEnrollment,
+      findMissingPlacementRefs: vi.fn(async () => []),
       updateEnrollment: vi.fn(),
       findEnrollmentById: vi.fn(),
       listEnrollments: vi.fn(),

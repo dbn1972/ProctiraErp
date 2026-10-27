@@ -80,6 +80,7 @@ export const DEFAULT_RUNNING_EXECUTION_STALE_MS = 6 * 60 * 60 * 1000;
 
 export class ETLService {
   private readonly logger: ExecutionLogger;
+  private readonly logSink: LogSink;
   private readonly retryExecutor: RetryExecutor;
   private readonly scheduler: PipelineScheduler;
   private readonly eventPublisher: PipelineEventPublisher;
@@ -103,6 +104,7 @@ export class ETLService {
     this.connectors = config.connectorFactory ?? defaultConnectorFactory;
     this.adminNotifier = config.adminNotifier ?? new InMemoryAdminNotifier();
     const logSink = config.logSink ?? new ConsoleLogSink();
+    this.logSink = logSink;
     this.logger = new ExecutionLogger(logSink);
     this.auditSink = config.auditSink ?? createLogSinkAuditSink(logSink);
     this.retryExecutor = config.testMode
@@ -143,6 +145,31 @@ export class ETLService {
       ...(execution ? { outcome: execution.status } : {}),
       occurredAt: new Date(),
     });
+  }
+
+  /**
+   * PRC-L302: audit a run whose execution threw. An audit-sink failure is logged and never
+   * replaces the execution error the caller is about to rethrow.
+   */
+  private async auditFailedExecution(
+    tenantId: string,
+    ctx: EtlAuditContext,
+    pipelineId: string,
+    execution: PipelineExecution,
+  ): Promise<void> {
+    try {
+      await this.audit(tenantId, ctx, 'pipeline.execute', pipelineId, execution);
+    } catch (auditError: unknown) {
+      this.logSink.error({
+        timestamp: new Date(),
+        level: 'error',
+        phase: 'audit',
+        pipelineId,
+        executionId: execution.id,
+        tenantId,
+        message: `Audit sink failed: ${auditError instanceof Error ? auditError.message : String(auditError)}`,
+      });
+    }
   }
 
   /**
@@ -476,7 +503,7 @@ export class ETLService {
       settled = await this.runPipelineExecution(pipeline, tenantId, 0, false, execution);
     } catch (error: unknown) {
       // PRC-L302: the run row exists and is settled as failed; audit it, then rethrow.
-      await this.audit(tenantId, ctx, 'pipeline.execute', pipeline.id, execution);
+      await this.auditFailedExecution(tenantId, ctx, pipeline.id, execution);
       throw error;
     }
     await this.audit(tenantId, ctx, 'pipeline.execute', pipeline.id, settled);
@@ -546,7 +573,17 @@ export class ETLService {
     const executionId = execution.id;
 
     try {
-      const settled = await this.runWithRetries(pipeline, tenantId, scheduledExecution, execution);
+      let settled: PipelineExecution;
+      try {
+        settled = await this.runWithRetries(pipeline, tenantId, scheduledExecution, execution);
+      } catch (error: unknown) {
+        // PRC-L302: a run that throws (e.g. event bus down) is audited like the direct path.
+        const persisted =
+          (await this.repository.getExecution(executionId, tenantId).catch(() => null)) ??
+          execution;
+        await this.auditFailedExecution(tenantId, ctx, pipeline.id, persisted);
+        throw error;
+      }
       await this.audit(tenantId, ctx, 'pipeline.execute', pipeline.id, settled);
       return settled;
     } finally {

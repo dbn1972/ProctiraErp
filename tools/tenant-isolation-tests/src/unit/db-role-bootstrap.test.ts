@@ -15,7 +15,8 @@ const bootstrapScript = join(root, 'tools/scripts/bootstrap-db-roles.sh');
 const applySql = join(root, 'tools/scripts/apply-sql.sh');
 const onboard = join(root, 'tools/scripts/setup-live-db-and-onboard.sh');
 const compose = join(root, 'docker-compose.yml');
-const dockerInitPw = join(root, 'db/docker-init/02_local_passwords.sql');
+const dockerInitPw = join(root, 'db/docker-init/02_local_passwords.sh');
+const legacyDockerInitPw = join(root, 'db/docker-init/02_local_passwords.sql');
 const dbReadme = join(root, 'db/README.md');
 const audit = join(root, 'docs/audits/DATA_W1_DATA_10_DB_BOOTSTRAP.md');
 
@@ -70,17 +71,22 @@ describe('W1-DATA-10 db role bootstrap (static)', () => {
   it('docker-compose mounts canonical bootstrap SQL for fresh volumes', () => {
     const yml = readFileSync(compose, 'utf8');
     expect(yml).toMatch(/db\/bootstrap\/01_runtime_roles\.sql/);
-    expect(yml).toMatch(/db\/docker-init\/02_local_passwords\.sql/);
+    // PRC-L460: passwords come from env via psql \getenv, never literals.
+    expect(yml).toMatch(/db\/docker-init\/02_local_passwords\.sh/);
+    expect(yml).not.toMatch(/db\/docker-init\/02_local_passwords\.sql/);
+    expect(existsSync(legacyDockerInitPw)).toBe(false);
     expect(existsSync(dockerInitPw)).toBe(true);
-    expect(readFileSync(dockerInitPw, 'utf8')).toMatch(/proctira_app_dev_password/);
+    const init = readFileSync(dockerInitPw, 'utf8');
+    expect(init).toMatch(/\\getenv\s+migrator_pw\s+MIGRATOR_PASSWORD/);
+    expect(init).toMatch(/\\getenv\s+app_pw\s+APP_ROLE_PASSWORD/);
+    expect(init).not.toMatch(/PASSWORD\s+'/i);
+    expect(init).not.toMatch(/proctira_app_dev_password/);
   });
 
   it('documents bootstrap in db/README and ships audit evidence pack', () => {
     expect(readFileSync(dbReadme, 'utf8')).toMatch(/W1-DATA-10/);
     expect(existsSync(bootstrapReadme)).toBe(true);
-    expect(existsSync(audit), 'missing docs/audits/DATA_W1_DATA_10_DB_BOOTSTRAP.md').toBe(
-      true,
-    );
+    expect(existsSync(audit), 'missing docs/audits/DATA_W1_DATA_10_DB_BOOTSTRAP.md').toBe(true);
     expect(readFileSync(audit, 'utf8')).toMatch(/W1-DATA-10/);
   });
 });

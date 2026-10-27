@@ -5,6 +5,7 @@
  * Pg cases skip when DATABASE_URL is unset.
  */
 import { randomUUID } from 'node:crypto';
+import { ConflictError } from '@proctira/common';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { getSharedPgPool, withPlatformScope } from '@proctira/database';
@@ -16,6 +17,7 @@ import { createWorkflowRepositories } from './create-workflow-repositories.js';
 import { InMemoryWorkflowRepository } from './in-memory-repository.js';
 import { PgCaseRepository, PgWorkflowRepository } from './pg-workflow-repository.js';
 import { workflowPlugin } from './workflow-plugin.js';
+import { WorkflowService } from './workflow-service.js';
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-workflow-repository.live.test' });
 
 const pool = getSharedPgPool();
@@ -289,4 +291,87 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
       ).rejects.toThrow(/append-only/);
     },
   );
+
+  /** PRC-M463: seed a tenant + definition + `draft` instance through the Pg repository. */
+  async function seedDraftInstance(repo: PgWorkflowRepository) {
+    const tenantId = randomUUID();
+    await seedTenant(tenantId);
+    const definition = await repo.createDefinition({
+      id: randomUUID(),
+      tenantId,
+      name: 'Concurrent approval',
+      entityType: 'student_transfer',
+      description: null,
+      states: definitionBody.states as never,
+      transitions: definitionBody.transitions as never,
+      escalationRules: null,
+    });
+    const instance = await repo.createInstance({
+      id: randomUUID(),
+      tenantId,
+      workflowDefinitionId: definition.id,
+      entityType: 'student_transfer',
+      entityId: 'student-1',
+      currentStateId: 'draft',
+      status: 'ACTIVE',
+      metadata: null,
+      approvals: [],
+    });
+    return { tenantId, instance };
+  }
+
+  it('PRC-M463: two concurrent guarded updates on Postgres — exactly one wins', async () => {
+    const repo = new PgWorkflowRepository(pool!);
+    const { tenantId, instance } = await seedDraftInstance(repo);
+    const guard = { currentStateId: 'draft', approvalCount: 0 };
+    const results = await Promise.all([
+      repo.updateInstance(instance.id, tenantId, { currentStateId: 'review' }, guard),
+      repo.updateInstance(instance.id, tenantId, { currentStateId: 'review' }, guard),
+    ]);
+    expect(results.filter((r) => r !== null)).toHaveLength(1);
+    expect((await repo.findInstanceById(instance.id, tenantId))?.currentStateId).toBe('review');
+  });
+
+  it('PRC-M463: two concurrent service transitions on Postgres — one wins, one 409, one audit row', async () => {
+    /** Holds every armed read until all of them have read the (same) instance row. */
+    class BarrierPgWorkflowRepository extends PgWorkflowRepository {
+      private parties = 0;
+      private waiting: Array<() => void> = [];
+      arm(parties: number): void {
+        this.parties = parties;
+      }
+      override async findInstanceById(id: string, tenantId: string) {
+        const row = await super.findInstanceById(id, tenantId);
+        if (this.parties > 0) {
+          await new Promise<void>((resolve) => {
+            this.waiting.push(resolve);
+            if (this.waiting.length >= this.parties) {
+              const release = this.waiting;
+              this.waiting = [];
+              this.parties = 0;
+              release.forEach((go) => go());
+            }
+          });
+        }
+        return row;
+      }
+    }
+    const repo = new BarrierPgWorkflowRepository(pool!);
+    const { tenantId, instance } = await seedDraftInstance(repo);
+    const service = new WorkflowService(repo);
+    repo.arm(2);
+    const results = await Promise.allSettled([
+      service.transition(tenantId, instance.id, { action: 'submit', actorId: 'submitter-a' }),
+      service.transition(tenantId, instance.id, { action: 'submit', actorId: 'submitter-b' }),
+    ]);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]!.reason).toBeInstanceOf(ConflictError);
+    const final = await repo.findInstanceById(instance.id, tenantId);
+    expect(final?.currentStateId).toBe('review');
+    expect(final?.approvals).toHaveLength(1);
+    expect(await repo.getAuditHistory(instance.id, tenantId)).toHaveLength(1);
+  });
 });

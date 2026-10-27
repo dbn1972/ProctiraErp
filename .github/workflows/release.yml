@@ -17,7 +17,8 @@
 #     tagged by:
 #       * Full commit SHA (immutable, for traceability) — sha-<full>
 #       * Short commit SHA (human-readable) — sha-<short>
-#       * Branch name (moving tip for that branch; not used by prod Helm/kustomize)
+#       * Branch name (moving tip for that branch; not used by prod Helm/kustomize;
+#         `/` and other invalid characters become `-`, PRC-L109)
 #     W1-OPS-08: never tags mutable :latest.
 # =============================================================================
 
@@ -85,6 +86,7 @@ jobs:
     outputs:
       head-sha: ${{ steps.resolve.outputs.head-sha }}
       head-branch: ${{ steps.resolve.outputs.head-branch }}
+      image-tag: ${{ steps.image-tag.outputs.image-tag }}
     steps:
       # PRC-M256: context values reach the shell only through env (never inline in script).
       - name: Resolve commit and branch
@@ -145,14 +147,30 @@ jobs:
           esac
 
       # W1-OPS-23: manual release used to skip CI entirely. Require same-SHA proof.
-      - name: Checkout gate script
-        if: github.event_name == 'workflow_dispatch'
+      # PRC-L109: every event also needs release-image-tag.mjs (runs after the
+      # trusted-run assertion above, at the verified head SHA).
+      - name: Checkout gate scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ steps.resolve.outputs.head-sha }}
           sparse-checkout: |
             tools/scripts/require-same-sha-ci.mjs
+            tools/scripts/release-image-tag.mjs
           sparse-checkout-cone-mode: false
+
+      # PRC-L109: `release/**` branch names contain `/`, which is not a valid
+      # image tag. head-branch stays raw for compare/scope; image-tag is the
+      # sanitised value used for the branch tag and version label. An invalid
+      # result fails here instead of at buildx push.
+      - name: Sanitise branch image tag (PRC-L109)
+        id: image-tag
+        env:
+          HEAD_BRANCH: ${{ steps.resolve.outputs.head-branch }}
+        run: |
+          set -euo pipefail
+          TAG="$(node tools/scripts/release-image-tag.mjs "${HEAD_BRANCH}")"
+          echo "image-tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Branch image tag: ${TAG}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Require successful CI on same SHA (manual release)
         if: github.event_name == 'workflow_dispatch'
@@ -332,14 +350,14 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira/${{ matrix.service }}
           tags: |
-            type=raw,value=${{ needs.ci-gate.outputs.head-branch }},enable=${{ needs.ci-gate.outputs.head-branch != '' }}
+            type=raw,value=${{ needs.ci-gate.outputs.image-tag }},enable=${{ needs.ci-gate.outputs.image-tag != '' }}
             type=raw,value=sha-${{ needs.ci-gate.outputs.head-sha }}
             type=sha,format=short,prefix=sha-,sha=${{ needs.ci-gate.outputs.head-sha }}
           labels: |
             org.opencontainers.image.title=proctira/${{ matrix.service }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.ci-gate.outputs.head-sha }}
-            org.opencontainers.image.version=${{ needs.ci-gate.outputs.head-branch }}
+            org.opencontainers.image.version=${{ needs.ci-gate.outputs.image-tag }}
 
       - name: Build and push image
         id: build

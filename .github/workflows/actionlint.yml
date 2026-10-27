@@ -13,6 +13,13 @@
 name: Workflow Lint
 
 on:
+  # PRC-M428 / PRC-L307: also called from ci.yml (job workflow-lint) so CI
+  # Aggregate (Required) fails closed when workflow lint fails. Path filters
+  # below still apply to the standalone run only.
+  workflow_call:
+    secrets:
+      TURBO_TOKEN:
+        required: false
   pull_request:
     paths:
       - '.github/workflows/**'
@@ -30,6 +37,20 @@ on:
       - 'tools/scripts/services.json'
       - 'tools/scripts/deploy-diff-base.mjs'
       - 'tools/scripts/deploy-diff-base.test.mjs'
+      - 'tools/scripts/scheduled-gates.json'
+      - 'tools/scripts/scheduled-gate-freshness.mjs'
+      - 'tools/scripts/scheduled-gate-freshness.test.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
+      - 'tools/scripts/release-image-tag.mjs'
+      - 'tools/scripts/release-image-tag.test.mjs'
+      - 'tools/scripts/check-workflow-concurrency.mjs'
+      - 'tools/scripts/check-workflow-concurrency.test.mjs'
+      - '.github/dependabot.yml'
+      - 'tools/scripts/check-dependabot-coverage.mjs'
+      - 'tools/scripts/check-dependabot-coverage.test.mjs'
+      - 'tools/scripts/check-ci-download-integrity.mjs'
+      - 'tools/scripts/check-ci-download-integrity.test.mjs'
   push:
     branches: [main, develop]
     paths:
@@ -48,6 +69,20 @@ on:
       - 'tools/scripts/services.json'
       - 'tools/scripts/deploy-diff-base.mjs'
       - 'tools/scripts/deploy-diff-base.test.mjs'
+      - 'tools/scripts/scheduled-gates.json'
+      - 'tools/scripts/scheduled-gate-freshness.mjs'
+      - 'tools/scripts/scheduled-gate-freshness.test.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.mjs'
+      - 'tools/scripts/check-scheduled-gates-registry.test.mjs'
+      - 'tools/scripts/release-image-tag.mjs'
+      - 'tools/scripts/release-image-tag.test.mjs'
+      - 'tools/scripts/check-workflow-concurrency.mjs'
+      - 'tools/scripts/check-workflow-concurrency.test.mjs'
+      - '.github/dependabot.yml'
+      - 'tools/scripts/check-dependabot-coverage.mjs'
+      - 'tools/scripts/check-dependabot-coverage.test.mjs'
+      - 'tools/scripts/check-ci-download-integrity.mjs'
+      - 'tools/scripts/check-ci-download-integrity.test.mjs'
 
 permissions:
   contents: read
@@ -88,6 +123,29 @@ jobs:
       # #555 review #1: deploy/release diff base recorded per scope.
       - name: Unit-test deploy/release diff-base recorder
         run: node --test tools/scripts/deploy-diff-base.test.mjs
+      # PRC-L108: every scheduled workflow is watched by scheduled-gates-watchdog.yml.
+      - name: Unit-test scheduled-gate watchdog and registry
+        run: node --test tools/scripts/scheduled-gate-freshness.test.mjs tools/scripts/check-scheduled-gates-registry.test.mjs
+      - name: Fail on unregistered scheduled workflows (PRC-L108)
+        run: node tools/scripts/check-scheduled-gates-registry.mjs
+      # PRC-L109: release branch names map to valid OCI image tags.
+      - name: Unit-test release image tag sanitiser (PRC-L109)
+        run: node --test tools/scripts/release-image-tag.test.mjs
+      # PRC-L110: PR concurrency groups must let superseded PR runs cancel.
+      - name: Unit-test workflow concurrency gate
+        run: node --test tools/scripts/check-workflow-concurrency.test.mjs
+      - name: Fail on per-sha PR concurrency groups (PRC-L110)
+        run: node tools/scripts/check-workflow-concurrency.mjs
+      # PRC-L111: Dependabot covers every Dockerfile and compose directory.
+      - name: Unit-test Dependabot coverage gate
+        run: node --test tools/scripts/check-dependabot-coverage.test.mjs
+      - name: Fail on Dockerfile/compose directories Dependabot does not cover (PRC-L111)
+        run: node tools/scripts/check-dependabot-coverage.mjs
+      # PRC-L308: tool/key downloads in workflows must be digest/fingerprint verified.
+      - name: Unit-test CI download integrity gate
+        run: node --test tools/scripts/check-ci-download-integrity.test.mjs
+      - name: Fail on unverified CI downloads (PRC-L308)
+        run: node tools/scripts/check-ci-download-integrity.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:

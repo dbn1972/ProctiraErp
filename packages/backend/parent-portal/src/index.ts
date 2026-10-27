@@ -37,6 +37,7 @@ export {
 } from './pg-parent-portal-repository.js';
 
 export {
+  attendancePercentageFromCounts,
   EmptyAcademicVisibilityStore,
   InMemoryAcademicVisibilityStore,
   STUDENT_SELF_BINDING_ASSUMPTION,
@@ -46,12 +47,19 @@ export {
 } from './academic-visibility.js';
 export type {
   AcademicVisibilityStore,
+  AcademicSource,
+  AcademicMeta,
   InMemoryStudentIdentityRecord,
   AcademicList,
   AttendancePayload,
   GradesPayload,
 } from './academic-visibility.js';
+export {
+  AcademicColumnMissingError,
+  isAcademicColumnMissingError,
+} from './academic-visibility-errors.js';
 export { PgAcademicVisibilityStore } from './pg-academic-visibility-store.js';
+export type { DegradedReadRecorder } from './pg-academic-visibility-store.js';
 
 export {
   LinkChildSchema,

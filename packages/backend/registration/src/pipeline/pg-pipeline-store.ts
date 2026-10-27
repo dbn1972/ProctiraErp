@@ -1,3 +1,4 @@
+import { ConflictError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   withPgTenant,
@@ -69,6 +70,7 @@ function mapEnquiry(row: Record<string, unknown>): EnquiryRecord {
     testScore: row.test_score == null ? null : num(row.test_score),
     applicationId: row.application_id == null ? null : String(row.application_id),
     notes: row.notes == null ? null : String(row.notes),
+    version: num(row.version),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -314,13 +316,14 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
     });
   }
 
-  async updateEnquiry(record: EnquiryRecord): Promise<EnquiryRecord> {
+  async updateEnquiry(record: EnquiryRecord, expectedVersion: number): Promise<EnquiryRecord> {
     return this.withTenant(record.tenantId, async (client) => {
+      // PRC-M335: optimistic lock (db/sql/262). Zero rows = stale version or gone.
       const result = await client.query(
         `UPDATE admission_enquiries SET
            source = $3, stage = $4, quota = $5, interview_score = $6, test_score = $7,
-           application_id = $8, notes = $9, updated_at = $10
-         WHERE tenant_id = $1 AND id = $2
+           application_id = $8, notes = $9, updated_at = $10, version = version + 1
+         WHERE tenant_id = $1 AND id = $2 AND version = $11
          RETURNING *`,
         [
           record.tenantId,
@@ -333,9 +336,76 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
           record.applicationId,
           record.notes,
           record.updatedAt,
+          expectedVersion,
         ],
       );
-      return mapEnquiry(result.rows[0] as Record<string, unknown>);
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      if (!row) {
+        throw new ConflictError(
+          `Enquiry '${record.id}' was modified concurrently; reload and retry`,
+        );
+      }
+      return mapEnquiry(row);
+    });
+  }
+
+  async claimEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    seenApplicationId: string | null,
+    applicationId: string,
+    leaseMs: number,
+  ): Promise<boolean> {
+    return this.withTenant(tenantId, async (client) => {
+      // PRC-M335: conditional UPDATE under the row lock = atomic claim (db/sql/262). The
+      // application id cannot be written yet (FK to admission_applications), so the claim
+      // holds it in conversion_claim_id until the application exists.
+      const result = await client.query(
+        `UPDATE admission_enquiries SET
+           conversion_claim_id = $3, conversion_claimed_at = now(), version = version + 1
+         WHERE tenant_id = $1 AND id = $2
+           AND application_id IS NOT DISTINCT FROM $4::uuid
+           AND (conversion_claim_id IS NULL
+                OR conversion_claimed_at < now() - ($5::int * interval '1 millisecond'))
+         RETURNING id`,
+        [tenantId, enquiryId, applicationId, seenApplicationId, leaseMs],
+      );
+      return result.rows.length === 1;
+    });
+  }
+
+  async completeEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    applicationId: string,
+    updatedAt: Date,
+  ): Promise<EnquiryRecord | null> {
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE admission_enquiries SET
+           application_id = $3, stage = 'applied', updated_at = $4, version = version + 1,
+           conversion_claim_id = NULL, conversion_claimed_at = NULL
+         WHERE tenant_id = $1 AND id = $2 AND conversion_claim_id = $3
+         RETURNING *`,
+        [tenantId, enquiryId, applicationId, updatedAt],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapEnquiry(row) : null;
+    });
+  }
+
+  async releaseEnquiryConversion(
+    tenantId: string,
+    enquiryId: string,
+    applicationId: string,
+  ): Promise<void> {
+    await this.withTenant(tenantId, async (client) => {
+      await client.query(
+        `UPDATE admission_enquiries SET
+           conversion_claim_id = NULL, conversion_claimed_at = NULL, version = version + 1
+         WHERE tenant_id = $1 AND id = $2 AND conversion_claim_id = $3`,
+        [tenantId, enquiryId, applicationId],
+      );
     });
   }
 

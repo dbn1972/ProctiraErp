@@ -22,7 +22,18 @@ const latestPack = readdirSync(join(ROOT, EVIDENCE))
   .at(-1);
 const PACK = JSON.parse(readFileSync(join(ROOT, EVIDENCE, latestPack), 'utf8'));
 
-function runInMirror({ pack = PACK, includePack = true } = {}) {
+// PRC-M431: hermetic env — no token, not CI — so the run check is the explicit
+// UNVERIFIED path and only offline freshness/URL checks apply.
+const OFFLINE_ENV = {
+  ...process.env,
+  CI: '',
+  EVIDENCE_VERIFY_RUN: '',
+  GH_TOKEN: '',
+  GITHUB_TOKEN: '',
+  GITHUB_REPOSITORY: 'dbn1972/ProctiraErp',
+  EVIDENCE_MAX_AGE_DAYS: '',
+};
+function runInMirror({ pack = PACK, includePack = true, env = OFFLINE_ENV } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'l387-dod-'));
   try {
     for (const sub of ['tools/scripts', 'tools/dod-checks/reports', EVIDENCE]) {
@@ -31,6 +42,7 @@ function runInMirror({ pack = PACK, includePack = true } = {}) {
     for (const rel of [
       'tools/scripts/check-dod-evidence.sh',
       'tools/scripts/assert-dod-evidence.mjs',
+      'tools/scripts/verify-evidence-run.mjs',
       'tools/dod-checks/reports/baseline.json',
     ]) {
       copyFileSync(join(ROOT, rel), join(dir, rel));
@@ -40,6 +52,7 @@ function runInMirror({ pack = PACK, includePack = true } = {}) {
     }
     return spawnSync('bash', [join(dir, 'tools/scripts/check-dod-evidence.sh')], {
       encoding: 'utf8',
+      env,
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -56,6 +69,40 @@ test('committed baseline + latest tip pack pass', () => {
   const r = runInMirror();
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /check-dod-evidence: PASS/);
+});
+test('PRC-M431 offline run without token prints an explicit UNVERIFIED line', () => {
+  const r = runInMirror();
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /UNVERIFIED \(no token\)/);
+});
+test('PRC-M431 stale pack fails the freshness window', () => {
+  const r = runInMirror({ pack: mutated((p) => (p.recordedAt = '2020-01-01T00:00:00Z')) });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /pack is stale/);
+});
+test('PRC-M431 foreign-repo run URL fails', () => {
+  const r = runInMirror({
+    pack: mutated(
+      (p) => (p.ciCrossRef.latestSuccessfulRun.url = 'https://github.com/evil/fork/actions/runs/1'),
+    ),
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /expected dbn1972\/ProctiraErp/);
+});
+test('PRC-M431 malformed run URL (substring match only) fails', () => {
+  const r = runInMirror({
+    pack: mutated(
+      (p) =>
+        (p.ciCrossRef.latestSuccessfulRun.url = 'https://evil.example/github.com/actions/runs/1'),
+    ),
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /run URL must be https:\/\/github\.com/);
+});
+test('PRC-M431 CI without a token fails closed', () => {
+  const r = runInMirror({ env: { ...OFFLINE_ENV, CI: 'true' } });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /GH_TOKEN\/GITHUB_TOKEN missing/);
 });
 
 test('no dod-gate-*.json tip pack fails', () => {

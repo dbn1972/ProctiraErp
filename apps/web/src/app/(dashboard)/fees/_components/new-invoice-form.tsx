@@ -31,6 +31,10 @@ export function NewInvoiceForm({
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  // PRC-L240: per-field errors so the invalid control is announced, not just a form alert.
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<'studentId' | 'title' | 'amount', string>>
+  >({});
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
 
@@ -47,16 +51,22 @@ export function NewInvoiceForm({
     const amountRupeesRaw = String(fd.get('amount') ?? '').trim();
     const amountRupees = amountRupeesRaw === '' ? undefined : Number(amountRupeesRaw);
 
+    const nextErrors: typeof fieldErrors = {};
     if (!UUID_RE.test(studentId)) {
-      setError(
+      nextErrors.studentId =
         studentOptions.length === 0
           ? 'Student directory is empty — add students before issuing an invoice.'
-          : 'Select a student.',
-      );
-      return;
+          : 'Select a student.';
     }
     if (!planId && (!title || amountRupees === undefined || !Number.isFinite(amountRupees))) {
-      setError('Choose a plan, or provide title and amount.');
+      if (!title) nextErrors.title = 'Enter a title, or choose a fee plan.';
+      if (amountRupees === undefined || !Number.isFinite(amountRupees)) {
+        nextErrors.amount = 'Enter an amount, or choose a fee plan.';
+      }
+    }
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError(null);
       return;
     }
 
@@ -67,7 +77,7 @@ export function NewInvoiceForm({
         try {
           amountCents = majorUnitsToCents(amountRupees);
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Invalid amount');
+          setFieldErrors({ amount: err instanceof Error ? err.message : 'Invalid amount' });
           return;
         }
       }
@@ -102,6 +112,7 @@ export function NewInvoiceForm({
             label="Student"
             options={studentOptions}
             required
+            fieldError={fieldErrors.studentId}
           />
           <FormField id="invoice-plan" label="Fee plan (optional)">
             <select
@@ -121,10 +132,14 @@ export function NewInvoiceForm({
                 ))}
             </select>
           </FormField>
-          <FormField id="invoice-title" label="Title override (optional)">
+          <FormField id="invoice-title" label="Title override (optional)" error={fieldErrors.title}>
             <Input id="invoice-title" name="title" disabled={!hydrated || pending} />
           </FormField>
-          <FormField id="invoice-amount" label="Amount override INR (optional)">
+          <FormField
+            id="invoice-amount"
+            label="Amount override INR (optional)"
+            error={fieldErrors.amount}
+          >
             <Input
               id="invoice-amount"
               name="amount"

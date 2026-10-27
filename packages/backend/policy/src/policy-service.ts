@@ -100,19 +100,25 @@ export class PolicyService {
    * @throws ConflictError if name conflicts with another policy
    */
   async update(tenantId: string, id: string, input: UpdatePolicyInput): Promise<PolicyEntity> {
-    const existing = await this.repository.findById(id, tenantId);
-    if (!existing) {
+    // Read, name check, version record and write happen as one repository
+    // step so concurrent edits cannot mint duplicate versions or names (PRC-L478).
+    const result = await this.repository.updateAtomically(id, tenantId, (existing) =>
+      this.buildUpdate(id, existing, input),
+    );
+    if (result.status === 'not_found') {
       throw new NotFoundError(`Policy with id '${id}' not found`);
     }
-
-    // Check name uniqueness if name is being changed
-    if (input.name && input.name !== existing.name) {
-      const existingByName = await this.repository.findByName(input.name, tenantId);
-      if (existingByName && existingByName.id !== id) {
-        throw new ConflictError(`Policy with name '${input.name}' already exists`);
-      }
+    if (result.status === 'name_conflict') {
+      throw new ConflictError(`Policy with name '${input.name ?? ''}' already exists`);
     }
+    return result.entity;
+  }
 
+  private buildUpdate(
+    id: string,
+    existing: PolicyEntity,
+    input: UpdatePolicyInput,
+  ): { data: Partial<PolicyEntity>; version?: Omit<PolicyVersionEntity, 'createdAt'> } {
     const updateData: Partial<PolicyEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
@@ -121,32 +127,31 @@ export class PolicyService {
       updateData.effectiveUntil = new Date(input.effectiveUntil);
     if (input.priority !== undefined) updateData.priority = input.priority;
 
-    // If rules are changed, bump version
+    // If rules are changed, bump version and record the new version row
     if (input.rules !== undefined) {
       const newVersion = existing.version + 1;
       updateData.rules = input.rules as Record<string, unknown>;
       updateData.version = newVersion;
 
-      // Create new version record
-      await this.repository.createVersion({
-        id: uuidv4(),
-        policyId: id,
-        version: newVersion,
-        rules: input.rules as Record<string, unknown>,
-        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : existing.effectiveFrom,
-        effectiveUntil: input.effectiveUntil
-          ? new Date(input.effectiveUntil)
-          : existing.effectiveUntil,
-        createdBy: null,
-      });
+      return {
+        data: updateData,
+        version: {
+          id: uuidv4(),
+          policyId: id,
+          version: newVersion,
+          rules: input.rules as Record<string, unknown>,
+          effectiveFrom: input.effectiveFrom
+            ? new Date(input.effectiveFrom)
+            : existing.effectiveFrom,
+          effectiveUntil: input.effectiveUntil
+            ? new Date(input.effectiveUntil)
+            : existing.effectiveUntil,
+          createdBy: null,
+        },
+      };
     }
 
-    const updated = await this.repository.update(id, tenantId, updateData);
-    if (!updated) {
-      throw new NotFoundError(`Policy with id '${id}' not found`);
-    }
-
-    return updated;
+    return { data: updateData };
   }
 
   /**

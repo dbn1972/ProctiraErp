@@ -87,3 +87,17 @@ export class ForbiddenError extends AppError {
     super(message, ErrorCode.FORBIDDEN, 403);
   }
 }
+
+/**
+ * PRC-L135: thrown when a request has no verified identity (e.g. a JWT with no `sub`
+ * claim). Callers must never substitute a sentinel actor id (such as 'anonymous') and
+ * proceed — this forces a fail-closed 401 instead. Code matches the existing inline
+ * 'UNAUTHENTICATED' convention used by workflow/case-routes.ts, workflow/routes.ts and
+ * assessment/report-card-routes.ts.
+ * HTTP 401 - Unauthorized (unauthenticated).
+ */
+export class UnauthenticatedError extends AppError {
+  constructor(message: string = 'Authentication is required') {
+    super(message, 'UNAUTHENTICATED', 401);
+  }
+}

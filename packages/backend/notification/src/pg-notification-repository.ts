@@ -249,6 +249,7 @@ export class HybridNotificationRepository implements NotificationRepository {
       failedAt?: Date | null;
       failureReason?: string | null;
       retryCount?: number;
+      releaseClaimToken?: string;
     },
   ): Promise<NotificationEntity | null> {
     await this.ensureSchema();
@@ -274,7 +275,11 @@ export class HybridNotificationRepository implements NotificationRepository {
       const result = await client.query(
         `UPDATE notifications SET
            status = $3, sent_at = $4, delivered_at = $5, read_at = $6,
-           failed_at = $7, failure_reason = $8, retry_count = $9, updated_at = now()
+           failed_at = $7, failure_reason = $8, retry_count = $9, updated_at = now(),
+           delivery_claimed_at = CASE WHEN delivery_claim_token = $10::uuid
+                                      THEN NULL ELSE delivery_claimed_at END,
+           delivery_claim_token = CASE WHEN delivery_claim_token = $10::uuid
+                                       THEN NULL ELSE delivery_claim_token END
          WHERE id = $1 AND tenant_id = $2
          RETURNING *`,
         [
@@ -287,9 +292,51 @@ export class HybridNotificationRepository implements NotificationRepository {
           next.failedAt,
           next.failureReason,
           next.retryCount,
+          update.releaseClaimToken ?? null,
         ],
       );
       return mapNotification(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async claimForDelivery(
+    tenantId: string,
+    id: string,
+    token: string,
+    leaseMs: number,
+  ): Promise<boolean> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      // PRC-L576: the row lock makes this conditional UPDATE an atomic claim.
+      const result = await client.query(
+        `UPDATE notifications
+            SET delivery_claimed_at = now(), delivery_claim_token = $3::uuid
+          WHERE id = $1 AND tenant_id = $2
+            AND status NOT IN ('delivered', 'read')
+            AND (delivery_claimed_at IS NULL
+                 OR delivery_claimed_at < now() - ($4::int * interval '1 millisecond'))
+          RETURNING id`,
+        [id, tenantId, token, leaseMs],
+      );
+      return result.rows.length === 1;
+    });
+  }
+
+  async markNotificationRead(
+    tenantId: string,
+    id: string,
+    readAt: Date,
+  ): Promise<NotificationEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE notifications SET status = 'read', read_at = $3, updated_at = now()
+          WHERE id = $1 AND tenant_id = $2 AND status <> 'read'
+          RETURNING *`,
+        [id, tenantId, readAt],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapNotification(row) : null;
     });
   }
 

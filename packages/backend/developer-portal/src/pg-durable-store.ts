@@ -131,6 +131,49 @@ function mapDelivery(row: Record<string, unknown>): WebhookDeliveryEntity {
   };
 }
 
+async function insertWebhook(client: PgQueryable, webhook: WebhookEntity): Promise<WebhookEntity> {
+  const result = await client.query(
+    `INSERT INTO developer_portal_webhooks (
+       id, tenant_id, account_id, url, events, secret_hash, description,
+       active, created_at, updated_at
+     ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10)
+     RETURNING *`,
+    [
+      webhook.id,
+      webhook.tenantId,
+      webhook.accountId,
+      webhook.url,
+      JSON.stringify(webhook.events),
+      webhook.secretHash,
+      webhook.description,
+      webhook.active,
+      webhook.createdAt,
+      webhook.updatedAt,
+    ],
+  );
+  return mapWebhook(result.rows[0] as Record<string, unknown>);
+}
+
+async function insertSandbox(client: PgQueryable, sandbox: SandboxEntity): Promise<SandboxEntity> {
+  const result = await client.query(
+    `INSERT INTO developer_portal_sandboxes (
+       id, account_id, name, description, sandbox_tenant_id, status, expires_at, api_endpoint, created_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [
+      sandbox.id,
+      sandbox.accountId,
+      sandbox.name,
+      sandbox.description,
+      sandbox.tenantId,
+      sandbox.status,
+      sandbox.expiresAt,
+      sandbox.apiEndpoint,
+      sandbox.createdAt,
+    ],
+  );
+  return mapSandbox(result.rows[0] as Record<string, unknown>);
+}
+
 /**
  * Durable store for accounts / webhooks / deliveries.
  * API keys remain in {@link PgApiKeyStore}.
@@ -224,29 +267,29 @@ export class PgDeveloperPortalDurableStore {
 
   // ─── Webhooks (tenant scope) ──────────────────────────────────────────────
 
-  async createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
+  /**
+   * PRC-L299: count the account's webhooks in this tenant and insert under a
+   * per-account advisory xact lock. Returns null (nothing written) at the limit.
+   */
+  async createWebhookWithinLimit(
+    webhook: WebhookEntity,
+    limit: number,
+  ): Promise<WebhookEntity | null> {
     return withPgTenant(this.pool, webhook.tenantId, async (client) => {
-      const result = await client.query(
-        `INSERT INTO developer_portal_webhooks (
-           id, tenant_id, account_id, url, events, secret_hash, description,
-           active, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10)
-         RETURNING *`,
-        [
-          webhook.id,
-          webhook.tenantId,
-          webhook.accountId,
-          webhook.url,
-          JSON.stringify(webhook.events),
-          webhook.secretHash,
-          webhook.description,
-          webhook.active,
-          webhook.createdAt,
-          webhook.updatedAt,
-        ],
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('devportal:webhook:' || $1))`, [
+        webhook.accountId,
+      ]);
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM developer_portal_webhooks WHERE account_id = $1`,
+        [webhook.accountId],
       );
-      return mapWebhook(result.rows[0] as Record<string, unknown>);
+      if (Number((count.rows[0] as { total: number }).total) >= limit) return null;
+      return insertWebhook(client, webhook);
     });
+  }
+
+  async createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
+    return withPgTenant(this.pool, webhook.tenantId, (client) => insertWebhook(client, webhook));
   }
 
   async getWebhookById(id: string): Promise<WebhookEntity | null> {
@@ -461,13 +504,41 @@ export class PgDeveloperPortalDurableStore {
           updates.lastAttemptAt !== undefined ? updates.lastAttemptAt : existing.lastAttemptAt,
         nextRetryAt: updates.nextRetryAt !== undefined ? updates.nextRetryAt : existing.nextRetryAt,
       };
+      // PRC-L464: writing the attempt result releases the delivery claim.
       const result = await client.query(
         `UPDATE developer_portal_webhook_deliveries
          SET status = $2, http_status = $3, attempts = $4,
-             last_attempt_at = $5, next_retry_at = $6
+             last_attempt_at = $5, next_retry_at = $6,
+             claimed_at = NULL, claim_token = NULL
          WHERE id = $1
          RETURNING *`,
         [id, next.status, next.httpStatus, next.attempts, next.lastAttemptAt, next.nextRetryAt],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapDelivery(row) : null;
+    });
+  }
+
+  /**
+   * PRC-L464: one conditional UPDATE under the tenant claims the delivery. Two
+   * concurrent callers serialize on the row lock; the loser re-checks the
+   * predicate against the winner's claim and updates nothing.
+   */
+  async claimDelivery(
+    tenantId: string,
+    id: string,
+    claimToken: string,
+    leaseMs: number,
+  ): Promise<WebhookDeliveryEntity | null> {
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE developer_portal_webhook_deliveries
+         SET claimed_at = now(), claim_token = $2
+         WHERE id = $1
+           AND status = 'pending'
+           AND (claimed_at IS NULL OR claimed_at < now() - ($3::bigint * interval '1 millisecond'))
+         RETURNING *`,
+        [id, claimToken, Math.max(0, Math.trunc(leaseMs))],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapDelivery(row) : null;
@@ -747,26 +818,30 @@ export class PgDeveloperPortalDurableStore {
 
   // ─── Sandboxes (platform scope — PRC-H049 residual) ───────────────────────
 
-  async createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+  /**
+   * PRC-L299: count the account's active/provisioning sandboxes and insert under
+   * a per-account advisory xact lock. Returns null (nothing written) at the limit.
+   */
+  async createSandboxWithinLimit(
+    sandbox: SandboxEntity,
+    limit: number,
+  ): Promise<SandboxEntity | null> {
     return withPlatformScope(this.pool, async (client: PgQueryable) => {
-      const result = await client.query(
-        `INSERT INTO developer_portal_sandboxes (
-           id, account_id, name, description, sandbox_tenant_id, status, expires_at, api_endpoint, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [
-          sandbox.id,
-          sandbox.accountId,
-          sandbox.name,
-          sandbox.description,
-          sandbox.tenantId,
-          sandbox.status,
-          sandbox.expiresAt,
-          sandbox.apiEndpoint,
-          sandbox.createdAt,
-        ],
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('devportal:sandbox:' || $1))`, [
+        sandbox.accountId,
+      ]);
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM developer_portal_sandboxes
+          WHERE account_id = $1 AND status IN ('active', 'provisioning')`,
+        [sandbox.accountId],
       );
-      return mapSandbox(result.rows[0] as Record<string, unknown>);
+      if (Number((count.rows[0] as { total: number }).total) >= limit) return null;
+      return insertSandbox(client, sandbox);
     });
+  }
+
+  async createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
+    return withPlatformScope(this.pool, (client: PgQueryable) => insertSandbox(client, sandbox));
   }
 
   async getSandboxById(id: string): Promise<SandboxEntity | null> {

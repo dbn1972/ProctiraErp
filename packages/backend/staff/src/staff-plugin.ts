@@ -28,6 +28,7 @@ import { StaffLeaveService } from './leave-service.js';
 import { resolvePayrollProrationPolicy, type PayrollProrationPolicy } from './payroll-compute.js';
 import { createStaffLeaveRepository } from './pg-leave-repository.js';
 import { registerStaffRoutes } from './routes.js';
+import type { StaffAuditSink } from './staff-audit.js';
 import type { StaffRepository } from './staff-repository.js';
 import { StaffService } from './staff-service.js';
 import { staffIdsOnLeave } from './staff-type.js';
@@ -59,6 +60,11 @@ export interface StaffPluginOptions {
    * ('calendar_days' when unset). An unknown value fails plugin registration.
    */
   payrollProration?: PayrollProrationPolicy;
+  /**
+   * PRC-M544: domain audit sink for payroll runs, contracts, salary changes, leave decisions,
+   * offboarding and qualification verification. Omitted: no audit events.
+   */
+  auditSink?: StaffAuditSink | null;
   /** Route prefix for staff (default: '/staff') */
   prefix?: string;
 }
@@ -84,7 +90,8 @@ export const staffPlugin = fp(
     const leaveRepository = options.leaveRepository ?? createStaffLeaveRepository();
 
     // Create staff service instance
-    const staffService = new StaffService(repository);
+    const auditSink = options.auditSink ?? null;
+    const staffService = new StaffService(repository, { auditSink });
 
     // Decorate fastify with the staff service
     fastify.decorate('staffService', staffService);
@@ -117,7 +124,7 @@ export const staffPlugin = fp(
       });
     }
 
-    const leaveService = new StaffLeaveService(leaveRepository, staffExists);
+    const leaveService = new StaffLeaveService(leaveRepository, staffExists, { auditSink });
     fastify.decorate('staffLeaveService', leaveService);
     await fastify.register(async (scope) => {
       await registerStaffLeaveRoutes(scope, {
@@ -132,6 +139,7 @@ export const staffPlugin = fp(
     const hrService = new StaffHrService(hrStore, staffService, {
       payrollProration:
         options.payrollProration ?? resolvePayrollProrationPolicy(process.env.PAYROLL_PRORATION),
+      auditSink,
     });
     fastify.decorate('staffHrService', hrService);
     await fastify.register(async (scope) => {

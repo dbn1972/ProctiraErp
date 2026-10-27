@@ -4,10 +4,13 @@
  * CSV is not an accepted student-import format (routes allow .xlsx only),
  * so this file does not round-trip CSV.
  */
+import { deflateRawSync } from 'node:zlib';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   createExcelWorkbook,
+  inspectZipBounds,
   parseExcelBuffer,
   resolveExcelWorkbookConstructor,
 } from './excel-parser.js';
@@ -120,6 +123,64 @@ function craftedZip(declaredUncompressed: number): Buffer {
   eocd.writeUInt32LE(cdOffset, 16);
   return Buffer.concat([local, name, central, name, eocd]);
 }
+
+/**
+ * PRC-L589: a one-entry deflate zip whose central directory *declares* a tiny
+ * uncompressed size while the stream really inflates to `realBytes`.
+ */
+function lyingDeflateZip(declaredUncompressed: number, realBytes: number): Buffer {
+  const name = Buffer.from('xl/worksheets/sheet1.xml');
+  const data = deflateRawSync(Buffer.alloc(realBytes, 0x41));
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(8, 8);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt32LE(declaredUncompressed, 22);
+  local.writeUInt16LE(name.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt16LE(8, 10);
+  central.writeUInt32LE(data.length, 20);
+  central.writeUInt32LE(declaredUncompressed, 24);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt32LE(0, 42);
+  const cdOffset = local.length + name.length + data.length;
+  const cdSize = central.length + name.length;
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(1, 8);
+  eocd.writeUInt16LE(1, 10);
+  eocd.writeUInt32LE(cdSize, 12);
+  eocd.writeUInt32LE(cdOffset, 16);
+  return Buffer.concat([local, name, data, central, name, eocd]);
+}
+
+describe('inspectZipBounds real inflate (PRC-L589)', () => {
+  it('rejects an entry that inflates past the cap although it declares 100 bytes', () => {
+    const buffer = lyingDeflateZip(100, 2 * 1024 * 1024);
+    const error = inspectZipBounds(buffer, { maxEntries: 10, maxUncompressedBytes: 1 << 20 });
+    expect(error).toMatch(/uncompressed/i);
+  });
+
+  it('accepts the same archive when the real size is under the cap', () => {
+    const buffer = lyingDeflateZip(100, 4096);
+    expect(inspectZipBounds(buffer, { maxEntries: 10, maxUncompressedBytes: 1 << 20 })).toBeNull();
+  });
+
+  it('still parses a genuine small xlsx', async () => {
+    const buffer = await workbookBuffer([
+      ['first_name', 'last_name', 'date_of_birth'],
+      ['Ada', 'Lovelace', '2008-12-10'],
+    ]);
+    expect(
+      inspectZipBounds(buffer, { maxEntries: 1000, maxUncompressedBytes: 1 << 20 }),
+    ).toBeNull();
+    expect((await parseExcelBuffer(buffer)).rows).toHaveLength(1);
+  });
+});
 
 async function workbookBuffer(rows: unknown[][], edit?: (sheet: unknown) => void) {
   const workbook = await createExcelWorkbook();

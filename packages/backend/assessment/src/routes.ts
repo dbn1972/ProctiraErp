@@ -23,6 +23,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { assessmentAuditContextOf } from './assessment-audit.js';
 import { installAssessmentRouteGuard } from './assessment-http-guard.js';
 import type { AssessmentService } from './assessment-service.js';
 import {
@@ -195,7 +196,11 @@ export async function registerAssessmentRoutes(
       }
 
       try {
-        const scheme = await assessmentService.createGradingScheme(tenantId, result.data);
+        const scheme = await assessmentService.createGradingScheme(
+          tenantId,
+          result.data,
+          assessmentAuditContextOf(request),
+        );
         return reply.status(201).send(formatGradingSchemeResponse(scheme));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -339,6 +344,7 @@ export async function registerAssessmentRoutes(
           tenantId,
           paramsResult.data.id,
           bodyResult.data,
+          assessmentAuditContextOf(request),
         );
         return reply.status(200).send(formatGradingSchemeResponse(scheme));
       } catch (error: unknown) {
@@ -380,7 +386,11 @@ export async function registerAssessmentRoutes(
       }
 
       try {
-        await assessmentService.deleteGradingScheme(tenantId, paramsResult.data.id);
+        await assessmentService.deleteGradingScheme(
+          tenantId,
+          paramsResult.data.id,
+          assessmentAuditContextOf(request),
+        );
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -424,7 +434,11 @@ export async function registerAssessmentRoutes(
       }
 
       try {
-        const items = await assessmentService.defineAssessmentItems(tenantId, result.data);
+        const items = await assessmentService.defineAssessmentItems(
+          tenantId,
+          result.data,
+          assessmentAuditContextOf(request),
+        );
         const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
         return reply.status(201).send({
           subjectId: result.data.subjectId,

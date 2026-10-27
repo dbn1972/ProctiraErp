@@ -3,22 +3,22 @@
 Fresh ProctiraERP installs need two PostgreSQL LOGIN roles before Prisma migrate
 or `tools/scripts/apply-sql.sh` can establish the production RLS posture:
 
-| Role | Purpose | Attributes |
-| --- | --- | --- |
-| `proctira` | Migrator / table owner (`MIGRATOR_DATABASE_URL`) | `NOSUPERUSER` `NOBYPASSRLS` (CI/prod); may already be compose `POSTGRES_USER` |
-| `proctira_app` | Application runtime (`DATABASE_URL`) | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT` |
+| Role           | Purpose                                          | Attributes                                                              |
+| -------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| `proctira`     | Migrator / table owner (`MIGRATOR_DATABASE_URL`) | `NOSUPERUSER` `NOBYPASSRLS` (CI, prod and local compose since PRC-L460) |
+| `proctira_app` | Application runtime (`DATABASE_URL`)             | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
 
 ### Control-ledger privileges (W1-DATA-11 COMPLETE)
 
 After domain SQL `050` + `076` (and every `apply-sql.sh` privilege sync):
 
-| Object | `proctira` (migrator) | `proctira_app` (runtime) |
-| --- | --- | --- |
-| Tenant / domain tables | Owner (DDL) | Classified DML via `db/runtime-table-privileges.json` |
-| Append-only / platform catalogs | Owner | SELECT+INSERT only (class `append_only` / `select_insert`) |
-| `schema_migrations` | Full (apply-sql ledger writes) | **None** — class `denied` |
-| `_prisma_migrations` | Full (Prisma migrate) | **None** — class `denied` |
-| `schema_migration_phases` | Full (non-txn phase resume) | **None** — class `denied` via `088` |
+| Object                          | `proctira` (migrator)          | `proctira_app` (runtime)                                   |
+| ------------------------------- | ------------------------------ | ---------------------------------------------------------- |
+| Tenant / domain tables          | Owner (DDL)                    | Classified DML via `db/runtime-table-privileges.json`      |
+| Append-only / platform catalogs | Owner                          | SELECT+INSERT only (class `append_only` / `select_insert`) |
+| `schema_migrations`             | Full (apply-sql ledger writes) | **None** — class `denied`                                  |
+| `_prisma_migrations`            | Full (Prisma migrate)          | **None** — class `denied`                                  |
+| `schema_migration_phases`       | Full (non-txn phase resume)    | **None** — class `denied` via `088`                        |
 
 Runtime must never `SELECT` or mutate migration ledgers. Future public tables
 must be added to `db/runtime-table-privileges.json` (CI catalog gate) — there
@@ -59,8 +59,11 @@ missing and a bootstrap URL is available).
 ## Local compose
 
 `docker-compose.yml` mounts this SQL into `docker-entrypoint-initdb.d` on **fresh
-volumes**, then `db/docker-init/02_local_passwords.sql` sets the documented
-dev passwords from `.env.example`.
+volumes**, then `db/docker-init/02_local_passwords.sh` sets `MIGRATOR_PASSWORD` /
+`APP_ROLE_PASSWORD` from `.env`, makes `proctira` the database owner and asserts
+both roles are `NOSUPERUSER NOBYPASSRLS` (PRC-L460). The container superuser is
+the separate `POSTGRES_BOOTSTRAP_USER` (default `postgres`). Existing volumes are
+not re-initialised.
 
 ## Related
 

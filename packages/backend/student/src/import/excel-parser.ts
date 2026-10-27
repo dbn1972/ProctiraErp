@@ -9,6 +9,8 @@
  * - 19.2: Validate all rows against entity rules
  */
 
+import { inflateRawSync } from 'node:zlib';
+
 import {
   MAX_IMPORT_ROWS,
   MAX_IMPORT_UNCOMPRESSED_BYTES,
@@ -125,14 +127,23 @@ export interface ParseResult {
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_HEADER_SIGNATURE = 0x02014b50;
+const LOCAL_HEADER_SIGNATURE = 0x04034b50;
 const EOCD_MIN_BYTES = 22;
 const CENTRAL_HEADER_MIN_BYTES = 46;
+const LOCAL_HEADER_MIN_BYTES = 30;
+const ZIP_METHOD_STORED = 0;
+const ZIP_METHOD_DEFLATE = 8;
 
 /**
- * PRC-L589: zip-bomb pre-check on the archive's central directory, run before
- * exceljs inflates anything. Returns an error message, or null when the
- * declared bounds are fine (or the buffer is not a zip; exceljs reports that).
- * Declared sizes are trusted: a streaming inflate cap would need JSZip internals.
+ * PRC-L589: zip-bomb pre-check, run before exceljs inflates anything. Returns
+ * an error message, or null when the archive is within bounds (or the buffer
+ * is not a zip; exceljs reports that).
+ *
+ * Checks the central directory's entry count and declared sizes, then measures
+ * the real size of every entry: stored entries count their stored bytes and
+ * deflate entries are inflated with an output cap of the remaining budget, so
+ * an archive that under-declares its sizes is still rejected. Other
+ * compression methods are refused.
  */
 export function inspectZipBounds(
   buffer: Buffer,
@@ -159,17 +170,35 @@ export function inspectZipBounds(
   }
   if (directoryOffset + directorySize > eocd) return 'File archive directory is corrupt';
   let total = 0;
+  let actualTotal = 0;
   let pos = directoryOffset;
   for (let n = 0; n < entries; n++) {
     if (pos + CENTRAL_HEADER_MIN_BYTES > eocd) return 'File archive directory is corrupt';
     if (buffer.readUInt32LE(pos) !== CENTRAL_HEADER_SIGNATURE) {
       return 'File archive directory is corrupt';
     }
+    const method = buffer.readUInt16LE(pos + 10);
+    const compressed = buffer.readUInt32LE(pos + 20);
     const uncompressed = buffer.readUInt32LE(pos + 24);
-    if (uncompressed === 0xffffffff) return 'ZIP64 archives are not supported for student import';
+    const localOffset = buffer.readUInt32LE(pos + 42);
+    if (uncompressed === 0xffffffff || compressed === 0xffffffff || localOffset === 0xffffffff) {
+      return 'ZIP64 archives are not supported for student import';
+    }
     total += uncompressed;
     if (total > limits.maxUncompressedBytes) {
       return `File declares over ${limits.maxUncompressedBytes} bytes uncompressed; the maximum is ${limits.maxUncompressedBytes}`;
+    }
+    const actual = measureEntry(buffer, {
+      method,
+      compressed,
+      localOffset,
+      directoryOffset,
+      budget: limits.maxUncompressedBytes - actualTotal,
+    });
+    if (typeof actual === 'string') return actual;
+    actualTotal += actual;
+    if (actualTotal > limits.maxUncompressedBytes) {
+      return `File inflates to over ${limits.maxUncompressedBytes} bytes uncompressed; the maximum is ${limits.maxUncompressedBytes}`;
     }
     const nameLength = buffer.readUInt16LE(pos + 28);
     const extraLength = buffer.readUInt16LE(pos + 30);
@@ -177,6 +206,48 @@ export function inspectZipBounds(
     pos += CENTRAL_HEADER_MIN_BYTES + nameLength + extraLength + commentLength;
   }
   return null;
+}
+
+/**
+ * PRC-L589: real uncompressed size of one entry, or an error message. A deflate
+ * entry is inflated with `maxOutputLength = budget + 1`, so inflation stops as
+ * soon as the entry would exceed the remaining budget.
+ */
+function measureEntry(
+  buffer: Buffer,
+  entry: {
+    method: number;
+    compressed: number;
+    localOffset: number;
+    directoryOffset: number;
+    budget: number;
+  },
+): number | string {
+  const corrupt = 'File archive directory is corrupt';
+  const { localOffset, compressed } = entry;
+  if (localOffset + LOCAL_HEADER_MIN_BYTES > entry.directoryOffset) return corrupt;
+  if (buffer.readUInt32LE(localOffset) !== LOCAL_HEADER_SIGNATURE) return corrupt;
+  const dataStart =
+    localOffset +
+    LOCAL_HEADER_MIN_BYTES +
+    buffer.readUInt16LE(localOffset + 26) +
+    buffer.readUInt16LE(localOffset + 28);
+  if (dataStart + compressed > entry.directoryOffset) return corrupt;
+  if (entry.method === ZIP_METHOD_STORED) return compressed;
+  if (entry.method !== ZIP_METHOD_DEFLATE) {
+    return 'File archive uses an unsupported compression method';
+  }
+  try {
+    return inflateRawSync(buffer.subarray(dataStart, dataStart + compressed), {
+      maxOutputLength: Math.max(0, entry.budget) + 1,
+    }).length;
+  } catch (error: unknown) {
+    // Output cap hit: the entry alone exceeds the remaining budget.
+    if ((error as { code?: unknown }).code === 'ERR_BUFFER_TOO_LARGE') {
+      return Number.MAX_SAFE_INTEGER;
+    }
+    return 'File archive entry is corrupt';
+  }
 }
 
 /**

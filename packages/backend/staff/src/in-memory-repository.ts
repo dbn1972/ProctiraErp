@@ -6,7 +6,13 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
+import { writeOffboardMeta, type StaffOffboardMeta } from './offboard-meta.js';
+import type {
+  StaffEntity,
+  StaffFilter,
+  StaffOffboardRecord,
+  StaffRepository,
+} from './staff-repository.js';
 import { matchesStaffType } from './staff-type.js';
 
 export class InMemoryStaffRepository implements StaffRepository {
@@ -16,6 +22,8 @@ export class InMemoryStaffRepository implements StaffRepository {
    * is retained, but reads, updates and lists no longer return it.
    */
   private readonly deletedIds = new Set<string>();
+  /** PRC-M381: mirrors the staff offboard_* columns (db/sql/260). */
+  private readonly offboardRecords = new Map<string, StaffOffboardRecord>();
   /**
    * PRC-H090: staff → institution index for school-scope parity with the Pg
    * repo. Keyed by `${tenantId}:${institutionId}` → set of staffIds.
@@ -53,6 +61,37 @@ export class InMemoryStaffRepository implements StaffRepository {
     };
     this.staff.set(entity.id, entity);
     return entity;
+  }
+
+  /** PRC-M381: check + write with no await in between (atomic on the event loop). */
+  async markOffboarded(
+    id: string,
+    tenantId: string,
+    meta: StaffOffboardMeta,
+  ): Promise<StaffEntity | null> {
+    const existing = this.staff.get(id);
+    if (!existing || existing.tenantId !== tenantId || this.deletedIds.has(id)) return null;
+    if (this.offboardRecords.has(id)) return null;
+    this.offboardRecords.set(id, {
+      effectiveDate: meta.effectiveDate,
+      reason: meta.reason,
+      decidedBy: meta.decidedBy,
+      decidedAt: meta.decidedAt,
+    });
+    const updated: StaffEntity = {
+      ...existing,
+      status: 'INACTIVE',
+      customData: writeOffboardMeta(existing.customData, meta),
+      updatedAt: new Date(),
+    };
+    this.staff.set(id, updated);
+    return updated;
+  }
+
+  async findOffboardRecord(id: string, tenantId: string): Promise<StaffOffboardRecord | null> {
+    const existing = this.staff.get(id);
+    if (!existing || existing.tenantId !== tenantId) return null;
+    return this.offboardRecords.get(id) ?? null;
   }
 
   async update(

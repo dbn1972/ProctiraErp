@@ -5,12 +5,15 @@
  * in memory with full interface compliance.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type {
   PolicyEntity,
   PolicyVersionEntity,
   PolicyAssignmentEntity,
   PolicyFilter,
   PolicyRepository,
+  PolicyAtomicUpdate,
+  PolicyAtomicUpdateResult,
 } from './policy-repository.js';
 import type { PolicyType } from './schemas.js';
 
@@ -40,8 +43,41 @@ export class InMemoryPolicyRepository implements PolicyRepository {
     const index = this.policies.findIndex((p) => p.id === id && p.tenantId === tenantId);
     if (index === -1) return null;
 
+    const updated = this.merge(this.policies[index]!, data);
+    this.policies[index] = updated;
+    return updated;
+  }
+
+  // No `await` between read, name check, version push and write: the body runs
+  // to completion on the event loop, so concurrent callers are serialised
+  // (PRC-L478).
+  async updateAtomically(
+    id: string,
+    tenantId: string,
+    build: (existing: PolicyEntity) => PolicyAtomicUpdate,
+  ): Promise<PolicyAtomicUpdateResult> {
+    const index = this.policies.findIndex((p) => p.id === id && p.tenantId === tenantId);
+    if (index === -1) return { status: 'not_found' };
+
     const existing = this.policies[index]!;
-    const updated: PolicyEntity = {
+    const { data, version } = build(existing);
+    if (data.name !== undefined && data.name !== existing.name) {
+      const wanted = data.name.toLowerCase();
+      const clash = this.policies.some(
+        (p) => p.tenantId === tenantId && p.id !== id && p.name.toLowerCase() === wanted,
+      );
+      if (clash) return { status: 'name_conflict' };
+    }
+    if (version) {
+      this.versions.push({ ...version, createdAt: new Date() });
+    }
+    const updated = this.merge(existing, data);
+    this.policies[index] = updated;
+    return { status: 'updated', entity: updated };
+  }
+
+  private merge(existing: PolicyEntity, data: Partial<PolicyEntity>): PolicyEntity {
+    return {
       id: existing.id,
       tenantId: existing.tenantId,
       name: data.name ?? existing.name,
@@ -58,8 +94,6 @@ export class InMemoryPolicyRepository implements PolicyRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    this.policies[index] = updated;
-    return updated;
   }
 
   async findById(id: string, tenantId: string): Promise<PolicyEntity | null> {

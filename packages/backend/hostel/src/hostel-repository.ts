@@ -1,6 +1,7 @@
 /**
  * Hostel repository interface (in-memory v1).
  */
+import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 
 export type HostelStatus = 'active' | 'inactive' | 'maintenance';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
@@ -203,10 +204,18 @@ export interface HostelRepository {
   createActiveAssignment(
     data: Omit<HostelAssignmentEntity, 'createdAt' | 'updatedAt'> & { isActive: true },
   ): Promise<HostelAssignmentEntity>;
-  listAssignments(tenantId: string): Promise<HostelAssignmentEntity[]>;
+  /** PRC-M278: one bounded page of the tenant's rows plus paging meta. */
+  listAssignments(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelAssignmentEntity>>;
 
   createLeave(data: Omit<HostelLeaveEntity, 'createdAt' | 'updatedAt'>): Promise<HostelLeaveEntity>;
-  listLeaves(tenantId: string): Promise<HostelLeaveEntity[]>;
+  /** PRC-M278: one bounded page of the tenant's rows plus paging meta. */
+  listLeaves(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelLeaveEntity>>;
   findLeaveById(id: string, tenantId: string): Promise<HostelLeaveEntity | null>;
   updateLeave(
     id: string,
@@ -219,7 +228,11 @@ export interface HostelRepository {
   createVisitor(
     data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelVisitorEntity>;
-  listVisitors(tenantId: string): Promise<HostelVisitorEntity[]>;
+  /** PRC-M278: one bounded page of the tenant's rows plus paging meta. */
+  listVisitors(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HostelVisitorEntity>>;
   findVisitorById(id: string, tenantId: string): Promise<HostelVisitorEntity | null>;
   updateVisitor(
     id: string,

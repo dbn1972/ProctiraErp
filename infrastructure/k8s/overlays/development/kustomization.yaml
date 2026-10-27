@@ -21,6 +21,16 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 1
+  # PRC-L567: with replicas forced to 1, the base PDBs' minAvailable: 1 would
+  # block every voluntary eviction (node drains hang). Allow one disruption.
+  - target:
+      kind: PodDisruptionBudget
+    patch: |
+      - op: remove
+        path: /spec/minAvailable
+      - op: add
+        path: /spec/maxUnavailable
+        value: 1
   # Disable HPA in development
   - target:
       kind: HorizontalPodAutoscaler

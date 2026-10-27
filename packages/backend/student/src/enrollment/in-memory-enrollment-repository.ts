@@ -9,18 +9,21 @@ import { randomUUID } from 'node:crypto';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { ConflictError, NotFoundError } from '@proctira/common';
 
-import type {
-  EnrollmentEntity,
-  EnrollmentFilter,
-  EnrollmentHistoryContext,
-  EnrollmentHistoryEntity,
-  EnrollmentRepository,
-  InstitutionLookup,
-  TransferEnrollmentResult,
-  TransferEnrollmentWrite,
-  TransferRecordDetail,
-  TransferRecordEntity,
-  UpdateEnrollmentOptions,
+import {
+  PLACEMENT_REF_KINDS,
+  type EnrollmentEntity,
+  type EnrollmentFilter,
+  type EnrollmentHistoryContext,
+  type EnrollmentHistoryEntity,
+  type EnrollmentPlacementRefKind,
+  type EnrollmentPlacementRefs,
+  type EnrollmentRepository,
+  type InstitutionLookup,
+  type TransferEnrollmentResult,
+  type TransferEnrollmentWrite,
+  type TransferRecordDetail,
+  type TransferRecordEntity,
+  type UpdateEnrollmentOptions,
 } from './enrollment-repository.js';
 
 export class InMemoryEnrollmentRepository implements EnrollmentRepository {
@@ -35,6 +38,8 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     InstitutionLookup & { tenantId: string; name?: string; boardName?: string }
   > = new Map();
   private studentNames: Map<string, { tenantId: string; name: string }> = new Map();
+  /** PRC-M548: `<kind>:<id>` → owning tenant, for placement-reference checks. */
+  private placementRefs: Map<string, string | null> = new Map();
 
   /**
    * PRC-H094: all-or-nothing like the Postgres transaction — state is
@@ -304,7 +309,35 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     return { id: inst.id, status: inst.status };
   }
 
+  /**
+   * The in-memory double does not store students / grades / classes / periods.
+   * An id registered via {@link addPlacementRefs} under another tenant (or as
+   * absent with `null`) is reported missing; unregistered ids are treated as
+   * present. Postgres checks real existence in-tenant.
+   */
+  async findMissingPlacementRefs(
+    tenantId: string,
+    refs: EnrollmentPlacementRefs,
+  ): Promise<EnrollmentPlacementRefKind[]> {
+    return PLACEMENT_REF_KINDS.filter((kind) => {
+      const key = `${kind}:${refs[kind]}`;
+      if (!this.placementRefs.has(key)) return false;
+      return this.placementRefs.get(key) !== tenantId;
+    });
+  }
+
   // ---- Test helpers ----
+
+  /**
+   * Register student / grade / class / academic-period ids as owned by
+   * `tenantId`; `null` registers them as absent everywhere.
+   */
+  addPlacementRefs(tenantId: string | null, refs: Partial<EnrollmentPlacementRefs>): void {
+    for (const kind of PLACEMENT_REF_KINDS) {
+      const id = refs[kind];
+      if (id) this.placementRefs.set(`${kind}:${id}`, tenantId);
+    }
+  }
 
   /** Add an institution to the in-memory store for transfer validation */
   addInstitution(
@@ -327,5 +360,6 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     this.transferRecords = [];
     this.institutions.clear();
     this.studentNames.clear();
+    this.placementRefs.clear();
   }
 }
