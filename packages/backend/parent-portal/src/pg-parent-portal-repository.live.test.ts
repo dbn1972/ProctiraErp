@@ -124,11 +124,9 @@ describe('PgParentPortalRepository (live)', () => {
         createdBy: 'finance-1',
       });
       expect(invoice.planId).toBe(plan.id);
-      expect(
-        (
-          await repo.listInvoicesForStudentIds(tenantA, [studentId], { page: 1, pageSize: 20 })
-        ).data.map((i) => i.id),
-      ).toEqual([invoice.id]);
+      expect((await repo.listInvoicesForStudentIds(tenantA, [studentId])).map((i) => i.id)).toEqual(
+        [invoice.id],
+      );
 
       // Tenant B cannot read or flip the invoice.
       expect(await repo.findInvoiceById(invoice.id, tenantB)).toBeNull();

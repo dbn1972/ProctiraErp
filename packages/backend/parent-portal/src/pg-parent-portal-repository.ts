@@ -5,7 +5,7 @@
  * and db/sql/011_fees_finance_schema.sql.
  */
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
-import { ConflictError, type PaginatedResult, type PaginationOptions } from '@proctira/common';
+import { ConflictError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
@@ -263,22 +263,6 @@ function mapPayment(row: Record<string, unknown>): FeePaymentEntity {
     status: String(row.status) as PaymentStatus,
     paidAt: toDate(row.paid_at),
     createdAt: toDate(row.created_at),
-  };
-}
-
-/**
- * PRC-M536: pagination metadata helper, following
- * packages/backend/scholarship/src/pg-scholarship-repository.ts's listPrograms
- * pattern (per-package duplication, matching the lms/scholarship convention
- * rather than a new shared export).
- */
-function paginateMeta(totalItems: number, pagination: PaginationOptions) {
-  const totalPages = Math.ceil(totalItems / pagination.pageSize) || 1;
-  return {
-    page: pagination.page,
-    pageSize: pagination.pageSize,
-    totalItems,
-    totalPages,
   };
 }
 
@@ -556,32 +540,17 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   async listThreadsForStudentIds(
     tenantId: string,
     studentIds: string[],
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<MessageThreadEntity>> {
+  ): Promise<MessageThreadEntity[]> {
     await this.ensureSchema();
-    if (studentIds.length === 0) {
-      return { data: [], meta: paginateMeta(0, pagination) };
-    }
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_message_threads
-       WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
-      [tenantId, studentIds],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
+    if (studentIds.length === 0) return [];
     const result = await this.query(
       tenantId,
       `SELECT * FROM parent_message_threads
        WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
-       ORDER BY updated_at DESC
-       LIMIT $3 OFFSET $4`,
-      [tenantId, studentIds, pagination.pageSize, offset],
+       ORDER BY updated_at DESC`,
+      [tenantId, studentIds],
     );
-    return {
-      data: result.rows.map((row) => mapThread(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapThread(row as Record<string, unknown>));
   }
 
   async findThreadById(id: string, tenantId: string): Promise<MessageThreadEntity | null> {
@@ -612,31 +581,16 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapMessage(insertResult.rows[0] as Record<string, unknown>);
   }
 
-  async listMessagesForThread(
-    tenantId: string,
-    threadId: string,
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<MessageEntity>> {
+  async listMessagesForThread(tenantId: string, threadId: string): Promise<MessageEntity[]> {
     await this.ensureSchema();
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_messages WHERE tenant_id = $1 AND thread_id = $2`,
-      [tenantId, threadId],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
     const result = await this.query(
       tenantId,
       `SELECT * FROM parent_messages
        WHERE tenant_id = $1 AND thread_id = $2
-       ORDER BY created_at ASC
-       LIMIT $3 OFFSET $4`,
-      [tenantId, threadId, pagination.pageSize, offset],
+       ORDER BY created_at ASC`,
+      [tenantId, threadId],
     );
-    return {
-      data: result.rows.map((row) => mapMessage(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapMessage(row as Record<string, unknown>));
   }
 
   async createConsent(
@@ -759,32 +713,16 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     });
   }
 
-  async listConsentsForParent(
-    tenantId: string,
-    parentUserId: string,
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<ConsentEntity>> {
+  async listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]> {
     await this.ensureSchema();
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_consents
-       WHERE tenant_id = $1 AND parent_user_id = $2 AND valid_to IS NULL`,
-      [tenantId, parentUserId],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
     const result = await this.query(
       tenantId,
       `SELECT * FROM parent_consents
        WHERE tenant_id = $1 AND parent_user_id = $2 AND valid_to IS NULL
-       ORDER BY created_at DESC
-       LIMIT $3 OFFSET $4`,
-      [tenantId, parentUserId, pagination.pageSize, offset],
+       ORDER BY created_at DESC`,
+      [tenantId, parentUserId],
     );
-    return {
-      data: result.rows.map((row) => mapConsent(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapConsent(row as Record<string, unknown>));
   }
 
   async findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null> {
@@ -903,57 +841,27 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   async listInvoicesForStudentIds(
     tenantId: string,
     studentIds: string[],
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<FeeInvoiceEntity>> {
+  ): Promise<FeeInvoiceEntity[]> {
     await this.ensureSchema();
-    if (studentIds.length === 0) {
-      return { data: [], meta: paginateMeta(0, pagination) };
-    }
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_fee_invoices
-       WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
-      [tenantId, studentIds],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
+    if (studentIds.length === 0) return [];
     const result = await this.query(
       tenantId,
       `SELECT * FROM parent_fee_invoices
        WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
-       ORDER BY created_at DESC
-       LIMIT $3 OFFSET $4`,
-      [tenantId, studentIds, pagination.pageSize, offset],
+       ORDER BY created_at DESC`,
+      [tenantId, studentIds],
     );
-    return {
-      data: result.rows.map((row) => mapInvoice(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapInvoice(row as Record<string, unknown>));
   }
 
-  async listInvoicesForTenant(
-    tenantId: string,
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<FeeInvoiceEntity>> {
+  async listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]> {
     await this.ensureSchema();
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_fee_invoices WHERE tenant_id = $1`,
-      [tenantId],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
     const result = await this.query(
       tenantId,
-      `SELECT * FROM parent_fee_invoices WHERE tenant_id = $1
-       ORDER BY created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [tenantId, pagination.pageSize, offset],
+      `SELECT * FROM parent_fee_invoices WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
     );
-    return {
-      data: result.rows.map((row) => mapInvoice(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapInvoice(row as Record<string, unknown>));
   }
 
   async findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null> {
@@ -1031,29 +939,14 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     });
   }
 
-  async listPaymentsForTenant(
-    tenantId: string,
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<FeePaymentEntity>> {
+  async listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]> {
     await this.ensureSchema();
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_fee_payments WHERE tenant_id = $1`,
-      [tenantId],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
     const result = await this.query(
       tenantId,
-      `SELECT * FROM parent_fee_payments WHERE tenant_id = $1
-       ORDER BY paid_at DESC
-       LIMIT $2 OFFSET $3`,
-      [tenantId, pagination.pageSize, offset],
+      `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 ORDER BY paid_at DESC`,
+      [tenantId],
     );
-    return {
-      data: result.rows.map((row) => mapPayment(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapPayment(row as Record<string, unknown>));
   }
 
   async createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity> {
@@ -1077,60 +970,30 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapReceipt(result.rows[0] as Record<string, unknown>);
   }
 
-  async listReceiptsForTenant(
-    tenantId: string,
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<FeeReceiptEntity>> {
+  async listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]> {
     await this.ensureSchema();
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_fee_receipts WHERE tenant_id = $1`,
-      [tenantId],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
     const result = await this.query(
       tenantId,
-      `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1
-       ORDER BY issued_at DESC
-       LIMIT $2 OFFSET $3`,
-      [tenantId, pagination.pageSize, offset],
+      `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 ORDER BY issued_at DESC`,
+      [tenantId],
     );
-    return {
-      data: result.rows.map((row) => mapReceipt(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
   }
 
   async listReceiptsForInvoiceIds(
     tenantId: string,
     invoiceIds: string[],
-    pagination: PaginationOptions,
-  ): Promise<PaginatedResult<FeeReceiptEntity>> {
+  ): Promise<FeeReceiptEntity[]> {
     await this.ensureSchema();
-    if (invoiceIds.length === 0) {
-      return { data: [], meta: paginateMeta(0, pagination) };
-    }
-    const countResult = await this.query(
-      tenantId,
-      `SELECT count(*)::int AS c FROM parent_fee_receipts
-       WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[])`,
-      [tenantId, invoiceIds],
-    );
-    const totalItems = Number((countResult.rows[0] as { c: number }).c);
-    const offset = (pagination.page - 1) * pagination.pageSize;
+    if (invoiceIds.length === 0) return [];
     const result = await this.query(
       tenantId,
       `SELECT * FROM parent_fee_receipts
        WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[])
-       ORDER BY issued_at DESC
-       LIMIT $3 OFFSET $4`,
-      [tenantId, invoiceIds, pagination.pageSize, offset],
+       ORDER BY issued_at DESC`,
+      [tenantId, invoiceIds],
     );
-    return {
-      data: result.rows.map((row) => mapReceipt(row as Record<string, unknown>)),
-      meta: paginateMeta(totalItems, pagination),
-    };
+    return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
   }
 
   async findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null> {

@@ -17,20 +17,13 @@ import type {
   StudentActor,
 } from './parent-portal-service.js';
 import {
-  AddHouseholdMemberSchema,
   AddMessageSchema,
-  AssignStudentCustodySchema,
   ConsentParamsSchema,
   CreateConsentSchema,
-  CreateCustodyRestrictionSchema,
   CreateFeePlanSchema,
-  CreateHouseholdSchema,
   CreateInvoiceSchema,
   CreateThreadSchema,
   DecideConsentSchema,
-  ListQuerySchema,
-  StaffCreateThreadSchema,
-  StaffListThreadsQuerySchema,
   SupersedeConsentSchema,
   WithdrawConsentSchema,
   InvoiceParamsSchema,
@@ -41,18 +34,12 @@ import {
   ChildParamsSchema,
   OfferParamsSchema,
   AcceptGuardianOfferSchema,
-  type AddHouseholdMemberInput,
   type AddMessageInput,
-  type AssignStudentCustodyInput,
   type CreateConsentInput,
-  type CreateCustodyRestrictionInput,
   type CreateFeePlanInput,
-  type CreateHouseholdInput,
   type CreateInvoiceInput,
   type CreateThreadInput,
   type DecideConsentInput,
-  type StaffCreateThreadInput,
-  type StaffListThreadsQuery,
   type SupersedeConsentInput,
   type WithdrawConsentInput,
   type LinkChildInput,
@@ -65,27 +52,6 @@ import {
   type OfferParams,
   type AcceptGuardianOfferInput,
 } from './schemas.js';
-
-/**
- * PRC-M536: validate page/pageSize from the query string against ListQuerySchema, applying
- * platform defaults. Returns null (and sends a 400) on invalid input.
- */
-function validateListPagination(
-  request: FastifyRequest,
-  reply: FastifyReply,
-): { page: number; pageSize: number } | null {
-  const result = validate(ListQuerySchema, request.query ?? {}, { convert: true });
-  if (!result.success) {
-    void reply.status(400).send({
-      code: 'VALIDATION_ERROR',
-      message: 'Invalid pagination query',
-      statusCode: 400,
-      errors: result.errors,
-    });
-    return null;
-  }
-  return { page: result.data.page ?? 1, pageSize: result.data.pageSize ?? 20 };
-}
 
 export interface ParentPortalRoutesOptions {
   parentPortalService: ParentPortalService;
@@ -467,287 +433,6 @@ export async function registerParentPortalRoutes(
     },
   );
 
-  /**
-   * PRC-M319: staff provisioning routes wired to EXISTING ParentPortalService methods
-   * (createHousehold / addHouseholdMember / assignStudentCustody / createCustodyRestriction —
-   * no new business logic). Staff-role bar reuses isConsentStaff || isFeesStaff (the FEAT's own
-   * named assumption — see this task's findings for the PR-body flag).
-   */
-  function requireProvisioningStaff(request: FastifyRequest, reply: FastifyReply): boolean {
-    const roles = getActorRoles(request);
-    if (isConsentStaff(roles) || isFeesStaff(roles)) return true;
-    void reply.status(403).send({
-      code: 'FORBIDDEN',
-      message: 'Guardian/custody provisioning is staff-only',
-      statusCode: 403,
-    });
-    return false;
-  }
-
-  fastify.post(
-    `${prefix}/households`,
-    async function createHouseholdHandler(
-      request: FastifyRequest<{ Body: CreateHouseholdInput }>,
-      reply: FastifyReply,
-    ) {
-      const result = validate(CreateHouseholdSchema, request.body ?? {});
-      if (!result.success) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          statusCode: 400,
-          errors: result.errors,
-        });
-      }
-
-      const tenantId = getTenantId(request);
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
-
-      if (!requireProvisioningStaff(request, reply)) return;
-
-      try {
-        const household = await parentPortalService.createHousehold(tenantId, result.data);
-        return reply.status(201).send(household);
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
-      }
-    },
-  );
-
-  fastify.post(
-    `${prefix}/households/members`,
-    async function addHouseholdMemberHandler(
-      request: FastifyRequest<{ Body: AddHouseholdMemberInput }>,
-      reply: FastifyReply,
-    ) {
-      const result = validate(AddHouseholdMemberSchema, request.body);
-      if (!result.success) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          statusCode: 400,
-          errors: result.errors,
-        });
-      }
-
-      const tenantId = getTenantId(request);
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
-
-      if (!requireProvisioningStaff(request, reply)) return;
-
-      try {
-        const member = await parentPortalService.addHouseholdMember(tenantId, result.data);
-        return reply.status(201).send(member);
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
-      }
-    },
-  );
-
-  fastify.post(
-    `${prefix}/custody`,
-    async function assignStudentCustodyHandler(
-      request: FastifyRequest<{ Body: AssignStudentCustodyInput }>,
-      reply: FastifyReply,
-    ) {
-      const result = validate(AssignStudentCustodySchema, request.body);
-      if (!result.success) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          statusCode: 400,
-          errors: result.errors,
-        });
-      }
-
-      const tenantId = getTenantId(request);
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
-
-      if (!requireProvisioningStaff(request, reply)) return;
-
-      try {
-        const custody = await parentPortalService.assignStudentCustody(tenantId, {
-          studentId: result.data.studentId,
-          householdId: result.data.householdId,
-          custodyType: result.data.custodyType,
-          effectiveFrom: result.data.effectiveFrom
-            ? new Date(result.data.effectiveFrom)
-            : undefined,
-        });
-        return reply.status(201).send(custody);
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
-      }
-    },
-  );
-
-  fastify.post(
-    `${prefix}/custody/restrictions`,
-    async function createCustodyRestrictionHandler(
-      request: FastifyRequest<{ Body: CreateCustodyRestrictionInput }>,
-      reply: FastifyReply,
-    ) {
-      const result = validate(CreateCustodyRestrictionSchema, request.body);
-      if (!result.success) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          statusCode: 400,
-          errors: result.errors,
-        });
-      }
-
-      const tenantId = getTenantId(request);
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
-
-      if (!requireProvisioningStaff(request, reply)) return;
-
-      try {
-        const restriction = await parentPortalService.createCustodyRestriction(tenantId, {
-          studentId: result.data.studentId,
-          parentUserId: result.data.parentUserId,
-          householdId: result.data.householdId ?? null,
-          restrictionKind: result.data.restrictionKind,
-          blocksMedical: result.data.blocksMedical,
-          blocksFees: result.data.blocksFees,
-          blocksAllAccess: result.data.blocksAllAccess,
-          effectiveFrom: result.data.effectiveFrom
-            ? new Date(result.data.effectiveFrom)
-            : undefined,
-          effectiveTo: result.data.effectiveTo ? new Date(result.data.effectiveTo) : null,
-          courtOrderRef: result.data.courtOrderRef,
-          notes: result.data.notes,
-        });
-        return reply.status(201).send(restriction);
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
-      }
-    },
-  );
-
-  // PRC-M319: staff-facing thread list for a student (across every linked parent) and
-  // staff-authored thread creation, wired to the existing ParentPortalService flows.
-  fastify.get(
-    `${prefix}/messages/threads/staff`,
-    async function listStaffThreadsHandler(
-      request: FastifyRequest<{ Querystring: StaffListThreadsQuery }>,
-      reply: FastifyReply,
-    ) {
-      const queryResult = validate(StaffListThreadsQuerySchema, request.query, { convert: true });
-      if (!queryResult.success) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid query',
-          statusCode: 400,
-          errors: queryResult.errors,
-        });
-      }
-
-      const tenantId = getTenantId(request);
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
-
-      if (!requireProvisioningStaff(request, reply)) return;
-
-      const page = queryResult.data.page ?? 1;
-      const pageSize = queryResult.data.pageSize ?? 20;
-      const result = await parentPortalService.listThreadsForStaff(
-        tenantId,
-        queryResult.data.studentId,
-        { page, pageSize },
-      );
-      return reply.status(200).send({ data: result.data.map(formatThread), meta: result.meta });
-    },
-  );
-
-  fastify.post(
-    `${prefix}/messages/threads/staff`,
-    async function createStaffThreadHandler(
-      request: FastifyRequest<{ Body: StaffCreateThreadInput }>,
-      reply: FastifyReply,
-    ) {
-      const result = validate(StaffCreateThreadSchema, request.body);
-      if (!result.success) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          statusCode: 400,
-          errors: result.errors,
-        });
-      }
-
-      const tenantId = getTenantId(request);
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
-
-      if (!requireProvisioningStaff(request, reply)) return;
-
-      try {
-        const actorId = requireActorId(request);
-        const { thread, message } = await parentPortalService.createStaffThread(
-          tenantId,
-          actorId,
-          result.data,
-        );
-        return reply.status(201).send({
-          thread: formatThread(thread),
-          message: formatMessage(message),
-        });
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
-      }
-    },
-  );
-
   fastify.get(
     `${prefix}/messages/threads`,
     async function listThreadsHandler(request: FastifyRequest, reply: FastifyReply) {
@@ -760,17 +445,10 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const pagination = validateListPagination(request, reply);
-      if (!pagination) return;
-
       try {
         const parentUserId = requireActorId(request);
-        const result = await parentPortalService.listThreadsForParent(
-          tenantId,
-          parentUserId,
-          pagination,
-        );
-        return reply.status(200).send({ data: result.data.map(formatThread), meta: result.meta });
+        const threads = await parentPortalService.listThreadsForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: threads.map(formatThread) });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -850,18 +528,14 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const pagination = validateListPagination(request, reply);
-      if (!pagination) return;
-
       try {
         const parentUserId = requireActorId(request);
-        const result = await parentPortalService.listMessages(
+        const messages = await parentPortalService.listMessages(
           tenantId,
           parentUserId,
           paramsResult.data.threadId,
-          pagination,
         );
-        return reply.status(200).send({ data: result.data.map(formatMessage), meta: result.meta });
+        return reply.status(200).send({ data: messages.map(formatMessage) });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -938,17 +612,10 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const pagination = validateListPagination(request, reply);
-      if (!pagination) return;
-
       try {
         const parentUserId = requireActorId(request);
-        const result = await parentPortalService.listConsentsForParent(
-          tenantId,
-          parentUserId,
-          pagination,
-        );
-        return reply.status(200).send({ data: result.data.map(formatConsent), meta: result.meta });
+        const consents = await parentPortalService.listConsentsForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: consents.map(formatConsent) });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -1282,27 +949,18 @@ export async function registerParentPortalRoutes(
         (request.query as { scope?: string } | undefined)?.scope ?? 'parent',
       ).toLowerCase();
 
-      const pagination = validateListPagination(request, reply);
-      if (!pagination) return;
-
       // PRC-C008: the tenant-wide staff view is honoured only for finance/admin staff. A
       // guardian/student who passes ?scope=staff is served their own children's invoices, never
       // the tenant-wide list.
       try {
         if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
-          const result = await parentPortalService.listInvoicesForStaff(tenantId, pagination);
-          return reply
-            .status(200)
-            .send({ data: result.data.map(formatInvoice), meta: result.meta });
+          const invoices = await parentPortalService.listInvoicesForStaff(tenantId);
+          return reply.status(200).send({ data: invoices.map(formatInvoice) });
         }
 
         const parentUserId = requireActorId(request);
-        const result = await parentPortalService.listInvoicesForParent(
-          tenantId,
-          parentUserId,
-          pagination,
-        );
-        return reply.status(200).send({ data: result.data.map(formatInvoice), meta: result.meta });
+        const invoices = await parentPortalService.listInvoicesForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: invoices.map(formatInvoice) });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -1408,10 +1066,8 @@ export async function registerParentPortalRoutes(
       // PRC-C008: this returns the tenant-wide payment ledger — finance/admin staff only.
       // A guardian's own payment history is available via receipts on the parent-scope routes.
       if (!requireFeesStaff(request, reply)) return;
-      const pagination = validateListPagination(request, reply);
-      if (!pagination) return;
-      const result = await parentPortalService.listPaymentsForStaff(tenantId, pagination);
-      return reply.status(200).send({ data: result.data.map(formatPayment), meta: result.meta });
+      const payments = await parentPortalService.listPaymentsForStaff(tenantId);
+      return reply.status(200).send({ data: payments.map(formatPayment) });
     },
   );
 
@@ -1431,26 +1087,17 @@ export async function registerParentPortalRoutes(
         (request.query as { scope?: string } | undefined)?.scope ?? 'parent',
       ).toLowerCase();
 
-      const pagination = validateListPagination(request, reply);
-      if (!pagination) return;
-
       // PRC-C008: staff tenant-wide receipts only for finance/admin; guardians/students always
       // get their own children's receipts regardless of ?scope.
       try {
         if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
-          const result = await parentPortalService.listReceiptsForStaff(tenantId, pagination);
-          return reply
-            .status(200)
-            .send({ data: result.data.map(formatReceipt), meta: result.meta });
+          const receipts = await parentPortalService.listReceiptsForStaff(tenantId);
+          return reply.status(200).send({ data: receipts.map(formatReceipt) });
         }
 
         const parentUserId = requireActorId(request);
-        const result = await parentPortalService.listReceiptsForParent(
-          tenantId,
-          parentUserId,
-          pagination,
-        );
-        return reply.status(200).send({ data: result.data.map(formatReceipt), meta: result.meta });
+        const receipts = await parentPortalService.listReceiptsForParent(tenantId, parentUserId);
+        return reply.status(200).send({ data: receipts.map(formatReceipt) });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

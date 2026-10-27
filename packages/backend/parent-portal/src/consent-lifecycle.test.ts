@@ -83,8 +83,8 @@ describe('W1-PRIV-01 COMPLETE consent lifecycle', () => {
     expect(history[1]!.status).toBe('approved');
 
     const listed = await service.listConsentsForParent(TENANT, PARENT);
-    expect(listed.data).toHaveLength(1);
-    expect(listed.data[0]!.id).toBe(decided.id);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.id).toBe(decided.id);
   });
 
   it('withdraw appends a revoked successor with effective dating', async () => {
