@@ -338,7 +338,10 @@ export class PgWorkflowUiStore implements WorkflowUiStore {
     await this.ensureReady();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        `SELECT * FROM workflow_ui_approvals WHERE tenant_id = $1 ORDER BY requested_at DESC`,
+        // PRC-L529: decided approvals stay as history (db/sql/272); pending = undecided.
+        `SELECT * FROM workflow_ui_approvals
+          WHERE tenant_id = $1 AND decided_at IS NULL
+          ORDER BY requested_at DESC`,
         [tenantId],
       );
       return result.rows.map((row) => mapApproval(row as Record<string, unknown>));
@@ -349,19 +352,21 @@ export class PgWorkflowUiStore implements WorkflowUiStore {
     tenantId: string,
     approvalId: string,
     decision: 'APPROVED' | 'REJECTED',
+    actorId?: string,
   ): Promise<{ id: string; instanceId: string; status: 'APPROVED' | 'REJECTED' } | null> {
     await this.ensureReady();
     return this.withTenant(tenantId, async (client) => {
-      const existing = await client.query(
-        `SELECT * FROM workflow_ui_approvals WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-        [approvalId, tenantId],
+      // PRC-L529: record the decision and the approver on the pending row instead of
+      // deleting it. A row that is missing or already decided is not decided again.
+      const decided = await client.query(
+        `UPDATE workflow_ui_approvals
+            SET decision = $3, decided_by = $4, decided_at = now()
+          WHERE id = $1 AND tenant_id = $2 AND decided_at IS NULL
+          RETURNING *`,
+        [approvalId, tenantId, decision, actorId ?? null],
       );
-      if (!existing.rows[0]) return null;
-      const approval = mapApproval(existing.rows[0] as Record<string, unknown>);
-      await client.query(`DELETE FROM workflow_ui_approvals WHERE id = $1 AND tenant_id = $2`, [
-        approvalId,
-        tenantId,
-      ]);
+      if (!decided.rows[0]) return null;
+      const approval = mapApproval(decided.rows[0] as Record<string, unknown>);
       await client.query(
         `UPDATE workflow_ui_instances
          SET status = $3, current_step = $4
