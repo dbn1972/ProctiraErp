@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { liveJourneyGate } from './helpers/live-gate';
 
 /**
  * PRC-M568 — live public admissions journey: submit -> track, plus negatives.
@@ -11,16 +12,17 @@ import { expect, test } from '@playwright/test';
  *
  * Fail closed: on main (GITHUB_REF=refs/heads/main) or with
  * E2E_REQUIRE_LIVE=1 a missing backend is a failure, not a silent skip.
+ * Backend-less lanes on main opt out only with E2E_LIVE_LANE=none, which
+ * E2E_REQUIRE_LIVE=1 overrides (see helpers/live-gate.ts).
  */
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
-const REQUIRE_LIVE =
-  process.env.E2E_REQUIRE_LIVE === '1' || process.env.GITHUB_REF === 'refs/heads/main';
+const LIVE_GATE = liveJourneyGate();
 const INSTITUTION_ID = process.env.E2E_REGISTRATION_INSTITUTION_ID ?? '';
 const TYPE = process.env.E2E_REGISTRATION_TYPE ?? 'primary';
 
 test.describe('Registration Portal — live gate', () => {
   test('live journey is configured where it is required', () => {
-    test.skip(!REQUIRE_LIVE, 'live journey not required on this ref');
+    test.skip(!LIVE_GATE.required, LIVE_GATE.reason);
     expect(BACKEND_READY, 'E2E_BACKEND_READY must be set on main / E2E_REQUIRE_LIVE').toBe(true);
     expect(INSTITUTION_ID, 'E2E_REGISTRATION_INSTITUTION_ID must be seeded').not.toBe('');
   });
