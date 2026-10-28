@@ -90,6 +90,15 @@ describe('PRC-M617 data-warehouse in-package authn/authz', () => {
     });
     expect(write.statusCode).toBe(403);
   });
+  it('HEAD (auto-exposed for GET) is guarded too', async () => {
+    app = await buildApp();
+    const res = await app.inject({
+      method: 'HEAD',
+      url: '/warehouses',
+      headers: { 'x-tenant-id': 'tenant-a' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
   it('read-only analyst may list/query but not create', async () => {
     app = await buildApp();
     const created = await app.inject({
@@ -117,3 +126,87 @@ describe('PRC-M617 data-warehouse in-package authn/authz', () => {
     expect(write.statusCode).toBe(403);
   });
 });
+/**
+ * Review fix (PRC-M617): the guard must cover the routes whatever the mount
+ * path. The gateway mounts domain plugins under a `/api/v1` register prefix,
+ * which Fastify folds into `route.url`.
+ */
+async function buildPrefixedApp(outerPrefix: string): Promise<FastifyInstance> {
+  const app = Fastify();
+  app.addHook('onRequest', async (request) => {
+    const header = request.headers['x-test-principal'];
+    if (typeof header === 'string') {
+      (request as typeof request & { user?: Principal }).user = JSON.parse(header) as Principal;
+    }
+    const tenant = request.headers['x-tenant-id'];
+    if (typeof tenant === 'string') {
+      (request as typeof request & { tenantId?: string }).tenantId = tenant;
+    }
+  });
+  await app.register(
+    async (v1) => {
+      await v1.register(dataWarehousePlugin, {
+        repository: new InMemoryWarehouseRepository(),
+        config: { maxImportBatchSize: 10 },
+      });
+    },
+    { prefix: outerPrefix },
+  );
+  await app.ready();
+  return app;
+}
+describe.each(['/api/v1', '/api/v1/'])(
+  'PRC-M617 guard under an outer register prefix (%s)',
+  (outerPrefix) => {
+    let app: FastifyInstance;
+    afterEach(async () => {
+      await app.close();
+    });
+    it('401 without a verified principal (GET, HEAD, POST, nested route)', async () => {
+      app = await buildPrefixedApp(outerPrefix);
+      const headers = { 'x-tenant-id': 'tenant-a' };
+      const list = await app.inject({ method: 'GET', url: '/api/v1/warehouses', headers });
+      expect(list.statusCode).toBe(401);
+      const head = await app.inject({ method: 'HEAD', url: '/api/v1/warehouses', headers });
+      expect(head.statusCode).toBe(401);
+      const create = await app.inject({
+        method: 'POST',
+        url: '/api/v1/warehouses',
+        headers,
+        payload: { name: 'X' },
+      });
+      expect(create.statusCode).toBe(401);
+      const query = await app.inject({
+        method: 'POST',
+        url: '/api/v1/warehouses/7c9e6679-7425-40de-944b-e07fc1f90ae7/query',
+        headers,
+        payload: {},
+      });
+      expect(query.statusCode).toBe(401);
+    });
+    it('403 on tenant mismatch and on a role with no warehouse access', async () => {
+      app = await buildPrefixedApp(outerPrefix);
+      const mismatch = await app.inject({
+        method: 'GET',
+        url: '/api/v1/warehouses',
+        headers: as(ADMIN_A, { 'x-tenant-id': 'tenant-b' }),
+      });
+      expect(mismatch.statusCode).toBe(403);
+      const teacher = await app.inject({
+        method: 'GET',
+        url: '/api/v1/warehouses',
+        headers: as(TEACHER_A),
+      });
+      expect(teacher.statusCode).toBe(403);
+    });
+    it('an authorized principal still reaches the routes under the prefix', async () => {
+      app = await buildPrefixedApp(outerPrefix);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/warehouses',
+        headers: as(ADMIN_A),
+      });
+      expect(res.statusCode).toBe(200);
+    });
+  },
+);
