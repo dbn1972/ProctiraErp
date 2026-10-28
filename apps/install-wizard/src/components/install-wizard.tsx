@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+
+import { BootstrapSecretGate } from '@/components/bootstrap-secret-gate';
 import { Stepper } from '@/components/stepper';
 import {
   DatabaseStep,
@@ -10,12 +13,15 @@ import {
   AdminStep,
   CompleteStep,
 } from '@/components/steps';
+import { apiClient } from '@/lib/api-client';
 import { Button } from '@/lib/design-system';
 import { getInstallDocsUrl, getInstallSupportUrl } from '@/lib/site';
 import { useWizard } from '@/lib/use-wizard';
 
 export function InstallWizard() {
   const wizard = useWizard();
+  // PRC-M467: no install session until the operator presents the bootstrap secret.
+  const [sessionReady, setSessionReady] = useState(() => apiClient.hasSession());
   const docsUrl = getInstallDocsUrl();
   const supportUrl = getInstallSupportUrl();
 
@@ -51,9 +57,13 @@ export function InstallWizard() {
         <p className="text-xs font-medium text-gray-500">Self-hosted first-run configuration</p>
       </div>
 
-      <Stepper steps={wizard.steps} currentStepIndex={wizard.currentStepIndex} />
+      {!sessionReady ? (
+        <BootstrapSecretGate onUnlocked={() => setSessionReady(true)} />
+      ) : (
+        <Stepper steps={wizard.steps} currentStepIndex={wizard.currentStepIndex} />
+      )}
 
-      {allCompleted ? (
+      {!sessionReady ? null : allCompleted ? (
         <CompleteStep />
       ) : (
         <>

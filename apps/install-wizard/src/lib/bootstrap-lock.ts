@@ -1,7 +1,19 @@
 /**
- * Per-session bootstrap lock store for the Install Wizard Next BFF.
+ * Bootstrap session store for the Install Wizard Next BFF.
  * After finalize, mutating configure/finalize calls are rejected (409).
+ *
+ * PRC-M467: the "installed" lock is global and persisted (`install-lock-store.ts`), not a
+ * per-session flag, so a fresh session cannot bypass it.
  */
+import {
+  installLockState,
+  persistInstallLock,
+  resetInstallLockForTests,
+} from './install-lock-store';
+
+const LOCKED_ERROR = 'Bootstrap already finalized; install endpoints are locked.';
+const LOCK_UNCONFIGURED_ERROR =
+  'Install lock storage is not configured (INSTALL_LOCK_FILE); refusing to continue.';
 
 /** Wizard UI order (differs from Fastify install plugin CDN-first order). */
 export const BOOTSTRAP_STEPS = ['database', 'storage', 'cache', 'queue', 'cdn'] as const;
@@ -81,7 +93,24 @@ export function getInstallSession(installToken: string | undefined | null): Inst
   return session;
 }
 
+/** PRC-M467: true when the global install lock is engaged (any session, any process). */
+export function isInstallLocked(): boolean {
+  return installLockState() === 'locked';
+}
+
+/** PRC-M467: 409 when the install is already locked, 503 when the lock cannot be read. */
+function lockRefusal(session: InstallSession): { ok: false; status: number; error: string } | null {
+  const state = installLockState();
+  if (state === 'unconfigured') return { ok: false, status: 503, error: LOCK_UNCONFIGURED_ERROR };
+  if (session.locked || state === 'locked') {
+    session.locked = true;
+    return { ok: false, status: 409, error: LOCKED_ERROR };
+  }
+  return null;
+}
+
 export function getBootstrapStatus(session: InstallSession) {
+  if (isInstallLocked()) session.locked = true;
   const completedSteps = Array.from(session.completedSteps);
   const pendingSteps = BOOTSTRAP_STEPS.filter((s) => !session.completedSteps.has(s));
   return {
@@ -101,13 +130,8 @@ export function markStepComplete(
   session: InstallSession,
   step: BootstrapStep,
 ): { ok: true } | { ok: false; status: number; error: string } {
-  if (session.locked) {
-    return {
-      ok: false,
-      status: 409,
-      error: 'Bootstrap already finalized; install endpoints are locked.',
-    };
-  }
+  const refusal = lockRefusal(session);
+  if (refusal) return refusal;
   const index = BOOTSTRAP_STEPS.indexOf(step);
   const missing = BOOTSTRAP_STEPS.slice(0, index).filter((s) => !session.completedSteps.has(s));
   if (missing.length > 0) {
@@ -124,13 +148,8 @@ export function markStepComplete(
 export function finalizeSession(
   session: InstallSession,
 ): { ok: true; runId: string; completedAt: string } | { ok: false; status: number; error: string } {
-  if (session.locked) {
-    return {
-      ok: false,
-      status: 409,
-      error: 'Bootstrap already finalized; install endpoints are locked.',
-    };
-  }
+  const refusal = lockRefusal(session);
+  if (refusal) return refusal;
   const missing = BOOTSTRAP_STEPS.filter((s) => !session.completedSteps.has(s));
   if (missing.length > 0) {
     return {
@@ -139,15 +158,30 @@ export function finalizeSession(
       error: `Cannot finalize: missing steps: ${missing.join(', ')}`,
     };
   }
+  const runId = `local-${session.installToken.slice(0, 8)}`;
+  const completedAt = new Date().toISOString();
+  // PRC-M467: engage the global lock exactly once; a concurrent finalize from another session loses.
+  const persisted = persistInstallLock({ runId, completedAt });
+  if (persisted === 'conflict') {
+    session.locked = true;
+    return { ok: false, status: 409, error: LOCKED_ERROR };
+  }
+  if (persisted !== 'locked') {
+    return {
+      ok: false,
+      status: 503,
+      error:
+        persisted === 'unconfigured'
+          ? LOCK_UNCONFIGURED_ERROR
+          : 'Could not persist the install lock.',
+    };
+  }
   session.locked = true;
-  return {
-    ok: true,
-    runId: `local-${session.installToken.slice(0, 8)}`,
-    completedAt: new Date().toISOString(),
-  };
+  return { ok: true, runId, completedAt };
 }
 
-/** Test-only helper */
+/** Test-only helper: clears sessions and (outside production) the global lock. */
 export function clearInstallSessions(): void {
   sessions.clear();
+  resetInstallLockForTests();
 }

@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { getBootstrapStatus, getInstallSession } from '@/lib/bootstrap-lock';
+import { getBootstrapStatus, getInstallSession, isInstallLocked } from '@/lib/bootstrap-lock';
 import { INSTALL_TOKEN_COOKIE, INSTALL_TOKEN_HEADER, readHeader } from '@/lib/install-security';
 
 export const runtime = 'nodejs';
@@ -16,10 +16,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     readHeader(request, INSTALL_TOKEN_HEADER) || cookieStore.get(INSTALL_TOKEN_COOKIE)?.value;
   const session = getInstallSession(token);
   if (!session) {
+    // PRC-M467: report the global lock even without a session.
+    const locked = isInstallLocked();
     return NextResponse.json({
-      isComplete: false,
+      isComplete: locked,
       completedSteps: [],
-      pendingSteps: ['database', 'storage', 'cache', 'queue', 'cdn'],
+      pendingSteps: locked ? [] : ['database', 'storage', 'cache', 'queue', 'cdn'],
       adapterStatuses: {},
     });
   }
