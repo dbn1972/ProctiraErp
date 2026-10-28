@@ -114,6 +114,7 @@ export class RabbitMQSubscriber {
     const { tenantId, queueName, routingPattern, handler, autoRetry = true } = options;
 
     const fullQueueName = buildTenantQueue(tenantId, queueName);
+    const subscribedTenant = tenantId.trim();
     const dlqName = `${fullQueueName}.dlq`;
     const routingKey = buildTenantRoutingKey(tenantId, routingPattern);
 
@@ -146,6 +147,12 @@ export class RabbitMQSubscriber {
       void (async () => {
         try {
           const task: TaskMessage = JSON.parse(msg.content.toString()) as TaskMessage;
+          // PRC-M633: a task in tenant A's queue that claims another tenant (or none)
+          // is dead-lettered without being handled or retried.
+          if (typeof task?.tenantId !== 'string' || task.tenantId !== subscribedTenant) {
+            channel.nack(msg, false, false);
+            return;
+          }
           await handler(task);
           channel.ack(msg);
         } catch {
