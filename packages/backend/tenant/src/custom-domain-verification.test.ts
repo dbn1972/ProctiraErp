@@ -5,7 +5,7 @@
  * never resolve. These tests prove the verify flow, the cross-tenant exclusivity, expiry and
  * re-checks, the HTTPS proof rules, and the re-check tick lock.
  */
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
@@ -291,7 +291,8 @@ describe('PRC-L169: expiry and re-checks', () => {
 });
 
 describe('PRC-L169: HTTPS well-known proof (real local HTTP server, redirects disabled)', () => {
-  const TOKEN = 'tok_ABCdef123-_xyz';
+  // Generated per run: same base64url charset as the real 256-bit challenge.
+  const TOKEN = randomBytes(32).toString('base64url');
   let server: Server;
   let port: number;
 
