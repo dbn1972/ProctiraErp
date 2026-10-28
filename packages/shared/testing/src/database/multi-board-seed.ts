@@ -4,11 +4,12 @@
  * Default profile (override via options / CLI):
  *   3 boards × 2 schools × 500 students = 3,000 enrollments
  *
- * This is an in-memory FIXTURE generator only (PRC-L497): it never writes to a
- * database, even when DATABASE_URL is set. It must not be cited as DB-backed or
- * RLS-backed onboarding evidence; a Postgres persistence adapter (per-tenant GUC
- * under RLS) is a separate, not-yet-built deliverable. The CLI wrapper
- * tools/scripts/onboard-boards-schools.mjs prints a not-persisted notice.
+ * This module is an in-memory FIXTURE generator (PRC-L497): by itself it never
+ * writes to a database, even when DATABASE_URL is set. To persist a result use
+ * `persistMultiBoardSeed` (./multi-board-seed-pg.ts), which writes it in one
+ * transaction bound to the seed tenant under FORCE RLS (live proof:
+ * packages/shared/database/src/multi-board-seed-pg.live.test.ts). The CLI
+ * wrapper tools/scripts/onboard-boards-schools.mjs (if present) does not persist.
  */
 
 import { createAcademicPeriod } from '../factories/academic-period.factory.js';
