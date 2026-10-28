@@ -67,20 +67,27 @@ export interface PublicThrottleConfig {
   /** Failed (no-match) lookups per tracking number before lockout. */
   statusFailuresPerTracking: number;
   statusWindowMs: number;
+  /** PRC-M132: public branding reads per client per window. */
+  brandingPerClient: number;
+  brandingWindowMs: number;
 }
 
 export const DEFAULT_PUBLIC_THROTTLE: PublicThrottleConfig = {
   statusPerTracking: 10,
   statusFailuresPerTracking: 5,
   statusWindowMs: 15 * 60_000,
+  brandingPerClient: 60,
+  brandingWindowMs: 60_000,
 };
 
 export class PublicRegistrationThrottle {
   readonly statusTracking: SlidingWindowLimiter;
   readonly statusFailures: SlidingWindowLimiter;
-
+  /** PRC-M132: anonymous branding reads. */
+  readonly brandingPerClient: SlidingWindowLimiter;
   constructor(config: Partial<PublicThrottleConfig> = {}, now?: () => number) {
     const c = { ...DEFAULT_PUBLIC_THROTTLE, ...config };
+    this.brandingPerClient = new SlidingWindowLimiter(c.brandingPerClient, c.brandingWindowMs, now);
     this.statusTracking = new SlidingWindowLimiter(c.statusPerTracking, c.statusWindowMs, now);
     this.statusFailures = new SlidingWindowLimiter(
       c.statusFailuresPerTracking,
