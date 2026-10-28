@@ -6,6 +6,7 @@ const noHardcodedI18nMessage = require('./rules/no-hardcoded-i18n-message');
 const imgRequiresDimensions = require('./rules/img-requires-dimensions');
 const iconOnlyButtonRequiresAriaLabel = require('./rules/icon-only-button-requires-aria-label');
 const noHardcodedBrandStrings = require('./rules/no-hardcoded-brand-strings');
+const noUnscopedDocumentCollection = require('./rules/no-unscoped-document-collection');
 
 module.exports = {
   rules: {
@@ -15,6 +16,7 @@ module.exports = {
     'img-requires-dimensions': imgRequiresDimensions,
     'icon-only-button-requires-aria-label': iconOnlyButtonRequiresAriaLabel,
     'no-hardcoded-brand-strings': noHardcodedBrandStrings,
+    'no-unscoped-document-collection': noUnscopedDocumentCollection,
   },
   configs: {
     recommended: {
