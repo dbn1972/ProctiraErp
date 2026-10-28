@@ -16,7 +16,7 @@
  *     (PRC-M025); any other PATCH path → 400 scimType invalidPath.
  *   GET  /scim/v2/Groups  |  GET/PATCH /scim/v2/Groups/:id (members add/remove/replace)
  */
-import type { RoleEntity, RolesService, UserRecord } from '@proctira/backend-tenant';
+import type { RoleEntity, RolesService, UserQuery, UserRecord } from '@proctira/backend-tenant';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -264,18 +264,18 @@ function memberFromPath(path: string | undefined): string | null {
   return match ? match[1]! : null;
 }
 
-/** Directory scan — only for list/filter endpoints that genuinely need the set. */
-async function allUsers(rolesService: RolesService, tenantId: string): Promise<UserRecord[]> {
-  const out: UserRecord[] = [];
-  let page = 1;
-  for (;;) {
-    const result = await rolesService.listUsers(tenantId, {}, { page, pageSize: 200 });
-    out.push(...result.data);
-    if (result.data.length < 200 || out.length >= result.meta.totalItems) break;
-    page += 1;
-  }
-  return out;
-}
+/** PRC-M026: SCIM filter attributes mapped onto the store's exact-match query. */
+const SCIM_MATCH_ATTRIBUTE: Record<string, NonNullable<UserQuery['match']>['attribute']> = {
+  username: 'email',
+  'emails.value': 'email',
+  emails: 'email',
+  externalid: 'externalId',
+  id: 'id',
+  displayname: 'displayName',
+};
+
+/** PRC-M026: upper bound on members rendered for one group. */
+const MAX_GROUP_MEMBERS = 10_000;
 
 export const scimPlugin = fp(
   async (fastify: FastifyInstance, options: ScimPluginOptions) => {
@@ -413,32 +413,22 @@ export const scimPlugin = fp(
             'invalidFilter',
           );
         }
-        let users = await allUsers(rolesService, tenantId);
-        if (filter) {
-          const needle = filter.value.toLowerCase();
-          users = users.filter((u) => {
-            switch (filter.attribute) {
-              case 'username':
-              case 'emails.value':
-              case 'emails':
-                return u.email.toLowerCase() === needle;
-              case 'externalid':
-                return (u.externalId ?? '').toLowerCase() === needle;
-              case 'id':
-                return u.id.toLowerCase() === needle;
-              case 'displayname':
-                return u.displayName.toLowerCase() === needle;
-              default:
-                return false;
-            }
-          });
-        }
         const startIndex = Math.max(1, Number(request.query.startIndex ?? 1) || 1);
         const count = Math.min(200, Math.max(0, Number(request.query.count ?? 100) || 100));
-        const slice = users.slice(startIndex - 1, startIndex - 1 + count);
+        // PRC-M026: the filter and the page run in the store, not over an
+        // in-memory copy of the whole tenant directory.
+        const attribute = filter ? SCIM_MATCH_ATTRIBUTE[filter.attribute] : undefined;
+        const { data: slice, total } =
+          filter && !attribute
+            ? { data: [] as UserRecord[], total: 0 }
+            : await rolesService.queryUsers(
+                tenantId,
+                filter && attribute ? { match: { attribute, value: filter.value } } : {},
+                { offset: startIndex - 1, limit: count },
+              );
         return send(reply, 200, {
           schemas: [SCIM_LIST],
-          totalResults: users.length,
+          totalResults: total,
           startIndex,
           itemsPerPage: slice.length,
           Resources: slice.map((u) => toScimUser(u, roles, base)),
@@ -456,16 +446,10 @@ export const scimPlugin = fp(
       }
     };
 
-    /** Members of one role via the repository roleId filter (paged, capped). */
-    const membersOf = async (tenantId: string, roleId: string): Promise<UserRecord[]> => {
-      const out: UserRecord[] = [];
-      for (let page = 1; page <= 50; page += 1) {
-        const result = await rolesService.listUsers(tenantId, { roleId }, { page, pageSize: 200 });
-        out.push(...result.data);
-        if (result.data.length < 200 || out.length >= result.meta.totalItems) break;
-      }
-      return out;
-    };
+    /** PRC-M026: members of one role via the store's role filter (one query, capped). */
+    const membersOf = async (tenantId: string, roleId: string): Promise<UserRecord[]> =>
+      (await rolesService.queryUsers(tenantId, { roleId }, { offset: 0, limit: MAX_GROUP_MEMBERS }))
+        .data;
 
     /** PRC-M025: persist profile + status changes; returns the updated record. */
     const applyUserChange = async (
@@ -619,19 +603,16 @@ export const scimPlugin = fp(
         if (filter?.attribute === 'displayname') {
           roles = roles.filter((r) => r.name.toLowerCase() === filter.value.toLowerCase());
         }
-        const users = await allUsers(rolesService, tenantId);
+        // PRC-M026: each group's members come from one role-filtered store query.
+        const resources = await Promise.all(
+          roles.map(async (r) => toScimGroup(r, await membersOf(tenantId, r.id), base)),
+        );
         return send(reply, 200, {
           schemas: [SCIM_LIST],
           totalResults: roles.length,
           startIndex: 1,
           itemsPerPage: roles.length,
-          Resources: roles.map((r) =>
-            toScimGroup(
-              r,
-              users.filter((u) => u.roleIds.includes(r.id)),
-              base,
-            ),
-          ),
+          Resources: resources,
         });
       },
     );
