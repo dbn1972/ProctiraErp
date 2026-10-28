@@ -235,6 +235,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
     const existing = await this.repository.findLegalHoldById(holdId, tenantId);
     if (!existing) throw new NotFoundError(`Legal hold '${holdId}' not found`);
     if (!existing.active) throw new BusinessRuleError('Legal hold is already released');
+    // PRC-L336: releasing a hold needs a second actor; the placer cannot lift their own hold.
+    if (releasedBy === existing.placedBy) {
+      throw new ConflictError(
+        'Separation of duties: a legal hold must be released by someone other than the actor who placed it',
+      );
+    }
     const updated = await this.repository.updateLegalHold(holdId, tenantId, {
       active: false,
       releasedBy,
@@ -344,6 +350,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
     if (!ERASURE_TRANSITIONS[existing.status].includes(toStatus)) {
       throw new BusinessRuleError(`Invalid erasure transition: ${existing.status} → ${toStatus}`);
     }
+    // PRC-L336: an approval needs a second actor; the requester cannot approve their own request.
+    if (toStatus === 'approved' && actorId === existing.requestedBy) {
+      throw new ConflictError(
+        'Separation of duties: the requester cannot approve their own erasure request',
+      );
+    }
     if (existing.status === 'in_progress') {
       // Review #554: only `approved` is reachable here (MANUAL_ERASURE_TARGETS ∩ transitions).
       return this.releaseStalledErasure(existing, actorId, statusReason, ctx);
@@ -444,6 +456,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
     if (existing.status !== 'approved') {
       throw new BusinessRuleError(
         `Erasure execute requires approved status; current=${existing.status}`,
+      );
+    }
+    // PRC-L336: the requester cannot execute their own erasure (second actor required).
+    if (actorId === existing.requestedBy) {
+      throw new ConflictError(
+        'Separation of duties: the requester cannot execute their own erasure request',
       );
     }
     if (!this.erasureExecutionAvailable) {
