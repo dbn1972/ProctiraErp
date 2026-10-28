@@ -724,6 +724,120 @@ One account per tenant. A user who works in several schools has a separate login
 
 ---
 
+## 44. Topic 6 — Consent-record retention: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** Keep proof of consent (who, what, when, version, channel) for as long as the record it authorises is retained, then anonymise it. The consent text version is never deleted.
+
+**Unblocked:** PRC-M214.
+
+**Still held:** None.
+
+---
+
+## 45. Topic 6 — Device location with attendance: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** Do not capture device location with attendance marks. Attendance stores no GPS data; any existing capture path is removed or rejected server-side.
+
+**Unblocked:** PRC-M468.
+
+**Still held:** None.
+
+---
+
+## 46. Topic 6 — Data-warehouse snapshot publishing: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** Publish aggregates only: no person-level rows and no direct identifiers, with a minimum cell size of 10 and suppression of smaller cells. Publishing is limited to tenant staff with the publish permission.
+
+**Unblocked:** PRC-L553.
+
+**Still held:** None.
+
+---
+
+## 47. Topic 6 — Plugin event payload minimisation: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** Events handed to plugin handlers carry ids and non-personal attributes only, never names, contact details, PHI or financial details. A plugin that needs more must call the API under its own authorised scope.
+
+**Unblocked:** PRC-M629.
+
+**Still held:** None.
+
+---
+
+## 48. Topic 6 — Tenant offboarding erasure: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** On tenant decommission: export the tenant's data to the owner, then hard-delete it after 90 days. Append-only tables (for example tenant_theme_versions) get a decommission-only erasure path under dual control, and the erasure is recorded in the platform audit trail.
+
+**Unblocked:** PRC-L147.
+
+**Still held:** None.
+
+---
+
+## 49. Topic 13 — Further operational rules: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** All values are tenant-configurable.
+
+- Approvals: a rationale is mandatory when rejecting and optional when approving. Approvers see applicant financial data only as bands, never raw figures.
+- Audit events: keep the existing 247 trigger-and-grant design (PRC-M209).
+- Hostels and library items are linked to an institution, and the institution filter applies (PRC-L118, PRC-L327).
+- Programmes: draft, then open, then closed; no reopening; slots are enforced while open.
+- Cases: the review step cannot be skipped, and a resolution record is required to close. Transition conditions evaluate as AND across all conditions, and an unknown field fails closed.
+
+**Unblocked:** PRC-L436, PRC-M209, PRC-L118, PRC-L327, PRC-M540, PRC-M460, PRC-M461.
+
+**Still held:** PRC-M453 vehicle capacity and route date windows, and PRC-M638 FINAL-status handling, are still undecided.
+
+---
+
+## 50. Topic 8 and 22 — Messaging providers: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** SMS uses MSG91, email uses Amazon SES and push uses Firebase Cloud Messaging. Build against stubbed providers first. Credentials live only in the secret manager. Any new SDK dependency lands in its own lockfile-only PR first, per topic 22.
+
+**Unblocked:** PRC-L291, PRC-M326.
+
+**Still held:** Live sends wait for provider accounts and credentials.
+
+---
+
+## 51. Topic 2 — Mobile TLS pinning: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** Mobile certificate pinning is deferred: it is not shipped for UAT. The finding stays OPEN with this deferral recorded, and must be revisited before production.
+
+**Unblocked:** None. This is a recorded deferral, not a closure.
+
+**Still held:** PRC-M470 stays OPEN.
+
+---
+
+## 52. Topic 17 — PRC-L421 and PRC-L439: owner rule approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve these too" on the orchestrator's recommendations.
+
+**Decision:** Close both as STALE if current main shows them already fixed, with file:line evidence and a passing test. Otherwise keep them OPEN.
+
+**Unblocked:** PRC-L421, PRC-L439 (verify-then-close).
+
+**Still held:** None.
+
+---
+
 ## Re-triage → codeable (NOT real decisions) — ~16 findings
 
 Parked as "owner" but actually plain engineering (tests / fixtures):
