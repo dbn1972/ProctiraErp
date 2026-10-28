@@ -531,6 +531,19 @@ export const DomainResponseSchema = Type.Object({
   primary: Type.Boolean({ description: 'Whether this is the primary domain' }),
   verified: Type.Boolean({ description: 'Whether the domain is verified' }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
+  /** PRC-L169 (additive): when ownership was last proven. */
+  verifiedAt: Type.Optional(Type.String({ description: 'Verification timestamp (ISO 8601)' })),
+  /** PRC-L169 (additive): the verification lapses after this instant. */
+  verificationExpiresAt: Type.Optional(
+    Type.String({ description: 'Verification expiry (ISO 8601)' }),
+  ),
+  /** PRC-L169 (additive): ownership challenge, present until the domain is verified. */
+  verification: Type.Optional(
+    Type.Object({
+      token: Type.String({ description: 'Challenge token' }),
+      dnsTxtName: Type.String({ description: 'DNS TXT record name carrying the token' }),
+      httpsUrl: Type.String({ description: 'HTTPS URL that must return the token' }),
+    }),
+  ),
 });
-
 export type DomainResponse = Static<typeof DomainResponseSchema>;

@@ -99,6 +99,7 @@ export function createPublicTenantResolver({
   }
 
   // PRC-L369: hostname -> candidate tenant id (null = no mapping), bounded LRU with a short TTL.
+  // PRC-L169: an entry never outlives the domain's verification expiry.
   const cache = new Map<string, { tenantId: string | null; expiresAt: number }>();
   const cacheGet = (hostname: string): { tenantId: string | null } | undefined => {
     const entry = cache.get(hostname);
@@ -111,7 +112,7 @@ export function createPublicTenantResolver({
     cache.set(hostname, entry);
     return entry;
   };
-  const cacheSet = (hostname: string, tenantId: string | null) => {
+  const cacheSet = (hostname: string, tenantId: string | null, validUntil?: number) => {
     if (cacheTtlMs <= 0) return;
     cache.delete(hostname);
     while (cache.size >= cacheMaxEntries) {
@@ -119,26 +120,37 @@ export function createPublicTenantResolver({
       if (oldest === undefined) break;
       cache.delete(oldest);
     }
-    cache.set(hostname, { tenantId, expiresAt: now() + cacheTtlMs });
+    const expiresAt = Math.min(now() + cacheTtlMs, validUntil ?? Number.POSITIVE_INFINITY);
+    cache.set(hostname, { tenantId, expiresAt });
   };
 
   /** Index-backed host -> candidate tenant id (no status decision here). */
-  const lookupCandidate = async (hostname: string): Promise<string | null> => {
+  const lookupCandidate = async (
+    hostname: string,
+  ): Promise<{ tenantId: string | null; validUntil?: number }> => {
     if (hostname.endsWith(`.${normalizedBaseDomain}`)) {
       const slug = hostname.slice(0, -(normalizedBaseDomain.length + 1));
-      if (!DNS_LABEL.test(slug) || slug.includes('.')) return null;
+      if (!DNS_LABEL.test(slug) || slug.includes('.')) return { tenantId: null };
       const tenant = repository.findTenantBySlugExact
         ? await repository.findTenantBySlugExact(slug)
         : await repository.findTenantBySlug(slug);
-      return tenant && TENANT_UUID.test(tenant.id) ? tenant.id : null;
+      return { tenantId: tenant && TENANT_UUID.test(tenant.id) ? tenant.id : null };
     }
     const rows = repository.findDomainsByHostname
       ? await repository.findDomainsByHostname(hostname)
       : [await repository.findDomainByName(hostname)].filter(
           (d): d is NonNullable<typeof d> => d !== null,
         );
-    const verified = rows.find((d) => d.verified);
-    return verified ? verified.tenantId : null;
+    // PRC-L169: fail closed unless exactly one row holds the hostname verified, and that
+    // verification has not lapsed.
+    const verified = rows.filter((d) => d.verified);
+    if (verified.length !== 1) return { tenantId: null };
+    const only = verified[0]!;
+    const expires = only.verificationExpiresAt
+      ? new Date(only.verificationExpiresAt).getTime()
+      : NaN;
+    if (!Number.isFinite(expires) || expires <= now()) return { tenantId: null };
+    return { tenantId: only.tenantId, validUntil: expires };
   };
 
   const resolver = {
@@ -156,8 +168,9 @@ export function createPublicTenantResolver({
       if (cached) {
         candidate = cached.tenantId;
       } else {
-        candidate = await lookupCandidate(hostname);
-        cacheSet(hostname, candidate);
+        const found = await lookupCandidate(hostname);
+        candidate = found.tenantId;
+        cacheSet(hostname, candidate, found.validUntil);
       }
       if (!candidate) return null;
       // Status is re-read on every request (primary-key lookup), so a suspension or
