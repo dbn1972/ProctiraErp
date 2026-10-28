@@ -267,3 +267,59 @@ describe('deployed-environment predicate (PRC-L566)', () => {
     }
   });
 });
+
+describe('auth wiring dev secrets (PRC-L284)', () => {
+  const ok = {
+    KEYCLOAK_REDIRECT_URI: 'https://api.example.edu/api/v1/auth/callback',
+    NEXT_PUBLIC_WEB_URL: 'https://app.example.edu',
+  };
+
+  it.each([
+    'proctira-gateway-dev-secret',
+    'PROCTIRA-GATEWAY-DEV-SECRET',
+    'changeme',
+    'test-secret',
+  ])('refuses KEYCLOAK_CLIENT_SECRET=%j in a deployed Keycloak boot', (secret) => {
+    expect(() =>
+      assertAuthBootPolicy({
+        configEnv: 'production',
+        keycloakConfigured: true,
+        processEnv: { ...ok, KEYCLOAK_CLIENT_SECRET: secret },
+      }),
+    ).toThrow(/KEYCLOAK_CLIENT_SECRET/);
+    expect(() =>
+      assertAuthBootPolicy({
+        configEnv: 'staging',
+        keycloakConfigured: true,
+        processEnv: { ...ok, KEYCLOAK_CLIENT_SECRET: secret },
+      }),
+    ).toThrow(/KEYCLOAK_CLIENT_SECRET/);
+  });
+
+  it('accepts a real client secret when deployed and any secret in development/test', () => {
+    expect(() =>
+      assertAuthBootPolicy({
+        configEnv: 'production',
+        keycloakConfigured: true,
+        processEnv: { ...ok, KEYCLOAK_CLIENT_SECRET: 'q'.repeat(40) },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertAuthBootPolicy({
+        configEnv: 'test',
+        keycloakConfigured: true,
+        processEnv: { KEYCLOAK_CLIENT_SECRET: 'proctira-gateway-dev-secret' },
+      }),
+    ).not.toThrow();
+  });
+
+  it('the localhost redirect / web-origin fallbacks stay refused when deployed (PRC-M011 path)', () => {
+    expect(() =>
+      assertAuthBootPolicy({
+        configEnv: 'staging',
+        keycloakConfigured: true,
+        processEnv: { KEYCLOAK_CLIENT_SECRET: 'q'.repeat(40) },
+      }),
+    ).toThrow(/KEYCLOAK_REDIRECT_URI must be set/);
+  });
+});

@@ -200,6 +200,20 @@ export function resolvePreviousJwtSecret(
   return previous;
 }
 
+/**
+ * PRC-L284: client secrets that are committed to the repository
+ * (infra/keycloak/proctira-realm.json, docker-compose.yml default) or are
+ * generic placeholders. Compared case-insensitively.
+ */
+export const DEV_KEYCLOAK_CLIENT_SECRETS: ReadonlySet<string> = new Set([
+  'proctira-gateway-dev-secret',
+  'test-secret',
+  'secret',
+  'changeme',
+  'change_me',
+  'change_me_in_production',
+]);
+
 const LOCALHOST_URL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?(\/|$)/i;
 
 /**
@@ -220,7 +234,8 @@ export function isDeployedEnvironment(
  * PRC-M011: refuse unsafe auth boot configurations outside development/test.
  * - No Keycloak config → local HS-JWT fallback only when ALLOW_LOCAL_HS_AUTH=1.
  * - Keycloak mode → KEYCLOAK_REDIRECT_URI and NEXT_PUBLIC_WEB_URL must be set
- *   explicitly and must not point at localhost.
+ *   explicitly and must not point at localhost, and (PRC-L284)
+ *   KEYCLOAK_CLIENT_SECRET must not be a committed dev / placeholder value.
  */
 export function assertAuthBootPolicy(input: {
   configEnv: string;
@@ -236,6 +251,14 @@ export function assertAuthBootPolicy(input: {
       );
     }
     return;
+  }
+  // PRC-L284: the committed realm export / compose default client secret (and
+  // generic placeholders) must never authenticate a deployed gateway.
+  const clientSecret = env['KEYCLOAK_CLIENT_SECRET']?.trim();
+  if (clientSecret && DEV_KEYCLOAK_CLIENT_SECRETS.has(clientSecret.toLowerCase())) {
+    throw new Error(
+      'KEYCLOAK_CLIENT_SECRET uses a known development/placeholder value; refusing to start in a deployed environment (PRC-L284)',
+    );
   }
   for (const name of ['KEYCLOAK_REDIRECT_URI', 'NEXT_PUBLIC_WEB_URL'] as const) {
     const value = env[name]?.trim();
