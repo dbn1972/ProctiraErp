@@ -6,6 +6,8 @@
  * POST /auth/logout  - Invalidate session and revoke tokens
  * GET  /auth/me      - Get current authenticated user info
  */
+import { randomBytes } from 'node:crypto';
+
 import type { LoginRequest, RefreshRequest, AuthUser } from '@proctira/auth';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -14,11 +16,65 @@ import {
   revokeAccessTokenIdentifiers,
   type AccessTokenRevocationStore,
 } from './access-token-revocation.js';
-import { verifyPassword } from './local-auth.js';
+import { hashPassword, verifyPassword } from './local-auth.js';
 import type { AccountLockoutService } from './lockout-service.js';
 import type { SessionService } from './session-service.js';
 import { InvalidRefreshTokenError } from './token-service.js';
 import type { RefreshTokenStore, TokenService } from './token-service.js';
+
+/** PRC-L445: upper bounds for login body fields (RFC 5321 address length; bcrypt input). */
+const MAX_USERNAME_LENGTH = 320;
+const MAX_PASSWORD_LENGTH = 1024;
+
+/** PRC-L445: the one response for every failed credential check. */
+const INVALID_CREDENTIALS_BODY = {
+  code: 'INVALID_CREDENTIALS',
+  message: 'Invalid username or password',
+  statusCode: 401,
+} as const;
+
+type LoginFieldError = { field: string; rule: string; message: string };
+
+/** PRC-L445: strict body validation (strings only, bounded length). */
+function parseLoginBody(
+  body: unknown,
+): { ok: true; username: string; password: string } | { ok: false; errors: LoginFieldError[] } {
+  const raw = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const errors: LoginFieldError[] = [];
+  const check = (field: 'username' | 'password', max: number): string => {
+    const value = raw[field];
+    const label = field === 'username' ? 'Username' : 'Password';
+    if (value === undefined || value === null || value === '') {
+      errors.push({ field, rule: 'required', message: `${label} is required` });
+      return '';
+    }
+    if (typeof value !== 'string') {
+      errors.push({ field, rule: 'type', message: `${label} must be a string` });
+      return '';
+    }
+    if (value.length > max) {
+      errors.push({ field, rule: 'maxLength', message: `${label} is too long` });
+      return '';
+    }
+    return value;
+  };
+  const username = check('username', MAX_USERNAME_LENGTH);
+  const password = check('password', MAX_PASSWORD_LENGTH);
+  if (errors.length > 0) return { ok: false, errors };
+  return { ok: true, username, password };
+}
+
+let dummyHashPromise: Promise<string> | undefined;
+
+/**
+ * PRC-L445: a bcrypt hash of a random value, computed once per process with the
+ * default cost, so a login for an unknown or locked account spends the same
+ * bcrypt work as a real password check.
+ */
+function dummyPasswordHash(): Promise<string> {
+  dummyHashPromise ??= hashPassword(randomBytes(32).toString('base64url'));
+  return dummyHashPromise;
+}
 
 /**
  * Interface for user lookup (provided by the consuming application).
@@ -101,23 +157,17 @@ export async function registerAuthRoutes(
       request: FastifyRequest<{ Body: LoginRequest }>,
       reply: FastifyReply,
     ) {
-      const { username, password } = request.body;
-
-      if (!username || !password) {
+      // PRC-L445: validate the body shape before touching any account state.
+      const credentials = parseLoginBody(request.body);
+      if (!credentials.ok) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
           message: 'Username and password are required',
           statusCode: 400,
-          errors: [
-            ...(!username
-              ? [{ field: 'username', rule: 'required', message: 'Username is required' }]
-              : []),
-            ...(!password
-              ? [{ field: 'password', rule: 'required', message: 'Password is required' }]
-              : []),
-          ],
+          errors: credentials.errors,
         });
       }
+      const { username, password } = credentials;
 
       // Resolve tenant from request (set by tenant plugin)
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -129,55 +179,32 @@ export async function registerAuthRoutes(
         });
       }
 
-      // Look up user
+      // PRC-L445: every path below runs exactly one bcrypt comparison and every
+      // failure that is not backed by the correct password returns the same
+      // INVALID_CREDENTIALS response, so neither timing nor the response body
+      // tells a caller whether the account exists, is locked or is inactive.
       const user = await userLookup.findByUsername(username, tenantId);
-      if (!user) {
-        return reply.status(401).send({
-          code: 'INVALID_CREDENTIALS',
-          message: 'Invalid username or password',
-          statusCode: 401,
-        });
+      const locked =
+        user && lockoutService
+          ? (await lockoutService.isAccountLocked(user.id, tenantId)).isLocked
+          : false;
+      // A locked account never evaluates its real password (no guessing oracle
+      // while locked); unknown users compare against a fixed dummy hash.
+      const hashToCompare = user && !locked ? user.passwordHash : await dummyPasswordHash();
+      const passwordMatches = await verifyPassword(password, hashToCompare);
+      const isValid = Boolean(user) && !locked && passwordMatches;
+      if (!user || !isValid) {
+        if (user && !locked && lockoutService) {
+          await lockoutService.recordFailure(user.id, tenantId, request.ip);
+        }
+        return reply.status(401).send(INVALID_CREDENTIALS_BODY);
       }
 
+      // Account state is disclosed only to a caller that proved the password.
       if (!user.isActive) {
         return reply.status(401).send({
           code: 'ACCOUNT_INACTIVE',
           message: 'Account is inactive',
-          statusCode: 401,
-        });
-      }
-
-      // Check if account is locked
-      if (lockoutService) {
-        const lockoutStatus = await lockoutService.isAccountLocked(user.id, tenantId);
-        if (lockoutStatus.isLocked) {
-          return reply.status(401).send({
-            code: 'ACCOUNT_LOCKED',
-            message: 'Account is temporarily locked due to too many failed login attempts',
-            statusCode: 401,
-            lockedUntil: lockoutStatus.expiresAt?.toISOString(),
-          });
-        }
-      }
-
-      // Verify password
-      const isValid = await verifyPassword(password, user.passwordHash);
-      if (!isValid) {
-        // Record the failed attempt
-        if (lockoutService) {
-          const lockoutStatus = await lockoutService.recordFailure(user.id, tenantId, request.ip);
-          if (lockoutStatus.isLocked) {
-            return reply.status(401).send({
-              code: 'ACCOUNT_LOCKED',
-              message: 'Account is temporarily locked due to too many failed login attempts',
-              statusCode: 401,
-              lockedUntil: lockoutStatus.expiresAt?.toISOString(),
-            });
-          }
-        }
-        return reply.status(401).send({
-          code: 'INVALID_CREDENTIALS',
-          message: 'Invalid username or password',
           statusCode: 401,
         });
       }
