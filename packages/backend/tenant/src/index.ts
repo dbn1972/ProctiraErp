@@ -23,6 +23,8 @@ export type {
   DestructiveDeleteGuard,
   TenantAdminProvisioner,
   TenantAdminProvisioningRequest,
+  TenantDataExporter,
+  TenantServiceOptions,
 } from './tenant-service.js';
 
 // Repository
