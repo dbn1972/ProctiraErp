@@ -576,6 +576,154 @@ option does not depend on this input are approved.
 
 ---
 
+## 35. Topic 6 — Retention and erasure schedule: owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+Shipped as tenant-configurable defaults. Counsel must confirm before production use; this does not gate UAT.
+
+| Data class                                                                            | Retain                                                     | Then                       |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------- |
+| Applicants not admitted (incl. guardian PII)                                          | 12 months after the admission cycle closes                 | Erase                      |
+| Core academic record (admission register, results, transcripts, transfer certificate) | Permanent (statutory)                                      | Anonymise surrounding data |
+| Detailed attendance and assessment                                                    | Leaving date + 3 years                                     | Erase, keep aggregates     |
+| Health and counselling (PHI)                                                          | Leaving date + 3 years; legal hold overrides               | Erase, audited             |
+| Transport GPS / location pings                                                        | 90 days                                                    | Erase                      |
+| Hostel boarding records                                                               | Leaving date + 1 year                                      | Erase                      |
+| Fee and finance records, scholarship supporting documents                             | 8 years                                                    | Erase                      |
+| Staff PII                                                                             | Employment end + 8 years; unsuccessful applicants 6 months | Erase                      |
+| Audit logs                                                                            | Minimum 7 years (platform floor, tenants cannot lower it)  | Archive                    |
+| Backups                                                                               | 35 days rolling                                            | Expire                     |
+| Legacy-migration staging copies                                                       | 30 days after cutover sign-off                             | Delete                     |
+
+Every erasure needs dual control (requester plus DPO approver) and is audited. Where a statutory record must remain, its surrounding data is anonymised instead of deleted.
+
+**Unblocked:** PRC-M016, PRC-M215, PRC-M451, PRC-M557; PRC-L092 for the GPS window only.
+
+**Still held:** PRC-L092's notification-log, ingest and outbox windows; PRC-M214 (consent-record proof rule); PRC-M468 (whether device location may be captured with attendance); PRC-L553 (warehouse publishing consent); PRC-M629 (plugin payload masking); PRC-L147 (tenant-offboarding erasure). None of these is covered by the schedule above.
+
+---
+
+## 36. Topic 8 — Payment provider: owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+Razorpay is the payment provider (UPI, net banking, cards, refunds API, signed webhooks), with Cashfree as the fallback. Build against test mode first. Credentials (key id, key secret, webhook signing secret) live only in the secret manager, never in the repository or chat.
+
+**Unblocked:** PRC-M512 (adapter and webhook: code plus contract tests with a stubbed provider), PRC-M039 (mobile parent payment flow).
+
+**Still held:** Live sandbox verification of PRC-M512 and PRC-M039 waits for the Razorpay test keys in the secret manager. PRC-L291 and PRC-M326 also need SMS, email and push provider choices, which this entry does not cover.
+
+---
+
+## 37. Topic 8 — Payroll deduction rules: owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+Per-day rate = monthly gross / calendar days in the month (tenant-configurable divisor: calendar days, 30, or working days). Half day = 0.5 day. Unpaid leave (LOP) deduction = LOP days x per-day rate, applied to gross. PF, ESI, professional tax and TDS are computed on post-LOP earnings. Amounts round to the nearest rupee. Payroll journals must balance, or posting is refused.
+
+**Unblocked:** PRC-M370.
+
+**Still held:** None.
+
+---
+
+## 38. Topic 9 — Transcript content and font: owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+Official transcripts and admit cards use a per-board template, starting with the CBSE layout: school affiliation number, school code, student name, mother's and father's names, date of birth, roll and registration number, subject codes with marks or grades, result, issue date, and a KMS-signed checksum with a QR verification code. The font is Noto Sans plus Noto Sans Devanagari (other Indic scripts as needed), licensed under the SIL Open Font License, which allows embedding in PDFs.
+
+**Unblocked:** PRC-L112, PRC-M359.
+
+**Still held:** The principal or board signs off a sample transcript and admit card during UAT.
+
+---
+
+## 39. Topic 13 — Operational rules: owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+All values are tenant-configurable.
+
+- Library: 14-day loan; at most 3 items for students and 10 for staff; one renewal; fine ₹2/day, capped at the item's price.
+- Hostel: one active bed per student; no overlapping allotments; room capacity is enforced; checkout frees the bed.
+- Transport: one active route per student per term; a stop change takes effect the next day.
+- Scholarship: one application per scheme per academic year; approval needs a second approver (maker-checker); disbursement only after approval, netted against fees.
+- Workflow: a requester cannot approve their own request; escalation after 48 hours.
+
+**Unblocked:** PRC-L129, PRC-M277; PRC-M348 and PRC-M350 for the one-application and second-approver rules; PRC-M453 for the one-route-per-term rule; PRC-M638 for the 48-hour escalation.
+
+**Still held:** Items the rules above do not decide: PRC-L436 (mandatory approval rationale, approver visibility of financial data), PRC-M209 (audit-event design choice), PRC-L118 and PRC-L327 (institution link for hostels and library items), PRC-M540 (programme status and slot policy), PRC-M453 vehicle capacity and route date windows, PRC-M460 and PRC-M461 (case lifecycle and transition evaluator semantics), PRC-M638 FINAL-status handling.
+
+---
+
+## 40. Topic 23 — Organisation team names: owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+Move the repository into a GitHub organisation with teams platform-owners, security, data-db, infra-sre, frontend, mobile, academics-domain and finance-domain, each with at least two owners, and point CODEOWNERS at them.
+
+**Unblocked:** None in code until the organisation exists.
+
+**Still held:** PRC-M261 waits for the owner to create the GitHub organisation and teams. The personal-interim CODEOWNERS waiver stays until then.
+
+---
+
+## 41. Topic 25 — DNS, network and backup: owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+DNS-01 uses Route 53 through cert-manager with an IAM role (IRSA), no static keys. NetworkPolicy egress allows only the private subnets of RDS, ElastiCache and MSK. Backups use S3 Object Lock in GOVERNANCE mode for the first 30 days, then COMPLIANCE, with 35-day retention, RDS PITR of 14 days, and a cross-region copy to ap-south-2.
+
+**Unblocked:** PRC-L565 (ClusterIssuer and IRSA wiring, with hosted-zone id and role ARN as values), PRC-M624.
+
+**Still held:** PRC-M522 waits for the actual datastore subnet CIDRs (or read-only AWS access to look them up). Live verification of PRC-L565 needs the hosted zone and role to exist.
+
+---
+
+## 42. Topic 14 — Circulars sent to custom roles (PRC-M190, DR4-2): owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+A custom (non-built-in) role is staff-only. A circular addressed to a custom role reaches only members who also hold a built-in staff role. Guardians and students are never reached through a custom role; class, grade or student-bound audiences, which go through the custody check, are the only path to them. This replaces DR4-2's "422 for custom roles" fallback.
+
+**Unblocked:** PRC-M190's custom-role residual.
+
+**Still held:** None.
+
+---
+
+## 43. Topic 1 — Multi-tenant identity model (PRC-L213): owner input approved 2026-10-27
+
+**Date:** 2026-10-27. **Decider:** repository owner (dbn1972), "approve all" on the orchestrator's recommended inputs.
+
+**Decision:**
+
+One account per tenant. A user who works in several schools has a separate login per school, and the platform has no tenant switcher. Board or district multi-school oversight is separate future work on its own model.
+
+**Unblocked:** PRC-L213: closes with the verify.ts multi-valued tenant-claim rejection and the landed tenant_switch purge.
+
+**Still held:** None.
+
+---
+
 ## Re-triage → codeable (NOT real decisions) — ~16 findings
 
 Parked as "owner" but actually plain engineering (tests / fixtures):
