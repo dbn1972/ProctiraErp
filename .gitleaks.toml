@@ -73,6 +73,12 @@ regexes = [
   # original value still surfaces. Referenced by zero non-test files; not a
   # credential for any real system.
   '''l563-institution-scope-test-key''',
+
+  # packages/backend/tenant/src/custom-domain-verification.test.ts (branch history, PRC-L169, commit 9a563c7d)
+  # Fixed domain-verification challenge token served by a local HTTP server in
+  # the HTTPS well-known proof test; the test asserts an exact trimmed match.
+  # Referenced by zero non-test files; not a credential for any real system.
+  '''tok_ABCdef123-_xyz''',
 ]
 
 paths = [
