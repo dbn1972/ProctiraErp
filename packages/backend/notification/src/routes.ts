@@ -41,6 +41,8 @@ import {
   GetUserNotificationsQuerySchema,
   NotificationIdParamsSchema,
   RuleIdParamsSchema,
+  RegisterDeviceSchema,
+  UpdateNotificationPreferencesSchema,
   type SendNotificationInput,
   type CreateNotificationRuleInput,
   type UpdateNotificationRuleInput,
@@ -241,10 +243,20 @@ export async function registerNotificationRoutes(
         statusCode: 400,
       });
     }
+    // PRC-L332: the patch is schema-validated (no free-form JSON reaches the store).
+    const patchResult = validate(UpdateNotificationPreferencesSchema, request.body ?? {});
+    if (!patchResult.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: patchResult.errors,
+      });
+    }
     const prefs = await prefsStore.updatePreferences(
       tenantId,
       userId,
-      (request.body ?? {}) as Partial<NotificationPreferencesData>,
+      patchResult.data as Partial<NotificationPreferencesData>,
     );
     return reply.status(200).send(prefs);
   });
@@ -283,17 +295,17 @@ export async function registerNotificationRoutes(
         statusCode: 400,
       });
     }
-    const body = (request.body ?? {}) as {
-      platform?: 'ios' | 'android' | 'web';
-      pushToken?: string;
-    };
-    if (!body.platform || !body.pushToken) {
+    // PRC-L332: typed body; the owner is always the caller, never a body field.
+    const bodyResult = validate(RegisterDeviceSchema, request.body ?? {});
+    if (!bodyResult.success) {
       return reply.status(400).send({
         code: 'VALIDATION_ERROR',
         message: 'platform and pushToken are required',
         statusCode: 400,
+        errors: bodyResult.errors,
       });
     }
+    const body = bodyResult.data;
     const device = await prefsStore.registerDevice({
       tenantId,
       userId,
@@ -311,15 +323,17 @@ export async function registerNotificationRoutes(
 
   fastify.delete(`${prefix}/devices/:deviceId`, async (request, reply) => {
     const tenantId = getTenantId(request);
-    if (!tenantId) {
+    const userId = getUserId(request);
+    if (!tenantId || !userId) {
       return reply.status(400).send({
-        code: 'TENANT_REQUIRED',
-        message: 'Tenant context is required',
+        code: 'AUTH_CONTEXT_REQUIRED',
+        message: 'Tenant and user context are required',
         statusCode: 400,
       });
     }
     const deviceId = (request.params as { deviceId: string }).deviceId;
-    const deleted = await prefsStore.deleteDevice(tenantId, deviceId);
+    // PRC-L332: only the caller's own device can be deleted; another user's id is a 404.
+    const deleted = await prefsStore.deleteDevice(tenantId, userId, deviceId);
     if (!deleted) {
       return reply.status(404).send({
         code: 'NOT_FOUND',
