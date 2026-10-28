@@ -238,7 +238,7 @@ export async function verifyKeycloakAccessToken(
     throw new KeycloakTokenError('Keycloak audience mismatch');
   }
 
-  const tenantId = firstClaim(claims.tenant_id ?? claims.tenantId) ?? '';
+  const tenantId = singleTenantClaim(claims.tenant_id ?? claims.tenantId) ?? '';
   const roleNames = extractKeycloakRoleNames(claims, config.clientId);
   const displayName =
     claims.name ??
@@ -262,9 +262,17 @@ export async function verifyKeycloakAccessToken(
   };
 }
 
-function firstClaim(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
+/**
+ * PRC-L213: one account per tenant (DECISION_REGISTER ## 43). A tenant claim
+ * that holds more than one value is refused instead of silently using the
+ * first element; a one-element array is read as that value.
+ */
+function singleTenantClaim(value: string | string[] | undefined): string | undefined {
+  if (!Array.isArray(value)) return value;
+  if (value.length > 1) {
+    throw new KeycloakTokenError('Keycloak token carries more than one tenant');
+  }
+  return value[0];
 }
 
 function audienceIncludes(aud: string | string[] | undefined, expected: string): boolean {
