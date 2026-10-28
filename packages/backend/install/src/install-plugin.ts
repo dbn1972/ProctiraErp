@@ -23,6 +23,11 @@ import fp from 'fastify-plugin';
 import { InMemoryBootstrapStore } from './bootstrap-store';
 import type { BootstrapStore } from './bootstrap-store';
 import {
+  createEndpointPolicy,
+  parseAllowedEndpointHosts,
+  type ResolveHost,
+} from './endpoint-policy';
+import {
   createInstallTokenFailureLimiter,
   enforceInstallToken,
   requireInstallToken,
@@ -62,6 +67,14 @@ export interface InstallPluginOptions {
    * Falls back to INSTALL_TOKEN env. When neither is set the plugin refuses to register.
    */
   installToken?: string;
+  /**
+   * PRC-L568: exact hosts the operator explicitly allows to resolve to private ranges.
+   * Falls back to `INSTALL_ENDPOINT_ALLOWED_HOSTS` (comma separated). Wildcards are refused.
+   * The SSRF endpoint policy itself is always on for this HTTP surface.
+   */
+  endpointAllowedHosts?: readonly string[];
+  /** PRC-L568: DNS resolver override (tests). */
+  resolveHost?: ResolveHost;
 }
 
 // Extend Fastify types
@@ -87,10 +100,17 @@ export const installPlugin = fp(
     const tokenFailures = createInstallTokenFailureLimiter();
     const logger = createLogger({ name: loggerName });
 
+    const endpointPolicy = createEndpointPolicy({
+      allowedPrivateHosts:
+        options.endpointAllowedHosts ??
+        parseAllowedEndpointHosts(process.env.INSTALL_ENDPOINT_ALLOWED_HOSTS),
+      resolveHost: options.resolveHost,
+    });
     const installService = new InstallServiceImpl({
       logger,
       store,
       connectivityTester,
+      endpointPolicy,
     });
 
     // Decorate fastify instance with the service
