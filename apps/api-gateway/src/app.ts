@@ -86,7 +86,11 @@ import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } fr
 import {
   authenticateCredential,
   authorizeCredentialPrincipal,
+  createApiKeyCredentialLookup,
   credentialKindOf,
+  SHIPPED_API_KEY_SCOPE_TABLE,
+  type ApiKeyCredentialLookup,
+  type ApiKeyScopeGrant,
 } from './credential-principals.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
@@ -185,10 +189,17 @@ export interface BuildAppOptions {
   tenantSessionRevocationStore?: TenantSessionRevocationStore;
   /** PRC-H008: override TENANT_SUSPEND_BLOCK_AUTH (default true) for tests / DI. */
   tenantSuspendBlocksAuth?: boolean;
-  /** PRC-M027: credential-principal dependencies (tests / DI). */
+  /** PRC-M027 / PRC-L298: credential-principal dependencies (tests / DI). */
   credentialPrincipals?: {
     scimTokenStore?: ScimTokenStore;
     scimTokenPepper?: string;
+    /** PRC-L298: API-key lookup (default: developer-portal Postgres key hash). */
+    apiKeyLookup?: ApiKeyCredentialLookup;
+    /**
+     * PRC-L298: test-only scope table. Production always uses the shipped
+     * (empty) table; it is not configurable from the environment.
+     */
+    apiKeyScopeTable?: Readonly<Record<string, ApiKeyScopeGrant>>;
   };
 }
 
@@ -660,6 +671,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   if (!app.hasDecorator('scimTokenStore')) {
     app.decorate('scimTokenStore', scimTokens);
   }
+  // PRC-L298: inbound developer-portal API keys (read-only, scope-table bound).
+  const apiKeyLookup = options.credentialPrincipals?.apiKeyLookup ?? createApiKeyCredentialLookup();
+  const apiKeyScopeTable =
+    options.credentialPrincipals?.apiKeyScopeTable ?? SHIPPED_API_KEY_SCOPE_TABLE;
 
   // G-504 — secrets accepted during rotation (current first, then previous).
   const jwtVerifySecrets = verifySecretCandidates({
@@ -727,8 +742,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return;
     }
 
-    // PRC-M027: credential principals (dedicated SCIM tokens) are resolved
-    // before any JWT strategy; a SCIM path never accepts a JWT.
+    // PRC-M027 / PRC-L298: credential principals (dedicated SCIM tokens, API
+    // keys) are resolved before any JWT strategy; a SCIM path never accepts a JWT.
     let credentialAuth: Awaited<ReturnType<typeof authenticateCredential>>;
     try {
       credentialAuth = await authenticateCredential({
@@ -736,6 +751,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         bearer,
         scimTokens,
         scimPepper: scimTokenPepper,
+        apiKeys: apiKeyLookup,
       });
     } catch (error) {
       request.log.error({ err: error }, 'credential lookup failed');
@@ -1307,15 +1323,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       });
     }
 
-    // DR4-1 / PRC-M027: credential principals are authorised here, before every
+    // DR4-1 / PRC-M027 / PRC-L298: credential principals are authorised here, before every
     // early return below (unguarded mutations, gateway utilities, self-service
     // reads, portal writes, platform-area grants): only their fixed allow-list.
     const credential = credentialKindOf(user);
     if (credential) {
       const decision = authorizeCredentialPrincipal({
-        principal: user as unknown as { credential: typeof credential },
+        principal: user as unknown as { credential: typeof credential; scopes?: string[] },
         method,
         path: url,
+        apiKeyScopeTable,
       });
       if (!decision.ok) {
         return reply.status(403).send({
