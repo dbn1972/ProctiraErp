@@ -15,10 +15,39 @@
  * - Rollback capability
  */
 
+import { createPool as createMysqlPool } from 'mysql2/promise';
 import { Pool } from 'pg';
 
 import { TABLE_MAPPINGS } from './table-mappings.js';
-import type { MigrationConfig, MigrationStepResult } from './types.js';
+import type { MigrationConfig, MigrationStepResult, MySQLConfig } from './types.js';
+
+/**
+ * PRC-M423: the legacy health probe runs against the legacy MySQL server on its own
+ * mysql2 pool. It used to issue `SELECT 1` on the same Postgres pool as the new system,
+ * so "legacy healthy" only ever meant "Postgres is up".
+ */
+export interface LegacyMysqlPool {
+  query(sql: string): Promise<unknown>;
+  end(): Promise<void>;
+}
+
+/** Opens the legacy MySQL pool from `config.mysql` (small: health probes only). */
+export function createLegacyMysqlPool(mysql: MySQLConfig): LegacyMysqlPool {
+  return createMysqlPool({
+    host: mysql.host,
+    port: mysql.port,
+    database: mysql.database,
+    user: mysql.user,
+    password: mysql.password,
+    connectionLimit: 2,
+    connectTimeout: 10_000,
+  });
+}
+
+export interface ParallelOperationDeps {
+  /** Test seam: replaces the mysql2 pool factory. */
+  createLegacyPool?: (mysql: MySQLConfig) => LegacyMysqlPool;
+}
 
 /** System health status. */
 export interface SystemHealth {
@@ -90,27 +119,23 @@ export class ParallelOperationManager {
   }
 
   /**
-   * Checks health of the legacy MySQL system (via staging schema in PG for this implementation).
+   * Checks health of the legacy MySQL system on its own mysql2 pool (PRC-M423).
    */
-  async checkLegacyHealth(pool: Pool): Promise<SystemHealth> {
+  async checkLegacyHealth(legacyPool: LegacyMysqlPool): Promise<SystemHealth> {
     const start = Date.now();
     try {
-      const client = await pool.connect();
-      try {
-        await client.query('SELECT 1');
-        const health: SystemHealth = {
-          system: 'legacy_mysql',
-          status: 'healthy',
-          latencyMs: Date.now() - start,
-          lastCheckedAt: new Date().toISOString(),
-          connectionCount: pool.totalCount,
-          errorRate: 0,
-        };
-        this.health.set('legacy_mysql', health);
-        return health;
-      } finally {
-        client.release();
-      }
+      await legacyPool.query('SELECT 1');
+      const health: SystemHealth = {
+        system: 'legacy_mysql',
+        status: 'healthy',
+        latencyMs: Date.now() - start,
+        lastCheckedAt: new Date().toISOString(),
+        // mysql2 pools do not expose a live connection count; the probe used one.
+        connectionCount: 1,
+        errorRate: 0,
+      };
+      this.health.set('legacy_mysql', health);
+      return health;
     } catch {
       const health: SystemHealth = {
         system: 'legacy_mysql',
@@ -385,6 +410,7 @@ export class ParallelOperationManager {
  */
 export async function runParallelOperationCheck(
   config: MigrationConfig,
+  deps: ParallelOperationDeps = {},
 ): Promise<MigrationStepResult> {
   const startTime = Date.now();
   const errors: MigrationStepResult['errors'] = [];
@@ -397,6 +423,7 @@ export async function runParallelOperationCheck(
     user: config.pg.user,
     password: config.pg.password,
   });
+  const legacyPool = (deps.createLegacyPool ?? createLegacyMysqlPool)(config.mysql);
 
   try {
     const manager = new ParallelOperationManager(config);
@@ -404,7 +431,7 @@ export async function runParallelOperationCheck(
     console.log('[parallel-op] Running parallel operation health check...');
 
     // Check both systems
-    const legacyHealth = await manager.checkLegacyHealth(pool);
+    const legacyHealth = await manager.checkLegacyHealth(legacyPool);
     const newHealth = await manager.checkNewSystemHealth(pool);
 
     console.log(
@@ -475,5 +502,6 @@ export async function runParallelOperationCheck(
     };
   } finally {
     await pool.end();
+    await legacyPool.end().catch(() => undefined);
   }
 }
