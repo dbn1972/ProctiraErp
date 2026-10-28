@@ -7,6 +7,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MemoryAccessTokenRevocationStore } from './access-token-revocation.js';
+import { createPreMfaTicketCodec } from './pre-mfa-ticket.js';
 import { hashPassword, verifyPassword } from './local-auth.js';
 import type { AccountLockoutService, LockoutStatus } from './lockout-service.js';
 import { registerAuthRoutes, type UserLookup } from './routes.js';
@@ -336,5 +337,71 @@ describe('PRC-M183 local login / logout routes', () => {
       expect(res.statusCode).toBe(401);
       expect(sessionStore.sessions.get(session.id)?.isActive).toBe(true);
     });
+  });
+});
+
+describe('PRC-M497 local login mints a pre-MFA ticket when MFA is required', () => {
+  it('returns mfa_required + a ticket for the authenticated user, with no session or tokens', async () => {
+    const config = createAuthConfig({
+      jwt: { secret: 's', issuer: 'i', audience: 'a', accessTokenExpiresIn: 900 },
+      refreshToken: { maxLifetime: 30 * 24 * 3600 },
+      session: { duration: 3600 },
+    } as never);
+    const refreshStore = memoryRefreshStore();
+    const sessionStore = memorySessionStore();
+    const tokenService = new TokenService(config, signer, refreshStore);
+    const sessionService = new SessionService(config, sessionStore, tokenService);
+    const hash = await hashPassword(PASSWORD, 4);
+    const account = {
+      id: 'user-mfa',
+      email: 'mfa@example.com',
+      displayName: 'M',
+      passwordHash: hash,
+      tenantId: TENANT,
+      roles: [],
+      areas: [],
+      institutions: [],
+      isActive: true,
+    };
+    const codec = createPreMfaTicketCodec({ secret: 'm497-local-login-secret-0123456789ab' });
+    const app = Fastify();
+    app.decorate('authenticate', async (_request: FastifyRequest, reply: FastifyReply) =>
+      reply.status(401).send({ code: 'UNAUTHORIZED', statusCode: 401 }),
+    );
+    app.addHook('onRequest', async (req: FastifyRequest) => {
+      (req as FastifyRequest & { tenantId?: string }).tenantId = TENANT;
+    });
+    await registerAuthRoutes(app, {
+      tokenService,
+      sessionService,
+      userLookup: {
+        findByUsername: async (u: string) => (u === account.email ? { ...account } : null),
+        findById: async () => ({ ...account }),
+      } as unknown as UserLookup,
+      refreshTokenStore: refreshStore,
+      mfa: { preMfaTicket: codec, isRequired: async ({ userId }) => userId === 'user-mfa' },
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: account.email, password: PASSWORD },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json();
+      expect(body.status).toBe('mfa_required');
+      expect(body.tokens).toBeUndefined();
+      expect(sessionStore.sessions.size).toBe(0);
+      expect(codec.verify(body.preMfaTicket)).toEqual({ userId: 'user-mfa', tenantId: TENANT });
+      const wrong = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: account.email, password: 'nope' },
+      });
+      expect(wrong.json().preMfaTicket).toBeUndefined();
+    } finally {
+      await app.close();
+    }
   });
 });

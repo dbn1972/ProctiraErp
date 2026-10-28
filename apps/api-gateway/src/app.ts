@@ -32,6 +32,7 @@ import {
   DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
   isIssuedBeforeTenantRevocation,
   createOtpChallengeStore,
+  createPreMfaTicketCodecFromEnv,
   createSmsProviderFromEnv,
   createUserInviteRepository,
   evaluatePermission,
@@ -607,8 +608,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // PRC-M498: throttled sends / lockouts are alertable (SMS pumping, guessing).
     onAbuseSignal: (signal) => app.log.warn({ otpAbuse: signal }, 'otp abuse signal'),
   });
-  await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
-  await registerMfaRoutes(app, { otpService, prefix: '/auth' });
+  // PRC-M497: OTP send/verify are bound to a login through the pre-MFA ticket
+  // (MFA_PRE_TICKET_SECRET; never JWT_SECRET). Without the secret in a deployed
+  // environment no ticket is accepted, so OTP send stays fail-closed (401).
+  const preMfaTicket = createPreMfaTicketCodecFromEnv(process.env);
+  if (!preMfaTicket) {
+    app.log.warn('MFA_PRE_TICKET_SECRET is not set; SMS OTP send/verify stay disabled (PRC-M497)');
+  }
+  const mfaRouteOptions = { otpService, ...(preMfaTicket ? { preMfaTicket } : {}) };
+  await registerMfaRoutes(app, { ...mfaRouteOptions, prefix: '/api/v1/auth' });
+  await registerMfaRoutes(app, { ...mfaRouteOptions, prefix: '/auth' });
 
   // Admin invites (Postgres when DATABASE_URL is set — G-704). Only useful when Keycloak (or another IdP) is on.
   if (keycloak) {

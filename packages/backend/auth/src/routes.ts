@@ -18,6 +18,7 @@ import {
 } from './access-token-revocation.js';
 import { hashPassword, verifyPassword } from './local-auth.js';
 import type { AccountLockoutService } from './lockout-service.js';
+import type { PreMfaTicketCodec } from './pre-mfa-ticket.js';
 import type { SessionService } from './session-service.js';
 import { InvalidRefreshTokenError } from './token-service.js';
 import type { RefreshTokenStore, TokenService } from './token-service.js';
@@ -127,6 +128,16 @@ export interface AuthRoutesOptions {
   accessTokenExpiresIn?: number;
   /** Prefix for auth routes (default: '/auth') */
   prefix?: string;
+  /**
+   * PRC-M497: second-factor policy. When `isRequired` reports true for the
+   * user, a correct password returns `{ status: 'mfa_required', preMfaTicket }`
+   * (no session, no tokens); the ticket is then required by
+   * `/auth/mfa/otp/send` and `/auth/mfa/verify`. A policy error fails closed (503).
+   */
+  mfa?: {
+    preMfaTicket: PreMfaTicketCodec;
+    isRequired: (user: { userId: string; tenantId: string; email: string }) => Promise<boolean>;
+  };
 }
 
 /**
@@ -145,6 +156,7 @@ export async function registerAuthRoutes(
     accessTokenRevocationStore,
     accessTokenExpiresIn,
     prefix = '/auth',
+    mfa,
   } = options;
 
   /**
@@ -212,6 +224,29 @@ export async function registerAuthRoutes(
       // Successful authentication - reset failure counter
       if (lockoutService) {
         await lockoutService.resetOnSuccess(user.id, tenantId);
+      }
+
+      // PRC-M497: a user whose policy requires a second factor gets a short-lived
+      // pre-MFA ticket instead of a session; OTP send/verify are bound to it.
+      if (mfa) {
+        let required: boolean;
+        try {
+          required = await mfa.isRequired({ userId: user.id, tenantId, email: user.email });
+        } catch (error) {
+          request.log.error({ err: error }, 'MFA policy lookup failed during local login');
+          return reply.status(503).send({
+            code: 'MFA_POLICY_UNAVAILABLE',
+            message: 'Sign-in is temporarily unavailable. Try again shortly.',
+            statusCode: 503,
+          });
+        }
+        if (required) {
+          return reply.status(200).send({
+            status: 'mfa_required',
+            preMfaTicket: mfa.preMfaTicket.mint({ userId: user.id, tenantId }),
+            expiresIn: mfa.preMfaTicket.ttlSeconds,
+          });
+        }
       }
 
       // Create session
