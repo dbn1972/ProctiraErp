@@ -30,8 +30,24 @@ export interface TenantEntity {
   dataRetentionUntil: Date | null;
   /** W1-SEC-06: when true, permanent delete MUST fail closed. */
   legalHold: boolean;
+  /**
+   * PRC-L372: the decommission data-export obligation. `pending` blocks permanent deletion
+   * until an export completes; `waived` records an explicit `exportData: false`.
+   */
+  dataExport?: TenantDataExportState | null;
+  /** PRC-M218: an isolated developer sandbox tenant (torn down with its sandbox). */
+  sandbox?: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** PRC-L372: state of the decommission data export. */
+export interface TenantDataExportState {
+  status: 'pending' | 'completed' | 'waived';
+  requestedAt: Date;
+  exportId?: string;
+  location?: string;
+  completedAt?: Date;
 }
 
 /**
@@ -44,6 +60,16 @@ export interface DomainEntity {
   primary: boolean;
   verified: boolean;
   createdAt: Date;
+  /** PRC-L169: ownership challenge (32 random bytes, base64url). */
+  verificationToken?: string;
+  /** PRC-L169: when ownership was last proven. */
+  verifiedAt?: Date | null;
+  /** PRC-L169: the verification lapses (stops resolving) after this instant. */
+  verificationExpiresAt?: Date | null;
+  /** PRC-L169: last re-check (pass or fail). */
+  lastCheckedAt?: Date | null;
+  /** PRC-L169 / DR4-8: set while a re-check tick owns the row. */
+  recheckClaimedAt?: Date | null;
 }
 
 /**
@@ -163,6 +189,59 @@ export interface TenantRepository {
 
   /** Find a domain by domain name (for uniqueness check) */
   findDomainByName(domain: string): Promise<DomainEntity | null>;
+
+  /**
+   * PRC-L369: every domain row whose name is exactly `hostname` (already lower-cased), through
+   * an index-backed lookup — the public resolver must not scan every domain per request.
+   */
+  findDomainsByHostname?(hostname: string): Promise<DomainEntity[]>;
+
+  /**
+   * PRC-L369: exact (lower-case) slug lookup through an index, for the public resolver.
+   * Falls back to {@link findTenantBySlug} when a repository does not provide it.
+   */
+  findTenantBySlugExact?(slug: string): Promise<TenantEntity | null>;
+
+  /** PRC-L169: persist a lazily generated verification token on a domain row. */
+  setDomainVerificationToken?(domainId: string, token: string): Promise<DomainEntity | null>;
+
+  /**
+   * PRC-L169: mark `domainId` (owned by `tenantId`) verified, exclusively for its hostname.
+   * Serialised per hostname (Postgres: `pg_advisory_xact_lock(hashtext('tenant.domains:<host>'))`
+   * in one platform-scoped transaction); refuses when another row for the same hostname holds a
+   * current verification. A stale (expired) verification on another row is cleared.
+   */
+  verifyDomainExclusive?(
+    tenantId: string,
+    domainId: string,
+    verifiedAt: Date,
+    verificationExpiresAt: Date,
+  ): Promise<
+    { status: 'verified'; domain: DomainEntity } | { status: 'conflict' } | { status: 'not_found' }
+  >;
+
+  /** PRC-L169: clear verification of every domain of a tenant (decommission / revoke). */
+  unverifyTenantDomains?(tenantId: string): Promise<DomainEntity[]>;
+
+  /**
+   * PRC-L169 / DR4-8: in ONE short transaction holding
+   * `pg_try_advisory_xact_lock(hashtext('tenant.domains:recheck'))`, claim up to `limit` verified
+   * domains last checked before `recheckBefore` (stamp `recheckClaimedAt`) and commit.
+   * Returns null when the lock is held elsewhere (tick skipped).
+   */
+  claimDomainsForRecheck?(params: {
+    now: Date;
+    recheckBefore: Date;
+    claimLeaseBefore: Date;
+    limit: number;
+    onLocked?: () => Promise<void>;
+  }): Promise<DomainEntity[] | null>;
+
+  /** PRC-L169 / DR4-8: write one re-check result in its own short transaction. */
+  recordDomainRecheck?(
+    domainId: string,
+    result: { passed: boolean; now: Date; verificationExpiresAt: Date },
+  ): Promise<DomainEntity | null>;
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 

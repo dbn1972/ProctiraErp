@@ -283,7 +283,12 @@ describe('TenantService', () => {
   describe('deleteTenant', () => {
     it('should delete a decommissioned tenant past retention', async () => {
       const tenant = await service.createTenant(validCreateInput);
-      await service.decommissionTenant(tenant.id, { reason: 'Test', retainDataDays: 0 });
+      // PRC-L372: explicit export waiver (a pending export blocks permanent deletion).
+      await service.decommissionTenant(tenant.id, {
+        reason: 'Test',
+        retainDataDays: 0,
+        exportData: false,
+      });
 
       // Manually set retention to past date for testing
       await repository.updateTenant(tenant.id, {
@@ -329,7 +334,11 @@ describe('TenantService', () => {
         ...validCreateInput,
         slug: `hold-${Date.now().toString(36)}`,
       });
-      await guarded.decommissionTenant(tenant.id, { reason: 'Test', retainDataDays: 0 });
+      await guarded.decommissionTenant(tenant.id, {
+        reason: 'Test',
+        retainDataDays: 0,
+        exportData: false,
+      });
       await repository.updateTenant(tenant.id, {
         dataRetentionUntil: new Date(Date.now() - 86400000),
       });

@@ -20,6 +20,7 @@ import {
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
+import { DOMAIN_RECHECK_LOCK_KEY, domainHostLockKey } from './custom-domain-verification.js';
 import type {
   DomainEntity,
   TenantBrandingDraftEntity,
@@ -230,6 +231,12 @@ export class PgTenantRepository implements TenantRepository {
           ? data.dataRetentionUntil
           : existing.dataRetentionUntil,
       legalHold: data.legalHold !== undefined ? data.legalHold : (existing.legalHold ?? false),
+      // PRC-M218: the sandbox flag is immutable once set.
+      ...(existing.sandbox ? { sandbox: true } : {}),
+      // PRC-L372: carry the decommission export obligation (only when one exists).
+      ...((data.dataExport ?? existing.dataExport)
+        ? { dataExport: data.dataExport !== undefined ? data.dataExport : existing.dataExport }
+        : {}),
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
@@ -642,6 +649,224 @@ export class PgTenantRepository implements TenantRepository {
   async findDomainByName(domain: string): Promise<DomainEntity | null> {
     const all = await this.domains.all({ platform: true });
     return all.find((d) => d.domain.toLowerCase() === domain.toLowerCase()) ?? null;
+  }
+
+  /**
+   * PRC-L369: exact-name lookup through JSONB containment, served by the
+   * `control_plane_documents_data_gin` (jsonb_path_ops) index instead of a collection scan.
+   */
+  findDomainsByHostname(hostname: string): Promise<DomainEntity[]> {
+    return this.domains.where({ domain: hostname } as Partial<DomainEntity>);
+  }
+
+  // ─── PRC-L169 domain verification (platform-owned `tenant.domains` documents) ──
+
+  private static readonly DOMAINS = 'tenant.domains';
+
+  private reviveDomain(data: unknown): DomainEntity {
+    return reviveDates(data as DomainEntity);
+  }
+
+  private async writeDomain(client: PgQueryable, id: string, data: DomainEntity): Promise<void> {
+    await client.query(
+      `UPDATE control_plane_documents SET data = $3::jsonb, updated_at = now()
+        WHERE collection = $1 AND id = $2 AND tenant_id IS NULL`,
+      [PgTenantRepository.DOMAINS, id, JSON.stringify(data)],
+    );
+  }
+
+  async setDomainVerificationToken(domainId: string, token: string): Promise<DomainEntity | null> {
+    return withPlatformScope(this.assertPool(), async (client) => {
+      const res = await client.query(
+        `SELECT data FROM control_plane_documents
+          WHERE collection = $1 AND id = $2 AND tenant_id IS NULL FOR UPDATE`,
+        [PgTenantRepository.DOMAINS, domainId],
+      );
+      const row = res.rows[0] as { data: unknown } | undefined;
+      if (!row) return null;
+      const domain = this.reviveDomain(row.data);
+      if (domain.verificationToken) return domain;
+      const next = { ...domain, verificationToken: token };
+      await this.writeDomain(client, domainId, next);
+      return next;
+    });
+  }
+
+  async verifyDomainExclusive(
+    tenantId: string,
+    domainId: string,
+    verifiedAt: Date,
+    verificationExpiresAt: Date,
+  ): Promise<
+    { status: 'verified'; domain: DomainEntity } | { status: 'conflict' } | { status: 'not_found' }
+  > {
+    return withPlatformScope(this.assertPool(), async (client) => {
+      const own = await client.query(
+        `SELECT data FROM control_plane_documents
+          WHERE collection = $1 AND id = $2 AND tenant_id IS NULL`,
+        [PgTenantRepository.DOMAINS, domainId],
+      );
+      const first = own.rows[0] as { data: unknown } | undefined;
+      if (!first) return { status: 'not_found' as const };
+      const hostname = String(this.reviveDomain(first.data).domain).toLowerCase();
+      // Serialise every verifier of this hostname for the rest of the transaction. Row locks are
+      // only taken after the advisory lock, so two verifiers can never deadlock on each other.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+        domainHostLockKey(hostname),
+      ]);
+      const rows = await client.query(
+        `SELECT id, data FROM control_plane_documents
+          WHERE collection = $1 AND tenant_id IS NULL AND lower(data->>'domain') = $2
+          FOR UPDATE`,
+        [PgTenantRepository.DOMAINS, hostname],
+      );
+      const all = (rows.rows as Array<{ id: string; data: unknown }>).map((r) => ({
+        id: String(r.id),
+        domain: this.reviveDomain(r.data),
+      }));
+      const mine = all.find((r) => r.id === domainId);
+      if (!mine || mine.domain.tenantId !== tenantId) return { status: 'not_found' as const };
+      for (const other of all) {
+        if (other.id === domainId || other.domain.verified !== true) continue;
+        const expires = other.domain.verificationExpiresAt
+          ? new Date(other.domain.verificationExpiresAt)
+          : null;
+        if (expires && expires.getTime() > verifiedAt.getTime()) {
+          return { status: 'conflict' as const };
+        }
+        // A lapsed verification no longer blocks the hostname; clear it so it cannot resolve.
+        await this.writeDomain(client, other.id, { ...other.domain, verified: false });
+      }
+      const next: DomainEntity = {
+        ...mine.domain,
+        domain: hostname,
+        verified: true,
+        verifiedAt,
+        verificationExpiresAt,
+        lastCheckedAt: verifiedAt,
+        recheckClaimedAt: null,
+      };
+      await this.writeDomain(client, domainId, next);
+      return { status: 'verified' as const, domain: next };
+    });
+  }
+
+  async unverifyTenantDomains(tenantId: string): Promise<DomainEntity[]> {
+    return withPlatformScope(this.assertPool(), async (client) => {
+      const res = await client.query(
+        `SELECT id, data FROM control_plane_documents
+          WHERE collection = $1 AND tenant_id IS NULL AND data @> $2::jsonb
+          FOR UPDATE`,
+        [PgTenantRepository.DOMAINS, JSON.stringify({ tenantId, verified: true })],
+      );
+      const changed: DomainEntity[] = [];
+      for (const r of res.rows as Array<{ id: string; data: unknown }>) {
+        const next = { ...this.reviveDomain(r.data), verified: false, verificationExpiresAt: null };
+        await this.writeDomain(client, String(r.id), next);
+        changed.push(next);
+      }
+      return changed;
+    });
+  }
+
+  async claimDomainsForRecheck(params: {
+    now: Date;
+    recheckBefore: Date;
+    claimLeaseBefore: Date;
+    limit: number;
+    onLocked?: () => Promise<void>;
+  }): Promise<DomainEntity[] | null> {
+    // DR4-8: claim only, then COMMIT. Network checks run after this transaction ends.
+    return withPlatformScope(this.assertPool(), async (client) => {
+      const lock = await client.query(`SELECT pg_try_advisory_xact_lock(hashtext($1)) AS ok`, [
+        DOMAIN_RECHECK_LOCK_KEY,
+      ]);
+      if ((lock.rows[0] as { ok?: boolean } | undefined)?.ok !== true) return null;
+      await params.onLocked?.();
+      const res = await client.query(
+        `SELECT id, data FROM control_plane_documents
+          WHERE collection = $1 AND tenant_id IS NULL
+            AND data @> '{"verified": true}'::jsonb
+            AND COALESCE(data->>'lastCheckedAt', data->>'verifiedAt', '') < $2
+            AND (data->>'recheckClaimedAt' IS NULL OR data->>'recheckClaimedAt' < $3)
+          ORDER BY COALESCE(data->>'lastCheckedAt', data->>'verifiedAt', '') ASC
+          LIMIT $4
+          FOR UPDATE SKIP LOCKED`,
+        [
+          PgTenantRepository.DOMAINS,
+          params.recheckBefore.toISOString(),
+          params.claimLeaseBefore.toISOString(),
+          params.limit,
+        ],
+      );
+      const claimed: DomainEntity[] = [];
+      for (const r of res.rows as Array<{ id: string; data: unknown }>) {
+        const next = { ...this.reviveDomain(r.data), recheckClaimedAt: params.now };
+        await this.writeDomain(client, String(r.id), next);
+        claimed.push(next);
+      }
+      return claimed;
+    });
+  }
+
+  async recordDomainRecheck(
+    domainId: string,
+    result: { passed: boolean; now: Date; verificationExpiresAt: Date },
+  ): Promise<DomainEntity | null> {
+    return withPlatformScope(this.assertPool(), async (client) => {
+      const res = await client.query(
+        `SELECT data FROM control_plane_documents
+          WHERE collection = $1 AND id = $2 AND tenant_id IS NULL FOR UPDATE`,
+        [PgTenantRepository.DOMAINS, domainId],
+      );
+      const row = res.rows[0] as { data: unknown } | undefined;
+      if (!row) return null;
+      const current = this.reviveDomain(row.data);
+      const next: DomainEntity = result.passed
+        ? {
+            ...current,
+            lastCheckedAt: result.now,
+            recheckClaimedAt: null,
+            verificationExpiresAt: result.verificationExpiresAt,
+          }
+        : {
+            ...current,
+            verified: false,
+            verificationExpiresAt: null,
+            lastCheckedAt: result.now,
+            recheckClaimedAt: null,
+          };
+      await this.writeDomain(client, domainId, next);
+      return next;
+    });
+  }
+
+  /**
+   * PRC-L369: exact slug lookup for the public resolver — documents through the GIN index,
+   * then the `tenants.slug` unique index. Never a scan of every tenant.
+   */
+  async findTenantBySlugExact(slug: string): Promise<TenantEntity | null> {
+    const docs = await this.tenants.where({ slug } as Partial<TenantEntity>);
+    const doc = docs.find((t) => t.slug === slug);
+    if (doc) return doc;
+    try {
+      const result = await withPlatformScope(this.assertPool(), (client) =>
+        client.query(
+          `SELECT id, name, slug, status, config, legal_hold,
+                  created_at AT TIME ZONE 'UTC' AS created_at,
+                  updated_at AT TIME ZONE 'UTC' AS updated_at
+             FROM tenants
+            WHERE slug = $1 AND deleted_at IS NULL
+            LIMIT 1`,
+          [slug],
+        ),
+      );
+      const row = (result.rows as TenantTableRow[])[0];
+      return row ? this.mapTableRow(row) : null;
+    } catch (error) {
+      logger.error({ slug, err: error }, 'tenants-table exact slug lookup failed; unresolved');
+      return null;
+    }
   }
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────

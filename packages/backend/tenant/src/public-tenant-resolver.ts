@@ -9,11 +9,40 @@ const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 /** Trusted hostname-only tenant lookup used by anonymous public applications. */
 export interface PublicTenantResolver {
   resolveHostname(hostHeader: string | undefined): Promise<string | null>;
+  /** PRC-L369: drop cached host mappings (one hostname, or all). */
+  invalidate?(hostname?: string): void;
 }
 
 export interface PublicTenantResolverOptions {
   repository: TenantRepository;
   baseDomain: string;
+  /** PRC-L369: per-replica host -> tenant cache TTL (default 30 s; 0 disables). */
+  cacheTtlMs?: number;
+  /** PRC-L369: bound on cached hostnames (default 1000, LRU). */
+  cacheMaxEntries?: number;
+  /** Clock (tests). */
+  now?: () => number;
+}
+
+/** PRC-L369 defaults. */
+export const PUBLIC_RESOLVER_CACHE_TTL_MS = 30_000;
+export const PUBLIC_RESOLVER_CACHE_MAX_ENTRIES = 1000;
+
+/**
+ * PRC-L369: every live resolver in this process, so a domain change made through this process's
+ * TenantService invalidates the host cache at once. Other replicas converge within the TTL;
+ * tenant status (suspension) is never cached — it is re-read by primary key on every request.
+ */
+const liveResolvers = new Set<WeakRef<{ invalidate(hostname?: string): void }>>();
+
+/** PRC-L369: invalidate cached host mappings in every resolver of this process. */
+export function invalidatePublicHostCaches(hostname?: string): void {
+  const normalized = hostname ? (normalizePublicHostname(hostname) ?? undefined) : undefined;
+  for (const ref of liveResolvers) {
+    const resolver = ref.deref();
+    if (resolver) resolver.invalidate(normalized);
+    else liveResolvers.delete(ref);
+  }
 }
 
 /**
@@ -60,29 +89,96 @@ function isActiveCanonicalTenant(tenant: TenantEntity | null): tenant is TenantE
 export function createPublicTenantResolver({
   repository,
   baseDomain,
+  cacheTtlMs = PUBLIC_RESOLVER_CACHE_TTL_MS,
+  cacheMaxEntries = PUBLIC_RESOLVER_CACHE_MAX_ENTRIES,
+  now = Date.now,
 }: PublicTenantResolverOptions): PublicTenantResolver {
   const normalizedBaseDomain = normalizePublicHostname(baseDomain);
   if (!normalizedBaseDomain || normalizedBaseDomain.includes(':')) {
     throw new TypeError('Public tenant baseDomain must be a valid DNS hostname');
   }
 
-  return {
+  // PRC-L369: hostname -> candidate tenant id (null = no mapping), bounded LRU with a short TTL.
+  // PRC-L169: an entry never outlives the domain's verification expiry.
+  const cache = new Map<string, { tenantId: string | null; expiresAt: number }>();
+  const cacheGet = (hostname: string): { tenantId: string | null } | undefined => {
+    const entry = cache.get(hostname);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= now()) {
+      cache.delete(hostname);
+      return undefined;
+    }
+    cache.delete(hostname);
+    cache.set(hostname, entry);
+    return entry;
+  };
+  const cacheSet = (hostname: string, tenantId: string | null, validUntil?: number) => {
+    if (cacheTtlMs <= 0) return;
+    cache.delete(hostname);
+    while (cache.size >= cacheMaxEntries) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
+    const expiresAt = Math.min(now() + cacheTtlMs, validUntil ?? Number.POSITIVE_INFINITY);
+    cache.set(hostname, { tenantId, expiresAt });
+  };
+
+  /** Index-backed host -> candidate tenant id (no status decision here). */
+  const lookupCandidate = async (
+    hostname: string,
+  ): Promise<{ tenantId: string | null; validUntil?: number }> => {
+    if (hostname.endsWith(`.${normalizedBaseDomain}`)) {
+      const slug = hostname.slice(0, -(normalizedBaseDomain.length + 1));
+      if (!DNS_LABEL.test(slug) || slug.includes('.')) return { tenantId: null };
+      const tenant = repository.findTenantBySlugExact
+        ? await repository.findTenantBySlugExact(slug)
+        : await repository.findTenantBySlug(slug);
+      return { tenantId: tenant && TENANT_UUID.test(tenant.id) ? tenant.id : null };
+    }
+    const rows = repository.findDomainsByHostname
+      ? await repository.findDomainsByHostname(hostname)
+      : [await repository.findDomainByName(hostname)].filter(
+          (d): d is NonNullable<typeof d> => d !== null,
+        );
+    // PRC-L169: fail closed unless exactly one row holds the hostname verified, and that
+    // verification has not lapsed.
+    const verified = rows.filter((d) => d.verified);
+    if (verified.length !== 1) return { tenantId: null };
+    const only = verified[0]!;
+    const expires = only.verificationExpiresAt
+      ? new Date(only.verificationExpiresAt).getTime()
+      : NaN;
+    if (!Number.isFinite(expires) || expires <= now()) return { tenantId: null };
+    return { tenantId: only.tenantId, validUntil: expires };
+  };
+
+  const resolver = {
+    invalidate(hostname?: string): void {
+      if (hostname) cache.delete(hostname);
+      else cache.clear();
+    },
     async resolveHostname(hostHeader: string | undefined): Promise<string | null> {
       const hostname = normalizePublicHostname(hostHeader);
       if (!hostname) return null;
-
       if (hostname === normalizedBaseDomain) return null;
-      if (hostname.endsWith(`.${normalizedBaseDomain}`)) {
-        const slug = hostname.slice(0, -(normalizedBaseDomain.length + 1));
-        if (!DNS_LABEL.test(slug) || slug.includes('.')) return null;
-        const tenant = await repository.findTenantBySlug(slug);
-        return isActiveCanonicalTenant(tenant) ? tenant.id : null;
-      }
 
-      const domain = await repository.findDomainByName(hostname);
-      if (!domain?.verified) return null;
-      const tenant = await repository.findTenantById(domain.tenantId);
+      let candidate: string | null;
+      const cached = cacheGet(hostname);
+      if (cached) {
+        candidate = cached.tenantId;
+      } else {
+        const found = await lookupCandidate(hostname);
+        candidate = found.tenantId;
+        cacheSet(hostname, candidate, found.validUntil);
+      }
+      if (!candidate) return null;
+      // Status is re-read on every request (primary-key lookup), so a suspension or
+      // decommission takes effect immediately on every replica, cache or not.
+      const tenant = await repository.findTenantById(candidate);
       return isActiveCanonicalTenant(tenant) ? tenant.id : null;
     },
   };
+  liveResolvers.add(new WeakRef(resolver));
+  return resolver;
 }
