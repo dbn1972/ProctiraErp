@@ -7,6 +7,8 @@ import type { FastifyInstance, InjectOptions } from 'fastify';
 import { installPlugin } from './install-plugin';
 
 const TEST_INSTALL_TOKEN = 'test-install-token-0123456789';
+/** PRC-L568: deterministic public resolution so the suite never depends on live DNS. */
+const publicResolver = async () => [{ address: '93.184.216.34', family: 4 }];
 
 describe('installPlugin (Fastify routes)', () => {
   let app: FastifyInstance;
@@ -22,6 +24,7 @@ describe('installPlugin (Fastify routes)', () => {
     await app.register(installPlugin, {
       loggerName: 'install-test',
       installToken: TEST_INSTALL_TOKEN,
+      resolveHost: publicResolver,
       connectivityTester: {
         testCdn: async () => ({ healthy: true, latencyMs: 5 }),
         testDatabase: async () => ({ healthy: true, latencyMs: 10 }),
@@ -165,7 +168,7 @@ describe('installPlugin (Fastify routes)', () => {
         payload: {
           adapter: 'minio',
           bucket: 'files',
-          endpoint: 'http://localhost:9000',
+          endpoint: 'https://minio.example.com',
           accessKeyId: 'admin',
           secretAccessKey: 'secret',
         },
@@ -180,7 +183,7 @@ describe('installPlugin (Fastify routes)', () => {
         url: '/install/configure/queue',
         payload: {
           backend: 'rabbitmq',
-          rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' },
+          rabbitmq: { url: 'amqps://mq.example.com:5671', exchange: 'proctira' },
         },
       });
 
@@ -238,7 +241,7 @@ describe('installPlugin (Fastify routes)', () => {
         payload: {
           adapter: 'minio',
           bucket: 'files',
-          endpoint: 'http://localhost:9000',
+          endpoint: 'https://minio.example.com',
           accessKeyId: 'admin',
           secretAccessKey: 'secret',
         },
@@ -253,7 +256,7 @@ describe('installPlugin (Fastify routes)', () => {
         url: '/install/configure/queue',
         payload: {
           backend: 'rabbitmq',
-          rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' },
+          rabbitmq: { url: 'amqps://mq.example.com:5671', exchange: 'proctira' },
         },
       });
       const finalized = await inject({ method: 'POST', url: '/install/finalize' });
@@ -280,6 +283,7 @@ describe('installPlugin (Fastify routes)', () => {
       await secured.register(installPlugin, {
         loggerName: 'install-token-test',
         installToken: 'test-install-secret',
+        resolveHost: publicResolver,
         connectivityTester: {
           testCdn: async () => ({ healthy: true, latencyMs: 5 }),
           testDatabase: async () => ({ healthy: true, latencyMs: 10 }),
@@ -442,7 +446,7 @@ describe('installPlugin (Fastify routes)', () => {
         payload: {
           adapter: 'minio',
           bucket: 'files',
-          endpoint: 'http://localhost:9000',
+          endpoint: 'https://minio.example.com',
           accessKeyId: 'admin',
           secretAccessKey: 'secret',
         },
@@ -457,7 +461,7 @@ describe('installPlugin (Fastify routes)', () => {
         url: '/install/configure/queue',
         payload: {
           backend: 'rabbitmq',
-          rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' },
+          rabbitmq: { url: 'amqps://mq.example.com:5671', exchange: 'proctira' },
         },
       });
 
