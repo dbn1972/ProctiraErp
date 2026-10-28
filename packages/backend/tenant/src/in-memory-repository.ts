@@ -77,6 +77,8 @@ export class InMemoryTenantRepository implements TenantRepository {
           ? data.dataRetentionUntil
           : existing.dataRetentionUntil,
       legalHold: data.legalHold !== undefined ? data.legalHold : (existing.legalHold ?? false),
+      // PRC-M218: the sandbox flag is immutable once set.
+      ...(existing.sandbox ? { sandbox: true } : {}),
       // PRC-L372: carry the decommission export obligation (only when one exists).
       ...((data.dataExport ?? existing.dataExport)
         ? { dataExport: data.dataExport !== undefined ? data.dataExport : existing.dataExport }
