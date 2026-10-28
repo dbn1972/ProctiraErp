@@ -24,6 +24,7 @@ import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { AuditContext } from './audit.js';
+import { enforceDataWarehouseAccess } from './data-warehouse-access.js';
 import type { DataWarehouseService } from './data-warehouse-service.js';
 import {
   CreateWarehouseSchema,
@@ -103,6 +104,22 @@ export async function registerDataWarehouseRoutes(
   options: DataWarehouseRoutesOptions,
 ): Promise<void> {
   const { dataWarehouseService, prefix = '/warehouses' } = options;
+
+  // PRC-M617: every warehouse route below runs the in-package guard first
+  // (verified principal, token tenant, role). Attached per route through
+  // onRoute so it covers exactly the routes registered under `prefix` here,
+  // without leaking a global hook into the host app (this plugin uses fp).
+  const guard = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
+    if (enforceDataWarehouseAccess(request, reply)) done();
+  };
+  fastify.addHook('onRoute', (route) => {
+    if (route.url !== prefix && !route.url.startsWith(`${prefix}/`)) return;
+    const existing = route.preHandler;
+    route.preHandler = [
+      guard,
+      ...(existing ? (Array.isArray(existing) ? existing : [existing]) : []),
+    ];
+  });
 
   // ─── Warehouse CRUD ───────────────────────────────────────────────────────
 

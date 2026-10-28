@@ -27,7 +27,12 @@ describe('audit events via routes (PRC-L452)', () => {
     app = Fastify();
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { tenantId?: string }).tenantId = TENANT;
-      (request as typeof request & { user?: { sub: string } }).user = { sub: ACTOR };
+      // PRC-M617: verified principal with a matching tenant claim and a data/admin role.
+      (request as typeof request & { user?: unknown }).user = {
+        sub: ACTOR,
+        tenantId: TENANT,
+        roles: ['admin'],
+      };
     });
     await app.register(dataWarehousePlugin, {
       repository: new InMemoryWarehouseRepository(),
