@@ -11,6 +11,7 @@ import {
   resolveCorsOrigins,
   resolveJwtSecret,
   resolvePreviousJwtSecret,
+  resolveTrustedProxyCidrs,
 } from './config.js';
 
 describe('resolveJwtSecret (G-703)', () => {
@@ -63,31 +64,71 @@ describe('resolveAccessTokenExpiresIn', () => {
 });
 
 describe('resolveCorsOrigins (PRC-M524)', () => {
-  it('falls back to the localhost defaults when unset, in any environment', () => {
-    expect(resolveCorsOrigins('development', undefined)).toEqual([
+  it('falls back to the localhost defaults when unset outside a deployed environment', () => {
+    expect(resolveCorsOrigins('development', undefined, {})).toEqual([
       'http://localhost:3000',
       'http://localhost:3001',
     ]);
-    expect(resolveCorsOrigins('test', '   ')).toEqual([
-      'http://localhost:3000',
-      'http://localhost:3001',
-    ]);
-    // PRC-M524 residual: a production boot-fail guard here (mirroring
-    // resolveJwtSecret) was deferred — see CANONICAL_LEDGER.csv for why.
-    expect(resolveCorsOrigins('production', undefined)).toEqual([
+    expect(resolveCorsOrigins('test', '   ', {})).toEqual([
       'http://localhost:3000',
       'http://localhost:3001',
     ]);
   });
 
+  it('refuses an empty or wildcard list in a deployed environment', () => {
+    expect(() => resolveCorsOrigins('production', undefined, {})).toThrow(/CORS_ORIGINS/);
+    expect(() => resolveCorsOrigins('staging', ' , ', {})).toThrow(/CORS_ORIGINS/);
+    expect(() => resolveCorsOrigins('development', '', { APP_ENV: 'staging' })).toThrow(
+      /CORS_ORIGINS/,
+    );
+    expect(() => resolveCorsOrigins('production', '*', {})).toThrow(/must not contain/);
+  });
+
   it('parses a comma-separated list in any environment', () => {
-    expect(resolveCorsOrigins('development', 'https://a.example,https://b.example')).toEqual([
+    expect(resolveCorsOrigins('development', 'https://a.example,https://b.example', {})).toEqual([
       'https://a.example',
       'https://b.example',
     ]);
-    expect(resolveCorsOrigins('production', 'https://app.proctira.io')).toEqual([
+    expect(resolveCorsOrigins('production', 'https://app.proctira.io', {})).toEqual([
       'https://app.proctira.io',
     ]);
+  });
+});
+
+describe('resolveTrustedProxyCidrs (PRC-M524)', () => {
+  it('refuses an empty list in a deployed environment', () => {
+    expect(() => resolveTrustedProxyCidrs('production', undefined, {})).toThrow(
+      /TRUSTED_PROXY_CIDRS/,
+    );
+    expect(() => resolveTrustedProxyCidrs('staging', '  ', {})).toThrow(/TRUSTED_PROXY_CIDRS/);
+  });
+
+  it('allows empty (trust no proxy) outside a deployed environment and parses lists', () => {
+    expect(resolveTrustedProxyCidrs('test', undefined, {})).toEqual([]);
+    expect(resolveTrustedProxyCidrs('production', '10.0.0.0/8, 10.0.0.0/8', {})).toEqual([
+      '10.0.0.0/8',
+    ]);
+  });
+
+  it('loadConfig refuses to boot in production without CORS_ORIGINS or TRUSTED_PROXY_CIDRS', () => {
+    const saved = { ...process.env };
+    try {
+      process.env['NODE_ENV'] = 'production';
+      process.env['JWT_SECRET'] = 'f'.repeat(48);
+      delete process.env['JWT_SECRET_PREVIOUS'];
+      delete process.env['CORS_ORIGINS'];
+      process.env['TRUSTED_PROXY_CIDRS'] = '10.0.0.0/8';
+      expect(() => loadConfig()).toThrow(/CORS_ORIGINS/);
+      process.env['CORS_ORIGINS'] = 'https://app.example.edu';
+      delete process.env['TRUSTED_PROXY_CIDRS'];
+      expect(() => loadConfig()).toThrow(/TRUSTED_PROXY_CIDRS/);
+      process.env['TRUSTED_PROXY_CIDRS'] = '10.0.0.0/8';
+      const config = loadConfig();
+      expect(config.cors.origins).toEqual(['https://app.example.edu']);
+      expect(config.trustedProxyCidrs).toEqual(['10.0.0.0/8']);
+    } finally {
+      process.env = saved;
+    }
   });
 });
 
@@ -124,6 +165,9 @@ describe('auth boot guards (PRC-M011)', () => {
       process.env['NODE_ENV'] = 'production';
       process.env['JWT_SECRET'] = strong;
       process.env['JWT_SECRET_PREVIOUS'] = 'changeme';
+      // PRC-M524: deployed boots need explicit allow-lists.
+      process.env['CORS_ORIGINS'] = 'https://app.example.edu';
+      process.env['TRUSTED_PROXY_CIDRS'] = '10.0.0.0/8';
       expect(() => loadConfig()).toThrow(/JWT_SECRET_PREVIOUS/);
     } finally {
       process.env = saved;

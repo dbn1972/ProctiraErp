@@ -249,24 +249,53 @@ export function assertAuthBootPolicy(input: {
 }
 
 /**
- * PRC-M524: parse CORS_ORIGINS. A production boot-fail guard (mirroring
- * resolveJwtSecret's refusal of a silent default) was deferred — see the
- * CANONICAL_LEDGER.csv PARTIAL residual for PRC-M524: this repo's own
- * config.test.ts boots the gateway with NODE_ENV=production and no
- * CORS_ORIGINS set (to isolate an unrelated JWT_SECRET_PREVIOUS assertion),
- * which is exactly the class of existing-boot-path dependency the batch plan
- * flagged as a reason to keep this additive-only rather than silently
- * changing gateway boot behavior.
+ * PRC-M524: parse CORS_ORIGINS. Outside a deployed environment an empty value
+ * falls back to the localhost dev origins. In a deployed environment
+ * (PRC-L566 predicate) the list must be explicit: empty or `*` refuses boot
+ * instead of silently serving localhost-only (or any-origin) CORS.
  */
-export function resolveCorsOrigins(_env: string, raw: string | undefined): string[] {
-  const trimmed = raw?.trim() ?? '';
-  if (trimmed.length === 0) {
-    return ['http://localhost:3000', 'http://localhost:3001'];
-  }
-  return trimmed
+export function resolveCorsOrigins(
+  env: string | undefined,
+  raw: string | undefined,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const origins = (raw ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  const deployed = isDeployedEnvironment(env, processEnv);
+  if (origins.length === 0) {
+    if (deployed) {
+      throw new Error(
+        'CORS_ORIGINS must list the allowed browser origins in a deployed environment (PRC-M524)',
+      );
+    }
+    return ['http://localhost:3000', 'http://localhost:3001'];
+  }
+  if (deployed && origins.includes('*')) {
+    throw new Error('CORS_ORIGINS must not contain `*` in a deployed environment (PRC-M524)');
+  }
+  return origins;
+}
+
+/**
+ * PRC-M524: TRUSTED_PROXY_CIDRS. In a deployed environment the ingress
+ * controller's address range must be explicit, otherwise every request's
+ * client IP is the ingress pod and per-IP rate limits / audit IPs collapse.
+ * Empty refuses boot when deployed; outside, empty means "trust no proxy".
+ */
+export function resolveTrustedProxyCidrs(
+  env: string | undefined,
+  raw: string | undefined,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const cidrs = parseTrustedProxyCidrs(raw);
+  if (cidrs.length === 0 && isDeployedEnvironment(env, processEnv)) {
+    throw new Error(
+      'TRUSTED_PROXY_CIDRS must list the ingress proxy IP/CIDR range in a deployed environment (PRC-M524)',
+    );
+  }
+  return cidrs;
 }
 
 /**
@@ -274,8 +303,6 @@ export function resolveCorsOrigins(_env: string, raw: string | undefined): strin
  */
 export function loadConfig(): GatewayConfig {
   const env = (process.env['NODE_ENV'] || 'development') as GatewayConfig['env'];
-
-  const corsOrigins = resolveCorsOrigins(env, process.env['CORS_ORIGINS']);
 
   // Parse service routes from SERVICE_ROUTES env var (JSON) or use defaults
   let services: Record<string, ServiceRoute> = {};
@@ -332,11 +359,14 @@ export function loadConfig(): GatewayConfig {
   // unset value or NODE_ENV=staging is guarded like production.
   const nodeEnv = process.env['NODE_ENV'];
   const jwtSecret = resolveJwtSecret(nodeEnv, process.env['JWT_SECRET']);
+  // PRC-M524: explicit allow-lists in deployed environments.
+  const corsOrigins = resolveCorsOrigins(nodeEnv, process.env['CORS_ORIGINS']);
+  const trustedProxyCidrs = resolveTrustedProxyCidrs(nodeEnv, process.env['TRUSTED_PROXY_CIDRS']);
   return {
     port: parseInt(process.env['PORT'] || '3000', 10),
     host: process.env['HOST'] || '0.0.0.0',
     env,
-    trustedProxyCidrs: parseTrustedProxyCidrs(process.env['TRUSTED_PROXY_CIDRS']),
+    trustedProxyCidrs,
     rateLimiting: {
       windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000', 10),
       maxRequests: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100', 10),
