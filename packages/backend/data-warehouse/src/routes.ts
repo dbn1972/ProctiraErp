@@ -710,7 +710,6 @@ export async function registerDataWarehouseRoutes(
           {
             records: bodyResult.data.records,
             fileContent: bodyResult.data.fileContent,
-            dbConnectionConfig: bodyResult.data.dbConnectionConfig,
           },
           auditContext(request),
         );

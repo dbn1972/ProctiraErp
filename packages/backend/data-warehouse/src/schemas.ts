@@ -218,24 +218,21 @@ export type DataRecordInput = Static<typeof DataRecordSchema>;
 
 /**
  * Bulk import request body.
+ *
+ * PRC-L548: the body never carries database credentials or a raw SQL query.
+ * The former `dbConnectionConfig` (host/port/database/username/password/query)
+ * is gone and unknown keys are rejected, so such a body fails validation (400).
  */
-export const BulkImportSchema = Type.Object({
-  format: ImportFormatSchema,
-  records: Type.Optional(Type.Array(DataRecordSchema, { minItems: 1 })),
-  fileContent: Type.Optional(
-    Type.String({ description: 'Base64-encoded file content for Excel/CSV' }),
-  ),
-  dbConnectionConfig: Type.Optional(
-    Type.Object({
-      host: Type.String({ minLength: 1 }),
-      port: Type.Number({ minimum: 1, maximum: 65535 }),
-      database: Type.String({ minLength: 1 }),
-      username: Type.String({ minLength: 1 }),
-      password: Type.String({ minLength: 1 }),
-      query: Type.String({ minLength: 1 }),
-    }),
-  ),
-});
+export const BulkImportSchema = Type.Object(
+  {
+    format: ImportFormatSchema,
+    records: Type.Optional(Type.Array(DataRecordSchema, { minItems: 1 })),
+    fileContent: Type.Optional(
+      Type.String({ description: 'Base64-encoded file content for Excel/CSV' }),
+    ),
+  },
+  { additionalProperties: false },
+);
 
 export type BulkImportInput = Static<typeof BulkImportSchema>;
 

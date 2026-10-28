@@ -834,14 +834,6 @@ export class DataWarehouseService {
     options: {
       records?: DataRecordInput[];
       fileContent?: string;
-      dbConnectionConfig?: {
-        host: string;
-        port: number;
-        database: string;
-        username: string;
-        password: string;
-        query: string;
-      };
     },
     ctx: AuditContext = {},
   ): Promise<ImportResult> {
@@ -885,38 +877,23 @@ export class DataWarehouseService {
         break;
       }
       case 'db': {
-        if (options.dbConnectionConfig) {
-          // Database import would connect to the specified database and execute the query.
-          // For now, return an error indicating this requires a live database connection.
-          return {
-            totalRows: 0,
-            successCount: 0,
-            errorCount: 1,
-            duplicateCount: 0,
-            errors: [
-              {
-                row: 0,
-                field: null,
-                message:
-                  'Database import requires a live database connection (not yet implemented for in-memory mode)',
-              },
-            ],
-          };
-        } else {
-          return {
-            totalRows: 0,
-            successCount: 0,
-            errorCount: 1,
-            duplicateCount: 0,
-            errors: [
-              {
-                row: 0,
-                field: null,
-                message: 'Database connection configuration is required for db import',
-              },
-            ],
-          };
-        }
+        // PRC-L548: credentials and raw SQL are never read from a request. A
+        // database source would be a server-side registered connector, which
+        // does not exist for this parked package, so `db` always reports this.
+        return {
+          totalRows: 0,
+          successCount: 0,
+          errorCount: 1,
+          duplicateCount: 0,
+          errors: [
+            {
+              row: 0,
+              field: null,
+              message:
+                'Database import is not available: connection details and SQL queries are not accepted in the request body',
+            },
+          ],
+        };
       }
       default:
         return {
