@@ -34,6 +34,7 @@ import type {
   ImportFormat,
   ImportRowError,
 } from './schemas.js';
+import { guardWarehouseRepository } from './tenant-guarded-repository.js';
 import type { TranslationRepository } from './translation-repository.js';
 import type { WarehouseRepository, ListFilter } from './warehouse-repository.js';
 
@@ -87,12 +88,15 @@ export class DataWarehouseService {
   private readonly audit: AuditEmitter;
   private readonly gisRepository: GISRepository | null;
   private readonly translationRepository: TranslationRepository | null;
+  /** PRC-L552: every repository call is re-checked against the caller tenant. */
+  private readonly repository: WarehouseRepository;
 
   constructor(
-    private readonly repository: WarehouseRepository,
+    repository: WarehouseRepository,
     private readonly config: DataWarehouseServiceConfig,
     options: DataWarehouseServiceOptions = {},
   ) {
+    this.repository = guardWarehouseRepository(repository);
     this.audit = new AuditEmitter(options.auditSink ?? null);
     this.gisRepository = options.gisRepository ?? null;
     this.translationRepository = options.translationRepository ?? null;
