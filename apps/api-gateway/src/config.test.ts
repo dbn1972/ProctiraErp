@@ -4,6 +4,7 @@ import {
   DEV_JWT_SECRET,
   DEV_OVERLAY_JWT_SECRET,
   assertAuthBootPolicy,
+  isDeployedEnvironment,
   loadConfig,
   parseTrustedProxyCidrs,
   resolveAccessTokenExpiresIn,
@@ -174,5 +175,51 @@ describe('auth boot guards (PRC-M011)', () => {
         processEnv: { NEXT_PUBLIC_WEB_URL: ok.NEXT_PUBLIC_WEB_URL },
       }),
     ).toThrow(/KEYCLOAK_REDIRECT_URI must be set/);
+  });
+});
+
+describe('deployed-environment predicate (PRC-L566)', () => {
+  it.each([
+    ['production', { APP_ENV: 'staging' }, true],
+    ['development', { APP_ENV: 'staging' }, true],
+    ['test', {}, false],
+    [undefined, {}, true],
+    ['staging', {}, true],
+  ] as const)('NODE_ENV=%j env=%j -> deployed=%j', (nodeEnv, env, expected) => {
+    expect(isDeployedEnvironment(nodeEnv, env)).toBe(expected);
+  });
+
+  it('development without a deployed stage is not deployed', () => {
+    expect(isDeployedEnvironment('development', {})).toBe(false);
+    expect(isDeployedEnvironment('development', { DEPLOY_ENV: 'prod' })).toBe(true);
+  });
+
+  it('JWT secret guards apply under NODE_ENV=staging without APP_ENV', () => {
+    expect(() => resolveJwtSecret('staging', DEV_JWT_SECRET, {})).toThrow(/placeholder/);
+    expect(() => resolveJwtSecret('staging', 'short-secret', {})).toThrow(/at least 32/);
+    expect(() => resolveJwtSecret(undefined, undefined, {})).toThrow(/JWT_SECRET is required/);
+    expect(() => resolvePreviousJwtSecret('staging', 'changeme', 'd'.repeat(48), {})).toThrow(
+      /placeholder|at least/,
+    );
+    expect(resolveJwtSecret('test', undefined, {})).toBe(DEV_JWT_SECRET);
+  });
+
+  it('loadConfig refuses to boot under NODE_ENV=staging with a placeholder or short JWT_SECRET', () => {
+    const saved = { ...process.env };
+    try {
+      process.env['NODE_ENV'] = 'staging';
+      delete process.env['APP_ENV'];
+      delete process.env['DEPLOY_ENV'];
+      process.env['CORS_ORIGINS'] = 'https://app.example.edu';
+      process.env['TRUSTED_PROXY_CIDRS'] = '10.0.0.0/8';
+      process.env['JWT_SECRET'] = DEV_JWT_SECRET;
+      expect(() => loadConfig()).toThrow(/JWT_SECRET/);
+      process.env['JWT_SECRET'] = 'short-secret';
+      expect(() => loadConfig()).toThrow(/JWT_SECRET/);
+      process.env['JWT_SECRET'] = 'e'.repeat(48);
+      expect(loadConfig().jwt.secret).toBe('e'.repeat(48));
+    } finally {
+      process.env = saved;
+    }
   });
 });
