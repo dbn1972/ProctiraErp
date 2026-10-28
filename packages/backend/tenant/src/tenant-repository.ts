@@ -164,6 +164,18 @@ export interface TenantRepository {
   /** Find a domain by domain name (for uniqueness check) */
   findDomainByName(domain: string): Promise<DomainEntity | null>;
 
+  /**
+   * PRC-L369: every domain row whose name is exactly `hostname` (already lower-cased), through
+   * an index-backed lookup — the public resolver must not scan every domain per request.
+   */
+  findDomainsByHostname?(hostname: string): Promise<DomainEntity[]>;
+
+  /**
+   * PRC-L369: exact (lower-case) slug lookup through an index, for the public resolver.
+   * Falls back to {@link findTenantBySlug} when a repository does not provide it.
+   */
+  findTenantBySlugExact?(slug: string): Promise<TenantEntity | null>;
+
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 
   /** Get or create usage metrics for a tenant */

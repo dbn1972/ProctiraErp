@@ -644,6 +644,42 @@ export class PgTenantRepository implements TenantRepository {
     return all.find((d) => d.domain.toLowerCase() === domain.toLowerCase()) ?? null;
   }
 
+  /**
+   * PRC-L369: exact-name lookup through JSONB containment, served by the
+   * `control_plane_documents_data_gin` (jsonb_path_ops) index instead of a collection scan.
+   */
+  findDomainsByHostname(hostname: string): Promise<DomainEntity[]> {
+    return this.domains.where({ domain: hostname } as Partial<DomainEntity>);
+  }
+
+  /**
+   * PRC-L369: exact slug lookup for the public resolver — documents through the GIN index,
+   * then the `tenants.slug` unique index. Never a scan of every tenant.
+   */
+  async findTenantBySlugExact(slug: string): Promise<TenantEntity | null> {
+    const docs = await this.tenants.where({ slug } as Partial<TenantEntity>);
+    const doc = docs.find((t) => t.slug === slug);
+    if (doc) return doc;
+    try {
+      const result = await withPlatformScope(this.assertPool(), (client) =>
+        client.query(
+          `SELECT id, name, slug, status, config, legal_hold,
+                  created_at AT TIME ZONE 'UTC' AS created_at,
+                  updated_at AT TIME ZONE 'UTC' AS updated_at
+             FROM tenants
+            WHERE slug = $1 AND deleted_at IS NULL
+            LIMIT 1`,
+          [slug],
+        ),
+      );
+      const row = (result.rows as TenantTableRow[])[0];
+      return row ? this.mapTableRow(row) : null;
+    } catch (error) {
+      logger.error({ slug, err: error }, 'tenants-table exact slug lookup failed; unresolved');
+      return null;
+    }
+  }
+
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 
   async getOrCreateUsage(tenantId: string): Promise<TenantUsageEntity> {

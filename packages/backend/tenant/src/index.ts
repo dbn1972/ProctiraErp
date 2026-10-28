@@ -44,7 +44,13 @@ export { createTenantRepository } from './create-tenant-repository.js';
 export type { TenantPersistence } from './create-tenant-repository.js';
 
 // Trusted anonymous-host resolution (public registration composition)
-export { createPublicTenantResolver, normalizePublicHostname } from './public-tenant-resolver.js';
+export {
+  createPublicTenantResolver,
+  invalidatePublicHostCaches,
+  normalizePublicHostname,
+  PUBLIC_RESOLVER_CACHE_MAX_ENTRIES,
+  PUBLIC_RESOLVER_CACHE_TTL_MS,
+} from './public-tenant-resolver.js';
 export type {
   PublicTenantResolver,
   PublicTenantResolverOptions,
