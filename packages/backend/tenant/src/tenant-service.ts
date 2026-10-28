@@ -275,6 +275,100 @@ export class TenantService {
   }
 
   /**
+   * PRC-M218: provision an isolated sandbox tenant for a developer sandbox.
+   *
+   * The tenant is a real, separate tenant (own id, slug, RLS scope and seeded defaults) flagged
+   * `sandbox: true`. It has no interactive admin user: sandboxes are driven through developer
+   * credentials. A failed seed removes the never-active record, as for normal provisioning.
+   */
+  async provisionSandboxTenant(input: { name: string; ownerRef: string }): Promise<TenantEntity> {
+    const id = uuidv4();
+    const slug = `sbx-${id.replace(/-/g, '').slice(0, 12)}`;
+    const tenant = await this.repository.createTenant({
+      id,
+      name: input.name,
+      slug,
+      status: 'provisioning',
+      plan: 'sandbox',
+      region: null,
+      config: {
+        branding: { organizationName: input.name },
+        locale: {
+          defaultLocale: 'en',
+          supportedLocales: ['en'],
+          timezone: 'UTC',
+          dateFormat: 'YYYY-MM-DD',
+        },
+        features: {
+          modules: {},
+          customFields: true,
+          bulkImport: false,
+          apiAccess: true,
+          webhooks: true,
+        },
+        security: {
+          mfaRequired: false,
+          sessionTimeoutMinutes: 60,
+          passwordMinLength: 12,
+          passwordRequireSpecialChar: true,
+        },
+      },
+      suspendedAt: null,
+      suspendedReason: null,
+      decommissionedAt: null,
+      dataRetentionUntil: null,
+      legalHold: false,
+      sandbox: true,
+    });
+    try {
+      await this.defaultsSeeder?.seedTenantDefaults(tenant);
+    } catch (error) {
+      logger.error({ tenantId: id, err: error }, 'Sandbox tenant seeding failed; removing it');
+      try {
+        await this.defaultsSeeder?.removeTenantDefaults?.(id);
+      } catch {
+        // best effort
+      }
+      if (this.repository.discardProvisioningTenant) {
+        await this.repository.discardProvisioningTenant(id);
+      } else {
+        await this.repository.deleteTenant(id);
+      }
+      throw new BusinessRuleError('Sandbox tenant provisioning failed');
+    }
+    const active = await this.applyUpdate(id, { status: 'active' });
+    logger.info({ tenantId: id, slug, ownerRef: input.ownerRef }, 'Sandbox tenant provisioned');
+    return active;
+  }
+
+  /**
+   * PRC-M218: tear a sandbox tenant down for real — decommission (0-day retention, export
+   * waived: sandbox data is disposable) then permanently delete through the normal guards
+   * (legal hold and the destructive-delete guard still apply). Refuses non-sandbox tenants.
+   */
+  async teardownSandboxTenant(tenantId: string): Promise<void> {
+    const tenant = await this.repository.findTenantById(tenantId);
+    if (!tenant) return; // already gone
+    if (tenant.sandbox !== true) {
+      throw new BusinessRuleError('Refusing to tear down a tenant that is not a sandbox');
+    }
+    if (tenant.status !== 'decommissioned') {
+      await this.decommissionTenant(tenantId, {
+        reason: 'Developer sandbox destroyed',
+        retainDataDays: 0,
+        exportData: false,
+      });
+    }
+    await this.deleteTenant(tenantId);
+    try {
+      await this.defaultsSeeder?.removeTenantDefaults?.(tenantId);
+    } catch (error) {
+      logger.error({ tenantId, err: error }, 'Failed to remove sandbox tenant defaults');
+    }
+    logger.info({ tenantId }, 'Sandbox tenant torn down');
+  }
+
+  /**
    * Update an existing tenant's mutable attributes.
    *
    * @throws NotFoundError if tenant not found

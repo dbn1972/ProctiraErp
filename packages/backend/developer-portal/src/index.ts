@@ -41,6 +41,7 @@ export {
 } from './developer-portal-service.js';
 export type {
   DeveloperPortalServiceConfig,
+  SandboxTenantProvisioner,
   WebhookHttpFetch,
   WebhookSigningSecretResolver,
   WebhookReplayStore,

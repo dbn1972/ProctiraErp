@@ -20,6 +20,7 @@ import { DEFAULT_CONFIG, DeveloperPortalService } from './developer-portal-servi
 import { HybridDeveloperPortalRepository } from './hybrid-repository.js';
 import { PgApiKeyStore } from './pg-api-key-store.js';
 import { PgDeveloperPortalDurableStore } from './pg-durable-store.js';
+import { recordingSandboxProvisioner } from './sandbox-provisioner.test-support.js';
 import { createTestWebhookSigningSecrets } from './webhook-signing-secrets.test-support.js';
 
 const CONNECTION = process.env['DATABASE_URL'] ?? process.env['MIGRATOR_DATABASE_URL'] ?? '';
@@ -48,6 +49,7 @@ describe.skipIf(!CONNECTION)('developer-portal limits (live)', () => {
       },
       {
         signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+        sandboxProvisioner: recordingSandboxProvisioner(),
         signingSecretWriter: { async storeSigningSecret() {} },
         validateWebhookUrl: async () => undefined,
       },

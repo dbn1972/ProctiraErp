@@ -35,6 +35,8 @@ export interface TenantEntity {
    * until an export completes; `waived` records an explicit `exportData: false`.
    */
   dataExport?: TenantDataExportState | null;
+  /** PRC-M218: an isolated developer sandbox tenant (torn down with its sandbox). */
+  sandbox?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
