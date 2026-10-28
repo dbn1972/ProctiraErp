@@ -20,6 +20,10 @@ vi.mock('./local-auth.js', async (importOriginal) => {
   return { ...actual, verifyPassword: vi.fn(actual.verifyPassword) };
 });
 
+// Real cost-12 bcrypt (dummy-hash generation plus one comparison per login)
+// exceeds the 5 s default on loaded CI runners; same budget as the property suites.
+vi.setConfig({ testTimeout: 30_000 });
+
 const TENANT = 'tenant-m183';
 const PASSWORD = 'correct horse battery staple';
 
