@@ -67,17 +67,24 @@ export interface PublicThrottleConfig {
   /** Failed (no-match) lookups per tracking number before lockout. */
   statusFailuresPerTracking: number;
   statusWindowMs: number;
+  /** PRC-M332: bot-challenge issuances per tenant per window. */
+  challengePerTenant: number;
+  challengeWindowMs: number;
 }
 
 export const DEFAULT_PUBLIC_THROTTLE: PublicThrottleConfig = {
   statusPerTracking: 10,
   statusFailuresPerTracking: 5,
   statusWindowMs: 15 * 60_000,
+  challengePerTenant: 600,
+  challengeWindowMs: 60_000,
 };
 
 export class PublicRegistrationThrottle {
   readonly statusTracking: SlidingWindowLimiter;
   readonly statusFailures: SlidingWindowLimiter;
+  /** PRC-M332: caps challenge minting per tenant (outer limit: gateway rate limiter). */
+  readonly challengeIssuance: SlidingWindowLimiter;
 
   constructor(config: Partial<PublicThrottleConfig> = {}, now?: () => number) {
     const c = { ...DEFAULT_PUBLIC_THROTTLE, ...config };
@@ -85,6 +92,11 @@ export class PublicRegistrationThrottle {
     this.statusFailures = new SlidingWindowLimiter(
       c.statusFailuresPerTracking,
       c.statusWindowMs,
+      now,
+    );
+    this.challengeIssuance = new SlidingWindowLimiter(
+      c.challengePerTenant,
+      c.challengeWindowMs,
       now,
     );
   }

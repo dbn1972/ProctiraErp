@@ -12,9 +12,10 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { MemoryWebTicketStore, type WebTicketStore } from '../keycloak/routes.js';
+import type { WebTicketStore } from '../keycloak/routes.js';
 
 import type { ExternalAuthHandler } from './external-auth-handler.js';
+import { resolvePendingAuthStateStore } from './pending-auth-state.js';
 import { ExternalAuthError } from './types.js';
 
 /**
@@ -31,7 +32,8 @@ export interface ExternalAuthRoutesOptions {
   errorRedirectUrl?: string;
   /**
    * PRC-M589: one-time ticket store for redirect delivery (tokens never go in
-   * the URL). Use the Redis store for multi-replica deployments.
+   * the URL). Required (Redis-backed) in a deployed environment; the
+   * process-local default is only allowed for development/test.
    */
   ticketStore?: WebTicketStore;
   /** PRC-M589: mark the state cookie Secure + SameSite=None (default true). */
@@ -87,7 +89,12 @@ export async function registerExternalAuthRoutes(
   options: ExternalAuthRoutesOptions,
 ): Promise<void> {
   const { handler, prefix = '/auth/external', successRedirectUrl, errorRedirectUrl } = options;
-  const ticketStore = options.ticketStore ?? new MemoryWebTicketStore();
+  // PRC-M589: a deployed process must redeem tickets on any replica (Redis);
+  // the process-local default is refused there.
+  const ticketStore: WebTicketStore = resolvePendingAuthStateStore(
+    options.ticketStore,
+    'External auth ticket delivery',
+  );
   const secureCookies = options.secureCookies ?? true;
   const deliver = (reply: FastifyReply, result: SuccessResult) =>
     sendSuccess(reply, successRedirectUrl, result, ticketStore);

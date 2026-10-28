@@ -3,12 +3,13 @@
  * shaped payloads), unsupported paths are rejected, Users/:id is a single-row
  * lookup and concurrent group PATCHes for one user keep both roles.
  */
-import type { FastifyInstance } from 'fastify';
+import { InMemoryRolesRepository, RolesService } from '@proctira/backend-tenant';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { authHeaders, createTestConfig } from './__tests__/gateway-test-kit.js';
 import { buildApp } from './app.js';
-import { userChangeFromPatch } from './scim-plugin.js';
+import { scimPlugin, userChangeFromPatch } from './scim-plugin.js';
 
 delete process.env['DATABASE_URL'];
 
@@ -21,8 +22,15 @@ describe('SCIM profile writes and atomic groups', () => {
   beforeAll(async () => {
     app = await buildApp({ config: createTestConfig() });
     await app.ready();
+    // PRC-M027: SCIM calls authenticate with a dedicated token issued by a tenant admin.
+    const issued = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tenant/scim-token',
+      headers: authHeaders(app, { roles: ['admin'] }),
+    });
+    expect(issued.statusCode, issued.body).toBe(201);
     headers = {
-      ...authHeaders(app, { roles: ['admin'] }),
+      authorization: `Bearer ${(issued.json() as { token: string }).token}`,
       'content-type': 'application/scim+json',
     };
   });
@@ -159,5 +167,117 @@ describe('userChangeFromPatch (PRC-M025)', () => {
     expect(() =>
       userChangeFromPatch([{ op: 'replace', value: { nickName: 'z' } }], { displayName: 'Old' }),
     ).toThrow(/Unsupported attribute path/);
+  });
+});
+
+describe('PRC-M026 SCIM list/filter never scans the tenant directory', () => {
+  const TENANT = '550e8400-e29b-41d4-a716-44665544a026';
+  const OTHER = '660e8400-e29b-41d4-a716-44665544a026';
+
+  /** Counts directory-wide scans (listUsers) vs store-evaluated queries. */
+  class CountingRepository extends InMemoryRolesRepository {
+    listUsersCalls = 0;
+    queryUsersCalls = 0;
+    override async listUsers(...args: Parameters<InMemoryRolesRepository['listUsers']>) {
+      this.listUsersCalls += 1;
+      return super.listUsers(...args);
+    }
+    override async queryUsers(...args: Parameters<InMemoryRolesRepository['queryUsers']>) {
+      this.queryUsersCalls += 1;
+      return super.queryUsers(...args);
+    }
+  }
+
+  let app: FastifyInstance;
+  let repo: CountingRepository;
+  let service: RolesService;
+  let memberRoleId = '';
+  const scimHeaders = { 'content-type': 'application/scim+json' };
+
+  beforeAll(async () => {
+    repo = new CountingRepository([
+      { roleId: 'teacher', roleName: 'Teacher', permissions: [] },
+      { roleId: 'staff', roleName: 'Staff', permissions: [] },
+    ]);
+    service = new RolesService(repo);
+    app = Fastify();
+    app.addHook('onRequest', async (request) => {
+      (request as { tenantId?: string }).tenantId =
+        (request.headers['x-test-tenant'] as string | undefined) ?? TENANT;
+    });
+    await app.register(scimPlugin, { rolesService: service });
+    await app.ready();
+    const roles = await service.listRoles(TENANT);
+    memberRoleId = roles[0]!.id;
+    for (let i = 0; i < 5; i += 1) {
+      await service.inviteUser(TENANT, {
+        email: `m026.user${i}@school.org`,
+        displayName: `M026 User ${i}`,
+        roleIds: i % 2 === 0 ? [roles[0]!.id] : [],
+      });
+    }
+    await service.inviteUser(OTHER, {
+      email: 'm026.user0@other.org',
+      displayName: 'Other Tenant',
+      roleIds: [],
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const reset = () => {
+    repo.listUsersCalls = 0;
+    repo.queryUsersCalls = 0;
+  };
+
+  it('userName eq filter is one store query, no directory scan', async () => {
+    reset();
+    const res = await app.inject({
+      method: 'GET',
+      url: `/scim/v2/Users?filter=${encodeURIComponent('userName eq "M026.USER3@school.org"')}`,
+      headers: scimHeaders,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toMatchObject({ totalResults: 1, itemsPerPage: 1 });
+    expect(res.json().Resources[0].userName).toBe('m026.user3@school.org');
+    expect(repo.listUsersCalls).toBe(0);
+    expect(repo.queryUsersCalls).toBe(1);
+  });
+
+  it('startIndex/count page through the store window with the real total', async () => {
+    reset();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/scim/v2/Users?startIndex=2&count=2',
+      headers: scimHeaders,
+    });
+    expect(res.json()).toMatchObject({ totalResults: 5, startIndex: 2, itemsPerPage: 2 });
+    expect(res.json().Resources.map((u: { displayName: string }) => u.displayName)).toEqual([
+      'M026 User 1',
+      'M026 User 2',
+    ]);
+    expect(repo.listUsersCalls).toBe(0);
+  });
+
+  it('GET /Groups resolves members per role without a directory scan', async () => {
+    reset();
+    const res = await app.inject({ method: 'GET', url: '/scim/v2/Groups', headers: scimHeaders });
+    expect(res.statusCode).toBe(200);
+    const group = (res.json().Resources as Array<{ id: string; members: unknown[] }>).find(
+      (g) => g.id === memberRoleId,
+    );
+    expect(group?.members).toHaveLength(3);
+    expect(repo.listUsersCalls).toBe(0);
+  });
+
+  it('filters stay inside the request tenant', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/scim/v2/Users?filter=${encodeURIComponent('userName eq "m026.user0@other.org"')}`,
+      headers: scimHeaders,
+    });
+    expect(res.json().totalResults).toBe(0);
   });
 });

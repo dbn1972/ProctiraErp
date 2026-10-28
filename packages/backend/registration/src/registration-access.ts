@@ -97,6 +97,8 @@ export function isPublicRegistrationPath(path: string): boolean {
   if (under.startsWith('/schools/search')) return true;
   if (under.startsWith('/form-config/')) return true;
   if (under === '/language') return true;
+  // PRC-M332: bot-challenge issuance for anonymous submit.
+  if (under === '/challenge') return true;
   return false;
 }
 

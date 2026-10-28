@@ -69,6 +69,18 @@ export interface AuthCallbackParams {
 /**
  * Configuration for an OAuth2 provider.
  */
+/**
+ * PRC-M589: storage for pending external-login state (state id -> JSON with
+ * the tenant, nonce / PKCE verifier). `take` is an atomic read-and-delete so a
+ * state is redeemable once. Use a Redis-backed store (for example
+ * `new RedisWebTicketStore(redis, 'auth:ext-pending:')`) so the callback can be
+ * served by any replica; the process-local default is refused when deployed.
+ */
+export interface PendingAuthStateStore {
+  put(id: string, value: string, ttlSeconds: number): Promise<void>;
+  take(id: string): Promise<string | null>;
+}
+
 export interface OAuth2ProviderConfig {
   type: 'oauth2';
   /** Unique provider identifier (e.g., 'google', 'microsoft') */
@@ -89,6 +101,8 @@ export interface OAuth2ProviderConfig {
   scopes: string[];
   /** Callback URL for this provider */
   callbackUrl: string;
+  /** PRC-M589: replica-shared pending-login state store (required when deployed). */
+  stateStore?: PendingAuthStateStore;
 }
 
 /**
@@ -112,6 +126,8 @@ export interface OIDCProviderConfig {
   callbackUrl: string;
   /** Response type (default: 'code') */
   responseType?: string;
+  /** PRC-M589: replica-shared pending-login state store (required when deployed). */
+  stateStore?: PendingAuthStateStore;
 }
 
 /**
