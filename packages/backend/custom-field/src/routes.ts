@@ -20,6 +20,7 @@ import { AppError } from '@proctira/common';
 import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { enforceCustomFieldAccess } from './custom-field-access.js';
 import type {
   CustomFieldEntityType,
   CustomFieldValidationRules,
@@ -109,6 +110,21 @@ export async function registerCustomFieldRoutes(
   options: CustomFieldRoutesOptions,
 ): Promise<void> {
   const { customFieldService, prefix = '/custom-fields' } = options;
+
+  // PRC-L446: in-package guard on every route below (verified principal, token
+  // tenant == request tenant, per-entity record roles). Attached per route via
+  // onRoute so it covers exactly the routes under `prefix` registered here.
+  const guard = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
+    if (enforceCustomFieldAccess(request, reply)) done();
+  };
+  fastify.addHook('onRoute', (route) => {
+    if (route.url !== prefix && !route.url.startsWith(`${prefix}/`)) return;
+    const existing = route.preHandler;
+    route.preHandler = [
+      guard,
+      ...(existing ? (Array.isArray(existing) ? existing : [existing]) : []),
+    ];
+  });
 
   // ─── Definition Routes ───────────────────────────────────────────────────
 

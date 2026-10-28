@@ -20,6 +20,12 @@ function buildApp(): FastifyInstance {
   // Simulate tenant resolution
   app.addHook('onRequest', async (request) => {
     (request as unknown as { tenantId: string }).tenantId = TENANT_ID;
+    // PRC-L446: routes require a verified principal of the same tenant.
+    (request as unknown as { user: unknown }).user = {
+      sub: 'test-admin',
+      tenantId: TENANT_ID,
+      roles: ['admin'],
+    };
   });
 
   return app;
