@@ -4,9 +4,11 @@
  * Identity providers (Okta, Entra ID, Google) push users and group membership
  * here. Users map onto the G-910 tenant directory (`RolesService` users) and
  * Groups onto tenant roles, so SCIM writes are the same audited mutations the
- * `/admin/users` console performs. Auth is the gateway's JWT + RBAC
- * (`scim` → `user: manage`); a dedicated long-lived SCIM bearer token is the
- * IdP-side configuration of that same credential.
+ * `/admin/users` console performs. PRC-M027: auth is a dedicated, hashed
+ * SCIM bearer token issued by a tenant administrator
+ * (`POST /api/v1/tenant/scim-token`, see scim-token-store.ts); the gateway
+ * never accepts a JWT on `/scim/v2`, and the token's principal is allowed
+ * `user: manage` on this surface only (credential-principals.ts).
  *
  * Supported:
  *   GET  /scim/v2/ServiceProviderConfig | /ResourceTypes | /Schemas
@@ -318,7 +320,8 @@ export const scimPlugin = fp(
           {
             type: 'oauthbearertoken',
             name: 'OAuth Bearer Token',
-            description: 'Gateway JWT with tenant scope and user:manage permission',
+            description:
+              'Dedicated SCIM token issued by a tenant administrator (POST /api/v1/tenant/scim-token)',
           },
         ],
         meta: {

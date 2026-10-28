@@ -18,6 +18,7 @@
  *   GET    /tenant/users                     POST /tenant/users (invite)
  *   PATCH  /tenant/users/:userId/roles       PATCH /tenant/users/:userId/status
  *   GET/PUT /tenant/settings
+ *   POST/DELETE /tenant/scim-token          (PRC-M027: issue-or-rotate / revoke)
  *
  * G-924: the same RolesService also backs SCIM 2.0 provisioning at
  * `/scim/v2/{Users,Groups}` (see scim-plugin.ts) so IdP pushes are audited
@@ -52,8 +53,10 @@ import {
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { credentialKindOf } from './credential-principals.js';
 import { createGatewayRbacRegistry, PLATFORM_ADMIN_ROLE_IDS } from './rbac-registry.js';
 import { scimPlugin } from './scim-plugin.js';
+import type { ScimTokenStore } from './scim-token-store.js';
 
 const brandingRbacRegistry = createGatewayRbacRegistry();
 const BRANDING_ACTIONS: Record<string, PermissionAction> = {
@@ -119,6 +122,11 @@ export interface TenantAdminPluginOptions {
   onAudit?: (event: TenantAdminAuditEvent) => Promise<void> | void;
   /** G-924: SCIM 2.0 base path; default `/scim/v2`. Set `false` to disable. */
   scimPrefix?: string | false;
+  /**
+   * PRC-M027: hashed SCIM provisioning tokens. Defaults to the gateway's
+   * `scimTokenStore` decorator; without one the token routes are not mounted.
+   */
+  scimTokenStore?: ScimTokenStore;
   /** PRC-L003: shared tenant service; defaults to the `fastify.tenantService` decorator. */
   tenantService?: TenantService;
   /**
@@ -342,6 +350,52 @@ export const tenantAdminPlugin = fp(
       },
     );
 
+    // PRC-M027: dedicated SCIM credential lifecycle. Tenant administrators
+    // (`user: manage` via the exact mutating-inventory override) issue or rotate
+    // the tenant's single SCIM token (raw value shown once) and revoke it.
+    const scimTokens =
+      options.scimTokenStore ??
+      (fastify.hasDecorator('scimTokenStore') ? fastify.scimTokenStore : undefined);
+    if (options.scimPrefix !== false && scimTokens) {
+      const tenantOfRequest = (request: { tenantId?: string; user?: unknown }) =>
+        request.tenantId ?? (request.user as { tenantId?: string } | undefined)?.tenantId;
+      const refuseCredential = (request: { user?: unknown }) =>
+        Boolean(credentialKindOf(request.user));
+      fastify.post(`${prefix}/scim-token`, async (request, reply) => {
+        const tenantId = tenantOfRequest(request);
+        if (!tenantId || refuseCredential(request)) {
+          return reply.code(tenantId ? 403 : 400).send({
+            statusCode: tenantId ? 403 : 400,
+            code: 'FORBIDDEN',
+            message: 'tenant administrator required',
+          });
+        }
+        const sub = (request.user as { sub?: unknown } | undefined)?.sub;
+        const { token, record } = await scimTokens.issue(
+          tenantId,
+          typeof sub === 'string' ? sub : null,
+        );
+        return reply.code(201).header('cache-control', 'no-store').send({
+          id: record.tokenId,
+          token,
+          issuedAt: record.issuedAt,
+          message: 'Copy this SCIM token now; it is not shown again. Issuing a new one revokes it.',
+        });
+      });
+      fastify.delete(`${prefix}/scim-token`, async (request, reply) => {
+        const tenantId = tenantOfRequest(request);
+        if (!tenantId || refuseCredential(request)) {
+          return reply.code(tenantId ? 403 : 400).send({
+            statusCode: tenantId ? 403 : 400,
+            code: 'FORBIDDEN',
+            message: 'tenant administrator required',
+          });
+        }
+        const revoked = await scimTokens.revoke(tenantId);
+        return reply.code(200).send({ revoked });
+      });
+    }
+
     if (options.scimPrefix !== false) {
       await fastify.register(scimPlugin, {
         rolesService,
@@ -351,3 +405,10 @@ export const tenantAdminPlugin = fp(
   },
   { name: 'tenant-admin-plugin' },
 );
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** PRC-M027: hashed SCIM provisioning token store (decorated by app.ts). */
+    scimTokenStore: ScimTokenStore;
+  }
+}

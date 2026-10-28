@@ -83,6 +83,11 @@ import {
   tenantIdFromRequest,
 } from './billing-entitlements.js';
 import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
+import {
+  authenticateCredential,
+  authorizeCredentialPrincipal,
+  credentialKindOf,
+} from './credential-principals.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
   decideInstitutionScope,
@@ -133,6 +138,11 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
+import {
+  createScimTokenStore,
+  resolveScimTokenPepper,
+  type ScimTokenStore,
+} from './scim-token-store.js';
 import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
 import { getTenantCustomRoleProvider } from './tenant-custom-roles.js';
 import {
@@ -175,6 +185,11 @@ export interface BuildAppOptions {
   tenantSessionRevocationStore?: TenantSessionRevocationStore;
   /** PRC-H008: override TENANT_SUSPEND_BLOCK_AUTH (default true) for tests / DI. */
   tenantSuspendBlocksAuth?: boolean;
+  /** PRC-M027: credential-principal dependencies (tests / DI). */
+  credentialPrincipals?: {
+    scimTokenStore?: ScimTokenStore;
+    scimTokenPepper?: string;
+  };
 }
 
 /**
@@ -636,6 +651,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
+  // PRC-M027: dedicated hashed SCIM provisioning tokens. Deployed boots need
+  // SCIM_TOKEN_PEPPER from the secret manager (resolveScimTokenPepper throws).
+  const scimTokenPepper =
+    options.credentialPrincipals?.scimTokenPepper ?? resolveScimTokenPepper(process.env);
+  const scimTokens =
+    options.credentialPrincipals?.scimTokenStore ?? createScimTokenStore(scimTokenPepper);
+  if (!app.hasDecorator('scimTokenStore')) {
+    app.decorate('scimTokenStore', scimTokens);
+  }
+
   // G-504 — secrets accepted during rotation (current first, then previous).
   const jwtVerifySecrets = verifySecretCandidates({
     current: config.jwt.secret,
@@ -699,6 +724,36 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
           }
         }
       }
+      return;
+    }
+
+    // PRC-M027: credential principals (dedicated SCIM tokens) are resolved
+    // before any JWT strategy; a SCIM path never accepts a JWT.
+    let credentialAuth: Awaited<ReturnType<typeof authenticateCredential>>;
+    try {
+      credentialAuth = await authenticateCredential({
+        path: url,
+        bearer,
+        scimTokens,
+        scimPepper: scimTokenPepper,
+      });
+    } catch (error) {
+      request.log.error({ err: error }, 'credential lookup failed');
+      return reply.status(503).send({
+        code: 'CREDENTIAL_LOOKUP_UNAVAILABLE',
+        message: 'Credential could not be verified; try again shortly',
+        statusCode: 503,
+      });
+    }
+    if (credentialAuth.kind === 'unauthorized') {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: credentialAuth.message,
+        statusCode: 401,
+      });
+    }
+    if (credentialAuth.kind === 'principal') {
+      request.user = credentialAuth.principal as unknown as typeof request.user;
       return;
     }
 
@@ -1250,6 +1305,26 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         message: 'Authentication required',
         statusCode: 401,
       });
+    }
+
+    // DR4-1 / PRC-M027: credential principals are authorised here, before every
+    // early return below (unguarded mutations, gateway utilities, self-service
+    // reads, portal writes, platform-area grants): only their fixed allow-list.
+    const credential = credentialKindOf(user);
+    if (credential) {
+      const decision = authorizeCredentialPrincipal({
+        principal: user as unknown as { credential: typeof credential },
+        method,
+        path: url,
+      });
+      if (!decision.ok) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: decision.message,
+          statusCode: 403,
+        });
+      }
+      return;
     }
 
     const roles = user.roles ?? [];

@@ -22,8 +22,15 @@ describe('SCIM profile writes and atomic groups', () => {
   beforeAll(async () => {
     app = await buildApp({ config: createTestConfig() });
     await app.ready();
+    // PRC-M027: SCIM calls authenticate with a dedicated token issued by a tenant admin.
+    const issued = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tenant/scim-token',
+      headers: authHeaders(app, { roles: ['admin'] }),
+    });
+    expect(issued.statusCode, issued.body).toBe(201);
     headers = {
-      ...authHeaders(app, { roles: ['admin'] }),
+      authorization: `Bearer ${(issued.json() as { token: string }).token}`,
       'content-type': 'application/scim+json',
     };
   });
