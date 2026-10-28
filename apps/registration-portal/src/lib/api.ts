@@ -1,4 +1,10 @@
 /** API client for the public registration portal. */
+import {
+  parseRegistrationChallenge,
+  REGISTRATION_CHALLENGE_HEADER,
+  solveRegistrationChallenge,
+  type RegistrationChallenge,
+} from './bot-challenge';
 
 /** Request shape shared by the browser and server transports. */
 export interface RegistrationRequestInit {
@@ -12,6 +18,7 @@ export interface RegistrationRequestInit {
  * Server code passes `serverTransport` from `lib/gateway`; the default is the
  * browser transport through the portal's same-origin proxy.
  */
+
 export type RegistrationTransport = (
   path: string,
   init?: RegistrationRequestInit,
@@ -216,17 +223,45 @@ export async function submitRegistration(
   payload: RegistrationSubmissionInput,
   submissionKey: string,
   transport: RegistrationTransport = browserTransport,
+  solveChallenge: (challenge: RegistrationChallenge) => Promise<string> = (challenge) =>
+    solveRegistrationChallenge(challenge),
 ): Promise<RegistrationSubmissionResponse> {
+  // PRC-M332: solve the server's proof-of-work challenge before submitting.
+  const challengeToken = await obtainChallengeToken(transport, solveChallenge);
   const response = await transport('/registrations', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Idempotency-Key': submissionKey,
+      ...(challengeToken ? { [REGISTRATION_CHALLENGE_HEADER]: challengeToken } : {}),
     },
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as RegistrationSubmissionResponse;
+}
+
+/**
+ * PRC-M332: fetch and solve a bot challenge. A portal without one configured
+ * answers 404 (submit goes without a token); any other failure is surfaced so
+ * the applicant can retry instead of being rejected for a missing token.
+ */
+async function obtainChallengeToken(
+  transport: RegistrationTransport,
+  solve: (challenge: RegistrationChallenge) => Promise<string>,
+): Promise<string | null> {
+  const response = await transport('/registrations/challenge');
+  if (response.status === 404) return null;
+  if (!response.ok) throw await parseError(response);
+  const challenge = parseRegistrationChallenge(await response.json());
+  if (!challenge) {
+    throw new RegistrationApiError(
+      'Bot challenge response was invalid',
+      502,
+      'CHALLENGE_UNAVAILABLE',
+    );
+  }
+  return solve(challenge);
 }
 
 export interface RegistrationStatus {

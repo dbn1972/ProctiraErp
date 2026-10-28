@@ -120,7 +120,9 @@ describe('PRC-M332 public throttles', () => {
     expect(ok.statusCode).toBe(201);
   });
 
-  it('required challenge without a verifier fails closed (503); bad token -> 400', async () => {
+  it('required challenge uses the default proof-of-work verifier; bad token -> 400', async () => {
+    // PRC-M332: a default verifier now exists, so an unsolved token is rejected
+    // (400 CHALLENGE_FAILED) instead of the old "no verifier" 503.
     const closed = await build({ submitChallenge: { required: true } });
     const res = await closed.inject({
       method: 'POST',
@@ -128,7 +130,8 @@ describe('PRC-M332 public throttles', () => {
       headers: { 'idempotency-key': 'challenge-closed', 'x-registration-challenge': 'tok' },
       payload: body,
     });
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ code: 'CHALLENGE_FAILED' });
     const strict = await build({ submitChallenge: { required: true, verify: async () => false } });
     const bad = await strict.inject({
       method: 'POST',
