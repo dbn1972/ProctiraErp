@@ -133,7 +133,14 @@ describe('CloudFrontCdnAdapter', () => {
       estimatedCompletionSeconds: 300,
     });
     expect(cf.commands).toHaveLength(1);
-    const input = (cf.commands[0] as { input: Record<string, any> }).input;
+    const input = (
+      cf.commands[0] as {
+        input: {
+          DistributionId: string;
+          InvalidationBatch: { CallerReference: unknown; Paths: unknown };
+        };
+      }
+    ).input;
     expect(input.DistributionId).toBe('E1234567890');
     expect(input.InvalidationBatch.Paths).toEqual({
       Quantity: 1,
