@@ -29,6 +29,8 @@ export class KafkaEventConsumer {
   private running = false;
   private subscriptions: ConsumerSubscription[] = [];
   private handlerMap: Map<string, EventHandler[]> = new Map();
+  /** PRC-M633: subscribed topic -> the tenant that topic belongs to. */
+  private topicTenants: Map<string, string> = new Map();
 
   constructor(config: KafkaConfig) {
     const mergedConfig = { ...DEFAULT_KAFKA_CONFIG, ...config };
@@ -87,6 +89,7 @@ export class KafkaEventConsumer {
     await this.consumer.subscribe({ topic, fromBeginning: false });
 
     this.subscriptions.push(subscription);
+    this.topicTenants.set(topic, subscription.tenantId.trim());
 
     // Register handler in the map
     const key = subscription.eventType ? `${topic}:${subscription.eventType}` : topic;
@@ -123,6 +126,13 @@ export class KafkaEventConsumer {
     if (!message.value) return;
 
     const event = JSON.parse(message.value.toString()) as DomainEvent;
+    // PRC-M633: the message must belong to the tenant whose topic it arrived on.
+    // A missing or different `tenantId` is dropped (never dispatched); throwing
+    // here would make kafkajs redeliver the same poison message forever.
+    const topicTenant = this.topicTenants.get(topic);
+    if (!topicTenant || typeof event?.tenantId !== 'string' || event.tenantId !== topicTenant) {
+      return;
+    }
 
     // Try specific event type handlers first
     const specificKey = `${topic}:${event.type}`;

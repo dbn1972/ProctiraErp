@@ -39,7 +39,8 @@ describe('PrivacyService legal hold + erasure (W1-SEC-06)', () => {
     });
     expect(hold.active).toBe(true);
     expect(await service.isOnLegalHold(TENANT_A)).toBe(true);
-    expect((await service.releaseLegalHold(hold.id, TENANT_A, 'counsel-1')).active).toBe(false);
+    // PRC-L336: release needs a second actor.
+    expect((await service.releaseLegalHold(hold.id, TENANT_A, 'counsel-2')).active).toBe(false);
     expect(audit.events.some((e) => e.entityType === 'privacy_legal_hold')).toBe(true);
   });
 

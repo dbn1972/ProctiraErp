@@ -58,7 +58,8 @@ async function executeErasure(app: FastifyInstance) {
     tenantId: TENANT_ID,
     subjectType: 'student',
     subjectId: 'stu-1',
-    requestedBy: 'officer',
+    // PRC-L336: requester differs from the approver/executor.
+    requestedBy: 'parent-1',
     requestType: 'anonymization',
   });
   await service.transitionErasureRequest(req.id, TENANT_ID, 'under_review', 'officer');

@@ -67,7 +67,7 @@ export class PgKeyedStore<T extends { id: string }> implements KeyedStore<T> {
   }
 
   set(value: T): Promise<T> {
-    return this.docs.put(value.id, value);
+    return this.docs.put(value.id, value, null);
   }
 
   count(): Promise<number> {

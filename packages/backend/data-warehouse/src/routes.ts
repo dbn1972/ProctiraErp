@@ -24,6 +24,7 @@ import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { AuditContext } from './audit.js';
+import { enforceDataWarehouseAccess } from './data-warehouse-access.js';
 import type { DataWarehouseService } from './data-warehouse-service.js';
 import {
   CreateWarehouseSchema,
@@ -104,6 +105,42 @@ export async function registerDataWarehouseRoutes(
 ): Promise<void> {
   const { dataWarehouseService, prefix = '/warehouses' } = options;
 
+  // PRC-M617: every warehouse route below runs the in-package guard first
+  // (verified principal, token tenant, role). Attached per route through
+  // onRoute, without leaking a global hook into the host app (this plugin
+  // uses fp). Coverage is keyed on the declaration window, not on the URL:
+  // Fastify runs onRoute synchronously inside each fastify.<method>() call
+  // (including the auto-exposed HEAD route), and `route.url` carries every
+  // enclosing register prefix (e.g. the gateway's /api/v1), so a URL match
+  // against the local `prefix` would silently skip the guard.
+  const guard = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
+    if (enforceDataWarehouseAccess(request, reply)) done();
+  };
+  let declaringGuardedRoutes = true;
+  fastify.addHook('onRoute', (route) => {
+    if (!declaringGuardedRoutes) return;
+    const existing = route.preHandler;
+    route.preHandler = [
+      guard,
+      ...(existing ? (Array.isArray(existing) ? existing : [existing]) : []),
+    ];
+  });
+  try {
+    declareDataWarehouseRoutes(fastify, dataWarehouseService, prefix);
+  } finally {
+    declaringGuardedRoutes = false;
+  }
+}
+
+/**
+ * Declares the warehouse routes. Must stay synchronous (no await) so every
+ * route is declared inside the guarded window above.
+ */
+function declareDataWarehouseRoutes(
+  fastify: FastifyInstance,
+  dataWarehouseService: DataWarehouseService,
+  prefix: string,
+): void {
   // ─── Warehouse CRUD ───────────────────────────────────────────────────────
 
   fastify.post(prefix, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -710,7 +747,6 @@ export async function registerDataWarehouseRoutes(
           {
             records: bodyResult.data.records,
             fileContent: bodyResult.data.fileContent,
-            dbConnectionConfig: bodyResult.data.dbConnectionConfig,
           },
           auditContext(request),
         );

@@ -52,7 +52,7 @@ export class PgOtpChallengeStore implements OtpChallengeStore {
   }
 
   private async findById(id: string): Promise<OtpChallengeRecord | null> {
-    return this.challenges.first({ id } as Partial<OtpChallengeRecord>);
+    return this.challenges.first({ id } as Partial<OtpChallengeRecord>, null);
   }
 
   async incrementAttempts(id: string): Promise<void> {

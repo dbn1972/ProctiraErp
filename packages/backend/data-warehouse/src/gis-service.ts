@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
 import type { GISRepository } from './gis-repository.js';
 import type { GISLayer, GISLayerInput, UpdateGISLayerInput, GISFeature } from './gis-schemas.js';
+import { guardWarehouseRepository } from './tenant-guarded-repository.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 export interface GISServiceConfig {
@@ -70,13 +71,16 @@ function toFeatures(input: unknown, allowFeatureOrGeometry: boolean): GISFeature
 
 export class GISService {
   private readonly audit: AuditEmitter;
+  private readonly warehouseRepository: WarehouseRepository;
 
   constructor(
     private readonly gisRepository: GISRepository,
-    private readonly warehouseRepository: WarehouseRepository,
+    warehouseRepository: WarehouseRepository,
     private readonly config: GISServiceConfig,
     options: { auditSink?: DataWarehouseAuditSink | null } = {},
   ) {
+    // PRC-L552: same tenant re-check wrapper as DataWarehouseService.
+    this.warehouseRepository = guardWarehouseRepository(warehouseRepository);
     this.audit = new AuditEmitter(options.auditSink ?? null);
   }
 
