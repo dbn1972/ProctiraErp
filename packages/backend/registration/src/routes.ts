@@ -713,22 +713,20 @@ export async function registerRegistrationRoutes(
    * GET /registrations/language
    * Get current language preference from session.
    * Requirement 16.5
+   *
+   * PRC-L139: a read never mints or writes a session. Without a valid, bound session the default
+   * language is returned and no session id is issued; sessions are created only by the
+   * state-changing POST.
    */
   fastify.get(
     `${prefix}/language`,
     async function getLanguageHandler(request: FastifyRequest, reply: FastifyReply) {
       const binding = clientBindingFromRequest(request);
       const { sessionId, existing } = await resolveOrMintSessionId(request, sessionStore, binding);
-      const language = existing?.data.language ?? 'en';
       if (!existing) {
-        // Mint empty session so client receives a server-issued id (not client-chosen).
-        await sessionStore.set(sessionId, {
-          data: {},
-          clientBinding: binding,
-          expiresAtMs: Date.now() + sessionTtlMs,
-        });
+        return reply.status(200).send({ language: 'en' });
       }
-
+      const language = existing.data.language ?? 'en';
       return reply.status(200).header('x-session-id', sessionId).send({ language, sessionId });
     },
   );
