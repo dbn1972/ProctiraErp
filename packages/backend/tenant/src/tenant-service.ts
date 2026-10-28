@@ -20,6 +20,15 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { validateBrandingTokens } from './branding-validation.js';
 import { assertTenantConfigValues } from './config-validation.js';
+import {
+  createDomainProofChecker,
+  dnsChallengeName,
+  DOMAIN_VERIFICATION_TTL_MS,
+  generateDomainVerificationToken,
+  httpsChallengeUrl,
+  isDomainVerificationCurrent,
+  type DomainProofChecker,
+} from './custom-domain-verification.js';
 import { invalidatePublicHostCaches } from './public-tenant-resolver.js';
 import type {
   CreateTenantInput,
@@ -58,6 +67,14 @@ export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
 }
 
+/** Optional TenantService collaborators. */
+export interface TenantServiceOptions {
+  /** PRC-L169: custom-domain ownership proof (default: DNS TXT, then HTTPS well-known). */
+  domainProofChecker?: DomainProofChecker;
+  /** Clock (tests). */
+  now?: () => Date;
+}
+
 /** Input handed to the admin provisioner for a tenant in 'provisioning' status. */
 export interface TenantAdminProvisioningRequest {
   tenantId: string;
@@ -85,7 +102,15 @@ export class TenantService {
     private readonly adminProvisioner?: TenantAdminProvisioner,
     /** PRC-H099: seeds built-in roles + default settings before the admin. */
     private readonly defaultsSeeder?: TenantDefaultsSeeder,
-  ) {}
+    options: TenantServiceOptions = {},
+  ) {
+    this.domainProofChecker = options.domainProofChecker ?? createDomainProofChecker();
+    this.clock = options.now ?? (() => new Date());
+  }
+
+  /** PRC-L169: DNS TXT / HTTPS ownership proof for custom domains. */
+  private readonly domainProofChecker: DomainProofChecker;
+  private readonly clock: () => Date;
 
   /**
    * PRC-H098: lifecycle status changes must reach enforcement (the gateway suspension gate).
@@ -566,6 +591,8 @@ export class TenantService {
       primary: input.primary ?? false,
       verified: false,
       createdAt: new Date(),
+      // PRC-L169: ownership challenge the tenant publishes via DNS TXT or HTTPS.
+      verificationToken: generateDomainVerificationToken(),
     });
 
     logger.info({ tenantId, domain: input.domain }, 'Domain added to tenant');
@@ -594,6 +621,67 @@ export class TenantService {
     // PRC-L369: a removed domain stops resolving at once in this process (others: cache TTL).
     invalidatePublicHostCaches(target?.domain);
     logger.info({ tenantId, domainId }, 'Domain removed from tenant');
+  }
+
+  /**
+   * PRC-L169: verify ownership of a custom domain and bind the hostname to this tenant
+   * exclusively. The proof is a DNS TXT record `_proctira-verify.<domain>` or an HTTPS
+   * well-known file carrying the domain's challenge token.
+   *
+   * @throws NotFoundError if the tenant does not exist or does not own the domain
+   * @throws BusinessRuleError if the tenant is decommissioned or the proof is not found
+   * @throws ConflictError if the hostname is verified for another tenant
+   */
+  async verifyDomain(tenantId: string, domainId: string): Promise<DomainEntity> {
+    const tenant = await this.repository.findTenantById(tenantId);
+    if (!tenant) {
+      throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
+    }
+    if (tenant.status === 'decommissioned') {
+      throw new BusinessRuleError('Cannot verify domains of a decommissioned tenant');
+    }
+    let domain = (await this.repository.findDomainsByTenant(tenantId)).find(
+      (d) => d.id === domainId,
+    );
+    if (!domain) {
+      throw new NotFoundError(`Domain with id '${domainId}' not found for tenant '${tenantId}'`);
+    }
+    if (!this.repository.verifyDomainExclusive) {
+      throw new BusinessRuleError('Domain verification is not supported by this tenant store');
+    }
+    if (!domain.verificationToken) {
+      // Legacy row added before challenges existed: issue its token now.
+      const updated = await this.repository.setDomainVerificationToken?.(
+        domainId,
+        generateDomainVerificationToken(),
+      );
+      if (!updated?.verificationToken) {
+        throw new BusinessRuleError('Could not issue a domain verification challenge');
+      }
+      domain = updated;
+    }
+    const proven = await this.domainProofChecker.check(domain.domain, domain.verificationToken!);
+    if (!proven) {
+      throw new BusinessRuleError(
+        `Domain ownership not proven: publish TXT ${dnsChallengeName(domain.domain)} or serve the token at ${httpsChallengeUrl(domain.domain, domain.verificationToken!)}`,
+      );
+    }
+    const verifiedAt = this.clock();
+    const result = await this.repository.verifyDomainExclusive(
+      tenantId,
+      domainId,
+      verifiedAt,
+      new Date(verifiedAt.getTime() + DOMAIN_VERIFICATION_TTL_MS),
+    );
+    if (result.status === 'not_found') {
+      throw new NotFoundError(`Domain with id '${domainId}' not found for tenant '${tenantId}'`);
+    }
+    if (result.status === 'conflict') {
+      throw new ConflictError(`Domain '${domain.domain}' is already verified for another tenant`);
+    }
+    invalidatePublicHostCaches(result.domain.domain);
+    logger.info({ tenantId, domainId, domain: result.domain.domain }, 'Custom domain verified');
+    return result.domain;
   }
 
   /**
@@ -974,14 +1062,29 @@ export class TenantService {
    * Format a domain entity for API response.
    */
   formatDomainResponse(entity: DomainEntity): DomainResponse {
-    return {
+    const current = isDomainVerificationCurrent(entity, this.clock());
+    const response: DomainResponse = {
       id: entity.id,
       tenantId: entity.tenantId,
       domain: entity.domain,
       primary: entity.primary,
-      verified: entity.verified,
+      // PRC-L169: a lapsed verification is reported as unverified (it does not resolve).
+      verified: current,
       createdAt: entity.createdAt.toISOString(),
     };
+    // PRC-L169 (additive): verification timestamps and, until verified, the challenge.
+    if (entity.verifiedAt) response.verifiedAt = new Date(entity.verifiedAt).toISOString();
+    if (entity.verificationExpiresAt) {
+      response.verificationExpiresAt = new Date(entity.verificationExpiresAt).toISOString();
+    }
+    if (!current && entity.verificationToken) {
+      response.verification = {
+        token: entity.verificationToken,
+        dnsTxtName: dnsChallengeName(entity.domain),
+        httpsUrl: httpsChallengeUrl(entity.domain, entity.verificationToken),
+      };
+    }
+    return response;
   }
 
   /**
