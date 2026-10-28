@@ -14,6 +14,7 @@
  * {@link DataWarehouseService} wraps whatever repository it is given.
  */
 import { AppError } from '@proctira/common';
+
 import type {
   Area,
   DataRecord,
