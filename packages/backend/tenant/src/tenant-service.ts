@@ -20,6 +20,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { validateBrandingTokens } from './branding-validation.js';
 import { assertTenantConfigValues } from './config-validation.js';
+import { invalidatePublicHostCaches } from './public-tenant-resolver.js';
 import type {
   CreateTenantInput,
   UpdateTenantInput,
@@ -583,11 +584,15 @@ export class TenantService {
       throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
     }
 
+    const target = (await this.repository.findDomainsByTenant(tenantId)).find(
+      (d) => d.id === domainId,
+    );
     const removed = await this.repository.removeDomain(tenantId, domainId);
     if (!removed) {
       throw new NotFoundError(`Domain with id '${domainId}' not found for tenant '${tenantId}'`);
     }
-
+    // PRC-L369: a removed domain stops resolving at once in this process (others: cache TTL).
+    invalidatePublicHostCaches(target?.domain);
     logger.info({ tenantId, domainId }, 'Domain removed from tenant');
   }
 

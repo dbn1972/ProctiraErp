@@ -172,6 +172,17 @@ export class InMemoryTenantRepository implements TenantRepository {
     return this.domains.find((d) => d.domain.toLowerCase() === domain.toLowerCase()) ?? null;
   }
 
+  /** PRC-L369: exact-name lookup (counts calls so tests can prove the resolver caches). */
+  hostnameLookups = 0;
+  async findDomainsByHostname(hostname: string): Promise<DomainEntity[]> {
+    this.hostnameLookups += 1;
+    return this.domains.filter((d) => d.domain === hostname).map((d) => ({ ...d }));
+  }
+
+  async findTenantBySlugExact(slug: string): Promise<TenantEntity | null> {
+    return this.tenants.find((t) => t.slug === slug) ?? null;
+  }
+
   // ─── Usage Tracking ──────────────────────────────────────────────────────
 
   async getOrCreateUsage(tenantId: string): Promise<TenantUsageEntity> {
