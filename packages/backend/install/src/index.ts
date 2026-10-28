@@ -28,11 +28,15 @@ export type { InstallPluginOptions } from './install-plugin';
 // Security helpers
 export {
   INSTALL_TOKEN_HEADER,
+  MIN_INSTALL_TOKEN_LENGTH,
+  createInstallTokenFailureLimiter,
   enforceInstallToken,
+  installTokenMatches,
+  requireInstallToken,
   resolveInstallToken,
   statusForInstallResult,
 } from './install-security';
-export type { InstallTokenGateOptions } from './install-security';
+export type { InstallTokenFailureLimiter, InstallTokenGateOptions } from './install-security';
 
 // Store
 export { InMemoryBootstrapStore, DatabaseBootstrapStore } from './bootstrap-store';
