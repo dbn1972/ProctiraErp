@@ -30,8 +30,22 @@ export interface TenantEntity {
   dataRetentionUntil: Date | null;
   /** W1-SEC-06: when true, permanent delete MUST fail closed. */
   legalHold: boolean;
+  /**
+   * PRC-L372: the decommission data-export obligation. `pending` blocks permanent deletion
+   * until an export completes; `waived` records an explicit `exportData: false`.
+   */
+  dataExport?: TenantDataExportState | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** PRC-L372: state of the decommission data export. */
+export interface TenantDataExportState {
+  status: 'pending' | 'completed' | 'waived';
+  requestedAt: Date;
+  exportId?: string;
+  location?: string;
+  completedAt?: Date;
 }
 
 /**

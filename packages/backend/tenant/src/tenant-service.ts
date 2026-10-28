@@ -51,6 +51,7 @@ import type {
 } from './schemas.js';
 import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type {
+  TenantDataExportState,
   TenantEntity,
   DomainEntity,
   TenantThemeVersionEntity,
@@ -67,8 +68,21 @@ export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
 }
 
+/**
+ * PRC-L372: exports a tenant's data before decommission (`exportData`, default true).
+ * Must be idempotent per tenant; returns a reference to the produced export.
+ */
+export interface TenantDataExporter {
+  exportTenantData(
+    tenantId: string,
+    context: { reason: string },
+  ): Promise<{ exportId: string; location?: string }>;
+}
+
 /** Optional TenantService collaborators. */
 export interface TenantServiceOptions {
+  /** PRC-L372: decommission data exporter. Without one a requested export stays `pending`. */
+  dataExporter?: TenantDataExporter;
   /** PRC-L169: custom-domain ownership proof (default: DNS TXT, then HTTPS well-known). */
   domainProofChecker?: DomainProofChecker;
   /** Clock (tests). */
@@ -106,7 +120,11 @@ export class TenantService {
   ) {
     this.domainProofChecker = options.domainProofChecker ?? createDomainProofChecker();
     this.clock = options.now ?? (() => new Date());
+    this.dataExporter = options.dataExporter;
   }
+
+  /** PRC-L372: decommission data exporter (optional). */
+  private readonly dataExporter?: TenantDataExporter;
 
   /** PRC-L169: DNS TXT / HTTPS ownership proof for custom domains. */
   private readonly domainProofChecker: DomainProofChecker;
@@ -386,6 +404,15 @@ export class TenantService {
    * - Data is retained for the specified retention period
    * - After retention period, data is eligible for permanent deletion
    *
+   * PRC-L372:
+   * - `exportData` (default true) is honoured: with a configured exporter the export runs
+   *   before the status changes (a failed export aborts the decommission); without one the
+   *   obligation is recorded as `pending` and permanent deletion is refused until it is met.
+   *   `exportData: false` records an explicit waiver.
+   * - Custom domains are unverified at once and stop resolving.
+   * - Sessions: the gateway's lifecycle listener revokes every session of a tenant entering a
+   *   blocking status (`decommissioned` included) and blocks the tenant's requests.
+   *
    * @throws NotFoundError if tenant not found
    * @throws BusinessRuleError if tenant is already decommissioned
    */
@@ -403,12 +430,43 @@ export class TenantService {
     const retentionDeadline = new Date();
     retentionDeadline.setDate(retentionDeadline.getDate() + retainDays);
 
+    // PRC-L372: honour exportData before anything changes.
+    const requestedAt = this.clock();
+    let dataExport: TenantDataExportState;
+    if (input.exportData === false) {
+      dataExport = { status: 'waived', requestedAt };
+    } else if (this.dataExporter) {
+      let exported: { exportId: string; location?: string };
+      try {
+        exported = await this.dataExporter.exportTenantData(id, { reason: input.reason });
+      } catch (error) {
+        logger.error(
+          { tenantId: id, err: error },
+          'Tenant data export failed; not decommissioning',
+        );
+        throw new BusinessRuleError('Tenant data export failed; the tenant was not decommissioned');
+      }
+      dataExport = {
+        status: 'completed',
+        requestedAt,
+        exportId: exported.exportId,
+        ...(exported.location ? { location: exported.location } : {}),
+        completedAt: this.clock(),
+      };
+    } else {
+      dataExport = { status: 'pending', requestedAt };
+    }
+
     const updated = await this.applyUpdate(id, {
       status: 'decommissioned',
       decommissionedAt: new Date(),
       dataRetentionUntil: retentionDeadline,
+      dataExport,
     });
 
+    // PRC-L372: a decommissioned tenant's custom domains stop resolving immediately.
+    const unverified = (await this.repository.unverifyTenantDomains?.(id)) ?? [];
+    for (const domain of unverified) invalidatePublicHostCaches(domain.domain);
     logger.info(
       { tenantId: id, reason: input.reason, retainDays, retentionDeadline },
       'Tenant decommissioned',
@@ -458,6 +516,12 @@ export class TenantService {
 
     if (tenant.legalHold) {
       throw new BusinessRuleError(`Cannot permanently delete tenant '${id}': legal hold is active`);
+    }
+    // PRC-L372: a requested decommission export must complete before the data is destroyed.
+    if (tenant.dataExport?.status === 'pending') {
+      throw new BusinessRuleError(
+        `Cannot permanently delete tenant '${id}': the requested data export has not completed`,
+      );
     }
     if (this.destructiveDeleteGuard) {
       await this.destructiveDeleteGuard.assertDestructiveDeleteAllowed(id);

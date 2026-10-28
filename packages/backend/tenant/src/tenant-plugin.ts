@@ -26,6 +26,7 @@ import type { TenantRepository } from './tenant-repository.js';
 import {
   TenantService,
   type DestructiveDeleteGuard,
+  type TenantDataExporter,
   type TenantAdminProvisioner,
 } from './tenant-service.js';
 
@@ -50,6 +51,8 @@ export interface TenantPluginOptions {
    * PRC-L169: custom-domain verification. The proof checker defaults to DNS TXT + HTTPS; the
    * re-check ticker runs every `TENANT_DOMAIN_RECHECK_INTERVAL_MS` (default 6 h).
    */
+  /** PRC-L372: decommission data exporter (honours `exportData`). */
+  dataExporter?: TenantDataExporter;
   domainVerification?: {
     checker?: DomainProofChecker;
     recheckIntervalMs?: number;
@@ -98,6 +101,7 @@ export const tenantLifecyclePlugin = fp(
       adminProvisioner,
       defaultsSeeder,
       domainVerification,
+      dataExporter,
     } = options;
     const domainProofChecker = domainVerification?.checker ?? createDomainProofChecker();
 
@@ -107,7 +111,7 @@ export const tenantLifecyclePlugin = fp(
       destructiveDeleteGuard,
       adminProvisioner,
       defaultsSeeder,
-      { domainProofChecker },
+      { domainProofChecker, dataExporter },
     );
 
     // Decorate fastify with the tenant service
