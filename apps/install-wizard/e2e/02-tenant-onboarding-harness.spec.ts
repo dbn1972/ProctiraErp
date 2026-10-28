@@ -7,6 +7,8 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { unlockWizard } from './helpers/install-session';
+
 const RECORD = process.env.PW_VIDEO === '1' || process.env.RECORD === '1';
 
 test.describe('G-507 install wizard tenant onboarding harness', () => {
@@ -20,6 +22,7 @@ test.describe('G-507 install wizard tenant onboarding harness', () => {
 
   test('stepper inventory + admin/tenant fields reachable', async ({ page }, testInfo) => {
     await page.goto('/');
+    await unlockWizard(page);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
     // Six configure stages should be visible in the stepper.

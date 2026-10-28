@@ -50,6 +50,32 @@ describe('InstallApiClient', () => {
     // ensureSession short-circuits once set — re-import pattern avoided by calling ensure via mocks.
     (apiClient as unknown as { csrfToken: string | null }).csrfToken = null;
     (apiClient as unknown as { installToken: string | null }).installToken = null;
+    (apiClient as unknown as { bootstrapSecret: string | null }).bootstrapSecret =
+      'operator-bootstrap-secret';
+  });
+
+  it('PRC-M467: refuses to open a session without the bootstrap secret', async () => {
+    (apiClient as unknown as { bootstrapSecret: string | null }).bootstrapSecret = null;
+    global.fetch = mockSessionFetch();
+    await expect(apiClient.getStatus()).rejects.toThrow(/bootstrap secret/i);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('PRC-M467: startSession sends the secret once and does not keep it', async () => {
+    (apiClient as unknown as { bootstrapSecret: string | null }).bootstrapSecret = null;
+    global.fetch = mockSessionFetch();
+    await apiClient.startSession('operator-bootstrap-secret');
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/session'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'x-install-bootstrap-secret': 'operator-bootstrap-secret',
+        }),
+      }),
+    );
+    expect(apiClient.hasSession()).toBe(true);
+    expect((apiClient as unknown as { bootstrapSecret: string | null }).bootstrapSecret).toBeNull();
   });
 
   it('boots session then calls getStatus with auth headers', async () => {
@@ -59,7 +85,7 @@ describe('InstallApiClient', () => {
     expect(result.isComplete).toBe(false);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/session'),
-      expect.objectContaining({ method: 'GET', credentials: 'include' }),
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/status'),
