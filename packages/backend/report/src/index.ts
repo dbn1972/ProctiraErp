@@ -110,8 +110,16 @@ export { buildRoleDashboard, inferDashboardRole } from './dashboards.js';
 export type { DashboardRole, RoleDashboard } from './dashboards.js';
 
 export {
+  EmailScheduleDelivery,
   InMemoryScheduleDelivery,
   NoopScheduleDelivery,
+  ScheduleDeliveryError,
 } from './schedule-delivery.js';
-export type { ScheduleDeliveryPort, ScheduleDeliveryRequest } from './schedule-delivery.js';
+export type {
+  EmailScheduleDeliveryOptions,
+  ScheduleDeliveryOutcome,
+  ScheduleDeliveryPort,
+  ScheduleDeliveryRequest,
+  ScheduleEmailSender,
+} from './schedule-delivery.js';
 export { REPORT_SCHEDULE_LEASE_MS, REPORT_SCHEDULE_RETRY_MS } from './catalogue-service.js';
