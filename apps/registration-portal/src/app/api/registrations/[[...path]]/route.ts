@@ -13,7 +13,14 @@ import { buildRegistrationProxyPath, resolvePublicHost } from '@/lib/gateway-con
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const FORWARDED_REQUEST_HEADERS = ['content-type', 'idempotency-key', 'accept-language', 'cookie'];
+const FORWARDED_REQUEST_HEADERS = [
+  'content-type',
+  'idempotency-key',
+  'accept-language',
+  'cookie',
+  // PRC-M332: solved bot challenge for anonymous submit.
+  'x-registration-challenge',
+];
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'set-cookie', 'retry-after'];
 
 interface RouteContext {

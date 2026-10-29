@@ -24,9 +24,15 @@ export type {
   SAMLProviderConfig,
   ExternalProviderConfig,
   ExternalAuthProvider,
+  PendingAuthStateStore,
 } from './types.js';
 export { ExternalAuthError } from './types.js';
 
+// PRC-M589: replica-safe pending login state
+export {
+  PENDING_AUTH_STATE_TTL_SECONDS,
+  resolvePendingAuthStateStore,
+} from './pending-auth-state.js';
 // Provider Registry
 export { ProviderRegistry } from './provider-registry.js';
 
@@ -48,6 +54,8 @@ export { OIDCProvider, createOIDCProvider } from './oidc-provider.js';
 // SAML Provider
 export { SAMLProvider, DefaultSAMLResponseParser, createSAMLProvider } from './saml-provider.js';
 export type { SAMLResponseParser, SAMLParsedResponse } from './saml-provider.js';
+export { NodeSamlResponseParser } from './node-saml-response-parser.js';
+export type { NodeSamlResponseParserOptions } from './node-saml-response-parser.js';
 
 // External Auth Handler
 export { ExternalAuthHandler } from './external-auth-handler.js';

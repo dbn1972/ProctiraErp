@@ -7,11 +7,22 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MemoryAccessTokenRevocationStore } from './access-token-revocation.js';
-import { hashPassword } from './local-auth.js';
+import { createPreMfaTicketCodec } from './pre-mfa-ticket.js';
+import { hashPassword, verifyPassword } from './local-auth.js';
 import type { AccountLockoutService, LockoutStatus } from './lockout-service.js';
 import { registerAuthRoutes, type UserLookup } from './routes.js';
 import { SessionService, type SessionStore } from './session-service.js';
 import { TokenService, type JwtSigner, type RefreshTokenStore } from './token-service.js';
+
+// PRC-L445: count bcrypt comparisons so timing equalisation is observable.
+vi.mock('./local-auth.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./local-auth.js')>();
+  return { ...actual, verifyPassword: vi.fn(actual.verifyPassword) };
+});
+
+// Real cost-12 bcrypt (dummy-hash generation plus one comparison per login)
+// exceeds the 5 s default on loaded CI runners; same budget as the property suites.
+vi.setConfig({ testTimeout: 30_000 });
 
 const TENANT = 'tenant-m183';
 const PASSWORD = 'correct horse battery staple';
@@ -207,26 +218,93 @@ describe('PRC-M183 local login / logout routes', () => {
       expect(sessionStore.sessions.size).toBe(0);
     });
 
-    it('wrong password that trips the lockout -> 401 ACCOUNT_LOCKED', async () => {
+    it('wrong password that trips the lockout -> the same 401 INVALID_CREDENTIALS (PRC-L445)', async () => {
       lockout.recordFailure.mockResolvedValueOnce({
         isLocked: true,
         expiresAt: new Date(Date.now() + 60_000),
       });
       const res = await login({ username: user.email, password: 'wrong' });
       expect(res.statusCode).toBe(401);
-      expect(res.json().code).toBe('ACCOUNT_LOCKED');
+      expect(res.json()).toEqual({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid username or password',
+        statusCode: 401,
+      });
     });
 
-    it('locked account -> 401 ACCOUNT_LOCKED even with the right password', async () => {
+    it('locked account -> generic 401 even with the right password, no session (PRC-L445)', async () => {
       lockout.isAccountLocked.mockResolvedValueOnce({
         isLocked: true,
         expiresAt: new Date(Date.now() + 60_000),
       });
       const res = await login({ username: user.email, password: PASSWORD });
       expect(res.statusCode).toBe(401);
-      expect(res.json().code).toBe('ACCOUNT_LOCKED');
-      expect(res.json().lockedUntil).toEqual(expect.any(String));
+      expect(res.json()).toEqual({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid username or password',
+        statusCode: 401,
+      });
+      expect(res.json().lockedUntil).toBeUndefined();
       expect(sessionStore.sessions.size).toBe(0);
+    });
+
+    describe('PRC-L445 disclosure, timing and body validation', () => {
+      const verifyMock = vi.mocked(verifyPassword);
+      beforeEach(() => {
+        verifyMock.mockClear();
+      });
+
+      it('inactive account + wrong password -> INVALID_CREDENTIALS (state not disclosed)', async () => {
+        user.isActive = false;
+        const res = await login({ username: user.email, password: 'wrong' });
+        expect(res.statusCode).toBe(401);
+        expect(res.json().code).toBe('INVALID_CREDENTIALS');
+        expect(sessionStore.sessions.size).toBe(0);
+      });
+
+      it('inactive account + correct password -> ACCOUNT_INACTIVE', async () => {
+        user.isActive = false;
+        const res = await login({ username: user.email, password: PASSWORD });
+        expect(res.statusCode).toBe(401);
+        expect(res.json().code).toBe('ACCOUNT_INACTIVE');
+      });
+
+      it('unknown, locked and inactive accounts each spend exactly one bcrypt comparison', async () => {
+        await login({ username: 'nobody@example.com', password: PASSWORD });
+        expect(verifyMock).toHaveBeenCalledTimes(1);
+        verifyMock.mockClear();
+
+        lockout.isAccountLocked.mockResolvedValueOnce({ isLocked: true });
+        await login({ username: user.email, password: PASSWORD });
+        expect(verifyMock).toHaveBeenCalledTimes(1);
+        // The locked account's real hash is never evaluated (no guessing oracle).
+        expect(verifyMock.mock.calls[0]?.[1]).not.toBe(passwordHash);
+        verifyMock.mockClear();
+
+        user.isActive = false;
+        await login({ username: user.email, password: PASSWORD });
+        expect(verifyMock).toHaveBeenCalledTimes(1);
+      });
+
+      it('locked account does not record another failure', async () => {
+        lockout.isAccountLocked.mockResolvedValueOnce({ isLocked: true });
+        await login({ username: user.email, password: 'wrong' });
+        expect(lockout.recordFailure).not.toHaveBeenCalled();
+      });
+
+      it('non-string or oversized fields -> 400 VALIDATION_ERROR without a user lookup', async () => {
+        const typed = await login({ username: { $ne: '' }, password: PASSWORD });
+        expect(typed.statusCode).toBe(400);
+        expect(typed.json().errors).toEqual([
+          expect.objectContaining({ field: 'username', rule: 'type' }),
+        ]);
+        const long = await login({ username: user.email, password: 'x'.repeat(1025) });
+        expect(long.statusCode).toBe(400);
+        expect(long.json().errors).toEqual([
+          expect.objectContaining({ field: 'password', rule: 'maxLength' }),
+        ]);
+        expect(verifyMock).not.toHaveBeenCalled();
+      });
     });
 
     it('valid credentials -> 200 with tokens, session and user; lockout reset', async () => {
@@ -263,5 +341,71 @@ describe('PRC-M183 local login / logout routes', () => {
       expect(res.statusCode).toBe(401);
       expect(sessionStore.sessions.get(session.id)?.isActive).toBe(true);
     });
+  });
+});
+
+describe('PRC-M497 local login mints a pre-MFA ticket when MFA is required', () => {
+  it('returns mfa_required + a ticket for the authenticated user, with no session or tokens', async () => {
+    const config = createAuthConfig({
+      jwt: { secret: 's', issuer: 'i', audience: 'a', accessTokenExpiresIn: 900 },
+      refreshToken: { maxLifetime: 30 * 24 * 3600 },
+      session: { duration: 3600 },
+    } as never);
+    const refreshStore = memoryRefreshStore();
+    const sessionStore = memorySessionStore();
+    const tokenService = new TokenService(config, signer, refreshStore);
+    const sessionService = new SessionService(config, sessionStore, tokenService);
+    const hash = await hashPassword(PASSWORD, 4);
+    const account = {
+      id: 'user-mfa',
+      email: 'mfa@example.com',
+      displayName: 'M',
+      passwordHash: hash,
+      tenantId: TENANT,
+      roles: [],
+      areas: [],
+      institutions: [],
+      isActive: true,
+    };
+    const codec = createPreMfaTicketCodec({ secret: 'm497-local-login-secret-0123456789ab' });
+    const app = Fastify();
+    app.decorate('authenticate', async (_request: FastifyRequest, reply: FastifyReply) =>
+      reply.status(401).send({ code: 'UNAUTHORIZED', statusCode: 401 }),
+    );
+    app.addHook('onRequest', async (req: FastifyRequest) => {
+      (req as FastifyRequest & { tenantId?: string }).tenantId = TENANT;
+    });
+    await registerAuthRoutes(app, {
+      tokenService,
+      sessionService,
+      userLookup: {
+        findByUsername: async (u: string) => (u === account.email ? { ...account } : null),
+        findById: async () => ({ ...account }),
+      } as unknown as UserLookup,
+      refreshTokenStore: refreshStore,
+      mfa: { preMfaTicket: codec, isRequired: async ({ userId }) => userId === 'user-mfa' },
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: account.email, password: PASSWORD },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json();
+      expect(body.status).toBe('mfa_required');
+      expect(body.tokens).toBeUndefined();
+      expect(sessionStore.sessions.size).toBe(0);
+      expect(codec.verify(body.preMfaTicket)).toEqual({ userId: 'user-mfa', tenantId: TENANT });
+      const wrong = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { username: account.email, password: 'nope' },
+      });
+      expect(wrong.json().preMfaTicket).toBeUndefined();
+    } finally {
+      await app.close();
+    }
   });
 });

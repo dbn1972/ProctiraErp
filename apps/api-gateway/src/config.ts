@@ -4,6 +4,7 @@
  * Loads configuration from environment variables with sensible defaults.
  */
 
+import { isDeployedEnvironment as isDeployedProcessEnvironment } from '@proctira/common/node-env';
 import { Type, type Static } from '@sinclair/typebox';
 
 /**
@@ -136,23 +137,33 @@ export function parseTrustedProxyCidrs(raw: string | undefined): string[] {
 }
 
 /**
- * Resolve the HS256 signing secret. Production fails closed: missing, weak,
- * or short secrets throw at boot instead of silently signing with a default.
+ * Resolve the HS256 signing secret. Deployed environments fail closed
+ * (PRC-L566: staging included, see {@link isDeployedEnvironment}): missing,
+ * weak, or short secrets throw at boot instead of silently signing with a
+ * default. `env` is the process NODE_ENV (unset counts as deployed).
  */
-export function resolveJwtSecret(env: string, raw: string | undefined): string {
+export function resolveJwtSecret(
+  env: string | undefined,
+  raw: string | undefined,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): string {
   const secret = raw?.trim() ?? '';
-  if (env !== 'production') {
+  if (!isDeployedEnvironment(env, processEnv)) {
     return secret.length > 0 ? secret : DEV_JWT_SECRET;
   }
   if (secret.length === 0) {
-    throw new Error('JWT_SECRET is required when NODE_ENV=production (G-703)');
+    throw new Error(
+      'JWT_SECRET is required when NODE_ENV=production or in any deployed environment (G-703)',
+    );
   }
   if (WEAK_JWT_SECRETS.has(secret)) {
-    throw new Error('JWT_SECRET uses a known placeholder value; refusing to start in production');
+    throw new Error(
+      'JWT_SECRET uses a known placeholder value; refusing to start in production or staging',
+    );
   }
   if (secret.length < MIN_PRODUCTION_JWT_SECRET_LENGTH) {
     throw new Error(
-      `JWT_SECRET must be at least ${MIN_PRODUCTION_JWT_SECRET_LENGTH} characters in production`,
+      `JWT_SECRET must be at least ${MIN_PRODUCTION_JWT_SECRET_LENGTH} characters in production or staging`,
     );
   }
   return secret;
@@ -160,25 +171,27 @@ export function resolveJwtSecret(env: string, raw: string | undefined): string {
 
 /**
  * PRC-M011: JWT_SECRET_PREVIOUS is still accepted for verification during a
- * rotation window, so in production it gets the same placeholder / length
- * checks as JWT_SECRET and must differ from the current secret.
+ * rotation window, so in a deployed environment (PRC-L566) it gets the same
+ * placeholder / length checks as JWT_SECRET and must differ from the current
+ * secret.
  */
 export function resolvePreviousJwtSecret(
-  env: string,
+  env: string | undefined,
   raw: string | undefined,
   current: string,
+  processEnv: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
   const previous = raw?.trim() ?? '';
   if (previous.length === 0) return undefined;
-  if (env !== 'production') return previous === current ? undefined : previous;
+  if (!isDeployedEnvironment(env, processEnv)) return previous === current ? undefined : previous;
   if (WEAK_JWT_SECRETS.has(previous)) {
     throw new Error(
-      'JWT_SECRET_PREVIOUS uses a known placeholder value; refusing to start in production',
+      'JWT_SECRET_PREVIOUS uses a known placeholder value; refusing to start in production or staging',
     );
   }
   if (previous.length < MIN_PRODUCTION_JWT_SECRET_LENGTH) {
     throw new Error(
-      `JWT_SECRET_PREVIOUS must be at least ${MIN_PRODUCTION_JWT_SECRET_LENGTH} characters in production`,
+      `JWT_SECRET_PREVIOUS must be at least ${MIN_PRODUCTION_JWT_SECRET_LENGTH} characters in production or staging`,
     );
   }
   if (previous === current) {
@@ -187,23 +200,42 @@ export function resolvePreviousJwtSecret(
   return previous;
 }
 
+/**
+ * PRC-L284: client secrets that are committed to the repository
+ * (infra/keycloak/proctira-realm.json, docker-compose.yml default) or are
+ * generic placeholders. Compared case-insensitively.
+ */
+export const DEV_KEYCLOAK_CLIENT_SECRETS: ReadonlySet<string> = new Set([
+  'proctira-gateway-dev-secret',
+  'test-secret',
+  'secret',
+  'changeme',
+  'change_me',
+  'change_me_in_production',
+]);
+
 const LOCALHOST_URL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?(\/|$)/i;
 
-/** Deployed (non-dev/test) when NODE_ENV=production or APP_ENV/DEPLOY_ENV names staging/prod. */
+/**
+ * PRC-L566: deployed (staging or production) unless NODE_ENV is development /
+ * test without a deployed APP_ENV / DEPLOY_ENV stage. Delegates to the shared
+ * fail-closed predicate in `@proctira/common/node-env`, so `NODE_ENV=staging`
+ * (the Kustomize staging overlay) and an unset NODE_ENV get every production
+ * boot guard.
+ */
 export function isDeployedEnvironment(
-  configEnv: string,
+  configEnv: string | undefined,
   processEnv: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  if (configEnv === 'production') return true;
-  const stage = (processEnv['APP_ENV'] ?? processEnv['DEPLOY_ENV'] ?? '').trim().toLowerCase();
-  return stage === 'staging' || stage === 'production' || stage === 'prod';
+  return isDeployedProcessEnvironment(configEnv, processEnv);
 }
 
 /**
  * PRC-M011: refuse unsafe auth boot configurations outside development/test.
  * - No Keycloak config → local HS-JWT fallback only when ALLOW_LOCAL_HS_AUTH=1.
  * - Keycloak mode → KEYCLOAK_REDIRECT_URI and NEXT_PUBLIC_WEB_URL must be set
- *   explicitly and must not point at localhost.
+ *   explicitly and must not point at localhost, and (PRC-L284)
+ *   KEYCLOAK_CLIENT_SECRET must not be a committed dev / placeholder value.
  */
 export function assertAuthBootPolicy(input: {
   configEnv: string;
@@ -220,6 +252,14 @@ export function assertAuthBootPolicy(input: {
     }
     return;
   }
+  // PRC-L284: the committed realm export / compose default client secret (and
+  // generic placeholders) must never authenticate a deployed gateway.
+  const clientSecret = env['KEYCLOAK_CLIENT_SECRET']?.trim();
+  if (clientSecret && DEV_KEYCLOAK_CLIENT_SECRETS.has(clientSecret.toLowerCase())) {
+    throw new Error(
+      'KEYCLOAK_CLIENT_SECRET uses a known development/placeholder value; refusing to start in a deployed environment (PRC-L284)',
+    );
+  }
   for (const name of ['KEYCLOAK_REDIRECT_URI', 'NEXT_PUBLIC_WEB_URL'] as const) {
     const value = env[name]?.trim();
     if (!value) {
@@ -232,24 +272,53 @@ export function assertAuthBootPolicy(input: {
 }
 
 /**
- * PRC-M524: parse CORS_ORIGINS. A production boot-fail guard (mirroring
- * resolveJwtSecret's refusal of a silent default) was deferred — see the
- * CANONICAL_LEDGER.csv PARTIAL residual for PRC-M524: this repo's own
- * config.test.ts boots the gateway with NODE_ENV=production and no
- * CORS_ORIGINS set (to isolate an unrelated JWT_SECRET_PREVIOUS assertion),
- * which is exactly the class of existing-boot-path dependency the batch plan
- * flagged as a reason to keep this additive-only rather than silently
- * changing gateway boot behavior.
+ * PRC-M524: parse CORS_ORIGINS. Outside a deployed environment an empty value
+ * falls back to the localhost dev origins. In a deployed environment
+ * (PRC-L566 predicate) the list must be explicit: empty or `*` refuses boot
+ * instead of silently serving localhost-only (or any-origin) CORS.
  */
-export function resolveCorsOrigins(_env: string, raw: string | undefined): string[] {
-  const trimmed = raw?.trim() ?? '';
-  if (trimmed.length === 0) {
-    return ['http://localhost:3000', 'http://localhost:3001'];
-  }
-  return trimmed
+export function resolveCorsOrigins(
+  env: string | undefined,
+  raw: string | undefined,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const origins = (raw ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  const deployed = isDeployedEnvironment(env, processEnv);
+  if (origins.length === 0) {
+    if (deployed) {
+      throw new Error(
+        'CORS_ORIGINS must list the allowed browser origins in a deployed environment (PRC-M524)',
+      );
+    }
+    return ['http://localhost:3000', 'http://localhost:3001'];
+  }
+  if (deployed && origins.includes('*')) {
+    throw new Error('CORS_ORIGINS must not contain `*` in a deployed environment (PRC-M524)');
+  }
+  return origins;
+}
+
+/**
+ * PRC-M524: TRUSTED_PROXY_CIDRS. In a deployed environment the ingress
+ * controller's address range must be explicit, otherwise every request's
+ * client IP is the ingress pod and per-IP rate limits / audit IPs collapse.
+ * Empty refuses boot when deployed; outside, empty means "trust no proxy".
+ */
+export function resolveTrustedProxyCidrs(
+  env: string | undefined,
+  raw: string | undefined,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const cidrs = parseTrustedProxyCidrs(raw);
+  if (cidrs.length === 0 && isDeployedEnvironment(env, processEnv)) {
+    throw new Error(
+      'TRUSTED_PROXY_CIDRS must list the ingress proxy IP/CIDR range in a deployed environment (PRC-M524)',
+    );
+  }
+  return cidrs;
 }
 
 /**
@@ -257,8 +326,6 @@ export function resolveCorsOrigins(_env: string, raw: string | undefined): strin
  */
 export function loadConfig(): GatewayConfig {
   const env = (process.env['NODE_ENV'] || 'development') as GatewayConfig['env'];
-
-  const corsOrigins = resolveCorsOrigins(env, process.env['CORS_ORIGINS']);
 
   // Parse service routes from SERVICE_ROUTES env var (JSON) or use defaults
   let services: Record<string, ServiceRoute> = {};
@@ -311,12 +378,18 @@ export function loadConfig(): GatewayConfig {
     };
   }
 
-  const jwtSecret = resolveJwtSecret(env, process.env['JWT_SECRET']);
+  // PRC-L566: the deployed-environment guard reads the raw NODE_ENV, so an
+  // unset value or NODE_ENV=staging is guarded like production.
+  const nodeEnv = process.env['NODE_ENV'];
+  const jwtSecret = resolveJwtSecret(nodeEnv, process.env['JWT_SECRET']);
+  // PRC-M524: explicit allow-lists in deployed environments.
+  const corsOrigins = resolveCorsOrigins(nodeEnv, process.env['CORS_ORIGINS']);
+  const trustedProxyCidrs = resolveTrustedProxyCidrs(nodeEnv, process.env['TRUSTED_PROXY_CIDRS']);
   return {
     port: parseInt(process.env['PORT'] || '3000', 10),
     host: process.env['HOST'] || '0.0.0.0',
     env,
-    trustedProxyCidrs: parseTrustedProxyCidrs(process.env['TRUSTED_PROXY_CIDRS']),
+    trustedProxyCidrs,
     rateLimiting: {
       windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000', 10),
       maxRequests: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100', 10),
@@ -328,7 +401,11 @@ export function loadConfig(): GatewayConfig {
     },
     jwt: {
       secret: jwtSecret,
-      previousSecret: resolvePreviousJwtSecret(env, process.env['JWT_SECRET_PREVIOUS'], jwtSecret),
+      previousSecret: resolvePreviousJwtSecret(
+        nodeEnv,
+        process.env['JWT_SECRET_PREVIOUS'],
+        jwtSecret,
+      ),
       issuer: process.env['JWT_ISSUER'] || 'proctira-platform',
       audience: process.env['JWT_AUDIENCE'] || 'proctira-api',
       accessTokenExpiresIn: resolveAccessTokenExpiresIn(),

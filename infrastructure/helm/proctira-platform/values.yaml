@@ -1063,17 +1063,14 @@ config:
     keycloakAudience: '' # optional; tokens must carry it in aud/azp
     keycloakRedirectUri: '' # e.g. https://api.<domain>/api/v1/auth/callback
     webUrl: '' # NEXT_PUBLIC_WEB_URL: web origin for post-login redirects
-  # PRC-M524 (PARTIAL): CORS_ORIGINS / TRUSTED_PROXY_CIDRS. apps/api-gateway's
-  # CORS plugin takes a literal origin list (no wildcard-subdomain matching),
-  # so every environment overlay must enumerate the real tenant/portal
-  # domains it serves. Left empty at the base chart (sandbox-safe default).
-  # The gateway does NOT yet refuse to boot in production without this set —
-  # a production boot-fail guard mirroring resolveJwtSecret was deferred
-  # because this repo's own apps/api-gateway/src/config.test.ts boots the
-  # gateway with NODE_ENV=production and no CORS_ORIGINS to isolate an
-  # unrelated assertion; see the ledger residual. trustedProxyCidrs is also
-  # left empty: with no explicit entries the gateway trusts no forwarding
-  # proxy (direct socket IP only).
+  # PRC-M524: CORS_ORIGINS / TRUSTED_PROXY_CIDRS. apps/api-gateway's CORS
+  # plugin takes a literal origin list (no wildcard-subdomain matching), so
+  # every environment must enumerate the real tenant/portal domains it serves.
+  # Left empty at the base chart; the gateway refuses to boot in a deployed
+  # environment (NODE_ENV other than development/test, or APP_ENV=staging/
+  # production) when either value is empty or corsOrigins contains `*`
+  # (apps/api-gateway/src/config.ts). Outside a deployed environment an empty
+  # trustedProxyCidrs means the gateway trusts no forwarding proxy.
   corsOrigins: '' # comma-separated, e.g. https://*.proctira.io is NOT valid (no wildcard subdomains); enumerate hosts.web clients actually use
   trustedProxyCidrs: '' # comma-separated IP/CIDR list of the ingress controller's address, e.g. 10.0.0.0/8
 

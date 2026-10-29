@@ -3,6 +3,7 @@
  */
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { describe, it, expect, beforeEach } from 'vitest';
+import { MemoryWebTicketStore } from '../keycloak/routes.js';
 import { OIDCProvider } from './oidc-provider.js';
 import type { HttpClient } from './oauth2-provider.js';
 import type { OIDCProviderConfig } from './types.js';
@@ -283,5 +284,54 @@ describe('OIDCProvider', () => {
 
       expect(httpClient.getCalls).toHaveLength(2);
     });
+  });
+});
+
+describe('PRC-M589 replica-shared pending login state (OIDC)', () => {
+  it('a callback served by another replica sharing the store completes the login once', async () => {
+    const shared = new MemoryWebTicketStore();
+    const clientA = new MockHttpClient();
+    const clientB = new MockHttpClient();
+    const replicaA = new OIDCProvider({ ...oidcConfig, stateStore: shared }, clientA);
+    const replicaB = new OIDCProvider({ ...oidcConfig, stateStore: shared }, clientB);
+    clientA.getResponses.push({ data: discoveryDocument, status: 200 });
+    const init = await replicaA.initiateAuth('tenant-1');
+    clientB.getResponses.push({ data: discoveryDocument, status: 200 });
+    clientB.getResponses.push({ data: jwks, status: 200 });
+    clientB.postResponses.push({
+      data: {
+        access_token: 'at',
+        id_token: signIdToken(claims(init.nonce!)),
+        token_type: 'Bearer',
+      },
+      status: 200,
+    });
+    const profile = await replicaB.handleCallback({ code: 'c', state: init.state }, 'tenant-1');
+    expect(profile.externalId).toBe('oidc-user-123');
+    await expect(
+      replicaB.handleCallback({ code: 'c', state: init.state }, 'tenant-1'),
+    ).rejects.toMatchObject({ code: 'OIDC_INVALID_STATE' });
+  });
+
+  it('the stored state is tenant-bound across replicas', async () => {
+    const shared = new MemoryWebTicketStore();
+    const clientA = new MockHttpClient();
+    const replicaA = new OIDCProvider({ ...oidcConfig, stateStore: shared }, clientA);
+    const replicaB = new OIDCProvider({ ...oidcConfig, stateStore: shared }, new MockHttpClient());
+    clientA.getResponses.push({ data: discoveryDocument, status: 200 });
+    const init = await replicaA.initiateAuth('tenant-1');
+    await expect(
+      replicaB.handleCallback({ code: 'c', state: init.state }, 'tenant-2'),
+    ).rejects.toMatchObject({ code: 'OIDC_TENANT_MISMATCH' });
+  });
+
+  it('refuses to start without a shared store in a deployed environment', () => {
+    const saved = process.env['NODE_ENV'];
+    try {
+      process.env['NODE_ENV'] = 'staging';
+      expect(() => new OIDCProvider(oidcConfig, new MockHttpClient())).toThrow(/PRC-M589/);
+    } finally {
+      process.env['NODE_ENV'] = saved;
+    }
   });
 });

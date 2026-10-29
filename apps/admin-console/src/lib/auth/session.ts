@@ -1,9 +1,10 @@
 /**
  * Platform Admin session helpers.
  *
- * Decodes the access token cookie (without verifying the signature — that
- * happens upstream at the auth-service). Used to gate pages by role and to
- * forward the JWT on outbound API calls.
+ * `decodeAdminToken` decodes without verification; the server session and the
+ * middleware verify the token first (`./verified-token.ts`, PRC-L202) and map
+ * the verified claims with `toAdminTokenPayload`. Used to gate pages by role
+ * and to forward the JWT on outbound API calls.
  */
 import { decodeJwtPayload } from './jwt-payload';
 import { platformRoleFromJwtRoles, type PlatformRole } from './roles';
@@ -32,8 +33,28 @@ export interface AdminTokenPayload {
  */
 export function decodeAdminToken(token: string): AdminTokenPayload | null {
   // PRC-H112: shared base64url + UTF-8 decoder (same as middleware).
-  const payload = decodeJwtPayload<AdminTokenPayload>(token);
-  if (!payload) return null;
+  const decoded = decodeJwtPayload<AdminTokenPayload>(token);
+  if (!decoded) return null;
+  return toAdminTokenPayload(decoded);
+}
+
+/**
+ * PRC-L202: maps (verified) claims to the console payload. Keycloak tokens
+ * carry `tenant_id`; it is exposed as `tenantId`. A platform role is derived
+ * only for platform-tenant tokens.
+ */
+export function toAdminTokenPayload(claims: object): AdminTokenPayload {
+  const raw = claims as AdminTokenPayload & { tenant_id?: unknown };
+  const tenantRaw: unknown = raw.tenantId ?? raw.tenant_id;
+  const tenantValue: unknown = Array.isArray(tenantRaw)
+    ? tenantRaw.length === 1
+      ? (tenantRaw[0] as unknown)
+      : undefined
+    : tenantRaw;
+  const payload: AdminTokenPayload = {
+    ...raw,
+    tenantId: typeof tenantValue === 'string' ? tenantValue : '',
+  };
 
   return {
     ...payload,

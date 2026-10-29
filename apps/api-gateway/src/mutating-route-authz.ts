@@ -300,6 +300,27 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     resource: 'notification',
     deferredDomainGuard: false,
   },
+  // PRC-M027: SCIM token issue/rotate and revoke are tenant-admin directory
+  // actions (`user: manage`); SCIM tokens themselves are denied here by the
+  // credential-principal allow-list.
+  {
+    id: 'tenant.scim-token.issue',
+    pathPrefix: '/api/v1/tenant/scim-token',
+    resource: 'user',
+    action: 'manage',
+    methods: ['POST'],
+    domainAction: 'scim-token.issue',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'tenant.scim-token.revoke',
+    pathPrefix: '/api/v1/tenant/scim-token',
+    resource: 'user',
+    action: 'manage',
+    methods: ['DELETE'],
+    domainAction: 'scim-token.revoke',
+    deferredDomainGuard: false,
+  },
   // PRC-H048: global marketplace moderation and developer docs are platform
   // control-plane actions, not tenant `developer:*` rights. The `platform`
   // resource admits PLATFORM_ADMIN_ROLE_IDS only; the developer-portal package
