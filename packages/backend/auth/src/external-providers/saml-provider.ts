@@ -9,12 +9,15 @@
  * - SAML Response parsing and basic validation
  * - Attribute extraction from SAML assertions
  *
- * For production use with full signature validation, integrate @node-saml/node-saml.
+ * PRC-M587: responses are parsed by `NodeSamlResponseParser`
+ * (@node-saml/node-saml: XML-DSig, Conditions, audience, InResponseTo); the
+ * regex `DefaultSAMLResponseParser` is never accepted by `SAMLProvider`.
  */
 import { deflateRawSync } from 'node:zlib';
 
 import { v4 as uuidv4 } from 'uuid';
 
+import { NodeSamlResponseParser } from './node-saml-response-parser.js';
 import type {
   ExternalAuthProvider,
   SAMLProviderConfig,
@@ -409,5 +412,6 @@ export function createSAMLProvider(
   config: SAMLProviderConfig,
   responseParser?: SAMLResponseParser,
 ): SAMLProvider {
-  return new SAMLProvider(config, responseParser);
+  // PRC-M587: default to the XML-DSig verifying node-saml parser.
+  return new SAMLProvider(config, responseParser ?? new NodeSamlResponseParser());
 }
