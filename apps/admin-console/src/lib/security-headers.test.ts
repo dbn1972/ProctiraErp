@@ -33,9 +33,9 @@ describe('security headers', () => {
     expect(csp).toContain("object-src 'none'");
   });
 
-  it.each(['/login', '/tenants'])('middleware sets a fresh nonce CSP on %s', (path) => {
-    const a = middleware(new NextRequest(`https://admin.example${path}`));
-    const b = middleware(new NextRequest(`https://admin.example${path}`));
+  it.each(['/login', '/tenants'])('middleware sets a fresh nonce CSP on %s', async (path) => {
+    const a = await middleware(new NextRequest(`https://admin.example${path}`));
+    const b = await middleware(new NextRequest(`https://admin.example${path}`));
     const cspA = a.headers.get('Content-Security-Policy');
     expect(cspA).toMatch(/frame-ancestors 'none'/);
     expect(cspA).not.toEqual(b.headers.get('Content-Security-Policy'));

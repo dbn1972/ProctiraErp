@@ -85,6 +85,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.9.1
         version: 5.9.1(@sinclair/typebox@0.34.52)(ajv@8.20.0)(react-hook-form@7.89.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
+      '@proctira/auth':
+        specifier: workspace:*
+        version: link:../../packages/shared/auth
       '@proctira/ui-components':
         specifier: workspace:*
         version: link:../../packages/ui/components
