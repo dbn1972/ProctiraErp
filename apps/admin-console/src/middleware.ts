@@ -59,12 +59,65 @@ export async function middleware(request: NextRequest) {
   // PRC-L202: only a token whose signature, issuer and audience verify against
   // the IdP JWKS, issued for the platform tenant, opens a console page.
   const claims = accessToken ? await readPlatformToken(accessToken, { ignoreExpiry: true }) : null;
-  if (!claims || !isAccessTokenFresh(claims)) {
+  const toLogin = () => {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('returnTo', sanitizeReturnTo(pathname));
     return withCsp(request, () => NextResponse.redirect(loginUrl));
+  };
+  if (!claims) return toLogin();
+  if (!isAccessTokenFresh(claims)) {
+    // PRC-M464: an authentic but expired token is rotated with the refresh
+    // token instead of forcing a new sign-in; the navigation is then replayed.
+    const refreshToken = request.cookies.get(ADMIN_AUTH_COOKIES.REFRESH_TOKEN)?.value;
+    const setCookies = refreshToken ? await refreshOnce(request, refreshToken) : null;
+    if (!setCookies || setCookies.length === 0) return toLogin();
+    const replay = NextResponse.redirect(request.url);
+    setCookies.forEach((cookie) => replay.headers.append('set-cookie', cookie));
+    return replay;
   }
   return withCsp(request, next);
+}
+
+/** PRC-M464: completed refreshes are reused this long by parallel navigations. */
+const REFRESH_REUSE_MS = 10_000;
+const refreshInFlight = new Map<string, { promise: Promise<string[] | null>; expiresAt: number }>();
+
+/**
+ * Single-flight per refresh token: parallel navigations share one call to
+ * `/api/auth/refresh` (and its rotated Set-Cookie headers) instead of racing
+ * the rotation and revoking each other.
+ */
+async function refreshOnce(request: NextRequest, refreshToken: string): Promise<string[] | null> {
+  const now = Date.now();
+  for (const [key, entry] of refreshInFlight) {
+    if (entry.expiresAt <= now) refreshInFlight.delete(key);
+  }
+  const existing = refreshInFlight.get(refreshToken);
+  if (existing) return existing.promise;
+  const promise = (async () => {
+    try {
+      const response = await fetch(new URL('/api/auth/refresh', request.url), {
+        method: 'POST',
+        headers: { cookie: request.headers.get('cookie') ?? '' },
+      });
+      if (!response.ok) return null;
+      const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+      if (headers.getSetCookie) return headers.getSetCookie();
+      const single = response.headers.get('set-cookie');
+      return single ? [single] : [];
+    } catch {
+      return null;
+    }
+  })();
+  refreshInFlight.set(refreshToken, { promise, expiresAt: now + REFRESH_REUSE_MS });
+  const outcome = await promise;
+  if (!outcome) refreshInFlight.delete(refreshToken);
+  return outcome;
+}
+
+/** Test hook: forget cached refresh outcomes. */
+export function __resetConsoleRefreshSingleFlight(): void {
+  refreshInFlight.clear();
 }
 
 export const config = {
