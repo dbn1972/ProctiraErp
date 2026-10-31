@@ -175,6 +175,19 @@ export class PluginService {
       );
     }
 
+    // PRC-L479: consent ceiling — consent may not exceed the plugin's declared
+    // requiredPermissions, so an install cannot silently grant a permission the
+    // manifest never asked for. Anything consented beyond requiredPermissions is
+    // rejected (fail-closed), not clamped.
+    const excessPermissions = consentedPermissions.filter(
+      (p) => !plugin.requiredPermissions.includes(p),
+    );
+    if (excessPermissions.length > 0) {
+      throw new BusinessRuleError(
+        `Consented permissions exceed the plugin's required permissions: ${excessPermissions.join(', ')}`,
+      );
+    }
+
     const installId = uuidv4();
 
     // Record permissions
