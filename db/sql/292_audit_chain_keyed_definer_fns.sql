@@ -53,6 +53,12 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_bound text := audit_chain_effective_tenant();
+  -- audit_chain_heads.tenant_id is UUID after db/sql/100 (strict-FK uuid
+  -- conversion); app_tenant_id() returns text, so bind the uuid form once for
+  -- every head-table site. A non-uuid bound tenant is impossible past the
+  -- guards below (the column + GUC are both canonical uuids), but the cast is
+  -- also what surfaces a malformed value instead of silently mis-binding.
+  v_bound_uuid uuid;
 BEGIN
   IF v_bound IS NULL THEN
     RAISE EXCEPTION 'audit_chain_lock_head: no tenant bound (app.tenant_id unset)'
@@ -65,14 +71,16 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  v_bound_uuid := v_bound::uuid;
+
   INSERT INTO audit_chain_heads (tenant_id)
-  VALUES (v_bound)
+  VALUES (v_bound_uuid)
   ON CONFLICT (tenant_id) DO NOTHING;
 
   RETURN QUERY
     SELECT h.head_seq, h.head_hash
     FROM audit_chain_heads h
-    WHERE h.tenant_id = v_bound
+    WHERE h.tenant_id = v_bound_uuid
     FOR UPDATE;
 END;
 $$;
@@ -109,6 +117,9 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_bound    text := audit_chain_effective_tenant();
+  -- audit_chain_heads.tenant_id and audit_log_entries.tenant_id are UUID after
+  -- db/sql/100; bind the uuid form once for those sites.
+  v_bound_uuid uuid;
   v_prev     text;
   v_seq      bigint;
 BEGIN
@@ -125,13 +136,15 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
+  v_bound_uuid := v_bound::uuid;
+
   INSERT INTO audit_chain_heads (tenant_id)
-  VALUES (v_bound)
+  VALUES (v_bound_uuid)
   ON CONFLICT (tenant_id) DO NOTHING;
 
   SELECT h.head_seq, h.head_hash INTO v_seq, v_prev
   FROM audit_chain_heads h
-  WHERE h.tenant_id = v_bound
+  WHERE h.tenant_id = v_bound_uuid
   FOR UPDATE;
 
   v_seq := COALESCE(v_seq, 0) + 1;
@@ -141,15 +154,15 @@ BEGIN
     ip_address, occurred_at, before_values, after_values, metadata,
     chain_seq, prev_hash, entry_hash, key_id
   ) VALUES (
-    -- audit_log_entries.id is UUID; the app passes the entry id as text.
-    p_entry_id::uuid, v_bound, p_entity_type, p_entity_id, p_operation, p_user_id, p_user_name,
+    -- audit_log_entries.id and tenant_id are UUID; the app passes text.
+    p_entry_id::uuid, v_bound_uuid, p_entity_type, p_entity_id, p_operation, p_user_id, p_user_name,
     p_ip_address, p_occurred_at, p_before, p_after, p_metadata,
     v_seq, v_prev, p_entry_hash, p_key_id
   );
 
   UPDATE audit_chain_heads
   SET head_seq = v_seq, head_hash = p_entry_hash, updated_at = now()
-  WHERE tenant_id = v_bound;
+  WHERE tenant_id = v_bound_uuid;
 
   RETURN QUERY SELECT v_seq, v_prev;
 END;

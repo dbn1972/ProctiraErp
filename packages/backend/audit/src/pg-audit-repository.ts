@@ -299,12 +299,12 @@ export class PgAuditRepository implements AuditRepository {
       const unionSource = `(
            SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
                   ip_address, occurred_at, before_values, after_values, metadata,
-                  chain_seq, prev_hash, entry_hash
+                  chain_seq, prev_hash, entry_hash, key_id
            FROM audit_log_entries WHERE tenant_id = $1
            UNION ALL
            SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
                   ip_address, occurred_at, before_values, after_values, metadata,
-                  chain_seq, prev_hash, entry_hash
+                  chain_seq, prev_hash, entry_hash, key_id
            FROM audit_log_archive WHERE tenant_id = $1
          )`;
       const union = `${unionSource} u`;

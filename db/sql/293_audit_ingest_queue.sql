@@ -89,6 +89,9 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_bound text := audit_chain_effective_tenant();
+  -- audit_chain_heads.tenant_id and audit_log_entries.tenant_id are UUID after
+  -- db/sql/100; the queue table (this migration) keeps TEXT. Bind both forms.
+  v_bound_uuid uuid;
   v_row   audit_ingest_queue%ROWTYPE;
   v_seq   bigint;
   v_prev  text;
@@ -106,7 +109,9 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  -- Lock the queue row; it must belong to the bound tenant.
+  v_bound_uuid := v_bound::uuid;
+
+  -- Lock the queue row; it must belong to the bound tenant (queue tenant_id is TEXT).
   SELECT * INTO v_row
   FROM audit_ingest_queue
   WHERE id = p_queue_id AND tenant_id = v_bound
@@ -125,12 +130,12 @@ BEGIN
   -- Append to the keyed chain under the same head lock discipline as the
   -- synchronous path.
   INSERT INTO audit_chain_heads (tenant_id)
-  VALUES (v_bound)
+  VALUES (v_bound_uuid)
   ON CONFLICT (tenant_id) DO NOTHING;
 
   SELECT h.head_seq, h.head_hash INTO v_seq, v_prev
   FROM audit_chain_heads h
-  WHERE h.tenant_id = v_bound
+  WHERE h.tenant_id = v_bound_uuid
   FOR UPDATE;
 
   v_seq := COALESCE(v_seq, 0) + 1;
@@ -140,12 +145,12 @@ BEGIN
     ip_address, occurred_at, before_values, after_values, metadata,
     chain_seq, prev_hash, entry_hash, key_id
   ) VALUES (
-    -- audit_log_entries.id is UUID; the drain passes the entry id as text.
+    -- audit_log_entries.id and tenant_id are UUID; the drain passes text.
     -- audit_log_entries.user_id is NOT NULL, but queue rows may carry a NULL
     -- user_id for system-origin events (DR4-4, actor_kind 'system:<job>'). Keep
     -- the actor by falling back to actor_kind so the sealed entry records who
     -- acted ('system:<job>') instead of violating the NOT NULL column.
-    p_entry_id::uuid, v_bound, v_row.entity_type, v_row.entity_id, v_row.operation,
+    p_entry_id::uuid, v_bound_uuid, v_row.entity_type, v_row.entity_id, v_row.operation,
     COALESCE(v_row.user_id, v_row.actor_kind), v_row.user_name, v_row.ip_address, v_row.occurred_at,
     v_row.before_values, v_row.after_values, v_row.metadata,
     v_seq, v_prev, p_entry_hash, p_key_id
@@ -153,7 +158,7 @@ BEGIN
 
   UPDATE audit_chain_heads
   SET head_seq = v_seq, head_hash = p_entry_hash, updated_at = now()
-  WHERE tenant_id = v_bound;
+  WHERE tenant_id = v_bound_uuid;
 
   UPDATE audit_ingest_queue
   SET sealed_at = now(), chain_seq = v_seq
