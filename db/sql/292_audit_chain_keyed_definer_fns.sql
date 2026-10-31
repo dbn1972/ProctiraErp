@@ -141,7 +141,8 @@ BEGIN
     ip_address, occurred_at, before_values, after_values, metadata,
     chain_seq, prev_hash, entry_hash, key_id
   ) VALUES (
-    p_entry_id, v_bound, p_entity_type, p_entity_id, p_operation, p_user_id, p_user_name,
+    -- audit_log_entries.id is UUID; the app passes the entry id as text.
+    p_entry_id::uuid, v_bound, p_entity_type, p_entity_id, p_operation, p_user_id, p_user_name,
     p_ip_address, p_occurred_at, p_before, p_after, p_metadata,
     v_seq, v_prev, p_entry_hash, p_key_id
   );

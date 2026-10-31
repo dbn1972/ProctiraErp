@@ -140,8 +140,13 @@ BEGIN
     ip_address, occurred_at, before_values, after_values, metadata,
     chain_seq, prev_hash, entry_hash, key_id
   ) VALUES (
-    p_entry_id, v_bound, v_row.entity_type, v_row.entity_id, v_row.operation,
-    v_row.user_id, v_row.user_name, v_row.ip_address, v_row.occurred_at,
+    -- audit_log_entries.id is UUID; the drain passes the entry id as text.
+    -- audit_log_entries.user_id is NOT NULL, but queue rows may carry a NULL
+    -- user_id for system-origin events (DR4-4, actor_kind 'system:<job>'). Keep
+    -- the actor by falling back to actor_kind so the sealed entry records who
+    -- acted ('system:<job>') instead of violating the NOT NULL column.
+    p_entry_id::uuid, v_bound, v_row.entity_type, v_row.entity_id, v_row.operation,
+    COALESCE(v_row.user_id, v_row.actor_kind), v_row.user_name, v_row.ip_address, v_row.occurred_at,
     v_row.before_values, v_row.after_values, v_row.metadata,
     v_seq, v_prev, p_entry_hash, p_key_id
   );
