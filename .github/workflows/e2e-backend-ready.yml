@@ -336,6 +336,12 @@ jobs:
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
           # Harness is fail-closed unless E2E_ALLOW_SKIP=1 (PRC-L389).
           E2E_ALLOW_SKIP: ${{ steps.mode.outputs.allow_skip || '0' }}
+          # PRC-L461 / DR4-3: the demo seed is opt-in. CI does not load the
+          # Sunrise demo fixture (the live specs it serves are not in the
+          # backend-ready smoke list); skip it explicitly so the harness does
+          # not fail closed on the missing decision. A caller that needs the
+          # demo rows sets ALLOW_SUNRISE_DEMO_SEED=1 instead.
+          E2E_SKIP_SUNRISE_SEED: '1'
           PLAYWRIGHT_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
           CI: true
 
