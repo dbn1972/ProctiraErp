@@ -10,7 +10,12 @@
  */
 import { withPlatformScope, type PgPoolWithConnect, type PgQueryable } from '@proctira/database';
 
-import { ChainVerifier } from './audit-hash.js';
+import {
+  DEV_AUDIT_CHAIN_KEY_ID,
+  verifyKeyedEntrySequence,
+  type AuditChainKey,
+  type AuditChainKeyResolver,
+} from './audit-hash.js';
 import type {
   ArchivalResult,
   AuditLogEntry,
@@ -21,7 +26,7 @@ import type {
   ChainVerification,
   CreateAuditLogInput,
 } from './audit-repository.js';
-import { appendAuditEntryOnClient } from './txn-mutation-audit.js';
+import { appendAuditEntryOnClient, currentAuditChainKey } from './txn-mutation-audit.js';
 
 function toDate(v: unknown): Date {
   return v instanceof Date ? v : new Date(String(v));
@@ -44,6 +49,9 @@ function mapEntry(row: Record<string, unknown>): AuditLogEntry {
     chainSeq: row.chain_seq == null ? null : Number(row.chain_seq),
     prevHash: row.prev_hash == null ? null : String(row.prev_hash),
     entryHash: row.entry_hash == null ? null : String(row.entry_hash),
+    // PRC-M200: NULL on legacy unkeyed rows (at/below the tenant cut-over); a
+    // non-NULL value names the HMAC key that signed entry_hash above it.
+    keyId: row.key_id == null ? null : String(row.key_id),
   };
 }
 
@@ -66,6 +74,26 @@ function cutoffFor(config: AuditRetentionConfig): Date {
 /** Advisory-lock key shared by chain verification and the retention sweep. */
 function chainLockKey(tenantId: string): string {
   return `audit-chain-verify:${tenantId}`;
+}
+
+/**
+ * PRC-M200: resolve the HMAC key a keyed row above the cut-over was signed with.
+ * The only keys a running gateway signs under are the key installed at boot via
+ * `configureAuditChainKey` (its id comes from the KMS/secret manager) and the
+ * reserved dev-fallback key ({@link DEV_AUDIT_CHAIN_KEY_ID}) used only by
+ * non-deployed runs. We resolve a `key_id` to whichever of those two carries it;
+ * an unknown id returns `undefined` so the verifier reports the row as
+ * unverifiable (a forger who invents a key_id cannot produce a matching MAC).
+ */
+function runtimeChainKeyResolver(): AuditChainKeyResolver {
+  const active: AuditChainKey = currentAuditChainKey();
+  return (keyId: string): AuditChainKey | undefined => {
+    if (keyId === active.keyId) return active;
+    if (keyId === DEV_AUDIT_CHAIN_KEY_ID && active.keyId === DEV_AUDIT_CHAIN_KEY_ID) {
+      return active;
+    }
+    return undefined;
+  };
 }
 
 export class PgAuditRepository implements AuditRepository {
@@ -297,6 +325,21 @@ export class PgAuditRepository implements AuditRepository {
           }
         : null;
 
+      // PRC-M200: the per-tenant keyed-chain cut-over. Legacy unkeyed sha256
+      // rows are accepted only at/below cutover_seq; every row strictly above it
+      // MUST be a keyed HMAC row under a known key id. The row is written only by
+      // migration (runtime SELECT only, 294), so the boundary is immutable at
+      // runtime and a forged "legacy" row cannot be back-dated past it. No row
+      // (fresh tenant whose chain started keyed) means cut-over 0 = whole chain
+      // must be keyed.
+      const cutoverRow = await client.query(
+        `SELECT cutover_seq FROM audit_chain_cutover WHERE tenant_id = $1 LIMIT 1`,
+        [tenantId],
+      );
+      const cutoverSeq = Number(
+        (cutoverRow.rows[0] as { cutover_seq?: unknown } | undefined)?.cutover_seq ?? 0,
+      );
+
       // PRC-M176 / NEW-g7_platform-012: strict tamper-evidence. Once a tenant's
       // chain exists, any unchained (chain_seq NULL) row written at/after the
       // genesis chained row is a direct insert that bypassed chaining and MUST
@@ -316,9 +359,13 @@ export class PgAuditRepository implements AuditRepository {
         unchainedAfterCutover = Number((cutoverRes.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
       }
 
-      // Keyset-page the hashed chain in (chain_seq, id) order, carrying
-      // prev_hash in the verifier instead of buffering every row.
-      const verifier = new ChainVerifier(tenantId);
+      // PRC-M200: keyset-page the hashed chain in (chain_seq, id) order and verify
+      // it under the keyed verifier: unkeyed sha256 at/below the cut-over, keyed
+      // HMAC (under a resolvable key id) strictly above it. A forger who recomputes
+      // the unkeyed sha256 of a tampered row above the cut-over is rejected because
+      // that slot now requires a MAC under a secret the DBA never sees.
+      const resolveKey = runtimeChainKeyResolver();
+      const entries: AuditLogEntry[] = [];
       const pageSize = 1000;
       let lastSeq = 0;
       let lastId = '00000000-0000-0000-0000-000000000000';
@@ -331,20 +378,40 @@ export class PgAuditRepository implements AuditRepository {
            LIMIT $4`,
           [tenantId, lastSeq, lastId, pageSize],
         );
-        let keepGoing = true;
         for (const row of res.rows) {
           const entry = mapEntry(row as Record<string, unknown>);
-          if (!verifier.push(entry)) {
-            keepGoing = false;
-            break;
-          }
+          entries.push(entry);
           lastSeq = entry.chainSeq ?? lastSeq;
           lastId = entry.id;
         }
-        if (!keepGoing || res.rows.length < pageSize) break;
+        if (res.rows.length < pageSize) break;
       }
       const legacyCount = Number((legacy.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
-      return verifier.finish(legacyCount, head, unchainedAfterCutover);
+
+      const result = verifyKeyedEntrySequence(tenantId, entries, resolveKey, { cutoverSeq });
+      // Keep the true head (archive-aware) and the SQL-derived legacy count; the
+      // keyed verifier only saw hashed rows. Fold the strict unchained-after-
+      // genesis count into the verdict (verifyKeyedEntrySequence always returns 0
+      // for it because it cannot see unchained rows).
+      return {
+        ...result,
+        legacyEntries: legacyCount,
+        headHash: head?.hash ?? result.headHash,
+        headSeq: head?.seq ?? result.headSeq,
+        unchainedAfterCutover,
+        valid: result.valid && unchainedAfterCutover === 0,
+        brokenAt:
+          result.brokenAt ??
+          (unchainedAfterCutover > 0
+            ? {
+                chainSeq: 0,
+                entryId: '',
+                reason: 'missing-hash' as const,
+                expected: 'chained',
+                actual: `${unchainedAfterCutover} unchained row(s) after chain start`,
+              }
+            : null),
+      };
     });
   }
 
