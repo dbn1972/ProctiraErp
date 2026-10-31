@@ -76,6 +76,7 @@ import { observabilityPlugin, registerServiceSLO, SLO_CATALOG } from '@proctira/
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
+import { createGatewayAuditIngestDrain } from './audit-ingest-drain.js';
 import { registerAuthAudit } from './auth-audit.js';
 import {
   billingEntitlementsEnforced,
@@ -1143,6 +1144,32 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     app.addHook('onClose', async () => {
       retentionScheduler.stop();
     });
+  }
+
+  // 8d''. PRC-M200 / DR4-4 — seal system-origin audit events (demo seed, jobs,
+  // async side-effects enqueued into audit_ingest_queue) into the keyed HMAC
+  // chain. Runs once at boot and then on an unref'd interval, single-flight per
+  // replica. Opt out with AUDIT_INGEST_DRAIN=0; interval via
+  // AUDIT_INGEST_DRAIN_INTERVAL_MS. Skipped under NODE_ENV=test (tests drive
+  // the drain's runOnce directly against a throwaway Postgres).
+  if (process.env.AUDIT_INGEST_DRAIN !== '0' && process.env.NODE_ENV !== 'test') {
+    const ingestDrain = createGatewayAuditIngestDrain({
+      logger: app.log,
+      intervalMs: Number(process.env.AUDIT_INGEST_DRAIN_INTERVAL_MS) || undefined,
+    });
+    if (ingestDrain) {
+      // Seal anything already queued before accepting traffic, then schedule.
+      await ingestDrain.runOnce().catch((error) => {
+        app.log.error(
+          { error: error instanceof Error ? error.message : String(error) },
+          'audit ingest drain boot run failed',
+        );
+      });
+      ingestDrain.start();
+      app.addHook('onClose', async () => {
+        ingestDrain.stop();
+      });
+    }
   }
 
   // 8e. Mount billing + tenant lifecycle (G-106). Tenant routes use a non-clashing
