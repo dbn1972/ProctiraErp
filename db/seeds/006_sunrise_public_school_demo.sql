@@ -31,6 +31,25 @@
 
 BEGIN;
 
+-- PRC-L461 / DR4-3: fail closed unless the caller explicitly opted into the
+-- privileged demo fixture. This DO block is the FIRST statement in the
+-- transaction, so with ON_ERROR_STOP the RAISE stops psql before any row is
+-- written. The GUC proctira.allow_demo_seed is transaction-local; the only
+-- sanctioned call sites set it for exactly one psql invocation:
+--   (a) tools/scripts/run-e2e-backend-ready.sh (ALLOW_SUNRISE_DEMO_SEED=1 ->
+--       PGOPTIONS="-c proctira.allow_demo_seed=on");
+--   (b) .github/workflows/e2e-backend-ready.yml step env PGOPTIONS, when a
+--       caller sets ALLOW_SUNRISE_DEMO_SEED=1.
+-- It is never persisted server-side (ALTER ROLE/DATABASE), so a stray psql
+-- cannot load the demo data.
+DO $$
+BEGIN
+  IF current_setting('proctira.allow_demo_seed', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'Sunrise demo seed is guarded: set proctira.allow_demo_seed=on (e.g. ALLOW_SUNRISE_DEMO_SEED=1 via run-e2e-backend-ready.sh) to apply 006_sunrise_public_school_demo.sql'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+END $$;
+
 DO $$ BEGIN
   PERFORM set_config('app.platform_admin', '1', true);
   PERFORM set_app_tenant_id('00000000-0000-4000-8000-00000000a501');
@@ -1874,54 +1893,54 @@ SET section_meeting_id = EXCLUDED.section_meeting_id,
     status = 'SCHEDULED',
     updated_at = now();
 
--- PRC-L461: these rows are deliberately unchained demo data (no chain_seq /
--- prev_hash / entry_hash — written directly, not through the audit service's
--- hashing path). That is only safe pre-chain-cutover legacy data for this
--- tenant. If a real chain already exists for the sunrise tenant by the time
--- this seed runs, these unchained rows would surface in ChainVerifier's
--- unchainedAfterCutover count (packages/backend/audit/src/audit-hash.ts) and
--- fail verification — so skip the insert entirely in that case rather than
--- silently poisoning an already-chained tenant's history.
+-- PRC-L461 / DR4-3: demo audit events are enqueued into audit_ingest_queue
+-- (migration 293), NOT inserted directly into audit_log_entries. The gateway
+-- audit-ingest drain (apps/api-gateway/src/audit-ingest-drain.ts) seals each
+-- queued row into the per-tenant keyed HMAC chain at boot and on an interval,
+-- so these demo events join the tamper-evident chain through the same path as
+-- any other system-origin event — never as unchained rows that would surface
+-- in the chain verifier's unchainedAfterCutover count. Enqueue is idempotent:
+-- a deterministic dedupe_key + the partial unique index on
+-- (tenant_id, dedupe_key) WHERE dedupe_key IS NOT NULL AND sealed_at IS NULL
+-- means a seed re-run before the drain seals does not create duplicates.
 DO $$
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM audit_log_entries
-     WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
-       AND chain_seq IS NOT NULL
-  ) THEN
-    RAISE NOTICE 'Sunrise tenant already has chained audit_log_entries — skipping unchained demo audit rows';
-  ELSE
-    INSERT INTO audit_log_entries (
-      id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-      ip_address, occurred_at, metadata
-    )
-    SELECT
-      uuid_generate_v5(
-        '6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid,
-        'sunrise-audit-mv-' || item.n::text
-      ),
-      '00000000-0000-4000-8000-00000000a501',
-      'institution',
-      '00000000-0000-4000-8000-00000000a551',
-      'UPDATE',
-      'priya-sharma',
-      item.actor,
-      '127.0.0.1',
-      item.occurred_at,
-      jsonb_build_object(
-        'title', item.title,
-        'tone', item.tone,
-        'institutionId', '00000000-0000-4000-8000-00000000a551'
-      )
-    FROM (
-      VALUES
-        (1, 'Attendance submitted for class sections'::text, 'green'::text, 'Priya Sharma'::text, TIMESTAMPTZ '2026-09-28 09:42:00+05:30'),
-        (2, 'Term 2 timetable published', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-24 11:00:00+05:30'),
-        (3, 'Room 204 flagged for repair in the facility register', 'amber', 'Sunil Rao', TIMESTAMPTZ '2026-09-22 15:10:00+05:30'),
-        (4, 'Class sections confirmed for the active academic period', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-18 10:00:00+05:30')
-    ) AS item(n, title, tone, actor, occurred_at)
-    ON CONFLICT (id) DO NOTHING;
-  END IF;
+  INSERT INTO audit_ingest_queue (
+    tenant_id, entity_type, entity_id, operation, user_id, actor_kind,
+    user_name, ip_address, occurred_at, metadata, dedupe_key
+  )
+  SELECT
+    '00000000-0000-4000-8000-00000000a501',
+    'institution',
+    '00000000-0000-4000-8000-00000000a551',
+    'UPDATE',
+    'priya-sharma',
+    'human',
+    item.actor,
+    '127.0.0.1',
+    item.occurred_at,
+    jsonb_build_object(
+      'title', item.title,
+      'tone', item.tone,
+      'institutionId', '00000000-0000-4000-8000-00000000a551'
+    ),
+    -- Deterministic idempotency key: a stable text derived from the fixed
+    -- demo row id, so a seed re-run before the drain seals these rows does
+    -- not enqueue duplicates (partial unique index on (tenant_id, dedupe_key)
+    -- WHERE dedupe_key IS NOT NULL AND sealed_at IS NULL).
+    uuid_generate_v5(
+      '6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid,
+      'sunrise-audit-mv-' || item.n::text
+    )::text
+  FROM (
+    VALUES
+      (1, 'Attendance submitted for class sections'::text, 'green'::text, 'Priya Sharma'::text, TIMESTAMPTZ '2026-09-28 09:42:00+05:30'),
+      (2, 'Term 2 timetable published', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-24 11:00:00+05:30'),
+      (3, 'Room 204 flagged for repair in the facility register', 'amber', 'Sunil Rao', TIMESTAMPTZ '2026-09-22 15:10:00+05:30'),
+      (4, 'Class sections confirmed for the active academic period', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-18 10:00:00+05:30')
+  ) AS item(n, title, tone, actor, occurred_at)
+  ON CONFLICT (tenant_id, dedupe_key) WHERE dedupe_key IS NOT NULL AND sealed_at IS NULL
+  DO NOTHING;
 END $$;
 
 -- Institution detail tabs: Class 9-B Mathematics gradebook, MATH curriculum, facility tree.
