@@ -183,8 +183,8 @@
   --secondary: hsl(210, 40%, 96%);
   --secondary-foreground: hsl(222, 47%, 31%);
   --muted: hsl(210, 40%, 96%);
-  --muted-foreground: hsl(215, 16%, 47%);
-  --accent: hsl(174, 62%, 40%);
+  --muted-foreground: hsl(215, 16%, 42%);
+  --accent: hsl(174, 62%, 28%);
   --accent-foreground: hsl(0, 0%, 100%);
   --destructive: hsl(0, 72%, 51%);
   --destructive-foreground: hsl(0, 0%, 100%);
@@ -195,13 +195,16 @@
   --ring: hsl(222, 47%, 31%);
 
   /* ---------- Semantic Status Colors ---------- */
-  --success: hsl(142, 71%, 35%);
+  /* PRC-M430: light status foregrounds darkened so each pill clears WCAG AA
+   * (>= 4.5:1) against its tint. The contrast gate's 7:1 target is unchanged;
+   * these pairs remain baselined in [4.5, 7) with their re-measured ratios. */
+  --success: hsl(142, 71%, 28%);
   --success-bg: hsl(142, 71%, 95%);
-  --warning: hsl(38, 92%, 50%);
+  --warning: hsl(38, 92%, 30%);
   --warning-bg: hsl(38, 92%, 95%);
-  --error: hsl(0, 72%, 51%);
+  --error: hsl(0, 72%, 46%);
   --error-bg: hsl(0, 72%, 96%);
-  --info: hsl(210, 92%, 45%);
+  --info: hsl(210, 92%, 41%);
   --info-bg: hsl(210, 92%, 96%);
 
   /* ---------- Chart Series (Recharts integration) ---------- */

@@ -245,20 +245,22 @@ describe('evaluatePairs', () => {
 
 describe('isFailureWaivedByBaseline', () => {
   it('waives a row that exists in the baseline at or above the recorded ratio', () => {
-    const baseline = new Map([['error / error-bg', 4.23]]);
+    // PRC-M430: use a ratio above the 4.5:1 AA floor so this case exercises
+    // the baseline-regression rule (not the separate non-waivable floor).
+    const baseline = new Map([['error / error-bg', 4.93]]);
     const row = {
       name: 'error / error-bg',
-      ratio: 4.24, // slightly higher than baseline → still allow-listed
+      ratio: 4.95, // slightly higher than baseline and above AA → still allow-listed
       passes: false,
     };
     expect(gate.isFailureWaivedByBaseline(row, baseline)).toBe(true);
   });
 
   it('does NOT waive a row whose ratio regresses below baseline', () => {
-    const baseline = new Map([['error / error-bg', 4.23]]);
+    const baseline = new Map([['error / error-bg', 4.93]]);
     const row = {
       name: 'error / error-bg',
-      ratio: 4.0, // worse than baseline → MUST fail the gate
+      ratio: 4.7, // worse than baseline (but still above AA) → MUST fail the gate
       passes: false,
     };
     expect(gate.isFailureWaivedByBaseline(row, baseline)).toBe(false);
@@ -278,6 +280,72 @@ describe('isFailureWaivedByBaseline', () => {
     expect(gate.isFailureWaivedByBaseline({ name: 'x', ratio: 1, passes: false }, undefined)).toBe(
       false,
     );
+  });
+
+  // PRC-M430 / Topic 23: a baselined pair may never sit below WCAG AA (4.5:1),
+  // even if the recorded baseline ratio would otherwise waive it. The gate can
+  // only tighten toward 7:1; it never regresses below AA.
+  it('does NOT waive a baselined row that sits below the 4.5:1 AA floor', () => {
+    const baseline = new Map([['warning / warning-bg', 1.98]]);
+    const row = {
+      name: 'warning / warning-bg',
+      ratio: 1.98, // matches the recorded (pre-M430) value but is below AA
+      passes: false,
+    };
+    expect(gate.isFailureWaivedByBaseline(row, baseline)).toBe(false);
+  });
+
+  it('still waives a baselined row that clears the AA floor but not 7:1', () => {
+    const baseline = new Map([['warning / warning-bg', 4.98]]);
+    const row = {
+      name: 'warning / warning-bg',
+      ratio: 5.01, // >= AA floor and >= baseline → allow-listed below the 7:1 target
+      passes: false,
+    };
+    expect(gate.isFailureWaivedByBaseline(row, baseline)).toBe(true);
+  });
+});
+
+describe('MIN_AA_FLOOR (PRC-M430)', () => {
+  it('exposes the non-waivable WCAG 2.1 AA floor at 4.5:1', () => {
+    expect(gate.MIN_AA_FLOOR).toBe(4.5);
+  });
+
+  it('keeps the 7:1 target above the AA floor (gate only tightens)', () => {
+    expect(gate.MIN_CONTRAST_RATIO).toBeGreaterThan(gate.MIN_AA_FLOOR);
+  });
+});
+
+describe('committed contrast baseline (PRC-M430)', () => {
+  // This is the failing-first witness for M430: on the pre-fix baseline the
+  // light pairs sit at 3.02/3.45/1.98/4.23/4.23 (all below 4.5), so this
+  // assertion fails on base. After M430 every baselined pair clears AA.
+  it('lists no pair below the 4.5:1 AA floor in either mode', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname, resolve } = await import('node:path');
+    const here = dirname(fileURLToPath(import.meta.url));
+    const baselinePath = resolve(here, '..', 'check-contrast-baseline.json');
+    const parsed = JSON.parse(await readFile(baselinePath, 'utf8'));
+    const offenders: Array<{ mode: string; name: string; ratio: number }> = [];
+    for (const mode of ['light', 'dark'] as const) {
+      for (const row of parsed?.baseline?.[mode] ?? []) {
+        if (typeof row?.ratio === 'number' && row.ratio < gate.MIN_AA_FLOOR) {
+          offenders.push({ mode, name: row.name, ratio: row.ratio });
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps the baseline gate threshold at 7.0 (never lowered)', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname, resolve } = await import('node:path');
+    const here = dirname(fileURLToPath(import.meta.url));
+    const baselinePath = resolve(here, '..', 'check-contrast-baseline.json');
+    const parsed = JSON.parse(await readFile(baselinePath, 'utf8'));
+    expect(parsed.threshold).toBe(7.0);
   });
 });
 
