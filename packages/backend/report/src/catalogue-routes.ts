@@ -14,12 +14,24 @@ import {
 import type { CatalogueService } from './catalogue-service.js';
 import { formatApiLabel, resolveReportKey, type CatalogueReportKey } from './catalogue.js';
 import { canAccessReport, isReportManager, isReportStaff } from './report-access.js';
+import {
+  NoopReportAuditPort,
+  type ReportAuditEvent,
+  type ReportAuditPort,
+} from './report-audit.js';
 import type { ReportArtifactRecord } from './report-store.js';
 import { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
 
 export interface CatalogueRoutesOptions {
   service: CatalogueService;
   prefix?: string;
+  /**
+   * PRC-L340 (topic 5): audit sink for report GENERATE / DOWNLOAD / SCHEDULE
+   * events. Records field names + the actor and tenant, never PHI values. This
+   * is event emission only (the durable keyed hash chain is B07). Defaults to a
+   * no-op sink so the catalogue keeps working when audit is not wired.
+   */
+  audit?: ReportAuditPort;
   /**
    * PRC-L338 (topic 1): trusted public API base used to build ABSOLUTE report
    * download links (e.g. `https://app.example`). It comes from deployment
@@ -191,6 +203,21 @@ export function registerCatalogueRoutes(
   // PUBLIC_BASE_URL). Never read from the request, so Host spoofing cannot
   // repoint a download link.
   const trustedApiBase = resolveTrustedApiBase(options.publicApiBaseUrl);
+  // PRC-L340: audit sink for generate/download/schedule. Default no-op.
+  const audit = options.audit ?? new NoopReportAuditPort();
+
+  // PRC-L340: emit an audit event without ever failing the user operation.
+  // Audit here is event emission (not the same-tx keyed chain, which is B07),
+  // so a sink error is logged and swallowed rather than taking down a generate,
+  // download or schedule-create that already succeeded. Awaited (not
+  // fire-and-forget) so the event is recorded before the response returns.
+  async function emitAudit(request: FastifyRequest, event: ReportAuditEvent): Promise<void> {
+    try {
+      await audit.record(event);
+    } catch (err: unknown) {
+      request.log.warn({ err, action: event.action }, 'report audit event emission failed');
+    }
+  }
 
   fastify.get(`${prefix}/catalogue`, async (_request, reply) => {
     return reply.send({ data: service.listCatalogue() });
@@ -239,6 +266,16 @@ export function registerCatalogueRoutes(
     }
     try {
       const result = await service.generate(tenantId, resolveUserId(request), parsed.data);
+      // PRC-L340: audit the generate action (field names + ids, no PHI values).
+      await emitAudit(request, {
+        tenantId,
+        actorId: resolveUserId(request),
+        action: 'report.generate',
+        reportKey: result.artifact.reportKey,
+        artifactId: result.artifact.id,
+        runId: result.run.id,
+        format: result.artifact.format,
+      });
       return reply.status(201).send(service.toInsightsRun(result, resolveUserId(request)));
     } catch (error: unknown) {
       return sendError(reply, error);
@@ -382,6 +419,15 @@ export function registerCatalogueRoutes(
           });
         }
         const file = await service.downloadBytes(tenantId, params.data.id);
+        // PRC-L340: audit the download action (field names + ids, no PHI values).
+        await emitAudit(request, {
+          tenantId,
+          actorId: resolveUserId(request),
+          action: 'report.download',
+          reportKey: file.artifact.reportKey,
+          artifactId: file.artifact.id,
+          format: file.artifact.format,
+        });
         return reply
           .status(200)
           .header('Content-Type', file.contentType)
@@ -427,6 +473,16 @@ export function registerCatalogueRoutes(
     }
     try {
       const schedule = await service.createSchedule(tenantId, resolveUserId(request), parsed.data);
+      // PRC-L340: audit the schedule-create action. Recipients are a delivery
+      // destination and are deliberately NOT echoed into the audit event.
+      await emitAudit(request, {
+        tenantId,
+        actorId: resolveUserId(request),
+        action: 'report.schedule.create',
+        reportKey: schedule.reportKey,
+        scheduleId: schedule.id,
+        format: schedule.format,
+      });
       return reply.status(201).send(formatSchedule(schedule));
     } catch (error: unknown) {
       return sendError(reply, error);

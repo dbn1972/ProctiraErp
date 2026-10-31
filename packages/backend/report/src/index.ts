@@ -120,3 +120,7 @@ export type { DashboardRole, RoleDashboard } from './dashboards.js';
 export { InMemoryScheduleDelivery, NoopScheduleDelivery } from './schedule-delivery.js';
 export type { ScheduleDeliveryPort, ScheduleDeliveryRequest } from './schedule-delivery.js';
 export { REPORT_SCHEDULE_LEASE_MS, REPORT_SCHEDULE_RETRY_MS } from './catalogue-service.js';
+
+// PRC-L340: report audit event emission (field names, not PHI values).
+export { NoopReportAuditPort, RecordingReportAuditPort } from './report-audit.js';
+export type { ReportAuditAction, ReportAuditEvent, ReportAuditPort } from './report-audit.js';

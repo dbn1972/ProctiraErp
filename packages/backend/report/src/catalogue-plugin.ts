@@ -5,6 +5,7 @@ import { createReportBlobStore, type ReportBlobStore } from './blob-store.js';
 import { registerCatalogueRoutes } from './catalogue-routes.js';
 import { CatalogueService } from './catalogue-service.js';
 import { createReportStore } from './create-report-store.js';
+import type { ReportAuditPort } from './report-audit.js';
 import type { ReportStore } from './report-store.js';
 import { createReportScheduler, type ReportScheduler } from './scheduler.js';
 import { prepareReportDownloadSigningAtStartup } from './signed-download.js';
@@ -22,6 +23,13 @@ export interface ReportCataloguePluginOptions {
    * PUBLIC_API_BASE_URL / PUBLIC_BASE_URL (resolved in the routes).
    */
   publicApiBaseUrl?: string;
+  /**
+   * PRC-L340 (topic 5): audit sink for report GENERATE / DOWNLOAD / SCHEDULE
+   * events. The gateway wires a real sink; defaults to a no-op so the catalogue
+   * works when audit is not configured. Event emission only — not the durable
+   * keyed hash chain (B07).
+   */
+  audit?: ReportAuditPort;
 }
 
 declare module 'fastify' {
@@ -56,6 +64,7 @@ export const reportCataloguePlugin = fp(
       service,
       prefix: options.prefix ?? '/reports',
       publicApiBaseUrl: options.publicApiBaseUrl,
+      audit: options.audit,
     });
 
     if (!options.disableScheduler) {
