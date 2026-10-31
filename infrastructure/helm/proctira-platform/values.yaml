@@ -1222,6 +1222,10 @@ dr:
       # COMPLIANCE with retainDays >= retentionDays (fail-closed in template).
       objectLock:
         mode: '' # GOVERNANCE | COMPLIANCE | '' (disabled)
+        # PRC-M624: UTC date (YYYY-MM-DD) up to which Object Lock uses
+        # GOVERNANCE; on/after it pg-backup.sh switches to COMPLIANCE. Empty
+        # disables the switch (the static `mode` above is used as-is).
+        governanceUntil: ''
         retainDays: 0
   phiRetention:
     enabled: true

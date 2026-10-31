@@ -458,6 +458,9 @@ dr:
   image:
     tag: sha-pending
   backup:
+    # PRC-M624 (DECISION_REGISTER ## 41): 35-day production retention floor for
+    # both the on-volume prune and the independent offsite Object Lock.
+    retentionDays: 35
     encrypt:
       enabled: true
     offsite:
@@ -466,7 +469,13 @@ dr:
       uri: s3://proctira-prod-pg-backups/logical/
       sse: AES256
       objectLock:
+        # PRC-M624: GOVERNANCE for the first 30 days after go-live, then
+        # COMPLIANCE. pg-backup.sh flips the mode once today's UTC date reaches
+        # governanceUntil (set it to go-live + 30 days). While governanceUntil
+        # is empty the pipeline keeps this GOVERNANCE value (WAITING_ON_INPUT:
+        # the production go-live date is not yet known).
         mode: GOVERNANCE
-        retainDays: 30
+        governanceUntil: '' # YYYY-MM-DD; go-live + 30 days
+        retainDays: 35
   phiRetention:
     apply: true
