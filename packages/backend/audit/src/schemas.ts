@@ -74,9 +74,24 @@ export type AuditEntryParams = Static<typeof AuditEntryParamsSchema>;
 
 /**
  * Schema for setting retention configuration.
+ *
+ * PRC-L256 / PRC-L295: the platform floor for audit retention is 12 months and a
+ * tenant cannot lower it. The floor is enforced at three layers so it cannot be
+ * bypassed: the DB CHECK (`db/sql/243_audit_retention_floor.sql`,
+ * `CHECK (retention_months >= 12)`), the server service floor
+ * (`AuditService.setRetentionConfig`) and this API minimum. Previously this schema
+ * advertised `minimum: 1`, so the API contract accepted a below-floor value and
+ * rejection only happened deeper in the service; the minimum now matches the DB
+ * CHECK and the web UI minimum (AUDIT_RETENTION_HARD_FLOOR_MONTHS = 12).
  */
+export const AUDIT_RETENTION_FLOOR_MONTHS = 12;
+export const AUDIT_RETENTION_MAX_MONTHS = 120;
+
 export const SetRetentionConfigSchema = Type.Object({
-  retentionMonths: Type.Number({ minimum: 1, maximum: 120 }),
+  retentionMonths: Type.Number({
+    minimum: AUDIT_RETENTION_FLOOR_MONTHS,
+    maximum: AUDIT_RETENTION_MAX_MONTHS,
+  }),
   archivalEnabled: Type.Boolean(),
   archivalDestination: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
 });
