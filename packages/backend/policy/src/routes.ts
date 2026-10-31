@@ -18,6 +18,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { PolicyActorRequiredError } from './audit-port.js';
+import { assertCanAuthorScope, assertCanManagePolicy, PolicyForbiddenError } from './authz.js';
 import type {
   PolicyEntity,
   PolicyVersionEntity,
@@ -67,6 +69,37 @@ function formatPolicyResponse(entity: PolicyEntity) {
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };
+}
+
+/**
+ * PRC-M608: resolve the REAL verified actor for a mutating, audited policy
+ * operation. Fail-closed: if the verified principal has no `sub`, throw rather
+ * than attributing the audit entry to the literal `'system'` actor.
+ */
+function requireActor(request: FastifyRequest): string {
+  const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
+  const sub = typeof user?.sub === 'string' ? user.sub.trim() : '';
+  if (!sub) {
+    throw new PolicyActorRequiredError();
+  }
+  return sub;
+}
+
+/**
+ * Translate the in-package guard/actor errors to an HTTP reply. Returns the
+ * reply when it handled the error, or `undefined` when the caller should
+ * continue its own error handling (AppError / rethrow).
+ */
+function handleAuthError(error: unknown, reply: FastifyReply): FastifyReply | undefined {
+  if (error instanceof PolicyActorRequiredError || error instanceof PolicyForbiddenError) {
+    return reply
+      .status(error.statusCode)
+      .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+  }
+  if (error instanceof AppError) {
+    return reply.status(error.statusCode).send(error.toJSON());
+  }
+  return undefined;
 }
 
 /**
@@ -137,12 +170,16 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        const policy = await policyService.create(tenantId, result.data);
+        // PRC-M606: only a tenant admin (or platform admin) may create a policy.
+        assertCanManagePolicy(request);
+        // PRC-M610: only a platform admin may author a platform-scope policy.
+        assertCanAuthorScope(request, result.data.scope);
+        const actor = requireActor(request);
+        const policy = await policyService.create(tenantId, result.data, actor);
         return reply.status(201).send(formatPolicyResponse(policy));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const handled = handleAuthError(error, reply);
+        if (handled) return handled;
         throw error;
       }
     },
@@ -188,12 +225,24 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        const policy = await policyService.update(tenantId, paramsResult.data.id, bodyResult.data);
+        // PRC-M606: only a tenant admin (or platform admin) may update a policy.
+        assertCanManagePolicy(request);
+        // PRC-M610: editing an existing platform-scope policy is platform-admin
+        // only. Scope is immutable on update, so the guard reads the stored
+        // policy's scope; a tenant admin editing a platform-scope policy is 403.
+        const existing = await policyService.getById(tenantId, paramsResult.data.id);
+        assertCanAuthorScope(request, existing.scope);
+        const actor = requireActor(request);
+        const policy = await policyService.update(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+          actor,
+        );
         return reply.status(200).send(formatPolicyResponse(policy));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const handled = handleAuthError(error, reply);
+        if (handled) return handled;
         throw error;
       }
     },
@@ -229,12 +278,14 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        const policy = await policyService.activate(tenantId, paramsResult.data.id);
+        // PRC-M630: policy lifecycle (activate) requires tenant admin.
+        assertCanManagePolicy(request);
+        const actor = requireActor(request);
+        const policy = await policyService.activate(tenantId, paramsResult.data.id, actor);
         return reply.status(200).send(formatPolicyResponse(policy));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const handled = handleAuthError(error, reply);
+        if (handled) return handled;
         throw error;
       }
     },
@@ -270,12 +321,14 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        const policy = await policyService.deactivate(tenantId, paramsResult.data.id);
+        // PRC-M630: policy lifecycle (deactivate) requires tenant admin.
+        assertCanManagePolicy(request);
+        const actor = requireActor(request);
+        const policy = await policyService.deactivate(tenantId, paramsResult.data.id, actor);
         return reply.status(200).send(formatPolicyResponse(policy));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const handled = handleAuthError(error, reply);
+        if (handled) return handled;
         throw error;
       }
     },
@@ -523,12 +576,16 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        const assignment = await policyService.assignPolicy(tenantId, bodyResult.data);
+        // PRC-M609: assigning a policy to a scope requires tenant admin.
+        assertCanManagePolicy(request);
+        // PRC-M610: assigning to the platform target is platform-admin only.
+        assertCanAuthorScope(request, bodyResult.data.targetType);
+        const actor = requireActor(request);
+        const assignment = await policyService.assignPolicy(tenantId, bodyResult.data, actor);
         return reply.status(201).send(formatAssignmentResponse(assignment));
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const handled = handleAuthError(error, reply);
+        if (handled) return handled;
         throw error;
       }
     },
@@ -614,16 +671,19 @@ export async function registerPolicyRoutes(
       }
 
       try {
+        // PRC-M609/M630: removing a policy assignment requires tenant admin.
+        assertCanManagePolicy(request);
+        const actor = requireActor(request);
         await policyService.removeAssignment(
           tenantId,
           request.params.id,
           request.params.assignmentId,
+          actor,
         );
         return reply.status(204).send();
       } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
+        const handled = handleAuthError(error, reply);
+        if (handled) return handled;
         throw error;
       }
     },
