@@ -164,6 +164,7 @@ import {
   createStudentRepository,
   studentPlugin,
 } from '@proctira/backend-student';
+import type { RolesTxnAuditPort } from '@proctira/backend-tenant';
 import {
   createTimetableRepository,
   createTimetableOpsStore,
@@ -179,7 +180,7 @@ import {
   workflowPlugin,
 } from '@proctira/backend-workflow';
 import { BusinessRuleError, ConflictError } from '@proctira/common';
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
+import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import { createStorageAdapter } from '@proctira/storage';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
@@ -1538,12 +1539,47 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // G-910: tenant-scoped roles/users/settings for the web /admin console.
       // Postgres (control_plane_documents, RLS) when DATABASE_URL, else in-memory.
+      // PRC-L264: when a shared Pg pool is available, give the roles repository a
+      // same-transaction audit port so the high-risk role/user audit row is
+      // written inside the mutation transaction (via @proctira/backend-audit's
+      // appendAuditEntryOnClient on the repository's client). This replaces the
+      // removed browser-emitted audit and closes the post-hoc atomicity gap.
+      const tenantAdminTxnAuditPort: RolesTxnAuditPort | undefined = getSharedPgPool()
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
       await scope.register(tenantAdminPlugin, {
         prefix: '/tenant',
+        txnAuditPort: tenantAdminTxnAuditPort,
         onAudit: async (event) => {
           // PRC-H101: a role edit must change gateway allow/deny promptly. Drop the
           // cached custom roles for this tenant so the next request reloads them.
           if (event.entityType === 'role') invalidateTenantCustomRoles(event.tenantId);
+          // PRC-L264: when the durable audit row was already written in the
+          // mutation transaction (Postgres repository), do NOT write a second
+          // post-hoc row — only the side effect above runs. The post-hoc
+          // durable write stays for the in-memory path.
+          if (event.metadata?.auditPersistedInTxn) return;
           const auditService = (
             scope as unknown as {
               auditService?: { recordAudit: (input: Record<string, unknown>) => Promise<unknown> };
