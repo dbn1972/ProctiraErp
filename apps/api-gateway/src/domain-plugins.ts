@@ -165,6 +165,7 @@ import {
   createStudentRepository,
   studentPlugin,
 } from '@proctira/backend-student';
+import type { StudentTxnAuditPort } from '@proctira/backend-student';
 import type { RolesTxnAuditPort } from '@proctira/backend-tenant';
 import {
   createTimetableRepository,
@@ -947,7 +948,38 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // G-914 360 routes share the /students prefix (photo, id-card, siblings,
       // consents, discipline, attendance-heatmap).
       // W2-JOB-06: durable import queue when QUEUE_BACKEND / RABBITMQ_URL set.
-      const repository = createStudentRepository();
+      // PRC-M013: when a shared Pg pool is available, give the student repository
+      // a same-transaction audit port so a student PII mutation (update/delete)
+      // writes its durable hash-chained audit row inside the mutation transaction
+      // (via @proctira/backend-audit's appendAuditEntryOnClient on the mutation's
+      // own client). A forced audit failure rolls the student change back, so no
+      // unaudited durable student PII mutation can exist. Mirrors the staff
+      // StaffTxnAuditPort / tenant-admin RolesTxnAuditPort.
+      const studentTxnAuditPort: StudentTxnAuditPort | undefined = getSharedPgPool()
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
+      const repository = createStudentRepository({ txnAuditPort: studentTxnAuditPort });
       const importHandle = await createStudentImportQueueFromEnv();
       if (importHandle) {
         scope.addHook('onClose', async () => {
