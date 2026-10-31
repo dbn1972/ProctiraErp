@@ -19,10 +19,21 @@ describe('Policy Routes', () => {
     repository = new InMemoryPolicyRepository();
     app = Fastify();
 
-    // Add tenantId decorator to simulate tenant resolution
+    // Add tenantId decorator to simulate tenant resolution, plus a verified
+    // principal. B08 (PRC-M606/M609/M630) added in-package role guards and
+    // (PRC-M608) real-actor audit, so mutating routes now require a verified
+    // tenant admin. The default principal here is a tenant admin so the
+    // pre-existing CRUD behaviour is unchanged; the authz-specific cases in
+    // authz.test.ts drive the non-admin / platform-scope paths.
     app.decorateRequest('tenantId', '');
+    app.decorateRequest('user', null);
     app.addHook('onRequest', async (request) => {
-      (request as unknown as { tenantId: string }).tenantId = tenantId;
+      const r = request as unknown as {
+        tenantId: string;
+        user: { sub: string; roles: { roleId: string }[] };
+      };
+      r.tenantId = tenantId;
+      r.user = { sub: 'user-admin', roles: [{ roleId: 'tenant_admin' }] };
     });
 
     await app.register(policyPlugin, { repository });

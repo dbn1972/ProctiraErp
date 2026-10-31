@@ -977,7 +977,8 @@ jobs:
             packages/shared/queue-abstraction/src/__tests__/rabbitmq-delay.live.test.ts,
             packages/shared/queue-abstraction/src/__tests__/rabbitmq-reconnect.live.test.ts,
             packages/shared/queue-abstraction/src/__tests__/sqs-localstack.live.test.ts,
-            packages/shared/tenant/src/__tests__/tenant-guc-scope.live.test.ts
+            packages/shared/tenant/src/__tests__/tenant-guc-scope.live.test.ts,
+            tools/migrations/src/generate-uuids.live.test.ts
           NODE_ENV: test
 
       - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)

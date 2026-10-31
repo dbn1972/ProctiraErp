@@ -556,7 +556,7 @@ describe('W2-JOB-08 / W2-JOB-09 scheduler lease + delivery', () => {
     expect(second).toEqual([]);
   });
 
-  it('tickDueSchedules delivers to recipients after a successful run', async () => {
+  it('tickDueSchedules hands recipients to the delivery port after a successful run', async () => {
     const { service } = makeService();
     const delivery = service.getDeliveryPort() as InMemoryScheduleDelivery;
     const schedule = await service.createSchedule(TENANT_A, 'sched', {
@@ -574,7 +574,9 @@ describe('W2-JOB-08 / W2-JOB-09 scheduler lease + delivery', () => {
     const tick = await service.tickDueSchedules(new Date());
     expect(tick.due).toBe(1);
     expect(tick.completed).toBe(1);
-    expect(tick.delivered).toBe(1);
+    // PRC-M338: the in-memory port sends nothing, so it is not counted as delivered.
+    expect(tick.delivered).toBe(0);
+    expect(tick.undelivered).toBe(1);
     expect(delivery.sent).toHaveLength(1);
     expect(delivery.sent[0]!.recipients).toEqual(['office@school.test', 'principal@school.test']);
     expect(delivery.sent[0]!.downloadUrl).toContain('/api/v1/reports/artifacts/');

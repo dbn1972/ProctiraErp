@@ -1,60 +1,61 @@
 {
-  "description": "Baselined contrast violations for the semantic-token contrast gate (Requirement 37 AC 2 / Task 56.2). The gate requires every semantic-token pair to clear 7:1 in both light and dark modes. The pairs listed below are below 7:1 today; the gate enforces that they do NOT regress further while they are tightened in follow-up tasks. To remove a row, raise the offending token's contrast in packages/ui/styles/theme.css and delete the entry. The threshold is intentionally a couple of hundredths under the measured value so the gate is robust to floating-point noise. See tools/scripts/README.md.",
-  "generatedAt": "2025-01-15",
+  "description": "Baselined contrast pairs for the semantic-token contrast gate (Requirement 37 AC 2 / Task 56.2). The gate requires every semantic-token pair to clear 7:1 in both light and dark modes. The pairs listed below are below 7:1 today; the gate enforces that they do NOT regress below the recorded ratio while they are tightened toward 7:1 in follow-up tasks. PRC-M430 (Topic 23) raised every baselined pair to meet WCAG 2.1 AA (>= 4.5:1) and added a NON-WAIVABLE 4.5:1 floor in check-contrast.mjs: a baselined pair can never drop below AA. The 7:1 gate threshold is unchanged. To remove a row, raise the offending token's contrast in packages/ui/styles/theme.css until it clears 7:1, then delete the entry. The threshold is intentionally a couple of hundredths under the measured value so the gate is robust to floating-point noise. See tools/scripts/README.md.",
+  "generatedAt": "2026-10-31",
   "threshold": 7.0,
+  "aaFloor": 4.5,
   "baseline": {
     "light": [
       {
         "name": "accent-foreground / accent",
-        "ratio": 3.02,
-        "note": "Teal accent (40% L) vs white text. Tighten by darkening --accent or using neutral-900 as foreground."
+        "ratio": 5.59,
+        "note": "PRC-M430: --accent darkened 40%->28% L. Measured 5.61:1 (AA). Reach 7:1 by darkening --accent further or using neutral-900 as foreground."
       },
       {
         "name": "muted-foreground / muted",
-        "ratio": 4.29,
-        "note": "Default shadcn muted token. Increase --muted-foreground darkness."
+        "ratio": 5.12,
+        "note": "PRC-M430: --muted-foreground darkened 47%->42% L. Measured 5.15:1 (AA). Reach 7:1 with more darkening."
       },
       {
         "name": "success / success-bg",
-        "ratio": 3.45,
-        "note": "Status pill green-on-tint. Darken --success or lighten --success-bg."
+        "ratio": 5.02,
+        "note": "PRC-M430: --success darkened 35%->28% L. Measured 5.04:1 (AA). Reach 7:1 by darkening --success or lightening --success-bg."
       },
       {
         "name": "warning / warning-bg",
-        "ratio": 1.98,
-        "note": "Amber on tint — known weak pair; revisit when redesigning status pills."
+        "ratio": 4.98,
+        "note": "PRC-M430: --warning darkened 50%->30% L (amber is a hard hue). Measured 5.01:1 (AA). Reach 7:1 by darkening --warning further."
       },
       {
         "name": "error / error-bg",
-        "ratio": 4.23,
-        "note": "Red on tint. Darken --error to reach 7:1."
+        "ratio": 4.93,
+        "note": "PRC-M430: --error darkened 51%->46% L. Measured 4.95:1 (AA). Reach 7:1 by darkening --error."
       },
       {
         "name": "info / info-bg",
-        "ratio": 4.23,
-        "note": "Blue on tint. Darken --info to reach 7:1."
+        "ratio": 4.91,
+        "note": "PRC-M430: --info darkened 45%->41% L. Measured 4.93:1 (AA). Reach 7:1 by darkening --info."
       }
     ],
     "dark": [
       {
         "name": "primary-foreground / primary",
-        "ratio": 4.93,
-        "note": "Light primary (52% L) with white text. Lighten --primary further or darken --primary-foreground."
+        "ratio": 4.91,
+        "note": "Light primary (52% L) with white text. Measured 4.93:1 (AA). Reach 7:1 by lightening --primary further or darkening --primary-foreground."
       },
       {
         "name": "muted-foreground / muted",
-        "ratio": 6.58,
-        "note": "Just under 7:1 — bump --muted-foreground lightness."
+        "ratio": 6.56,
+        "note": "Just under 7:1 (6.58 measured) — bump --muted-foreground lightness."
       },
       {
         "name": "error / error-bg",
-        "ratio": 5.4,
-        "note": "Lighten --error or darken --error-bg."
+        "ratio": 5.38,
+        "note": "Measured 5.41:1 (AA). Lighten --error or darken --error-bg to reach 7:1."
       },
       {
         "name": "info / info-bg",
-        "ratio": 5.63,
-        "note": "Lighten --info or darken --info-bg."
+        "ratio": 5.61,
+        "note": "Measured 5.63:1 (AA). Lighten --info or darken --info-bg to reach 7:1."
       }
     ]
   }

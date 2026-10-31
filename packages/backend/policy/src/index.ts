@@ -79,3 +79,20 @@ export type {
 // Routes
 export { registerPolicyRoutes } from './routes.js';
 export type { PolicyRoutesOptions } from './routes.js';
+
+// Authorization guards (PRC-M606/M609/M630/M610)
+export {
+  assertCanAuthorScope,
+  assertCanManagePolicy,
+  isPlatformAdmin,
+  isTenantAdmin,
+  PolicyForbiddenError,
+} from './authz.js';
+
+// Audit port (PRC-M608)
+export {
+  PolicyActorRequiredError,
+  type PolicyAuditAction,
+  type PolicyAuditEvent,
+  type PolicyAuditPort,
+} from './audit-port.js';

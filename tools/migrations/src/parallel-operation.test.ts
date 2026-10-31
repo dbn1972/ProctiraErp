@@ -4,7 +4,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ParallelOperationManager, DEFAULT_ROUTING, RoutingConfig } from './parallel-operation.js';
+import {
+  ParallelOperationManager,
+  DEFAULT_ROUTING,
+  RoutingConfig,
+  runParallelOperationCheck,
+} from './parallel-operation.js';
 import { MigrationConfig } from './types.js';
 
 const mockConfig: MigrationConfig = {
@@ -296,5 +301,59 @@ describe('parallel-operation', () => {
     it('should list all source tables as legacy-only initially', () => {
       expect(DEFAULT_ROUTING.legacyOnlyTables.length).toBeGreaterThan(0);
     });
+  });
+});
+
+/**
+ * PRC-M423 — "legacy MySQL health" used to run SELECT 1 on the same Postgres pool as the
+ * new system. The probe now runs on its own mysql2 pool built from config.mysql.
+ */
+describe('PRC-M423 legacy health probes MySQL, not the Postgres pool', () => {
+  it('checkLegacyHealth queries the legacy pool and reports its outcome', async () => {
+    const queries: string[] = [];
+    const legacy = {
+      query: async (sql: string) => {
+        queries.push(sql);
+        return [[{ 1: 1 }], []];
+      },
+      end: async () => undefined,
+    };
+    const manager = new ParallelOperationManager(mockConfig);
+    const health = await manager.checkLegacyHealth(legacy);
+    expect(queries).toEqual(['SELECT 1']);
+    expect(health).toMatchObject({ system: 'legacy_mysql', status: 'healthy', errorRate: 0 });
+
+    const down = await manager.checkLegacyHealth({
+      query: async () => {
+        throw new Error('ECONNREFUSED 127.0.0.1:3306');
+      },
+      end: async () => undefined,
+    });
+    expect(down.status).toBe('unavailable');
+  });
+
+  it('runParallelOperationCheck opens the legacy pool from config.mysql', async () => {
+    const opened: unknown[] = [];
+    let ended = false;
+    const result = await runParallelOperationCheck(
+      { ...mockConfig, pg: { ...mockConfig.pg, host: '127.0.0.1', port: 1 } },
+      {
+        createLegacyPool: (mysql) => {
+          opened.push(mysql);
+          return {
+            query: async () => {
+              throw new Error('legacy down');
+            },
+            end: async () => {
+              ended = true;
+            },
+          };
+        },
+      },
+    );
+    expect(opened).toEqual([mockConfig.mysql]);
+    expect(ended).toBe(true);
+    // Postgres on port 1 is unreachable too; the legacy outcome is reported on its own.
+    expect(JSON.stringify(result.warnings)).toContain('Legacy system is unavailable');
   });
 });
