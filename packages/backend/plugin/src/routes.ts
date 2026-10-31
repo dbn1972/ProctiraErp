@@ -27,7 +27,6 @@ import {
   InstallPluginSchema,
   PluginParamsSchema,
   PluginInstallParamsSchema,
-  PluginListQuerySchema,
   UninstallPluginSchema,
   type RegisterPluginInput,
   type InstallPluginInput,
@@ -190,7 +189,7 @@ export async function registerPluginRoutes(
       request: FastifyRequest<{ Querystring: PluginListQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query as PluginListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
