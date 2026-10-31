@@ -57,11 +57,12 @@ beforeEach(async () => {
   app.addHook('onRequest', async (request) => {
     const r = request as unknown as FastifyRequest & {
       tenantId: string;
-      user: { roles: { roleId: string }[] };
+      user: { sub: string; roles: { roleId: string }[] };
     };
     r.tenantId = (request.headers['x-tenant-id'] as string) || '';
     const roleHeader = (request.headers['x-roles'] as string) || '';
     r.user = {
+      sub: (request.headers['x-sub'] as string) || 'user-1',
       roles: roleHeader
         .split(',')
         .map((s) => s.trim())

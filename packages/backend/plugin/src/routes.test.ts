@@ -44,7 +44,8 @@ beforeEach(async () => {
   app.addHook('onRequest', async (request) => {
     (request as unknown as { tenantId: string }).tenantId =
       (request.headers['x-tenant-id'] as string) || '';
-    (request as unknown as { user: { roles: { roleId: string }[] } }).user = {
+    (request as unknown as { user: { sub: string; roles: { roleId: string }[] } }).user = {
+      sub: 'user-admin-1',
       roles: [{ roleId: 'platform_admin' }],
     };
   });
