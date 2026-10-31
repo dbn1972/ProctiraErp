@@ -22,11 +22,17 @@ export interface CatalogueRoutesOptions {
   prefix?: string;
 }
 
+/**
+ * PRC-L339 (topic 4): the caller tenant is taken ONLY from the verified
+ * principal — the gateway's decorated `request.tenantId` (set from the verified
+ * JWT/credential) or, failing that, the principal's own `tenantId` claim. A
+ * client-supplied `x-tenant-id` header is never trusted here; the gateway
+ * strips inbound tenant headers before domain plugins run, and honouring it as
+ * a fallback would let a verified tenant-B caller spoof tenant A.
+ */
 function resolveTenantId(request: FastifyRequest): string | undefined {
   const fromRequest = (request as FastifyRequest & { tenantId?: string }).tenantId;
   if (fromRequest) return fromRequest;
-  const header = request.headers['x-tenant-id'];
-  if (typeof header === 'string' && header.length > 0) return header;
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
   return user?.tenantId;
 }
