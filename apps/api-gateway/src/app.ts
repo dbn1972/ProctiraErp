@@ -139,6 +139,8 @@ import {
   createGatewayRbacRegistry,
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
+  AUDIT_READ_RESOURCE,
+  isAuditLogsReadPath,
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
@@ -1370,8 +1372,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       resource = gate.guard.resource;
       action = gate.guard.action;
     } else {
-      resource = resourceForApiPath(url);
-      if (!resource) return;
+      // PRC-L280: a READ of the tenant audit-log API resolves to the dedicated
+      // `audit-read` resource (held by the tenant admin + platform admins),
+      // not the platform-admin-only `platform` resource, so a tenant admin can
+      // read its own audit trail. The audit route handler + RLS bind every row
+      // to the caller's tenant; audit WRITES keep the `platform` guard via the
+      // mutating-route overrides, so this does not widen audit writes.
+      if (isAuditLogsReadPath(method, url)) {
+        resource = AUDIT_READ_RESOURCE;
+      } else {
+        resource = resourceForApiPath(url);
+        if (!resource) return;
+      }
     }
 
     // Platform control plane: platform_admin / super-admin role only (G-104/G-702).
