@@ -19,6 +19,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import {
   auditPlugin,
+  configureAuditChainKey,
   createAuditRepository,
   createRetentionScheduler,
   DEFAULT_RETENTION_INTERVAL_MS,
@@ -83,7 +84,12 @@ import {
   evaluateBillingEntitlement,
   tenantIdFromRequest,
 } from './billing-entitlements.js';
-import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
+import {
+  assertAuthBootPolicy,
+  resolveAuditChainKey,
+  resolvePreviousJwtSecret,
+  type GatewayConfig,
+} from './config.js';
 import {
   authenticateCredential,
   authorizeCredentialPrincipal,
@@ -1145,6 +1151,17 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       retentionScheduler.stop();
     });
   }
+
+  // 8d-key. PRC-M200 — install the audit-chain HMAC signing key BEFORE the drain
+  // (and before any synchronous same-txn audited mutation can run). In a deployed
+  // environment resolveAuditChainKey fails closed on a missing / dev / placeholder
+  // / short key, so the gateway refuses to boot rather than signing the keyed
+  // chain with an unsafe key (checked once at boot — no request-time 503). Not
+  // deployed: the fixed dev key (key_id "dev") is used, which a deployed verifier
+  // rejects.
+  configureAuditChainKey(
+    resolveAuditChainKey(process.env.NODE_ENV, process.env.AUDIT_CHAIN_HMAC_KEY),
+  );
 
   // 8d''. PRC-M200 / DR4-4 — seal system-origin audit events (demo seed, jobs,
   // async side-effects enqueued into audit_ingest_queue) into the keyed HMAC
