@@ -828,6 +828,40 @@ jobs:
           # W1-DATA-06 COMPLETE: create + VALIDATE + repair (prod/CI default ON).
           APPLY_STRICT_FKS: '1'
 
+      # PRC-L556: prove the colocated demo seeds actually landed rather than
+      # silently inserting zero rows under FORCE RLS. The seeds bind the tenant
+      # GUC and RAISE on a zero-row no-op, but assert the row counts here too so
+      # a regression that drops the GUC bind is caught by CI, not just at apply.
+      - name: Assert demo seed rows exist (PRC-L556)
+        run: |
+          set -euo pipefail
+          TID='00000000-0000-4000-8000-000000000001'
+          # The runtime tables FORCE row-level security and the policies filter on
+          # current_setting('app.tenant_id'); an unbound session sees zero rows even
+          # as the table owner. Bind the canonical tenant GUC for the whole psql
+          # session (PGOPTIONS at connect time) so these counts observe the demo
+          # tenant exactly as the seeds wrote them. A dropped GUC bind in a seed
+          # still fails at apply (the seed RAISEs on its own zero-row no-op); this
+          # step additionally proves the rows are visible under tenant-scoped RLS.
+          assert_rows() {
+            local table="$1" min="$2"
+            local n
+            n=$(PGPASSWORD=proctira_test PGOPTIONS="-c app.tenant_id=${TID}" \
+              psql -h localhost -U proctira -d proctira_test -Atc \
+              "SELECT count(*) FROM ${table} WHERE tenant_id = '${TID}'")
+            echo "  ${table}: ${n} rows (expected >= ${min})" | tee -a "$GITHUB_STEP_SUMMARY"
+            if [ "${n}" -lt "${min}" ]; then
+              echo "ERROR: PRC-L556 — ${table} has ${n} demo rows for tenant ${TID}; seeds applied zero rows (RLS no-op?)" >&2
+              exit 1
+            fi
+          }
+          assert_rows transport_routes 1
+          assert_rows comms_campaigns 1
+          assert_rows hostels 1
+          assert_rows library_items 2
+          assert_rows parent_consents 1
+          assert_rows guardian_households 1
+
       - name: Prove zero unvalidated tenant_id FKs (live catalog)
         run: node tools/scripts/check-strict-tenant-fks.mjs --live --require-live
         env:
@@ -1225,6 +1259,38 @@ jobs:
           APPLY_SEEDS: '1'
           # W1-DATA-06 COMPLETE: create + VALIDATE + repair (prod/CI default ON).
           APPLY_STRICT_FKS: '1'
+
+      # PRC-L556: prove the colocated demo seeds actually landed (see the first
+      # apply job for rationale).
+      - name: Assert demo seed rows exist (PRC-L556)
+        run: |
+          set -euo pipefail
+          TID='00000000-0000-4000-8000-000000000001'
+          # The runtime tables FORCE row-level security and the policies filter on
+          # current_setting('app.tenant_id'); an unbound session sees zero rows even
+          # as the table owner. Bind the canonical tenant GUC for the whole psql
+          # session (PGOPTIONS at connect time) so these counts observe the demo
+          # tenant exactly as the seeds wrote them. A dropped GUC bind in a seed
+          # still fails at apply (the seed RAISEs on its own zero-row no-op); this
+          # step additionally proves the rows are visible under tenant-scoped RLS.
+          assert_rows() {
+            local table="$1" min="$2"
+            local n
+            n=$(PGPASSWORD=proctira_test PGOPTIONS="-c app.tenant_id=${TID}" \
+              psql -h localhost -U proctira -d proctira_test -Atc \
+              "SELECT count(*) FROM ${table} WHERE tenant_id = '${TID}'")
+            echo "  ${table}: ${n} rows (expected >= ${min})" | tee -a "$GITHUB_STEP_SUMMARY"
+            if [ "${n}" -lt "${min}" ]; then
+              echo "ERROR: PRC-L556 — ${table} has ${n} demo rows for tenant ${TID}; seeds applied zero rows (RLS no-op?)" >&2
+              exit 1
+            fi
+          }
+          assert_rows transport_routes 1
+          assert_rows comms_campaigns 1
+          assert_rows hostels 1
+          assert_rows library_items 2
+          assert_rows parent_consents 1
+          assert_rows guardian_households 1
 
       - name: Prove zero unvalidated tenant_id FKs (live catalog)
         run: node tools/scripts/check-strict-tenant-fks.mjs --live --require-live
