@@ -15,6 +15,11 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import {
+  assertCanManageInstallation,
+  assertCanRegisterPlugin,
+  PluginForbiddenError,
+} from './authz.js';
 import type { PluginService } from './plugin-service.js';
 import {
   RegisterPluginSchema,
@@ -147,9 +152,15 @@ export async function registerPluginRoutes(
       const actor = getActor(request);
 
       try {
+        assertCanRegisterPlugin(request);
         const plugin = await pluginService.register(result.data, actor);
         return reply.status(201).send(formatPluginResponse(plugin));
       } catch (error: unknown) {
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -254,9 +265,15 @@ export async function registerPluginRoutes(
       const actor = getActor(request);
 
       try {
+        assertCanManageInstallation(request);
         const install = await pluginService.install(tenantId, result.data, actor);
         return reply.status(201).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -361,9 +378,15 @@ export async function registerPluginRoutes(
       const actor = getActor(request);
 
       try {
+        assertCanManageInstallation(request);
         const install = await pluginService.enable(tenantId, paramsResult.data.installId, actor);
         return reply.status(200).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -404,9 +427,15 @@ export async function registerPluginRoutes(
       const actor = getActor(request);
 
       try {
+        assertCanManageInstallation(request);
         const install = await pluginService.disable(tenantId, paramsResult.data.installId, actor);
         return reply.status(200).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -449,6 +478,7 @@ export async function registerPluginRoutes(
       const reason = bodyResult.success ? bodyResult.data.reason : undefined;
 
       try {
+        assertCanManageInstallation(request);
         const install = await pluginService.uninstall(
           tenantId,
           paramsResult.data.installId,
@@ -457,6 +487,11 @@ export async function registerPluginRoutes(
         );
         return reply.status(200).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
