@@ -221,10 +221,10 @@ export async function putLmsFile(
   return { storageKey: key, byteSize: bytes.length };
 }
 
-export async function getLmsFile(storageKey: string): Promise<Buffer> {
+export async function getLmsFile(storageKey: string, callerTenantId: string): Promise<Buffer> {
   const adapter = getAdapter();
   if (adapter) {
-    const stream = await adapter.download(storageKey);
+    const stream = await adapter.download(storageKey, callerTenantId);
     return streamToBuffer(stream);
   }
   const dest = resolve(fileRoot(), storageKey);

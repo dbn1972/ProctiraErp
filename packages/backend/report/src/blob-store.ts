@@ -106,7 +106,7 @@ export async function createReportBlobStore(): Promise<ReportBlobStore> {
           const tenantId = key.split('/')[0] ?? 'unknown';
           const rest = key.split('/').slice(1).join('/') || key;
           const objectKey = buildTenantKey(tenantId, rest);
-          return await collectStream(await adapter.download(objectKey));
+          return await collectStream(await adapter.download(objectKey, tenantId));
         } catch {
           return null;
         }
