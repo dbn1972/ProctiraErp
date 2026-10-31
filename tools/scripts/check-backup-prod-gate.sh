@@ -90,6 +90,21 @@ if retain_days < retention or retain_days < 1:
         f"values-production.yaml: objectLock.retainDays ({retain_days}) must be >= retentionDays ({retention})"
     )
 
+# PRC-M624 (DECISION_REGISTER ## 41): production backups retain for 35 days with
+# an independent Object Lock retain-until floor of 35 days. The gate enforces
+# both as a hard minimum; raising them is allowed, lowering below 35 fails.
+PROD_RETENTION_FLOOR_DAYS = 35
+if retention < PROD_RETENTION_FLOOR_DAYS:
+    errors.append(
+        f"values-production.yaml: dr.backup.retentionDays ({retention}) must be >= "
+        f"{PROD_RETENTION_FLOOR_DAYS} (PRC-M624 35-day production retention floor)"
+    )
+if retain_days < PROD_RETENTION_FLOOR_DAYS:
+    errors.append(
+        f"values-production.yaml: objectLock.retainDays ({retain_days}) must be >= "
+        f"{PROD_RETENTION_FLOOR_DAYS} (PRC-M624 35-day Object Lock retention floor)"
+    )
+
 cron = (root / "infrastructure/helm/proctira-platform/templates/dr/backup-cronjob.yaml").read_text(
     encoding="utf-8"
 )

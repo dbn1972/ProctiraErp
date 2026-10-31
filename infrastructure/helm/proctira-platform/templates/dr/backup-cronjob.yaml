@@ -117,6 +117,11 @@ spec:
                   value: {{ .mode | upper | quote }}
                 - name: BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS
                   value: {{ .retainDays | quote }}
+                {{- with .governanceUntil }}
+                # PRC-M624: GOVERNANCE until this UTC date, then COMPLIANCE.
+                - name: BACKUP_S3_OBJECT_LOCK_GOVERNANCE_UNTIL
+                  value: {{ . | quote }}
+                {{- end }}
                 {{- end }}
                 {{- end }}
                 # PRC-M596: offsite is already required (fail-closed above),

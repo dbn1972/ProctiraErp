@@ -37,6 +37,17 @@ import { fileURLToPath } from 'node:url';
 export const MIN_CONTRAST_RATIO = 7.0;
 
 /**
+ * Non-waivable WCAG 2.1 AA floor (PRC-M430 / Topic 23).
+ *
+ * The baseline mechanism lets a pair stay below the 7:1 target while it is
+ * tightened in follow-up work, but no baselined pair may sit below AA (4.5:1)
+ * for normal body text. This floor is a hard gate: a baselined pair whose
+ * measured ratio is below 4.5 fails the build even if the baseline would
+ * otherwise waive it. The gate can only tighten — it never drops below AA.
+ */
+export const MIN_AA_FLOOR = 4.5;
+
+/**
  * Canonical semantic-token pairs to evaluate.
  *
  * Each entry names the `foreground` token painted on top of the `background`
@@ -360,13 +371,18 @@ export async function loadBaseline(path) {
  * Decide whether a single failure (`row.passes === false`) should still
  * block the build. A baselined row is allowed iff (a) it appears in the
  * baseline AND (b) the new ratio has not dipped below the baselined value
- * (allowing equality so a re-run on the same theme.css is a no-op).
+ * (allowing equality so a re-run on the same theme.css is a no-op) AND
+ * (c) the new ratio still clears the non-waivable AA floor (PRC-M430):
+ * even a baselined pair may never sit below 4.5:1, so the gate can only
+ * tighten toward the 7:1 target and never regress below AA.
  */
 export function isFailureWaivedByBaseline(row, baselineForMode) {
   if (!baselineForMode) return false;
   if (!baselineForMode.has(row.name)) return false;
   const baselined = baselineForMode.get(row.name);
   if (row.ratio == null) return false;
+  // Non-waivable AA floor: a baselined pair below 4.5:1 is never waived.
+  if (row.ratio + 1e-6 < MIN_AA_FLOOR) return false;
   return row.ratio + 1e-6 >= baselined;
 }
 

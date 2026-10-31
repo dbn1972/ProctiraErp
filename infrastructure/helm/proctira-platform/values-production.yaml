@@ -38,6 +38,17 @@ ingress:
     enabled: true
     secretName: proctira-prod-tls
 
+# PRC-L565: the Route 53 DNS-01 ClusterIssuer stays DISABLED in production
+# until the hosted zone ID and the IRSA role ARN are provisioned (decision
+# register ## 41, Topic 25 — WAITING_ON_INPUT). Production keeps using the
+# externally-managed `letsencrypt-prod` ClusterIssuer referenced by the
+# ingress annotation. Flip `enabled: true` and fill `hostedZoneID` + the
+# `role.roleArn` together, then repoint `ingress.annotations.cert-manager.io/
+# cluster-issuer` at `certManager.clusterIssuer.name`.
+certManager:
+  clusterIssuer:
+    enabled: false
+
 # PRC-M523/M522: production NetworkPolicy. The datastore egress rule stays
 # the public-443 ipBlock below because production's actual datastore network
 # location (in-cluster vs. managed/VPC-peered RDS/ElastiCache per
@@ -447,6 +458,9 @@ dr:
   image:
     tag: sha-pending
   backup:
+    # PRC-M624 (DECISION_REGISTER ## 41): 35-day production retention floor for
+    # both the on-volume prune and the independent offsite Object Lock.
+    retentionDays: 35
     encrypt:
       enabled: true
     offsite:
@@ -455,7 +469,13 @@ dr:
       uri: s3://proctira-prod-pg-backups/logical/
       sse: AES256
       objectLock:
+        # PRC-M624: GOVERNANCE for the first 30 days after go-live, then
+        # COMPLIANCE. pg-backup.sh flips the mode once today's UTC date reaches
+        # governanceUntil (set it to go-live + 30 days). While governanceUntil
+        # is empty the pipeline keeps this GOVERNANCE value (WAITING_ON_INPUT:
+        # the production go-live date is not yet known).
         mode: GOVERNANCE
-        retainDays: 30
+        governanceUntil: '' # YYYY-MM-DD; go-live + 30 days
+        retainDays: 35
   phiRetention:
     apply: true
