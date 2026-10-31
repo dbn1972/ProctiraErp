@@ -57,6 +57,8 @@ export type { AuditPersistence } from './create-audit-repository.js';
 // W1-SEC-10 COMPLETE — same-txn regulated mutation audit
 export {
   appendAuditEntryOnClient,
+  configureAuditChainKey,
+  currentAuditChainKey,
   newMutationAuditCorrelationId,
   runRegulatedMutationInTxn,
   toCreateAuditLogInput,
