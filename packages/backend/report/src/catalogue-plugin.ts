@@ -16,6 +16,12 @@ export interface ReportCataloguePluginOptions {
   /** Skip the in-process scheduler (tests). */
   disableScheduler?: boolean;
   schedulerIntervalMs?: number;
+  /**
+   * PRC-L338: trusted public API base for absolute report download links.
+   * Comes from deployment configuration, never from the request. Defaults to
+   * PUBLIC_API_BASE_URL / PUBLIC_BASE_URL (resolved in the routes).
+   */
+  publicApiBaseUrl?: string;
 }
 
 declare module 'fastify' {
@@ -49,6 +55,7 @@ export const reportCataloguePlugin = fp(
     registerCatalogueRoutes(fastify, {
       service,
       prefix: options.prefix ?? '/reports',
+      publicApiBaseUrl: options.publicApiBaseUrl,
     });
 
     if (!options.disableScheduler) {

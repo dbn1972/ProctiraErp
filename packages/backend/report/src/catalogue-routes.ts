@@ -20,6 +20,60 @@ import { createReportDownloadToken, verifyReportDownloadToken } from './signed-d
 export interface CatalogueRoutesOptions {
   service: CatalogueService;
   prefix?: string;
+  /**
+   * PRC-L338 (topic 1): trusted public API base used to build ABSOLUTE report
+   * download links (e.g. `https://app.example`). It comes from deployment
+   * configuration — never from the request (Host / X-Forwarded-Host) — so an
+   * unauthenticated follower is pointed at the real absolute auth page, not an
+   * attacker-chosen host. When omitted, the resolver falls back to
+   * `PUBLIC_API_BASE_URL` then `PUBLIC_BASE_URL`; when none is configured the
+   * link stays a relative `/api/v1/...` path (still never request-derived).
+   */
+  publicApiBaseUrl?: string;
+}
+
+/**
+ * PRC-L338: resolve the trusted public API base from configuration only.
+ * Returns the normalised origin+path prefix with no trailing slash, or
+ * `undefined` when nothing trustworthy is configured (then links stay
+ * relative). The request is never consulted, so a spoofed Host cannot change
+ * the link target.
+ */
+function resolveTrustedApiBase(
+  explicit: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const candidate = (explicit ?? env.PUBLIC_API_BASE_URL ?? env.PUBLIC_BASE_URL)?.trim();
+  if (!candidate) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    // A misconfigured base must not silently fall back to a request-derived
+    // host; treat it as "no trusted base" so links stay relative.
+    return undefined;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined;
+  const path = parsed.pathname.replace(/\/+$/, '');
+  return `${parsed.origin}${path}`;
+}
+
+/**
+ * PRC-L338: build the report download link. With a trusted base configured the
+ * link is an ABSOLUTE URL; otherwise a relative `/api/v1` path (never derived
+ * from the request). The token is always freshly minted by the caller.
+ */
+function buildReportDownloadUrl(
+  trustedApiBase: string | undefined,
+  artifactId: string,
+  token: string,
+): string {
+  const relativePath = `/api/v1/reports/artifacts/${artifactId}/download`;
+  const query = `token=${encodeURIComponent(token)}`;
+  if (trustedApiBase) {
+    return `${trustedApiBase}${relativePath}?${query}`;
+  }
+  return `${relativePath}?${query}`;
 }
 
 /**
@@ -133,6 +187,10 @@ export function registerCatalogueRoutes(
 ): void {
   const { service } = options;
   const prefix = options.prefix ?? '/reports';
+  // PRC-L338: resolved once from configuration (option > PUBLIC_API_BASE_URL >
+  // PUBLIC_BASE_URL). Never read from the request, so Host spoofing cannot
+  // repoint a download link.
+  const trustedApiBase = resolveTrustedApiBase(options.publicApiBaseUrl);
 
   fastify.get(`${prefix}/catalogue`, async (_request, reply) => {
     return reply.send({ data: service.listCatalogue() });
@@ -262,7 +320,9 @@ export function registerCatalogueRoutes(
         ...artifact,
         createdAt: artifact.createdAt.toISOString(),
         formatLabel: formatApiLabel(artifact.format),
-        downloadUrl: `/api/v1/reports/artifacts/${artifact.id}/download?token=${signed.token}`,
+        // PRC-L338: fresh token (minted above) + absolute, trusted-base URL
+        // when configured (never request-derived).
+        downloadUrl: buildReportDownloadUrl(trustedApiBase, artifact.id, signed.token),
       });
     } catch (error: unknown) {
       return sendError(reply, error);
