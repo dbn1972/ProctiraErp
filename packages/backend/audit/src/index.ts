@@ -36,6 +36,13 @@ export type {
 
 // G-913 hash chain + runtime retention
 export { computeEntryHash, canonicalJson, verifyEntrySequence } from './audit-hash.js';
+// PRC-M200 keyed HMAC chain
+export {
+  computeKeyedEntryHash,
+  verifyKeyedEntrySequence,
+  DEV_AUDIT_CHAIN_KEY_ID,
+} from './audit-hash.js';
+export type { AuditChainKey, AuditChainKeyResolver, KeyedVerifyOptions } from './audit-hash.js';
 export { createRetentionScheduler, DEFAULT_RETENTION_INTERVAL_MS } from './retention-scheduler.js';
 export type { RetentionScheduler, RetentionSchedulerOptions } from './retention-scheduler.js';
 
