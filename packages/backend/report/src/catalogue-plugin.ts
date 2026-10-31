@@ -7,6 +7,7 @@ import { CatalogueService } from './catalogue-service.js';
 import { createReportStore } from './create-report-store.js';
 import type { ReportStore } from './report-store.js';
 import { createReportScheduler, type ReportScheduler } from './scheduler.js';
+import { prepareReportDownloadSigningAtStartup } from './signed-download.js';
 
 export interface ReportCataloguePluginOptions {
   store?: ReportStore;
@@ -31,6 +32,17 @@ export const reportCataloguePlugin = fp(
   ) {
     const store = options.store ?? createReportStore().store;
     const blobStore = options.blobStore ?? (await createReportBlobStore());
+    // PRC-L337: fail-closed check of the dedicated report download signing
+    // secret at boot (production-like logs an actionable error; dev mints an
+    // ephemeral in-memory key once).
+    prepareReportDownloadSigningAtStartup(process.env, {
+      warn: (obj, msg) => {
+        fastify.log.warn(obj, msg);
+      },
+      error: (obj, msg) => {
+        fastify.log.error(obj, msg);
+      },
+    });
     const service = new CatalogueService(store, blobStore);
     fastify.decorate('reportCatalogueService', service);
 

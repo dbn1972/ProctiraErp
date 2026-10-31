@@ -105,13 +105,18 @@ export { REPORT_CATALOGUE, resolveReportKey } from './catalogue.js';
 export type { CatalogueReportKey, CatalogueReportFormat, CatalogueEntry } from './catalogue.js';
 export { registerCatalogueRoutes } from './catalogue-routes.js';
 export { sha256Hex } from './generators.js';
-export { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
+export {
+  createReportDownloadToken,
+  isReportDownloadSigningKeyMissingError,
+  prepareReportDownloadSigningAtStartup,
+  REPORT_DOWNLOAD_SIGNING_KEY_MISSING_MESSAGE,
+  ReportDownloadSigningKeyMissingError,
+  resetDevReportDownloadSigningForTests,
+  verifyReportDownloadToken,
+} from './signed-download.js';
 export { buildRoleDashboard, inferDashboardRole } from './dashboards.js';
 export type { DashboardRole, RoleDashboard } from './dashboards.js';
 
-export {
-  InMemoryScheduleDelivery,
-  NoopScheduleDelivery,
-} from './schedule-delivery.js';
+export { InMemoryScheduleDelivery, NoopScheduleDelivery } from './schedule-delivery.js';
 export type { ScheduleDeliveryPort, ScheduleDeliveryRequest } from './schedule-delivery.js';
 export { REPORT_SCHEDULE_LEASE_MS, REPORT_SCHEDULE_RETRY_MS } from './catalogue-service.js';

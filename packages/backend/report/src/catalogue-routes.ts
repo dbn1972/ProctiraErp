@@ -257,7 +257,7 @@ export function registerCatalogueRoutes(
           statusCode: 404,
         });
       }
-      const signed = createReportDownloadToken(tenantId, artifact.id);
+      const signed = createReportDownloadToken(tenantId, artifact.id, artifact.requestedBy);
       return reply.send({
         ...artifact,
         createdAt: artifact.createdAt.toISOString(),
@@ -284,8 +284,7 @@ export function registerCatalogueRoutes(
       const tenantId = resolveTenantId(request);
       if (!tenantId) return tenantMissing(reply);
       if (!requireReportStaff(request, reply)) return;
-      // PRC-C009: the signed download token is mandatory (was optional/decorative), and must
-      // match this artifact + tenant.
+      // PRC-C009: the signed download token is mandatory (was optional/decorative).
       const token = request.query.token;
       if (!token) {
         return reply.status(403).send({
@@ -294,21 +293,32 @@ export function registerCatalogueRoutes(
           statusCode: 403,
         });
       }
-      const check = verifyReportDownloadToken(tenantId, params.data.id, token);
-      if (!check.ok) {
-        return reply.status(403).send({
-          code: 'FORBIDDEN',
-          message: check.reason,
-          statusCode: 403,
-        });
-      }
       try {
         const artifact = await service.getArtifact(tenantId, params.data.id);
         if (!mayAccessArtifact(request, artifact)) {
+          // 404 (not 403) so a non-owner cannot probe which artifact ids exist.
           return reply.status(404).send({
             code: 'NOT_FOUND',
             message: `Report artifact '${params.data.id}' not found`,
             statusCode: 404,
+          });
+        }
+        // PRC-L337: the token binds tenant + artifact + the artifact OWNER
+        // (requestedBy), not the presenting caller. This keeps the signed URL
+        // usable by any caller role authorisation already allows (PRC-M631:
+        // owner + report manager), while binding the link to a specific user
+        // context so it cannot be forged or replayed against another artifact.
+        const check = verifyReportDownloadToken(
+          tenantId,
+          params.data.id,
+          artifact.requestedBy,
+          token,
+        );
+        if (!check.ok) {
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message: check.reason,
+            statusCode: 403,
           });
         }
         const file = await service.downloadBytes(tenantId, params.data.id);

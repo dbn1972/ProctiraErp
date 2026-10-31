@@ -173,7 +173,7 @@ export class CatalogueService {
         sizeBytes: bytes.length,
         completedAt: new Date(),
       });
-      const signed = createReportDownloadToken(tenantId, artifactId);
+      const signed = createReportDownloadToken(tenantId, artifactId, actorId);
       return {
         artifact,
         run: run!,
