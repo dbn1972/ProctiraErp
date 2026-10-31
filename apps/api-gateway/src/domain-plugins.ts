@@ -131,6 +131,7 @@ import {
   createStudentCorrectionApplier,
   createStaffCorrectionApplier,
 } from '@proctira/backend-privacy';
+import type { PrivacyTxnAuditPort } from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
   createAdmissionsCrmStore,
@@ -2005,8 +2006,44 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // a pool, erasure/offboard stay 'not implemented' (501) — never faked.
       const privacyPool = getSharedPgPool();
       const financeHealthMode = readFinanceHealthErasureMode();
+      // PRC-M013 (Topic 5 Option A — PII export / privacy): erasure state
+      // transitions write their audit row in the SAME transaction as the state
+      // change (via @proctira/backend-audit's appendAuditEntryOnClient on the
+      // mutation's own client). A forced audit failure rolls the transition
+      // back, so no unaudited durable erasure-lifecycle mutation can exist.
+      // Mirrors the staff/student/tenant-admin txn-audit ports.
+      const privacyTxnAuditPort: PrivacyTxnAuditPort | undefined = privacyPool
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
+      // PRC-M013: the /privacy HTTP path uses a repository that carries the
+      // txn-audit port so erasure transitions audit atomically; the shared
+      // destructive-delete gate keeps the port-less repository.
+      const privacyHttpRepository = privacyTxnAuditPort
+        ? createPrivacyRepository({ txnAuditPort: privacyTxnAuditPort })
+        : sharedPrivacyRepository;
       await scope.register(privacyPlugin, {
-        repository: sharedPrivacyRepository,
+        repository: privacyHttpRepository,
         prefix: '/privacy',
         ...(privacyPool
           ? {

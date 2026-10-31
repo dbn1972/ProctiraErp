@@ -7,8 +7,8 @@ import {
   assertPostgresRepositoryAvailable,
 } from '@proctira/database';
 
-import type { PrivacyRepository } from './privacy-repository.js';
 import { getSharedPrivacyPool, PgPrivacyRepository } from './pg-privacy-repository.js';
+import type { PrivacyRepository, PrivacyTxnAuditPort } from './privacy-repository.js';
 import { getSharedInMemoryPrivacyRepository } from './shared-store.js';
 
 export function isPgPrivacyEnabled(): boolean {
@@ -16,11 +16,22 @@ export function isPgPrivacyEnabled(): boolean {
   return !!url && url.length > 0;
 }
 
-export function createPrivacyRepository(): PrivacyRepository {
+export interface CreatePrivacyRepositoryOptions {
+  /**
+   * PRC-M013: when set (Postgres path only), erasure state-transition audit rows
+   * are written in the same transaction as the transition. The in-memory
+   * fallback keeps the post-hoc audit path.
+   */
+  txnAuditPort?: PrivacyTxnAuditPort;
+}
+
+export function createPrivacyRepository(
+  options: CreatePrivacyRepositoryOptions = {},
+): PrivacyRepository {
   if (isPgPrivacyEnabled()) {
     const pool = getSharedPrivacyPool();
     assertPostgresRepositoryAvailable('privacy', pool);
-    return new PgPrivacyRepository(pool);
+    return new PgPrivacyRepository(pool, options.txnAuditPort);
   }
   assertInMemoryFallbackAllowed('privacy');
   return getSharedInMemoryPrivacyRepository();
