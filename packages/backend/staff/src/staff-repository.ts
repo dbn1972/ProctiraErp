@@ -64,14 +64,80 @@ export interface StaffTransactionScope {
 }
 
 /**
+ * PRC-M013 (Topic 5, Option A — staff): same-transaction audit for staff PII
+ * mutations. The audit row must commit atomically with the staff change so a
+ * forced audit failure rolls the mutation back and no unaudited durable staff
+ * mutation can exist. This package takes NO dependency on
+ * `@proctira/backend-audit`; the port is the inversion boundary (the gateway
+ * supplies the real `appendAuditEntryOnClient`). Mirrors the PRC-L264
+ * tenant-admin `RolesTxnAuditPort`.
+ */
+export interface StaffTxnAuditEvent {
+  tenantId: string;
+  entityType: 'staff';
+  entityId: string;
+  operation: 'CREATE' | 'UPDATE' | 'DELETE';
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  /** JWT `sub` of the caller; null when raised outside an authenticated request. */
+  actorId: string | null;
+  /** Client IP resolved by the gateway; null outside a request. */
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+/**
+ * The injected client type is intentionally structural (`query(text, values)`)
+ * so this package does not import a database client type. The gateway passes a
+ * `PgQueryable`-shaped adapter built over the mutation's own transaction.
+ */
+export interface StaffTxnAuditClient {
+  query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
+}
+
+export interface StaffTxnAuditPort {
+  /** Append the audit row on the caller's transaction client. */
+  appendAuditInTxn(client: StaffTxnAuditClient, event: StaffTxnAuditEvent): Promise<void>;
+}
+
+/**
+ * PRC-M013: audit context a mutating repository call carries so the audit row
+ * is written in the same transaction. Supplied by {@link StaffService} only
+ * when the repository advertises {@link StaffRepository.supportsTransactionalAudit}.
+ */
+export interface StaffAuditDirective {
+  operation: 'UPDATE' | 'DELETE';
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+/**
  * Repository interface for staff data access.
  */
 export interface StaffRepository {
+  /**
+   * PRC-M013: when `true`, the repository writes the staff mutation audit row in
+   * the SAME transaction as the mutation (given a {@link StaffAuditDirective}),
+   * so the service must NOT also emit a post-hoc audit event for that mutation.
+   * Absent / `false` (e.g. the in-memory repository) keeps the post-hoc path.
+   */
+  readonly supportsTransactionalAudit?: boolean;
+
   /** Create a new staff record */
   create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity>;
 
   /** Update an existing staff record */
-  update(id: string, tenantId: string, data: Partial<StaffEntity>): Promise<StaffEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<StaffEntity>,
+    audit?: StaffAuditDirective,
+  ): Promise<StaffEntity | null>;
 
   /** Find a staff record by ID within a tenant */
   findById(id: string, tenantId: string): Promise<StaffEntity | null>;
@@ -87,7 +153,7 @@ export interface StaffRepository {
   ): Promise<PaginatedResult<StaffEntity>>;
 
   /** Delete a staff record */
-  delete(id: string, tenantId: string): Promise<boolean>;
+  delete(id: string, tenantId: string, audit?: StaffAuditDirective): Promise<boolean>;
 
   /**
    * PRC-L157: count dependent HR records (payroll lines, contracts, attendance, leave,
@@ -133,6 +199,7 @@ export interface StaffRepository {
     id: string,
     tenantId: string,
     meta: StaffOffboardMeta,
+    audit?: StaffAuditDirective,
   ): Promise<StaffEntity | null>;
   /** PRC-M381: the persisted offboard columns, or null when not offboarded. */
   findOffboardRecord(id: string, tenantId: string): Promise<StaffOffboardRecord | null>;

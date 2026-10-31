@@ -20,10 +20,19 @@ export type { StaffPluginOptions } from './staff-plugin.js';
 
 // Service
 export { StaffService } from './staff-service.js';
+export type { StaffAuditActor } from './staff-service.js';
 export type { StaffAuditEntry, StaffAuditOptions, StaffAuditSink } from './staff-audit.js';
 
 // Repository
-export type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
+export type {
+  StaffEntity,
+  StaffFilter,
+  StaffRepository,
+  StaffAuditDirective,
+  StaffTxnAuditClient,
+  StaffTxnAuditEvent,
+  StaffTxnAuditPort,
+} from './staff-repository.js';
 
 // In-memory repository (for testing)
 export { InMemoryStaffRepository } from './in-memory-repository.js';

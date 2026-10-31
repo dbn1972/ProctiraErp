@@ -157,6 +157,7 @@ import {
   createAssignmentRepository,
   createStaffRepository,
   staffPlugin,
+  type StaffTxnAuditPort,
 } from '@proctira/backend-staff';
 import {
   bindAttendanceHeatmapSource,
@@ -1110,10 +1111,44 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory —
       // for both staff profiles and assignments.
+      // PRC-M013: when a shared Pg pool is available, give the staff repository a
+      // same-transaction audit port so a staff PII mutation (update/offboard/
+      // delete) writes its durable hash-chained audit row inside the mutation
+      // transaction (via @proctira/backend-audit's appendAuditEntryOnClient on
+      // the mutation's own client). A forced audit failure rolls the staff
+      // change back, so no unaudited durable staff mutation can exist. Mirrors
+      // the PRC-L264 tenant-admin RolesTxnAuditPort.
+      const staffTxnAuditPort: StaffTxnAuditPort | undefined = getSharedPgPool()
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
       await scope.register(staffPlugin, {
-        repository: createStaffRepository(),
+        repository: createStaffRepository({ txnAuditPort: staffTxnAuditPort }),
         assignmentRepository: sharedAssignmentRepository(),
         // PRC-M544: payroll runs, contracts, salary, leave decisions, offboarding, verification.
+        // PRC-M013: staff update/offboard/delete are now audited in-transaction by
+        // the repository; the service skips this post-hoc sink for those (only the
+        // in-memory path without a port still uses it).
         auditSink: domainAuditSink('staff'),
         prefix: '/staff',
       });
