@@ -99,7 +99,13 @@ export type { ReportCataloguePluginOptions } from './catalogue-plugin.js';
 export { CatalogueService } from './catalogue-service.js';
 export { createReportStore, resetSharedReportStoreForTests } from './create-report-store.js';
 export { InMemoryReportStore } from './report-store.js';
-export { InMemoryReportBlobStore, createReportBlobStore } from './blob-store.js';
+export {
+  InMemoryReportBlobStore,
+  ReportBlobReadError,
+  createReportBlobStore,
+  createS3ReportBlobStore,
+} from './blob-store.js';
+export type { ReportBlobStore, S3BlobStoreAdapter } from './blob-store.js';
 export { computeNextRunAt, createReportScheduler } from './scheduler.js';
 export { REPORT_CATALOGUE, resolveReportKey } from './catalogue.js';
 export type { CatalogueReportKey, CatalogueReportFormat, CatalogueEntry } from './catalogue.js';
