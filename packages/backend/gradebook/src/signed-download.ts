@@ -15,7 +15,7 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-import { isProductionNodeEnv } from '@proctira/common/node-env';
+import { isProductionLike, isProductionNodeEnv } from '@proctira/common/node-env';
 import { createLogger } from '@proctira/logging';
 
 export type BoardExportSignedDownload = {
@@ -170,12 +170,141 @@ export function prepareTranscriptSigningAtStartup(
   }
 }
 
-function boardExportSigningSecret(): string {
+export const BOARD_EXPORT_SIGNING_KEY_MISSING_MESSAGE =
+  'Board-export download signing key is not configured. Set a dedicated ' +
+  'SIS_BOARD_EXPORT_SIGNING_SECRET (never reuse JWT_SECRET and never the ' +
+  'committed dev placeholder). Board-export downloads stay blocked until it is ' +
+  'set. See .env.example.';
+
+/** Committed dev-only placeholder that must never sign in a deployed environment. */
+const BOARD_EXPORT_DEV_PLACEHOLDER = 'sis-board-export-dev-secret-change-me';
+
+export class BoardExportSigningKeyMissingError extends Error {
+  readonly code = 'BOARD_EXPORT_SIGNING_KEY_MISSING' as const;
+  readonly statusCode = 503;
+
+  constructor(detail?: string) {
+    super(detail ?? BOARD_EXPORT_SIGNING_KEY_MISSING_MESSAGE);
+    this.name = 'BoardExportSigningKeyMissingError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+
+  toJSON() {
+    return {
+      code: this.code,
+      message: this.message,
+      statusCode: this.statusCode,
+    };
+  }
+}
+
+export function isBoardExportSigningKeyMissingError(
+  error: unknown,
+): error is BoardExportSigningKeyMissingError {
   return (
-    process.env.SIS_BOARD_EXPORT_SIGNING_SECRET ??
-    process.env.JWT_SECRET ??
-    'sis-board-export-dev-secret-change-me'
+    error instanceof BoardExportSigningKeyMissingError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      (error as { code?: string }).code === 'BOARD_EXPORT_SIGNING_KEY_MISSING' &&
+      typeof (error as { toJSON?: unknown }).toJSON === 'function')
   );
+}
+
+/** Process-local only. Never written to disk and never used in a deployed env. */
+let ephemeralBoardExportKey: EphemeralDevKey | null = null;
+
+/** Test hook. Production code must not call this. */
+export function resetDevBoardExportSigningForTests(): void {
+  ephemeralBoardExportKey = null;
+}
+
+function ensureEphemeralBoardExportKey(env: NodeJS.ProcessEnv, log: TranscriptSigningLog): string {
+  if (!ephemeralBoardExportKey) {
+    ephemeralBoardExportKey = { secret: randomBytes(32).toString('base64url'), logged: false };
+  }
+  if (!ephemeralBoardExportKey.logged) {
+    ephemeralBoardExportKey.logged = true;
+    log.warn(
+      {
+        event: 'board_export_signing_dev_ephemeral_key',
+        nodeEnv: env.NODE_ENV ?? 'undefined',
+      },
+      'SIS_BOARD_EXPORT_SIGNING_SECRET is unset outside production. Using an ephemeral in-memory HMAC key for this process only. It is not persisted, is not valid across restarts, and must not sign real board exports. Set SIS_BOARD_EXPORT_SIGNING_SECRET before production.',
+    );
+  }
+  return ephemeralBoardExportKey.secret;
+}
+
+/**
+ * Startup hook for the gradebook plugin. Outside production, generates the
+ * ephemeral board-export key once when the secret is unset and logs it. In a
+ * production-like env, logs an actionable error and leaves signing fail-closed
+ * (no key is invented, JWT_SECRET is never adopted).
+ */
+export function prepareBoardExportSigningAtStartup(
+  env: NodeJS.ProcessEnv = process.env,
+  log: TranscriptSigningLog = getFallbackLog(),
+): void {
+  const secret = env.SIS_BOARD_EXPORT_SIGNING_SECRET?.trim();
+  if (isProductionLike(env.NODE_ENV)) {
+    if (!secret || secret === BOARD_EXPORT_DEV_PLACEHOLDER) {
+      log.error(
+        {
+          event: 'board_export_signing_key_missing',
+          missing: ['SIS_BOARD_EXPORT_SIGNING_SECRET'],
+        },
+        BOARD_EXPORT_SIGNING_KEY_MISSING_MESSAGE,
+      );
+    }
+    return;
+  }
+  if (!secret) {
+    ensureEphemeralBoardExportKey(env, log);
+  }
+}
+
+/**
+ * Resolve the dedicated board-export signing secret.
+ *
+ * PRC-L310 (topic 2): one secret per purpose. A production-like environment
+ * (anything other than `development` / `test`, so unset / staging fail closed)
+ * fail-closes when SIS_BOARD_EXPORT_SIGNING_SECRET is missing, equals
+ * JWT_SECRET, or is the committed dev placeholder. JWT_SECRET is never a
+ * fallback. Outside production, a process-local ephemeral key is used so local
+ * dev keeps working without a committed literal.
+ */
+function boardExportSigningSecret(
+  env: NodeJS.ProcessEnv = process.env,
+  log: TranscriptSigningLog = getFallbackLog(),
+): string {
+  const configured = env.SIS_BOARD_EXPORT_SIGNING_SECRET?.trim();
+  const jwt = env.JWT_SECRET?.trim();
+
+  if (isProductionLike(env.NODE_ENV)) {
+    if (!configured) {
+      throw new BoardExportSigningKeyMissingError();
+    }
+    if (configured === BOARD_EXPORT_DEV_PLACEHOLDER) {
+      throw new BoardExportSigningKeyMissingError(
+        'SIS_BOARD_EXPORT_SIGNING_SECRET is still the committed dev placeholder. ' +
+          BOARD_EXPORT_SIGNING_KEY_MISSING_MESSAGE,
+      );
+    }
+    if (jwt && configured === jwt) {
+      throw new BoardExportSigningKeyMissingError(
+        'SIS_BOARD_EXPORT_SIGNING_SECRET must not equal JWT_SECRET (one secret per purpose).',
+      );
+    }
+    return configured;
+  }
+
+  // Development / test: prefer a configured dedicated secret, otherwise an
+  // ephemeral in-memory key. Never fall back to JWT_SECRET or a committed
+  // literal.
+  if (configured && configured !== BOARD_EXPORT_DEV_PLACEHOLDER) {
+    return configured;
+  }
+  return ensureEphemeralBoardExportKey(env, log);
 }
 
 function payload(tenantId: string, jobId: string, expUnix: number): string {
