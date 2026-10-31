@@ -46,6 +46,23 @@ export type { AuditChainKey, AuditChainKeyResolver, KeyedVerifyOptions } from '.
 export { createRetentionScheduler, DEFAULT_RETENTION_INTERVAL_MS } from './retention-scheduler.js';
 export type { RetentionScheduler, RetentionSchedulerOptions } from './retention-scheduler.js';
 
+// PRC-M200 / DR4-4 audit ingest drain (seals queued system-origin audit rows)
+export {
+  createAuditIngestDrain,
+  DEFAULT_AUDIT_INGEST_DRAIN_INTERVAL_MS,
+} from './audit-ingest-drain.js';
+export type {
+  AuditIngestDrain,
+  AuditIngestDrainOptions,
+  AuditIngestDrainResult,
+  AuditIngestDrainLogger,
+  PendingAuditQueueRow,
+  QueueSealer,
+  TenantSealOps,
+  AuditChainHeadState,
+  SealArgs,
+} from './audit-ingest-drain.js';
+
 // In-memory repository (for testing)
 export { InMemoryAuditRepository } from './in-memory-repository.js';
 
