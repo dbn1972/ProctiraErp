@@ -38,6 +38,17 @@ ingress:
     enabled: true
     secretName: proctira-prod-tls
 
+# PRC-L565: the Route 53 DNS-01 ClusterIssuer stays DISABLED in production
+# until the hosted zone ID and the IRSA role ARN are provisioned (decision
+# register ## 41, Topic 25 — WAITING_ON_INPUT). Production keeps using the
+# externally-managed `letsencrypt-prod` ClusterIssuer referenced by the
+# ingress annotation. Flip `enabled: true` and fill `hostedZoneID` + the
+# `role.roleArn` together, then repoint `ingress.annotations.cert-manager.io/
+# cluster-issuer` at `certManager.clusterIssuer.name`.
+certManager:
+  clusterIssuer:
+    enabled: false
+
 # PRC-M523/M522: production NetworkPolicy. The datastore egress rule stays
 # the public-443 ipBlock below because production's actual datastore network
 # location (in-cluster vs. managed/VPC-peered RDS/ElastiCache per
