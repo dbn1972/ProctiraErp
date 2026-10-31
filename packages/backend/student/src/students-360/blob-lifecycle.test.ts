@@ -48,9 +48,9 @@ describe('student document blob lifecycle (PRC-M386)', () => {
   it('delete removes the blob', async () => {
     const { service, blobs, studentId, upload } = await setup();
     const doc = await upload();
-    expect(await blobs.get(doc.objectKey)).not.toBeNull();
+    expect(await blobs.get(doc.objectKey, TENANT)).not.toBeNull();
     await service.removeDocument(TENANT, studentId, doc.id);
-    expect(await blobs.get(doc.objectKey)).toBeNull();
+    expect(await blobs.get(doc.objectKey, TENANT)).toBeNull();
   });
 
   it('failed metadata insert leaves no blob', async () => {
@@ -66,7 +66,7 @@ describe('student document blob lifecycle (PRC-M386)', () => {
     };
     await expect(upload()).rejects.toThrow('db down');
     expect(writtenKey).not.toBe('');
-    expect(await blobs.get(writtenKey)).toBeNull();
+    expect(await blobs.get(writtenKey, TENANT)).toBeNull();
   });
 
   it('deleting a missing document is 404 and touches no blob', async () => {

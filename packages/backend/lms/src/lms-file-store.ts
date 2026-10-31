@@ -2,12 +2,13 @@
  * G-915 — LMS file store: StorageAdapter when a bucket is configured,
  * otherwise a local-disk fallback. HMAC download tokens stay tenant-bound.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type { Readable } from 'node:stream';
 
+import { isProductionLike } from '@proctira/common/node-env';
 import {
   createStorageAdapter,
   type StorageAdapter,
@@ -88,13 +89,175 @@ export function assertAllowedUpload(mimeType: string, byteSize: number, bytes?: 
   }
 }
 
-function signingSecret(): string {
+/**
+ * PRC-L329 (topic 2): one secret per purpose. The LMS file download signing
+ * key is a dedicated LMS_FILE_SIGNING_SECRET with no fallback to JWT_SECRET,
+ * SIS_BOARD_EXPORT_SIGNING_SECRET or the old committed dev placeholder in a
+ * deployed (production-like) environment. Mirrors the board-export fix
+ * (gradebook signed-download.ts, PRC-L310).
+ */
+export const LMS_FILE_SIGNING_KEY_MISSING_MESSAGE =
+  'LMS file download signing key is not configured. Set a dedicated ' +
+  'LMS_FILE_SIGNING_SECRET (never reuse JWT_SECRET or SIS_BOARD_EXPORT_SIGNING_SECRET, ' +
+  'and never the committed dev placeholder). LMS file downloads stay blocked until ' +
+  'it is set. See .env.example.';
+
+/** Committed dev-only placeholder that must never sign in a deployed environment. */
+const LMS_FILE_DEV_PLACEHOLDER = 'lms-file-dev-secret-change-me';
+
+export class LmsFileSigningKeyMissingError extends Error {
+  readonly code = 'LMS_FILE_SIGNING_KEY_MISSING' as const;
+  readonly statusCode = 503;
+
+  constructor(detail?: string) {
+    super(detail ?? LMS_FILE_SIGNING_KEY_MISSING_MESSAGE);
+    this.name = 'LmsFileSigningKeyMissingError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+
+  toJSON() {
+    return {
+      code: this.code,
+      message: this.message,
+      statusCode: this.statusCode,
+    };
+  }
+}
+
+export function isLmsFileSigningKeyMissingError(
+  error: unknown,
+): error is LmsFileSigningKeyMissingError {
   return (
-    process.env.LMS_FILE_SIGNING_SECRET ??
-    process.env.SIS_BOARD_EXPORT_SIGNING_SECRET ??
-    process.env.JWT_SECRET ??
-    'lms-file-dev-secret-change-me'
+    error instanceof LmsFileSigningKeyMissingError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      (error as { code?: string }).code === 'LMS_FILE_SIGNING_KEY_MISSING' &&
+      typeof (error as { toJSON?: unknown }).toJSON === 'function')
   );
+}
+
+export type LmsFileSigningLog = {
+  warn: (obj: Record<string, unknown>, msg?: string) => void;
+  error: (obj: Record<string, unknown>, msg?: string) => void;
+};
+
+function defaultLog(): LmsFileSigningLog {
+  return {
+    warn: (obj, msg) => {
+      // eslint-disable-next-line no-console
+      console.warn(msg ?? '', obj);
+    },
+    error: (obj, msg) => {
+      // eslint-disable-next-line no-console
+      console.error(msg ?? '', obj);
+    },
+  };
+}
+
+type EphemeralDevKey = { secret: string; logged: boolean };
+
+/** Process-local only. Never written to disk and never used in a deployed env. */
+let ephemeralLmsFileKey: EphemeralDevKey | null = null;
+
+/** Test hook. Production code must not call this. */
+export function resetDevLmsFileSigningForTests(): void {
+  ephemeralLmsFileKey = null;
+}
+
+function ensureEphemeralLmsFileKey(env: NodeJS.ProcessEnv, log: LmsFileSigningLog): string {
+  if (!ephemeralLmsFileKey) {
+    ephemeralLmsFileKey = { secret: randomBytes(32).toString('base64url'), logged: false };
+  }
+  if (!ephemeralLmsFileKey.logged) {
+    ephemeralLmsFileKey.logged = true;
+    log.warn(
+      {
+        event: 'lms_file_signing_dev_ephemeral_key',
+        nodeEnv: env.NODE_ENV ?? 'undefined',
+      },
+      'LMS_FILE_SIGNING_SECRET is unset outside production. Using an ephemeral in-memory HMAC key for this process only. It is not persisted, is not valid across restarts, and must not sign real LMS file downloads. Set LMS_FILE_SIGNING_SECRET before production.',
+    );
+  }
+  return ephemeralLmsFileKey.secret;
+}
+
+/**
+ * Startup hook for the LMS plugin. Outside production, generates the ephemeral
+ * LMS file signing key once when the secret is unset and logs it. In a
+ * production-like env, logs an actionable error and leaves signing fail-closed
+ * (no key is invented; JWT_SECRET / board-export secrets are never adopted).
+ */
+export function prepareLmsFileSigningAtStartup(
+  env: NodeJS.ProcessEnv = process.env,
+  log: LmsFileSigningLog = defaultLog(),
+): void {
+  const secret = env.LMS_FILE_SIGNING_SECRET?.trim();
+  if (isProductionLike(env.NODE_ENV)) {
+    if (!secret || secret === LMS_FILE_DEV_PLACEHOLDER) {
+      log.error(
+        {
+          event: 'lms_file_signing_key_missing',
+          missing: ['LMS_FILE_SIGNING_SECRET'],
+        },
+        LMS_FILE_SIGNING_KEY_MISSING_MESSAGE,
+      );
+    }
+    return;
+  }
+  if (!secret) {
+    ensureEphemeralLmsFileKey(env, log);
+  }
+}
+
+/**
+ * Resolve the dedicated LMS file signing secret.
+ *
+ * PRC-L329 (topic 2): a production-like environment (anything other than
+ * `development` / `test`, so unset / staging fail closed) fail-closes when
+ * LMS_FILE_SIGNING_SECRET is missing, equals JWT_SECRET or
+ * SIS_BOARD_EXPORT_SIGNING_SECRET, or is the committed dev placeholder.
+ * JWT_SECRET and the board-export secret are never a fallback. Outside
+ * production, a process-local ephemeral key is used so local dev keeps working
+ * without a committed literal.
+ */
+function signingSecret(
+  env: NodeJS.ProcessEnv = process.env,
+  log: LmsFileSigningLog = defaultLog(),
+): string {
+  const configured = env.LMS_FILE_SIGNING_SECRET?.trim();
+  const jwt = env.JWT_SECRET?.trim();
+  const boardExport = env.SIS_BOARD_EXPORT_SIGNING_SECRET?.trim();
+
+  if (isProductionLike(env.NODE_ENV)) {
+    if (!configured) {
+      throw new LmsFileSigningKeyMissingError();
+    }
+    if (configured === LMS_FILE_DEV_PLACEHOLDER) {
+      throw new LmsFileSigningKeyMissingError(
+        'LMS_FILE_SIGNING_SECRET is still the committed dev placeholder. ' +
+          LMS_FILE_SIGNING_KEY_MISSING_MESSAGE,
+      );
+    }
+    if (jwt && configured === jwt) {
+      throw new LmsFileSigningKeyMissingError(
+        'LMS_FILE_SIGNING_SECRET must not equal JWT_SECRET (one secret per purpose).',
+      );
+    }
+    if (boardExport && configured === boardExport) {
+      throw new LmsFileSigningKeyMissingError(
+        'LMS_FILE_SIGNING_SECRET must not equal SIS_BOARD_EXPORT_SIGNING_SECRET (one secret per purpose).',
+      );
+    }
+    return configured;
+  }
+
+  // Development / test: prefer a configured dedicated secret, otherwise an
+  // ephemeral in-memory key. Never fall back to JWT_SECRET, the board-export
+  // secret, or a committed literal.
+  if (configured && configured !== LMS_FILE_DEV_PLACEHOLDER) {
+    return configured;
+  }
+  return ensureEphemeralLmsFileKey(env, log);
 }
 
 function payload(tenantId: string, fileId: string, expUnix: number): string {
@@ -221,10 +384,10 @@ export async function putLmsFile(
   return { storageKey: key, byteSize: bytes.length };
 }
 
-export async function getLmsFile(storageKey: string): Promise<Buffer> {
+export async function getLmsFile(storageKey: string, callerTenantId: string): Promise<Buffer> {
   const adapter = getAdapter();
   if (adapter) {
-    const stream = await adapter.download(storageKey);
+    const stream = await adapter.download(storageKey, callerTenantId);
     return streamToBuffer(stream);
   }
   const dest = resolve(fileRoot(), storageKey);

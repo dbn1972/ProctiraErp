@@ -234,10 +234,11 @@ describe('G-909 catalogue plugin routes', () => {
     app.addHook('onRequest', async (request) => {
       (
         request as typeof request & {
-          user: { sub: string; roles: Array<{ roleName: string }> };
+          user: { sub: string; tenantId: string; roles: Array<{ roleName: string }> };
         }
       ).user = {
         sub: 'principal',
+        tenantId: TENANT_A,
         roles: [{ roleName: 'PRINCIPAL' }],
       };
     });
@@ -254,6 +255,7 @@ describe('G-909 catalogue plugin routes', () => {
     roleNames: string[],
     sub = 'principal',
     shared?: { store: InMemoryReportStore; blobs: InMemoryReportBlobStore },
+    tenantId: string = TENANT_A,
   ) {
     const app = Fastify();
     apps.push(app);
@@ -261,10 +263,15 @@ describe('G-909 catalogue plugin routes', () => {
     app.addHook('onRequest', async (request) => {
       (
         request as typeof request & {
-          user: { sub: string; roles: Array<{ roleId: string; roleName: string }> };
+          user: {
+            sub: string;
+            tenantId: string;
+            roles: Array<{ roleId: string; roleName: string }>;
+          };
         }
       ).user = {
         sub,
+        tenantId,
         roles: roleNames.map((r) => ({ roleId: r, roleName: r })),
       };
     });
@@ -318,12 +325,13 @@ describe('G-909 catalogue plugin routes', () => {
     expect(download.headers['x-artifact-sha256']).toBe(run.sha256);
     expect(sha256Hex(Buffer.from(download.rawPayload))).toBe(run.sha256);
 
-    // Cross-tenant: the token is bound to (TENANT_A, artifact), so tenant B is rejected
-    // (403 on the token check, before the artifact is even looked up).
-    const foreign = await app.inject({
+    // Cross-tenant: the token is bound to (TENANT_A, artifact). A principal
+    // verified for tenant B is rejected on the token check (PRC-L339: tenant
+    // comes from the verified principal, not the x-tenant-id header).
+    const attackerB = await buildAs(['principal'], 'attacker-b', undefined, TENANT_B);
+    const foreign = await attackerB.inject({
       method: 'GET',
       url: downloadPath,
-      headers: { 'x-tenant-id': TENANT_B },
     });
     expect([403, 404]).toContain(foreign.statusCode);
   });
@@ -395,8 +403,13 @@ describe('G-909 catalogue plugin routes', () => {
     const app = Fastify();
     apps.push(app);
     app.addHook('preHandler', async (req) => {
-      (req as typeof req & { user?: { sub: string; roles: Array<{ roleName: string }> } }).user = {
+      (
+        req as typeof req & {
+          user?: { sub: string; tenantId: string; roles: Array<{ roleName: string }> };
+        }
+      ).user = {
         sub: 'parent-user-1',
+        tenantId: TENANT_A,
         roles: [{ roleName: 'PARENT' }],
       };
     });

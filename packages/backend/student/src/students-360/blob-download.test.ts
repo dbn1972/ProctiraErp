@@ -78,8 +78,8 @@ describe('students-360 blob download (PRC-L163)', () => {
 
   it('defaults signed URL TTL to minutes, not an hour', async () => {
     const a = adapter({});
-    await new StorageAdapterStudentBlobStore(a).getSignedUrl('k');
-    expect(a.getSignedUrl).toHaveBeenCalledWith('k', SIGNED_URL_TTL_SECONDS);
+    await new StorageAdapterStudentBlobStore(a).getSignedUrl('k', TENANT);
+    expect(a.getSignedUrl).toHaveBeenCalledWith('k', SIGNED_URL_TTL_SECONDS, TENANT);
     expect(SIGNED_URL_TTL_SECONDS).toBeLessThanOrEqual(900);
   });
 

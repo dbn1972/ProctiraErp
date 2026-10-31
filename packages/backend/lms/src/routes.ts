@@ -688,7 +688,7 @@ export async function registerLmsRoutes(
         token,
         getLmsActor(request),
       );
-      const bytes = await getLmsFile(file.storageKey);
+      const bytes = await getLmsFile(file.storageKey, tenantId);
       return reply
         .header('Content-Type', file.mimeType)
         .header('Content-Disposition', attachmentDisposition(file.filename))

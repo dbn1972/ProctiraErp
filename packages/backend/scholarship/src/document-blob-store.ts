@@ -16,10 +16,10 @@ import {
 
 export interface ScholarshipDocumentBlobStore {
   put(key: string, data: Buffer, contentType: string, tenantId: string): Promise<string>;
-  get(key: string): Promise<Buffer | null>;
-  delete(key: string): Promise<void>;
+  get(key: string, tenantId: string): Promise<Buffer | null>;
+  delete(key: string, tenantId: string): Promise<void>;
   /** Present when the backend can mint a provider signed URL (S3/MinIO). */
-  getSignedUrl?(key: string, expiresIn?: number): Promise<string | null>;
+  getSignedUrl?(key: string, tenantId: string, expiresIn?: number): Promise<string | null>;
 }
 
 export class InMemoryScholarshipDocumentBlobStore implements ScholarshipDocumentBlobStore {
@@ -61,7 +61,7 @@ export class LocalDiskScholarshipDocumentBlobStore implements ScholarshipDocumen
     return key;
   }
 
-  async get(key: string): Promise<Buffer | null> {
+  async get(key: string, _tenantId?: string): Promise<Buffer | null> {
     try {
       return await readFile(this.pathFor(key));
     } catch (error) {
@@ -70,7 +70,7 @@ export class LocalDiskScholarshipDocumentBlobStore implements ScholarshipDocumen
     }
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string, _tenantId?: string): Promise<void> {
     const { rm } = await import('node:fs/promises');
     try {
       await rm(this.pathFor(key), { force: true });
@@ -92,9 +92,9 @@ export class StorageAdapterScholarshipDocumentBlobStore implements ScholarshipDo
     return result.key;
   }
 
-  async get(key: string): Promise<Buffer | null> {
+  async get(key: string, tenantId: string): Promise<Buffer | null> {
     try {
-      const stream = await this.adapter.download(key);
+      const stream = await this.adapter.download(key, tenantId);
       return await streamToBuffer(stream);
     } catch (error) {
       // PRC-M356: only a genuinely missing object is "no longer available";
@@ -104,13 +104,13 @@ export class StorageAdapterScholarshipDocumentBlobStore implements ScholarshipDo
     }
   }
 
-  async delete(key: string): Promise<void> {
-    await this.adapter.delete(key);
+  async delete(key: string, tenantId: string): Promise<void> {
+    await this.adapter.delete(key, tenantId);
   }
 
-  async getSignedUrl(key: string, expiresIn = 120): Promise<string | null> {
+  async getSignedUrl(key: string, tenantId: string, expiresIn = 120): Promise<string | null> {
     try {
-      return await this.adapter.getSignedUrl(key, expiresIn);
+      return await this.adapter.getSignedUrl(key, expiresIn, tenantId);
     } catch {
       return null;
     }
