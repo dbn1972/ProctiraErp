@@ -255,11 +255,11 @@ export class Students360Service {
   ): Promise<{ bytes: Buffer; mimeType: string; signedUrl: string | null }> {
     const photo = await this.getPhotoMeta(tenantId, studentId);
     const signedUrl = this.deps.blobs.getSignedUrl
-      ? await this.deps.blobs.getSignedUrl(photo.objectKey)
+      ? await this.deps.blobs.getSignedUrl(photo.objectKey, tenantId)
       : null;
     // PRC-L163: the route redirects to the signed URL; never buffer the blob too.
     if (signedUrl) return { bytes: Buffer.alloc(0), mimeType: photo.mimeType, signedUrl };
-    const bytes = await this.deps.blobs.get(photo.objectKey);
+    const bytes = await this.deps.blobs.get(photo.objectKey, tenantId);
     if (!bytes) {
       throw new NotFoundError(`Photo bytes for student '${studentId}' not found`);
     }
@@ -460,7 +460,7 @@ export class Students360Service {
     } catch (error) {
       // PRC-M386: the row was not written — do not leave an orphan blob.
       // (Key is unique per document id, so this never touches another file.)
-      await this.deps.blobs.delete(objectKey).catch(() => undefined);
+      await this.deps.blobs.delete(objectKey, tenantId).catch(() => undefined);
       throw error;
     }
   }
@@ -492,13 +492,13 @@ export class Students360Service {
   ): Promise<{ bytes: Buffer; mimeType: string; fileName: string; signedUrl: string | null }> {
     const doc = await this.getDocumentMeta(tenantId, studentId, documentId);
     const signedUrl = this.deps.blobs.getSignedUrl
-      ? await this.deps.blobs.getSignedUrl(doc.objectKey)
+      ? await this.deps.blobs.getSignedUrl(doc.objectKey, tenantId)
       : null;
     // PRC-L163: the route redirects to the signed URL; never buffer the blob too.
     if (signedUrl) {
       return { bytes: Buffer.alloc(0), mimeType: doc.mimeType, fileName: doc.fileName, signedUrl };
     }
-    const bytes = await this.deps.blobs.get(doc.objectKey);
+    const bytes = await this.deps.blobs.get(doc.objectKey, tenantId);
     if (!bytes) {
       throw new NotFoundError(`Document bytes for '${documentId}' not found`);
     }
@@ -518,6 +518,6 @@ export class Students360Service {
     if (!removed) throw new NotFoundError(`Document '${documentId}' not found`);
     // PRC-M386: erase the file after the row is gone. A storage failure here
     // surfaces (502) rather than silently retaining the child's document.
-    await this.deps.blobs.delete(doc.objectKey);
+    await this.deps.blobs.delete(doc.objectKey, tenantId);
   }
 }
