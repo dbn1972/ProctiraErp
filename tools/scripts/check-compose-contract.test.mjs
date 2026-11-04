@@ -120,6 +120,16 @@ test('UAT-ENV-009: BIND_ADDRESS default, literal loopback and [::1] pass', () =>
     [],
   );
 });
+test('UAT-ENV-009: APP_BIND_ADDRESS loopback default passes, all-interfaces default fails', () => {
+  const errors = checkPublishedPortBindAddress({
+    services: {
+      web: { ports: ['${APP_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3001}:3001'] },
+      open: { ports: ['${APP_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-3001}:3001'] },
+    },
+  });
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /service open publishes/);
+});
 test('UAT-ENV-009: long-syntax ports need a loopback host_ip', () => {
   const errors = checkPublishedPortBindAddress({
     services: {
