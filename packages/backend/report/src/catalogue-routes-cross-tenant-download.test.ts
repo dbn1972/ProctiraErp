@@ -45,12 +45,16 @@ afterEach(async () => {
   while (apps.length) await apps.pop()!.close();
 });
 
-/** A report manager verified for `tenantId` (tenant comes from the principal, as from a JWT). */
+/**
+ * A caller verified for `tenantId` (tenant comes from the principal, as from a JWT).
+ * Defaults to a report manager (`principal`).
+ */
 async function appAs(
   tenantId: string,
   sub: string,
   shared: Shared,
   audit: RecordingReportAuditPort,
+  role = 'principal',
 ): Promise<FastifyInstance> {
   const app = Fastify();
   apps.push(app);
@@ -59,7 +63,7 @@ async function appAs(
     (request as typeof request & { user: unknown }).user = {
       sub,
       tenantId,
-      roles: [{ roleId: 'principal', roleName: 'principal' }],
+      roles: [{ roleId: role, roleName: role }],
     };
   });
   await app.register(reportCataloguePlugin, {
@@ -188,6 +192,33 @@ describe('UAT-SEC-001 cross-tenant report artifact download is denied with 403 a
     });
 
     // Same status and same body whether or not the id exists in the tenant.
+    expect(existing.statusCode).toBe(403);
+    expect(missing.statusCode).toBe(403);
+    expect(existing.body).toBe(missing.body);
+    expect(auditA.events.map((e) => [e.action, e.reason])).toEqual([
+      [DENIED_ACTION, 'token_invalid'],
+      [DENIED_ACTION, 'artifact_not_found'],
+    ]);
+  });
+
+  it('checks the token before the owner gate for a same-tenant non-manager (no existence oracle)', async () => {
+    const { shared, artifactId } = await tenantAArtifact();
+    const auditA = new RecordingReportAuditPort();
+    // `teacher` is report staff and entitled to students_roster, but is neither
+    // a report manager nor the artifact owner, so `mayAccessArtifact` is false.
+    const teacherA = await appAs(TENANT_A, 'teacher-a', shared, auditA, 'teacher');
+    const forged = encodeURIComponent(`${Math.floor(Date.now() / 1000) + 300}.${'ef'.repeat(32)}`);
+
+    const existing = await teacherA.inject({
+      method: 'GET',
+      url: `/reports/artifacts/${artifactId}/download?token=${forged}`,
+    });
+    const missing = await teacherA.inject({
+      method: 'GET',
+      url: `/reports/artifacts/00000000-0000-4000-8000-0000000000f2/download?token=${forged}`,
+    });
+
+    // If the owner gate ran first, the existing id would be 404 and the missing id 403.
     expect(existing.statusCode).toBe(403);
     expect(missing.statusCode).toBe(403);
     expect(existing.body).toBe(missing.body);
