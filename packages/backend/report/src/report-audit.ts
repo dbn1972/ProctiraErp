@@ -14,7 +14,15 @@
  */
 
 /** The audited report actions. Field names, not PHI values. */
-export type ReportAuditAction = 'report.generate' | 'report.download' | 'report.schedule.create';
+export type ReportAuditAction =
+  'report.generate' | 'report.download' | 'report.download.denied' | 'report.schedule.create';
+
+/**
+ * UAT-SEC-001: why an artifact download was refused. Recorded on the
+ * `report.download.denied` event only; the HTTP response stays generic so a
+ * caller cannot tell these cases apart.
+ */
+export type ReportDownloadDenialReason = 'token_missing' | 'artifact_not_found' | 'token_invalid';
 
 export interface ReportAuditEvent {
   /** Tenant taken from the verified principal (never a client header). */
@@ -33,6 +41,8 @@ export interface ReportAuditEvent {
   format?: string;
   /** Run id when available (generate). */
   runId?: string;
+  /** Denial reason, set only on `report.download.denied`. */
+  reason?: ReportDownloadDenialReason;
 }
 
 export interface ReportAuditPort {

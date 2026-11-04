@@ -1,4 +1,4 @@
-import { AppError } from '@proctira/common';
+import { AppError, NotFoundError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
@@ -18,6 +18,7 @@ import {
   NoopReportAuditPort,
   type ReportAuditEvent,
   type ReportAuditPort,
+  type ReportDownloadDenialReason,
 } from './report-audit.js';
 import type { ReportArtifactRecord } from './report-store.js';
 import { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
@@ -152,6 +153,23 @@ function mayAccessArtifact(
   if (isReportManager(roles)) return true;
   if (!canAccessReport(roles, artifact.reportKey)) return false;
   return artifact.requestedBy === resolveUserId(request);
+}
+
+/**
+ * UAT-SEC-001: 403 body for a refused artifact download. A missing token keeps
+ * its actionable message (it does not depend on the artifact). A cross-tenant
+ * miss and an invalid/expired token share one generic message so the response
+ * never says whether the artifact exists or why the token failed.
+ */
+function downloadDenied(reason: ReportDownloadDenialReason) {
+  return {
+    code: 'FORBIDDEN',
+    message:
+      reason === 'token_missing'
+        ? 'A signed download token is required'
+        : 'This download link is not valid for your account',
+    statusCode: 403,
+  };
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
@@ -381,41 +399,58 @@ export function registerCatalogueRoutes(
       const tenantId = resolveTenantId(request);
       if (!tenantId) return tenantMissing(reply);
       if (!requireReportStaff(request, reply)) return;
+      // UAT-SEC-001: every token/tenant denial on this route is a 403 and a
+      // `report.download.denied` audit event carrying only the caller's
+      // tenant + actor, the requested artifact id and the reason. A presented
+      // token that fails for any reason gets one generic body, so the
+      // response does not reveal whether the id exists in any tenant.
+      const denyDownload = async (reason: ReportDownloadDenialReason) => {
+        await emitAudit(request, {
+          tenantId,
+          actorId: resolveUserId(request),
+          action: 'report.download.denied',
+          artifactId: params.data.id,
+          reason,
+        });
+        return reply.status(403).send(downloadDenied(reason));
+      };
       // PRC-C009: the signed download token is mandatory (was optional/decorative).
       const token = request.query.token;
-      if (!token) {
-        return reply.status(403).send({
-          code: 'FORBIDDEN',
-          message: 'A signed download token is required',
-          statusCode: 403,
-        });
-      }
+      if (!token) return denyDownload('token_missing');
       try {
-        const artifact = await service.getArtifact(tenantId, params.data.id);
-        if (!mayAccessArtifact(request, artifact)) {
-          // 404 (not 403) so a non-owner cannot probe which artifact ids exist.
-          return reply.status(404).send({
-            code: 'NOT_FOUND',
-            message: `Report artifact '${params.data.id}' not found`,
-            statusCode: 404,
-          });
+        // The token is `<exp>.<hmac>` with no plaintext tenant claim; its
+        // tenant binding can only be checked through the HMAC, which needs the
+        // artifact owner (PRC-L337). So the lookup comes first, scoped to the
+        // VERIFIED caller tenant (PRC-L339). A miss while a token is presented
+        // (e.g. tenant A's signed URL replayed by tenant B) is the same 403 as
+        // a bad token, never a 404, and no bytes are read.
+        let artifact: ReportArtifactRecord;
+        try {
+          artifact = await service.getArtifact(tenantId, params.data.id);
+        } catch (error: unknown) {
+          if (error instanceof NotFoundError) return denyDownload('artifact_not_found');
+          throw error;
         }
         // PRC-L337: the token binds tenant + artifact + the artifact OWNER
         // (requestedBy), not the presenting caller. This keeps the signed URL
         // usable by any caller role authorisation already allows (PRC-M631:
         // owner + report manager), while binding the link to a specific user
         // context so it cannot be forged or replayed against another artifact.
+        // Checked before the role/owner gate so an invalid token gets the same
+        // 403 whether or not the id exists in the caller tenant.
         const check = verifyReportDownloadToken(
           tenantId,
           params.data.id,
           artifact.requestedBy,
           token,
         );
-        if (!check.ok) {
-          return reply.status(403).send({
-            code: 'FORBIDDEN',
-            message: check.reason,
-            statusCode: 403,
+        if (!check.ok) return denyDownload('token_invalid');
+        if (!mayAccessArtifact(request, artifact)) {
+          // 404 (not 403) so a non-owner cannot probe which artifact ids exist.
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: `Report artifact '${params.data.id}' not found`,
+            statusCode: 404,
           });
         }
         const file = await service.downloadBytes(tenantId, params.data.id);
