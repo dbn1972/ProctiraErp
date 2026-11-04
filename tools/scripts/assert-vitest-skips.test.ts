@@ -82,6 +82,30 @@ describe('W3-TEST-04 assert-vitest-skips', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('UAT-API-003: counts skips of the REDIS_URL-gated suites', () => {
+    const redisFiles = [
+      '/repo/packages/backend/auth/src/keycloak/password-throttle-redis.test.ts',
+      '/repo/apps/api-gateway/src/tenant-status-bus.redis.test.ts',
+    ];
+    for (const file of redisFiles) expect(isPgGateFile(file)).toBe(true);
+    const result = evaluateVitestReport(
+      {
+        testResults: [
+          ...executedPgReport.testResults,
+          ...redisFiles.map((name) => ({
+            name,
+            status: 'passed',
+            assertionResults: [{ status: 'skipped', title: 'live Redis' }],
+          })),
+        ],
+      },
+      { CI: 'true', DATABASE_URL: 'postgres://x', FORBID_TEST_SKIPS: '1' },
+      { profile: 'pg', minExecuted: 25, maxAllowedSkips: 1 },
+    );
+    expect(result.summary.skipped).toBe(2);
+    expect(result.ok).toBe(false);
+  });
+
   it('counts skipped pg assertions even when Vitest marks the file passed', () => {
     const s = summarizeReport(skippedPgReport, { profile: 'pg' });
     expect(s.skipped).toBe(2);

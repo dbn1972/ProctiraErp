@@ -27,6 +27,9 @@ export default defineConfig({
       'packages/backend/examination/src/allocation-concurrency.test.ts',
       'packages/backend/examination/src/room-clash-scoping.test.ts',
       'apps/api-gateway/src/insights-ui-plugin.test.ts',
+      // UAT-API-003: REDIS_URL-gated cases; the gate job provides Redis next to Postgres.
+      'packages/backend/auth/src/keycloak/password-throttle-redis.test.ts',
+      'apps/api-gateway/src/tenant-status-bus.redis.test.ts',
     ],
     exclude: ['**/*.live.test.ts', '**/node_modules/**', '**/dist/**'],
     fileParallelism: false,
