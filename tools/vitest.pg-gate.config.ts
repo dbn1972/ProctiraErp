@@ -22,6 +22,11 @@ export default defineConfig({
       'packages/backend/**/bed-assignment.test.ts',
       // PRC-L348: shared in-memory/Postgres repository contract must execute against live Pg.
       'packages/backend/scholarship/src/repository-contract.test.ts',
+      // UAT-API-002: DATABASE_URL-gated cases outside the pg-* naming convention.
+      'packages/backend/**/*.pg.test.ts',
+      'packages/backend/examination/src/allocation-concurrency.test.ts',
+      'packages/backend/examination/src/room-clash-scoping.test.ts',
+      'apps/api-gateway/src/insights-ui-plugin.test.ts',
     ],
     exclude: ['**/*.live.test.ts', '**/node_modules/**', '**/dist/**'],
     fileParallelism: false,
