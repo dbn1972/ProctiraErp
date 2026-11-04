@@ -16,7 +16,8 @@
  * - tenant isolation: another tenant neither sees nor collides with the registration.
  *
  * Fails closed when CI=true or REQUIRE_LIVE_TESTS=1 and DATABASE_URL is unset (W3-TEST-03).
- * The owner-only cases need MIGRATOR_DATABASE_URL and run in the live gate.
+ * The owner-only cases need MIGRATOR_DATABASE_URL; when live tests are required they fail
+ * without it, except under turbo, which strips it (see below).
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { bindTenantGuc, withPgTenant, type PgQueryable } from '@proctira/database';
@@ -39,12 +40,19 @@ const liveRequired =
 if (!DATABASE_URL && liveRequired) {
   throw new Error(`[W3-TEST-03] Live suite "${SUITE}" has no DATABASE_URL.`);
 }
-// MIGRATOR_DATABASE_URL is optional here, as in the sibling live suites: turbo's `test` task
-// env allow-list does not pass it through, so the owner-only cases skip under
-// `turbo run test` and execute in the W3-TEST-03 live gate (`pnpm test:live:gate`), which
-// receives it directly and fails on any skipped test.
+// Owner-only cases need MIGRATOR_DATABASE_URL. When live tests are required they fail without
+// it instead of skipping. The one exception is a run under turbo (TURBO_HASH is set for every
+// turbo task): turbo's `test` task env allow-list strips MIGRATOR_DATABASE_URL, so in CI's
+// `turbo run test` step these cases skip with a warning, and they execute in the W3-TEST-03
+// live gate (`pnpm test:live:gate`), which receives it directly and fails on any skip.
+const ownerOnlyRequired = liveRequired && !process.env['TURBO_HASH'];
+const MISSING_MIGRATOR_DATABASE_URL =
+  `[W3-TEST-03] Live suite "${SUITE}" owner-only case has no MIGRATOR_DATABASE_URL. ` +
+  `Silent skip is forbidden when CI=true or REQUIRE_LIVE_TESTS=1 outside turbo ` +
+  `(set ALLOW_LIVE_TEST_SKIP=1 only for intentional unit-only jobs).`;
+const skipOwnerOnly = !MIGRATOR_DATABASE_URL && !ownerOnlyRequired;
 if (!DATABASE_URL) console.warn(`WARNING: [W3-TEST-03] ${SUITE} skipped (no DATABASE_URL).`);
-if (DATABASE_URL && !MIGRATOR_DATABASE_URL) {
+if (DATABASE_URL && skipOwnerOnly) {
   console.warn(
     `WARNING: [W3-TEST-03] ${SUITE} owner-only cases skipped (no MIGRATOR_DATABASE_URL).`,
   );
@@ -171,6 +179,12 @@ describe.skipIf(!DATABASE_URL)('PRC-M568 public registration submit as proctira_
     await pool.end();
     await ownerPool?.end();
   });
+
+  /** Owner pool for the owner-only cases; fails the case when MIGRATOR_DATABASE_URL is unset. */
+  function requireOwnerPool(): pg.Pool {
+    if (!ownerPool) throw new Error(MISSING_MIGRATOR_DATABASE_URL);
+    return ownerPool;
+  }
 
   /** Tenant + area + active institution + published config v1, all written as proctira_app. */
   async function seed(): Promise<Fixture> {
@@ -349,9 +363,10 @@ describe.skipIf(!DATABASE_URL)('PRC-M568 public registration submit as proctira_
   });
 
   describe('(c) the race the config row lock protected against', () => {
-    it.skipIf(!MIGRATOR_DATABASE_URL)(
+    it.skipIf(skipOwnerOnly)(
       'an in-flight submit holds a key-share lock on the exact config row and on the institution until commit',
       async () => {
+        const owner = requireOwnerPool();
         const fx = await seed();
         const holder = holdingPool(pool);
         const heldRepository = new PgRegistrationRepository(holder.pool);
@@ -372,9 +387,9 @@ describe.skipIf(!DATABASE_URL)('PRC-M568 public registration submit as proctira_
           // Rejects with the submit's own error if it fails before reaching the INSERT.
           await Promise.race([holder.inserted, submit]);
           // Owner (FORCE RLS → tenant bound): config row delete/key-change is blocked.
-          await expect(inTenantRollback(ownerPool!, fx.tenantId, lockConfig)).rejects.toMatchObject(
-            { code: '55P03' },
-          );
+          await expect(inTenantRollback(owner, fx.tenantId, lockConfig)).rejects.toMatchObject({
+            code: '55P03',
+          });
           // Runtime: institution hard-delete/key-change is blocked (OF i lock retained).
           await expect(inTenantRollback(pool, fx.tenantId, lockInstitution)).rejects.toMatchObject({
             code: '55P03',
@@ -384,14 +399,15 @@ describe.skipIf(!DATABASE_URL)('PRC-M568 public registration submit as proctira_
         }
         expect((await submit).outcome).toBe('created');
         // Lock released at commit.
-        const after = await inTenantRollback(ownerPool!, fx.tenantId, lockConfig);
+        const after = await inTenantRollback(owner, fx.tenantId, lockConfig);
         expect(after.rows).toHaveLength(1);
       },
     );
 
-    it.skipIf(!MIGRATOR_DATABASE_URL)(
+    it.skipIf(skipOwnerOnly)(
       'published configurations are immutable for runtime (no privilege) and owner (append-only trigger)',
       async () => {
+        const owner = requireOwnerPool();
         const fx = await seed();
         const update = (client: PgQueryable) =>
           client.query(
@@ -411,10 +427,10 @@ describe.skipIf(!DATABASE_URL)('PRC-M568 public registration submit as proctira_
         await expect(withPgTenant(pool, fx.tenantId, remove)).rejects.toMatchObject({
           code: '42501',
         });
-        await expect(withPgTenant(ownerPool!, fx.tenantId, update)).rejects.toMatchObject({
+        await expect(withPgTenant(owner, fx.tenantId, update)).rejects.toMatchObject({
           code: '23000',
         });
-        await expect(withPgTenant(ownerPool!, fx.tenantId, remove)).rejects.toMatchObject({
+        await expect(withPgTenant(owner, fx.tenantId, remove)).rejects.toMatchObject({
           code: '23000',
         });
 
