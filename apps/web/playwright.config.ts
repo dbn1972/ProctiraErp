@@ -15,6 +15,10 @@ import { resolveWebServerCommand } from './e2e/web-server-command';
  * be checked in and only run when an end-to-end backend is available.
  */
 const PORT = process.env.PORT ?? '3001';
+// UAT-ENV-010: the web server listens on loopback only (Next's own default is
+// 0.0.0.0). BASE_URL keeps `localhost`, which specs use as the cookie domain;
+// Playwright's URL check and Chromium try both 127.0.0.1 and ::1 for it.
+const HOST = process.env.PLAYWRIGHT_WEB_HOST ?? '127.0.0.1';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 function ciReporter(): PlaywrightTestConfig['reporter'] {
@@ -128,6 +132,7 @@ export default defineConfig({
           // as an ES module (so `__dirname` does not exist) and the working directory
           // differs between a turbo-driven run and a direct `playwright test`.
           hasProductionBuild: existsSync(new URL('.next/BUILD_ID', import.meta.url)),
+          host: HOST,
           port: PORT,
         }),
         url: BASE_URL,
