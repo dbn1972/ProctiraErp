@@ -1,5 +1,5 @@
 /**
- * Local compose contract (PRC-L335, PRC-L460).
+ * Local compose contract (PRC-L335, PRC-L460, UAT-ENV-009).
  * Run with: node --test tools/scripts/check-compose-contract.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -11,7 +11,10 @@ import {
   checkBuiltServiceHealthchecks,
   checkDockerInitPasswords,
   checkPostgresBootstrap,
+  checkPublishedPortBindAddress,
   composeDefault,
+  isLoopbackHostIp,
+  splitPortSpec,
 } from './check-compose-contract.mjs';
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'check-compose-contract.mjs');
@@ -84,6 +87,57 @@ test('PRC-L460: hard-coded role passwords in docker-init fail (base 02_local_pas
   ]);
 });
 
+test('UAT-ENV-009: splitPortSpec keeps ${...} and [...] intact', () => {
+  assert.deepEqual(splitPortSpec('${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3001}:3001'), [
+    '${BIND_ADDRESS:-127.0.0.1}',
+    '${WEB_PORT:-3001}',
+    '3001',
+  ]);
+  assert.deepEqual(splitPortSpec('[::1]:3000:3000/tcp'), ['[::1]', '3000', '3000/tcp']);
+  assert.deepEqual(splitPortSpec('${GATEWAY_PORT:-3000}:3000'), ['${GATEWAY_PORT:-3000}', '3000']);
+});
+test('UAT-ENV-009: short-syntax ports without a loopback host IP fail (base api-gateway)', () => {
+  const errors = checkPublishedPortBindAddress({
+    services: {
+      'api-gateway': { ports: ['${GATEWAY_PORT:-3000}:3000'] },
+      bare: { ports: ['3001', 3002] },
+      any: { ports: ['0.0.0.0:3003:3003', '${BIND_ADDRESS}:3004:3004'] },
+    },
+  });
+  assert.equal(errors.length, 5);
+  assert.match(errors[0], /service api-gateway publishes port \$\{GATEWAY_PORT:-3000\}:3000/);
+  assert.match(errors[0], /UAT-ENV-009/);
+});
+test('UAT-ENV-009: BIND_ADDRESS default, literal loopback and [::1] pass', () => {
+  assert.deepEqual(
+    checkPublishedPortBindAddress({
+      services: {
+        'api-gateway': { ports: ['${BIND_ADDRESS:-127.0.0.1}:${GATEWAY_PORT:-3000}:3000'] },
+        grafana: { ports: ['127.0.0.1:3050:3000', '[::1]:3051:3000/tcp'] },
+        worker: { image: 'busybox' },
+      },
+    }),
+    [],
+  );
+});
+test('UAT-ENV-009: long-syntax ports need a loopback host_ip', () => {
+  const errors = checkPublishedPortBindAddress({
+    services: {
+      ok: { ports: [{ target: 3001, published: '3001', host_ip: '127.0.0.1' }] },
+      missing: { ports: [{ target: 3002, published: '3002' }] },
+      open: { ports: [{ target: 3003, published: '3003', host_ip: '0.0.0.0' }] },
+    },
+  });
+  assert.equal(errors.length, 2);
+  assert.match(errors.join('\n'), /service missing publishes/);
+  assert.match(errors.join('\n'), /service open publishes/);
+});
+test('UAT-ENV-009: isLoopbackHostIp resolves ${VAR:-default}', () => {
+  assert.equal(isLoopbackHostIp('${BIND_ADDRESS:-127.0.0.1}'), true);
+  assert.equal(isLoopbackHostIp('${BIND_ADDRESS:-0.0.0.0}'), false);
+  assert.equal(isLoopbackHostIp('::1'), true);
+  assert.equal(isLoopbackHostIp(''), false);
+});
 test('repository docker-compose.yml passes the contract', () => {
   const r = spawnSync(process.execPath, [SCRIPT], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
