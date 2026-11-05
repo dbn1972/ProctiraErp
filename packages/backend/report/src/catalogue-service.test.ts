@@ -15,8 +15,10 @@ import { computeNextRunAt, createReportScheduler } from './scheduler.js';
 
 // PRC-H080: these unit tests run without a DB pool and explicitly opt into demo rows.
 // UAT-API-007: providers and dashboards call getSharedPgPool(), which reads DATABASE_URL,
-// so a runner-exported DATABASE_URL would send them to the live database. Unset it before
-// any import so the demo path is used.
+// so a runner-exported DATABASE_URL would send them to the live database. Remove a
+// runner-exported DATABASE_URL before any import so the demo path is used. A local
+// packages/shared/database/.env can still set it during import (Prisma client autoload),
+// as before.
 vi.hoisted(() => {
   delete process.env['DATABASE_URL'];
 });

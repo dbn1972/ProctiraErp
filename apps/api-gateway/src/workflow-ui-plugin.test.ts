@@ -13,8 +13,9 @@ import {
 
 // UAT-API-006: these cases assert the seeded in-memory store. forceMemory picks the
 // store, but the seed itself follows shouldSeedDemoData(), which (PRC-L207) seeds only
-// when DATABASE_URL is unset outside production. Unset it before any import so a
-// runner-exported DATABASE_URL does not empty the seed.
+// when DATABASE_URL is unset outside production. Remove a runner-exported DATABASE_URL
+// before any import so it does not empty the seed. A local packages/shared/database/.env
+// can still set it during import (Prisma client autoload), as before.
 vi.hoisted(() => {
   delete process.env['DATABASE_URL'];
 });

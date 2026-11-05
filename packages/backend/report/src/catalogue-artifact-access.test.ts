@@ -11,7 +11,9 @@ import { InMemoryReportStore } from './report-store.js';
 
 // UAT-API-007: the catalogue providers call getSharedPgPool(), which reads DATABASE_URL,
 // so a runner-exported DATABASE_URL would send them to the live database instead of the
-// demo rows these cases rely on. Unset it before any import.
+// demo rows these cases rely on. Remove a runner-exported DATABASE_URL before any import.
+// A local packages/shared/database/.env can still set it during import (Prisma client
+// autoload), as before.
 vi.hoisted(() => {
   delete process.env['DATABASE_URL'];
 });

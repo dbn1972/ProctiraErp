@@ -18,9 +18,11 @@ import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 
 // UAT-API-006: this file tests the in-memory composition. vi.hoisted runs before
-// the imports above, so module-scope factories in app.ts / domain-plugins.ts
-// (e.g. the shared privacy repository) and the per-app Redis rate-limit and
-// readiness adapters never see a DATABASE_URL / REDIS_URL exported by the runner.
+// the imports above and removes a runner-exported DATABASE_URL / REDIS_URL, so
+// module-scope factories in app.ts / domain-plugins.ts (e.g. the shared privacy
+// repository) and the per-app Redis rate-limit and readiness adapters do not pick
+// them up. A local packages/shared/database/.env can still set DATABASE_URL
+// during import via the Prisma autoload described below, as before.
 vi.hoisted(() => {
   delete process.env['DATABASE_URL'];
   delete process.env['REDIS_URL'];
