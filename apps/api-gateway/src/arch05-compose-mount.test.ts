@@ -4,10 +4,18 @@
  * it has a durable PostgreSQL repository when DATABASE_URL is configured.
  */
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
+
+// UAT-API-006: vi.hoisted runs before the imports above, so the module-scope
+// shared privacy repository in app.ts / domain-plugins.ts is the in-memory one
+// this file asserts on, even when the runner exports DATABASE_URL / REDIS_URL.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+  delete process.env['REDIS_URL'];
+});
 
 delete process.env['DATABASE_URL'];
 

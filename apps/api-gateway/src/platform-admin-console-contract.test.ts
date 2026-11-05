@@ -13,6 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TENANT_LIFECYCLE_TRANSITIONS, platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 
+// UAT-API-006: these cases assert the seeded in-memory console store. With DATABASE_URL
+// set the plugin uses the durable Postgres store instead: no demo seed (G-705), rows shared
+// with other files and earlier runs, so the in_review plugin this file rejects depends on
+// run order. vi.hoisted unsets it before any import.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+});
+
 const PLATFORM_ROLES = [{ roleId: 'platform_admin', roleName: 'Platform admin', areaId: null }];
 const OPERATOR = { sub: 'op-1', email: 'op1@proctira.org' };
 const REASON = 'Contract breach confirmed by finance team';

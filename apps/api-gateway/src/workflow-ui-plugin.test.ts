@@ -2,7 +2,7 @@
  * Unit tests for Workflow UI aggregate routes (tenant + RBAC + mutations).
  */
 import Fastify, { type FastifyRequest } from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 import {
@@ -10,6 +10,14 @@ import {
   WORKFLOW_DEF_TRANSFER_ID,
   WORKFLOW_DEMO_TENANT_ID,
 } from './workflow-ui-seed.js';
+
+// UAT-API-006: these cases assert the seeded in-memory store. forceMemory picks the
+// store, but the seed itself follows shouldSeedDemoData(), which (PRC-L207) seeds only
+// when DATABASE_URL is unset outside production. Unset it before any import so a
+// runner-exported DATABASE_URL does not empty the seed.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+});
 
 // Alias kept for readability in assertions below.
 const PENDING_APPROVAL_ID = WORKFLOW_APPROVAL_PENDING_ID;

@@ -6,12 +6,20 @@
  * process without DATABASE_URL (in-memory / fallback path).
  */
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 import { DOMAIN_REGISTRAR_COMPOSITION, DOMAIN_REGISTRAR_NAMES } from './domain-plugins.js';
 import { EXPECTED_PARKED, MATRIX_REGISTRAR_NAMES, MOUNT_MATRIX } from './mount-matrix.js';
+
+// UAT-API-006: vi.hoisted runs before the imports above, so the module-scope
+// shared privacy repository in app.ts / domain-plugins.ts is the in-memory one
+// this file asserts on, even when the runner exports DATABASE_URL / REDIS_URL.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+  delete process.env['REDIS_URL'];
+});
 
 delete process.env['DATABASE_URL'];
 

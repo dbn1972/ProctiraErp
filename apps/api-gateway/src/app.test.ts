@@ -11,11 +11,20 @@
  * - OpenAPI documentation
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
+
+// UAT-API-006: this file tests the in-memory composition. vi.hoisted runs before
+// the imports above, so module-scope factories in app.ts / domain-plugins.ts
+// (e.g. the shared privacy repository) and the per-app Redis rate-limit and
+// readiness adapters never see a DATABASE_URL / REDIS_URL exported by the runner.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+  delete process.env['REDIS_URL'];
+});
 
 // The generated Prisma client auto-loads packages/shared/database/.env as an
 // import side effect, which sets DATABASE_URL and would flip the in-process
