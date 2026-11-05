@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { isPdfBuffer } from '@proctira/pdf-lite';
 import Fastify from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryReportBlobStore } from './blob-store.js';
 import { reportCataloguePlugin } from './catalogue-plugin.js';
@@ -14,6 +14,14 @@ import { InMemoryScheduleDelivery } from './schedule-delivery.js';
 import { computeNextRunAt, createReportScheduler } from './scheduler.js';
 
 // PRC-H080: these unit tests run without a DB pool and explicitly opt into demo rows.
+// UAT-API-007: providers and dashboards call getSharedPgPool(), which reads DATABASE_URL,
+// so a runner-exported DATABASE_URL would send them to the live database. Remove a
+// runner-exported DATABASE_URL before any import so the demo path is used. A local
+// packages/shared/database/.env can still set it during import (Prisma client autoload),
+// as before.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+});
 process.env.REPORT_DEMO_DATA = '1';
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
