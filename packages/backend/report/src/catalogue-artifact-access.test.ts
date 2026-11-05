@@ -4,11 +4,17 @@
  * GET /reports/runs visibility filter). Test-only: asserts current behaviour.
  */
 import Fastify, { type FastifyInstance } from 'fastify';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { InMemoryReportBlobStore } from './blob-store.js';
 import { reportCataloguePlugin } from './catalogue-plugin.js';
 import { InMemoryReportStore } from './report-store.js';
 
+// UAT-API-007: the catalogue providers call getSharedPgPool(), which reads DATABASE_URL,
+// so a runner-exported DATABASE_URL would send them to the live database instead of the
+// demo rows these cases rely on. Unset it before any import.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+});
 const TENANT = '00000000-0000-4000-8000-0000000006c1';
 const headers = { 'x-tenant-id': TENANT };
 
