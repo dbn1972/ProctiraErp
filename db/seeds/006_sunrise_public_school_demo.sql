@@ -1910,7 +1910,8 @@ BEGIN
     user_name, ip_address, occurred_at, metadata, dedupe_key
   )
   SELECT
-    '00000000-0000-4000-8000-00000000a501',
+    -- audit_ingest_queue.tenant_id is UUID with an FK to tenants(id) (293).
+    '00000000-0000-4000-8000-00000000a501'::uuid,
     'institution',
     '00000000-0000-4000-8000-00000000a551',
     'UPDATE',

@@ -25,9 +25,14 @@
 -- rows written since the first apply). Runs as the migrator (table owner), so
 -- RLS on audit_chain_cutover / audit_chain_heads does not filter these rows.
 
+-- audit_chain_cutover.tenant_id is UUID with a validated FK to tenants(id)
+-- (291, B07 Q2 option B). The source tenant_id columns are UUID after
+-- db/sql/100 (APPLY_STRICT_FKS=1) and TEXT without it, so the ::uuid casts
+-- below make both postures apply; they are no-ops on the strict posture.
+
 -- 1) Seed from the authoritative per-tenant head.
 INSERT INTO audit_chain_cutover (tenant_id, cutover_seq)
-SELECT h.tenant_id, h.head_seq
+SELECT h.tenant_id::uuid, h.head_seq
 FROM audit_chain_heads h
 ON CONFLICT (tenant_id) DO NOTHING;
 
@@ -35,7 +40,7 @@ ON CONFLICT (tenant_id) DO NOTHING;
 --    highest chain_seq observed across live and archive. DISTINCT so each
 --    tenant yields one candidate; ON CONFLICT protects tenants seeded in (1).
 INSERT INTO audit_chain_cutover (tenant_id, cutover_seq)
-SELECT s.tenant_id, max(s.chain_seq) AS cutover_seq
+SELECT s.tenant_id::uuid, max(s.chain_seq) AS cutover_seq
 FROM (
   SELECT tenant_id, chain_seq FROM audit_log_entries WHERE chain_seq IS NOT NULL
   UNION ALL

@@ -13,14 +13,17 @@
 
 -- ---------------------------------------------------------------------------
 -- DR4-4 columns. id is a surrogate identity so the drain can order enqueues
--- deterministically; tenant_id matches audit_log_entries (TEXT, both FK
--- postures). actor_kind records system vs human origin; user_id is nullable
+-- deterministically; tenant_id is UUID with a validated FK to tenants(id)
+-- (W1-DATA-06, B07 Q2 option B; the table is created empty, so the inline FK is
+-- valid at creation; NO ACTION on delete like the other audit_* tenant FKs).
+-- actor_kind records system vs human origin; user_id is nullable
 -- for 'system:<job>' rows. sealed_at + chain_seq are set only by the seal
 -- function once the row lands in the keyed chain.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_ingest_queue (
   id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  tenant_id    TEXT NOT NULL,
+  tenant_id    UUID NOT NULL
+    CONSTRAINT audit_ingest_queue_tenant_fk REFERENCES tenants (id),
   entity_type  TEXT NOT NULL,
   entity_id    TEXT NOT NULL,
   operation    TEXT NOT NULL,
@@ -62,10 +65,12 @@ ALTER TABLE audit_ingest_queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_ingest_queue FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON audit_ingest_queue;
 -- No platform_admin branch (DR4-4): a queued row is tenant data, visible only
--- to its own tenant. The drain binds each tenant's GUC before sealing.
+-- to its own tenant. The drain binds each tenant's GUC before sealing. The uuid
+-- column compares as text against the GUC (099/100 convention), so a missing
+-- or malformed app.tenant_id denies instead of raising on a ::uuid cast.
 CREATE POLICY tenant_isolation ON audit_ingest_queue FOR ALL
-  USING (tenant_id = app_tenant_id())
-  WITH CHECK (tenant_id = app_tenant_id());
+  USING (tenant_id::text = app_tenant_id())
+  WITH CHECK (tenant_id::text = app_tenant_id());
 
 -- ---------------------------------------------------------------------------
 -- Seal one pending queue row into the keyed chain. SECURITY DEFINER, bound to
@@ -90,7 +95,8 @@ AS $$
 DECLARE
   v_bound text := audit_chain_effective_tenant();
   -- audit_chain_heads.tenant_id and audit_log_entries.tenant_id are UUID after
-  -- db/sql/100; the queue table (this migration) keeps TEXT. Bind both forms.
+  -- db/sql/100, and the queue table (this migration) is UUID too. Bind the
+  -- uuid form once, after the tenant-match guard.
   v_bound_uuid uuid;
   v_row   audit_ingest_queue%ROWTYPE;
   v_seq   bigint;
@@ -111,10 +117,10 @@ BEGIN
 
   v_bound_uuid := v_bound::uuid;
 
-  -- Lock the queue row; it must belong to the bound tenant (queue tenant_id is TEXT).
+  -- Lock the queue row; it must belong to the bound tenant.
   SELECT * INTO v_row
   FROM audit_ingest_queue
-  WHERE id = p_queue_id AND tenant_id = v_bound
+  WHERE id = p_queue_id AND tenant_id = v_bound_uuid
   FOR UPDATE;
 
   IF NOT FOUND THEN
@@ -188,8 +194,9 @@ BEGIN
     RAISE EXCEPTION 'audit_ingest_pending_tenants: platform context required'
       USING ERRCODE = '42501';
   END IF;
+  -- tenant_id is returned as text (the drain binds it as the app.tenant_id GUC).
   RETURN QUERY
-    SELECT q.tenant_id, count(*)::bigint
+    SELECT q.tenant_id::text, count(*)::bigint
     FROM audit_ingest_queue q
     WHERE q.sealed_at IS NULL
     GROUP BY q.tenant_id
