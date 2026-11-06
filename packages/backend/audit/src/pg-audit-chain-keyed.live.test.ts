@@ -21,6 +21,9 @@
  *      argument (DR4-7 case-insensitive compare).
  *   7. Sealing a queue row twice raises (double-seal guard) and leaves exactly
  *      one chain entry for it.
+ *   8. audit_ingest_queue / audit_chain_cutover tenant_id is uuid with a
+ *      validated FK to tenants(id): an unknown tenant uuid is rejected, and the
+ *      runtime role bound to tenant B cannot see tenant A's rows.
  *
  * Two connections are used, matching the tamper suite:
  *   - the runtime pool (`DATABASE_URL`, e.g. proctira_app) writes + verifies
@@ -32,7 +35,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { withPgTenant } from '@proctira/database';
+import { withPgTenant, type PgQueryable } from '@proctira/database';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import pg from 'pg';
@@ -328,6 +331,71 @@ describe('PRC-M200 keyed audit chain (live Postgres)', () => {
         const ok = await client.query(`SELECT head_seq FROM audit_chain_lock_head($1)`, [upper]);
         expect(ok.rowCount).toBe(1);
       });
+    },
+  );
+
+  it.skipIf(!live)(
+    'queue and cut-over tenant_id are uuid with a validated tenants FK; RLS hides other tenants (W1-DATA-06)',
+    async () => {
+      // Catalog: both tables carry a validated FK on a uuid tenant_id (291/293).
+      const fks = await ownerPool!.query<{ tbl: string; validated: boolean; type: string }>(
+        `SELECT c.conrelid::regclass::text AS tbl, c.convalidated AS validated,
+                a.atttypid::regtype::text AS type
+           FROM pg_constraint c
+           JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+          WHERE c.contype = 'f'
+            AND c.confrelid = 'public.tenants'::regclass
+            AND a.attname = 'tenant_id'
+            AND c.conrelid::regclass::text IN ('audit_chain_cutover', 'audit_ingest_queue')
+          ORDER BY 1`,
+      );
+      expect(fks.rows).toEqual([
+        { tbl: 'audit_chain_cutover', validated: true, type: 'uuid' },
+        { tbl: 'audit_ingest_queue', validated: true, type: 'uuid' },
+      ]);
+
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      await ensurePgTestTenant(ownerPool!, tenantA);
+      await ensurePgTestTenant(ownerPool!, tenantB);
+      const enqueue = (client: PgQueryable, tenantId: string) =>
+        client.query(
+          `INSERT INTO audit_ingest_queue
+             (tenant_id, entity_type, entity_id, operation, actor_kind, dedupe_key)
+           VALUES ($1, 'demo', 'd1', 'CREATE', 'system:test', $2)`,
+          [tenantId, randomUUID()],
+        );
+
+      // Tenant A: one queued row (runtime role) and one cut-over row (owner,
+      // the only writer of the cut-over).
+      await withPgTenant(runtimePool!, tenantA, (client) => enqueue(client, tenantA));
+      await asOwner(tenantA, (client) =>
+        client.query(`INSERT INTO audit_chain_cutover (tenant_id, cutover_seq) VALUES ($1, 7)`, [
+          tenantA,
+        ]),
+      );
+
+      const countForA = async (client: PgQueryable, table: string) => {
+        const res = await client.query(
+          `SELECT count(*)::text AS n FROM ${table} WHERE tenant_id = $1`,
+          [tenantA],
+        );
+        return Number((res.rows[0] as { n: string }).n);
+      };
+      const visible = (tenantId: string) =>
+        withPgTenant(runtimePool!, tenantId, async (client) => [
+          await countForA(client, 'audit_ingest_queue'),
+          await countForA(client, 'audit_chain_cutover'),
+        ]);
+      expect(await visible(tenantA)).toEqual([1, 1]);
+      // Runtime role bound to tenant B cannot see tenant A's rows.
+      expect(await visible(tenantB)).toEqual([0, 0]);
+
+      // A tenant uuid with no tenants row is rejected by the FK, not stored.
+      const ghost = randomUUID();
+      await expect(
+        withPgTenant(runtimePool!, ghost, (client) => enqueue(client, ghost)),
+      ).rejects.toThrow(/audit_ingest_queue_tenant_fk|foreign key/i);
     },
   );
 
