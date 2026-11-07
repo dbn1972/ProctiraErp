@@ -28,7 +28,7 @@ COMMENT ON COLUMN audit_log_entries.key_id IS
   'PRC-M200: HMAC key id that signed entry_hash. NULL = legacy unkeyed sha256 row (at/below the tenant cut-over).';
 
 -- Per-tenant cut-over: the head chain_seq when the keyed chain takes over.
--- Written only by the migration (296) and never by the runtime role, so the
+-- Written only by the migration (295) and never by the runtime role, so the
 -- boundary between accepted legacy rows and required keyed rows is immutable at
 -- runtime. W1-DATA-06 (B07 Q2 option B): tenant_id is UUID with a validated FK
 -- to tenants(id), like every other tenant-owned table. The table is created
@@ -50,10 +50,11 @@ ALTER TABLE audit_chain_cutover ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_chain_cutover FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON audit_chain_cutover;
 -- Read-scoped to the bound tenant. No platform_admin branch: the cut-over is a
--- tamper boundary, not tenant-admin data, and the migration (table owner) writes
--- it while RLS is not forced on the owner. The uuid column compares as text
--- against the GUC (099/100 convention): a missing or malformed app.tenant_id
--- denies instead of raising on a ::uuid cast.
+-- tamper boundary, not tenant-admin data. FORCE RLS applies this policy to the
+-- table owner too (the migrator is NOBYPASSRLS), so 295 lifts FORCE around its
+-- seed insert and restores it in the same transaction (UAT-DB-003). The uuid
+-- column compares as text against the GUC (099/100 convention): a missing or
+-- malformed app.tenant_id denies instead of raising on a ::uuid cast.
 CREATE POLICY tenant_isolation ON audit_chain_cutover FOR ALL
   USING (tenant_id::text = app_tenant_id())
   WITH CHECK (tenant_id::text = app_tenant_id());

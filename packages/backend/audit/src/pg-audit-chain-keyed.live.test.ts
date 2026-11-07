@@ -24,6 +24,10 @@
  *   8. audit_ingest_queue / audit_chain_cutover tenant_id is uuid with a
  *      validated FK to tenants(id): an unknown tenant uuid is rejected, and the
  *      runtime role bound to tenant B cannot see tenant A's rows.
+ *   9. Upgrade over a pre-seeded chain (UAT-DB-003): running 295 as the
+ *      NOBYPASSRLS migrator records cut-over = head seq for tenants whose
+ *      legacy unkeyed chain predates 291, restores FORCE RLS, keeps the first
+ *      boundary on re-run, and the keyed verifier accepts the legacy rows.
  *
  * Two connections are used, matching the tamper suite:
  *   - the runtime pool (`DATABASE_URL`, e.g. proctira_app) writes + verifies
@@ -34,6 +38,9 @@
  * written directly through the owner connection.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
@@ -95,6 +102,75 @@ async function seedKeyedChain(length: number): Promise<string> {
   return tenantId;
 }
 
+/** Text of migration 295, run verbatim by the upgrade case (UAT-DB-003). */
+function load295(): string {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+  return readFileSync(path.join(root, 'db/sql', '295_audit_chain_cutover_seed.sql'), 'utf8');
+}
+/**
+ * Seed a fresh tenant with a LEGACY unkeyed sha256 chain of `length` rows, the
+ * shape main wrote before 291 (key_id NULL, head advanced by the writer). Runs
+ * as the owner bound to the tenant; the 296 linkage trigger stays enabled, so
+ * every row must extend the head it sees. Returns the tenant id.
+ */
+async function seedLegacyChain(length: number): Promise<string> {
+  const tenantId = randomUUID();
+  await ensurePgTestTenant(ownerPool!, tenantId);
+  await asOwner(tenantId, async (client) => {
+    let prevHash: string | null = null;
+    for (let n = 1; n <= length; n += 1) {
+      const row = input(tenantId, n);
+      const hash = computeEntryHash(
+        {
+          id: row.id,
+          tenantId: row.tenantId,
+          entityType: row.entityType,
+          entityId: row.entityId,
+          operation: row.operation,
+          userId: row.userId,
+          userName: row.userName,
+          ipAddress: row.ipAddress,
+          timestamp: row.timestamp,
+          beforeValues: row.beforeValues,
+          afterValues: row.afterValues,
+          metadata: row.metadata,
+        },
+        prevHash,
+      );
+      await client.query(
+        `INSERT INTO audit_log_entries (
+           id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+           ip_address, occurred_at, before_values, after_values, metadata,
+           chain_seq, prev_hash, entry_hash, key_id
+         ) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15,NULL)`,
+        [
+          row.id,
+          row.tenantId,
+          row.entityType,
+          row.entityId,
+          row.operation,
+          row.userId,
+          row.userName,
+          row.ipAddress,
+          row.timestamp,
+          JSON.stringify(row.beforeValues),
+          JSON.stringify(row.afterValues),
+          JSON.stringify(row.metadata),
+          n,
+          prevHash,
+          hash,
+        ],
+      );
+      await client.query(
+        `INSERT INTO audit_chain_heads (tenant_id, head_seq, head_hash) VALUES ($1, $2, $3)
+         ON CONFLICT (tenant_id) DO UPDATE SET head_seq = EXCLUDED.head_seq, head_hash = EXCLUDED.head_hash`,
+        [tenantId, n, hash],
+      );
+      prevHash = hash;
+    }
+  });
+  return tenantId;
+}
 /** Run `fn` as the owning DBA scoped to `tenantId` (FORCE RLS needs the GUC). */
 async function asOwner<T>(
   tenantId: string | null,
@@ -459,6 +535,85 @@ describe('PRC-M200 keyed audit chain (live Postgres)', () => {
         ),
       );
       expect(Number(count.rows[0]!.n)).toBe(1);
+    },
+  );
+
+  it.skipIf(!live)(
+    '295 run as the NOBYPASSRLS migrator records cut-over = head seq over a pre-seeded legacy chain (UAT-DB-003)',
+    async () => {
+      // Two tenants whose chains predate 291: legacy unkeyed rows, no cut-over.
+      const lengths = [3, 2];
+      const tenants: string[] = [];
+      for (const length of lengths) tenants.push(await seedLegacyChain(length));
+
+      const migration = load295();
+      const client = await ownerPool!.connect();
+      // PgAuditRepository on this one transaction (a PoolClient would be taken
+      // for a pool by withPlatformScope).
+      const tx: PgQueryable = {
+        query: (text: string, params?: unknown[]) => client.query(text, params),
+      } as PgQueryable;
+      const cutoverOf = async (tenantId: string) => {
+        await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+        const res = await client.query<{ cutover_seq: string }>(
+          `SELECT cutover_seq FROM audit_chain_cutover WHERE tenant_id = $1`,
+          [tenantId],
+        );
+        return res.rows.map((r) => Number(r.cutover_seq));
+      };
+      try {
+        // As apply-sql runs it: the migrator (owner, NOSUPERUSER NOBYPASSRLS)
+        // in one transaction with no tenant or platform GUC bound. Rolled back
+        // below so the shared live database keeps its own cut-over state.
+        await client.query('BEGIN');
+        const role = await client.query<{ rolsuper: boolean; rolbypassrls: boolean }>(
+          `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`,
+        );
+        expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+        await client.query(migration);
+
+        // The FORCE lift is restored on every table it touched.
+        const forced = await client.query<{ relname: string; forced: boolean }>(
+          `SELECT relname, relforcerowsecurity AS forced FROM pg_class
+            WHERE oid = ANY (ARRAY['public.tenants', 'public.audit_chain_heads',
+                                   'public.audit_log_entries', 'public.audit_log_archive',
+                                   'public.audit_chain_cutover']::regclass[])
+            ORDER BY relname`,
+        );
+        expect(forced.rows).toEqual(
+          [
+            'audit_chain_cutover',
+            'audit_chain_heads',
+            'audit_log_archive',
+            'audit_log_entries',
+            'tenants',
+          ].map((relname) => ({ relname, forced: true })),
+        );
+
+        const repo = new PgAuditRepository(tx);
+        for (const [i, tenantId] of tenants.entries()) {
+          expect(await cutoverOf(tenantId)).toEqual([lengths[i]]);
+          const verified = await repo.verifyChain(tenantId);
+          expect(verified.valid).toBe(true);
+          expect(verified.brokenAt).toBeNull();
+          expect(verified.checkedEntries).toBe(lengths[i]);
+          expect(verified.headSeq).toBe(lengths[i]);
+        }
+
+        // After the upgrade the next row is keyed and lands above the boundary;
+        // a re-run of 295 keeps the first cut-over instead of moving it forward.
+        const first = tenants[0]!;
+        await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [first]);
+        await appendAuditEntryOnClient(tx, input(first, lengths[0]! + 1));
+        await client.query(migration);
+        expect(await cutoverOf(first)).toEqual([lengths[0]]);
+        const after = await repo.verifyChain(first);
+        expect(after.valid).toBe(true);
+        expect(after.checkedEntries).toBe(lengths[0]! + 1);
+      } finally {
+        await client.query('ROLLBACK').catch(() => undefined);
+        client.release();
+      }
     },
   );
 });
