@@ -26,8 +26,9 @@
  *      runtime role bound to tenant B cannot see tenant A's rows.
  *   9. Upgrade over a pre-seeded chain (UAT-DB-003): running 295 as the
  *      NOBYPASSRLS migrator records cut-over = head seq for tenants whose
- *      legacy unkeyed chain predates 291, restores FORCE RLS, keeps the first
- *      boundary on re-run, and the keyed verifier accepts the legacy rows.
+ *      legacy unkeyed chain predates 291, lifts FORCE RLS on audit_chain_cutover
+ *      only and restores it, keeps the first boundary on re-run, and the keyed
+ *      verifier accepts the legacy rows.
  *  10. Drain tenant listing (UAT-DB-002): in platform scope the runtime role
  *      gets pending tenant ids + counts from audit_ingest_pending_tenants(),
  *      while queued rows stay visible only to their own tenant.
@@ -573,9 +574,31 @@ describe('PRC-M200 keyed audit chain (live Postgres)', () => {
           `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`,
         );
         expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+        const platformGuc = async () =>
+          (
+            await client.query<{ v: string }>(
+              `SELECT coalesce(current_setting('app.platform_admin', true), '') AS v`,
+            )
+          ).rows[0]!.v;
+        const platformBefore = await platformGuc();
         await client.query(migration);
 
-        // The FORCE lift is restored on every table it touched.
+        // FORCE is lifted on audit_chain_cutover only (review r2 issue 1). An
+        // ALTER TABLE holds ACCESS EXCLUSIVE until commit, so the locks this
+        // still-open transaction holds show which tables 295 altered: the
+        // source tables and tenants were read through their platform branch,
+        // never lifted.
+        const altered = await client.query<{ relname: string }>(
+          `SELECT relation::regclass::text AS relname FROM pg_locks
+            WHERE pid = pg_backend_pid() AND locktype = 'relation'
+              AND mode = 'AccessExclusiveLock'
+            ORDER BY 1`,
+        );
+        expect(altered.rows).toEqual([{ relname: 'audit_chain_cutover' }]);
+        // The platform scope 295 bound for its reads is cleared again.
+        expect(await platformGuc()).toBe(platformBefore);
+
+        // FORCE is back on audit_chain_cutover and still on everywhere else.
         const forced = await client.query<{ relname: string; forced: boolean }>(
           `SELECT relname, relforcerowsecurity AS forced FROM pg_class
             WHERE oid = ANY (ARRAY['public.tenants', 'public.audit_chain_heads',

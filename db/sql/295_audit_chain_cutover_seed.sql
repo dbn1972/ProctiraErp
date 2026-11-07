@@ -27,16 +27,36 @@
 -- FORCE RLS applies to the table owner (UAT-DB-003, B07 Q14). The migrator
 -- (proctira) owns every table read and written here but is NOSUPERUSER
 -- NOBYPASSRLS, and these tables are FORCE ROW LEVEL SECURITY (051). apply-sql
--- binds no app.tenant_id, so without a lift the source SELECTs see zero rows
--- and no tenant gets a cut-over; the keyed verifier would then reject every
--- legacy row of every existing tenant. Binding app.platform_admin would expose
--- the sources but not satisfy the audit_chain_cutover WITH CHECK, which has no
--- platform branch by design. So, as in db/sql/100, FORCE is lifted on the
--- source tables, on tenants (the join below) and on audit_chain_cutover for the
--- scan and insert, then restored where it was set. Everything runs in one DO
--- block inside apply-sql's per-file transaction: a failure rolls the lift back
--- with it, so no table can be left unforced. The ALTERs take ACCESS EXCLUSIVE
--- on these tables until commit, bounded by apply-sql's lock_timeout.
+-- binds no app.tenant_id, so with no scope the source SELECTs see zero rows and
+-- no tenant gets a cut-over; the keyed verifier would then reject every legacy
+-- row of every existing tenant.
+--
+-- Reads: the block binds app.platform_admin='1' transaction-locally. tenants,
+-- audit_chain_heads, audit_log_entries and audit_log_archive each have a
+-- "OR current_setting('app.platform_admin', true) = '1'" branch in their
+-- tenant_isolation policy (strict and developer-default postures alike), so the
+-- scan sees every tenant's rows with FORCE left in place on all four.
+-- Write: audit_chain_cutover's policy has no platform branch by design (291),
+-- so FORCE is lifted on audit_chain_cutover ONLY, for the two INSERTs, and
+-- restored right after. The tenants FK check on that INSERT is a system check
+-- that RLS does not filter, so tenants needs no lift.
+-- The prior app.platform_admin value is restored before the block ends.
+--
+-- Locks: the only ACCESS EXCLUSIVE lock is the one ALTER TABLE takes on
+-- audit_chain_cutover, held until commit. The runtime role only reads that
+-- table (SELECT only, 294), and only chain verification reads it; audit writes
+-- never touch it. A concurrent verification therefore waits at most for this
+-- file's transaction. The source tables get only ACCESS SHARE from the SELECTs,
+-- which blocks no runtime read or write. apply-sql's lock_timeout (5 s
+-- default) bounds only how long the ALTER waits to acquire its lock; the hold
+-- itself, including the full scan of audit_log_entries and audit_log_archive in
+-- step 2, is bounded by statement_timeout (30 min default).
+--
+-- Atomicity: everything runs in one DO block inside apply-sql's per-file
+-- transaction (and stays one phase under APPLY_SQL_NO_TX=1), so a failure rolls
+-- the lift back with it and audit_chain_cutover can never be left unforced.
+-- Never re-run this file by hand: a manual re-run gives a cut-over to tenants
+-- created after the first apply (which have none and need all-keyed rows).
 --
 -- Tenant filter (B07 review issue 5). audit_chain_cutover.tenant_id is UUID
 -- with a validated FK to tenants(id) (291, B07 Q2 option B). On the strict
@@ -52,24 +72,21 @@
 -- above cut-over 0 and fails closed.
 DO $cutover_seed$
 DECLARE
-  t text;
+  prior_platform text := current_setting('app.platform_admin', true);
   was_forced boolean;
-  lifted text[] := ARRAY[]::text[];
   n_seeded bigint;
   n_backfilled bigint;
   n_skipped bigint;
 BEGIN
-  FOREACH t IN ARRAY ARRAY[
-    'tenants', 'audit_chain_heads', 'audit_log_entries', 'audit_log_archive',
-    'audit_chain_cutover'
-  ] LOOP
-    SELECT relforcerowsecurity INTO was_forced
-      FROM pg_class WHERE oid = format('public.%I', t)::regclass;
-    IF was_forced THEN
-      EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', t);
-      lifted := lifted || t;
-    END IF;
-  END LOOP;
+  -- Platform scope for the source reads (policy branch, FORCE untouched).
+  PERFORM set_config('app.platform_admin', '1', true);
+
+  -- Lift FORCE on the cut-over table only, where it is set.
+  SELECT relforcerowsecurity INTO was_forced
+    FROM pg_class WHERE oid = 'public.audit_chain_cutover'::regclass;
+  IF was_forced THEN
+    ALTER TABLE audit_chain_cutover NO FORCE ROW LEVEL SECURITY;
+  END IF;
 
   -- 1) Seed from the authoritative per-tenant head.
   INSERT INTO audit_chain_cutover (tenant_id, cutover_seq)
@@ -94,6 +111,10 @@ BEGIN
   ON CONFLICT (tenant_id) DO NOTHING;
   GET DIAGNOSTICS n_backfilled = ROW_COUNT;
 
+  IF was_forced THEN
+    ALTER TABLE audit_chain_cutover FORCE ROW LEVEL SECURITY;
+  END IF;
+
   -- Chained tenant ids with no tenants row (developer-default residue only).
   SELECT count(*) INTO n_skipped
   FROM (
@@ -105,9 +126,8 @@ BEGIN
   ) s
   WHERE NOT EXISTS (SELECT 1 FROM tenants tn WHERE tn.id::text = s.tenant_id);
 
-  FOREACH t IN ARRAY lifted LOOP
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
-  END LOOP;
+  -- Restore the caller's platform scope (unset reads back as '').
+  PERFORM set_config('app.platform_admin', coalesce(prior_platform, ''), true);
 
   IF n_skipped > 0 THEN
     RAISE WARNING

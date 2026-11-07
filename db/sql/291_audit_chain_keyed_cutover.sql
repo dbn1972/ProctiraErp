@@ -51,8 +51,10 @@ ALTER TABLE audit_chain_cutover FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON audit_chain_cutover;
 -- Read-scoped to the bound tenant. No platform_admin branch: the cut-over is a
 -- tamper boundary, not tenant-admin data. FORCE RLS applies this policy to the
--- table owner too (the migrator is NOBYPASSRLS), so 295 lifts FORCE around its
--- seed insert and restores it in the same transaction (UAT-DB-003). The uuid
+-- table owner too (the migrator is NOBYPASSRLS), so 295 lifts FORCE on this
+-- table only, around its seed insert, and restores it in the same transaction
+-- (UAT-DB-003). 295 reads its sources (tenants and the audit tables) through
+-- their app.platform_admin policy branch and never lifts FORCE on them. The uuid
 -- column compares as text against the GUC (099/100 convention): a missing or
 -- malformed app.tenant_id denies instead of raising on a ::uuid cast.
 CREATE POLICY tenant_isolation ON audit_chain_cutover FOR ALL
