@@ -164,6 +164,30 @@ export const GATEWAY_UTILITY_SEGMENTS = new Set(['services', 'storage', 'meta'])
 export const SELF_SERVICE_READ_RESOURCES = new Set(['notification', 'parent', 'billing-self']);
 
 /**
+ * PRC-L280: dedicated RBAC resource for READING the tenant's own audit log via
+ * `GET /api/v1/audit-logs*`. On base those reads resolved to the platform-admin
+ * `platform` resource, so a tenant administrator was 403'd on its own audit
+ * trail. L280 re-scopes the READ to this resource — granted to the tenant
+ * `admin` — while the `@proctira/backend-audit` route handler and Postgres RLS
+ * bind every returned row to the caller's tenant. WRITES are unchanged: the
+ * mutating `/api/v1/audit-logs` routes keep the `platform` guard via the pinned
+ * `audit-logs.*` overrides in `mutating-route-authz.ts`, so this read re-scope
+ * cannot widen who may write audit evidence.
+ */
+export const AUDIT_READ_RESOURCE = 'audit-read';
+
+/**
+ * True when the request is a READ of the tenant audit-log API
+ * (`GET /api/v1/audit-logs` and sub-paths). Mutating verbs are excluded so they
+ * continue to resolve through the mutating-route inventory (platform guard).
+ */
+export function isAuditLogsReadPath(method: string, pathname: string): boolean {
+  if (method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD') return false;
+  const path = pathname.split('?')[0] ?? pathname;
+  return path === '/api/v1/audit-logs' || path.startsWith('/api/v1/audit-logs/');
+}
+
+/**
  * Portal self-service writes: parents/guardians/students act on their own
  * links, message threads, consent decisions and fee payments. The gateway
  * grants the verb; `@proctira/backend-parent-portal` binds every row to the
@@ -254,6 +278,13 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   if (admin) {
     // PRC-L004: the tenant administrator owns its school/board branding (preview + edit).
     admin.permissions.push({ resource: 'branding', action: 'manage' });
+    // PRC-L280: the tenant administrator may READ its own tenant's audit log
+    // (rows are bound to the caller's tenant by the audit route handler + RLS).
+    // Audit WRITES stay platform-only via the `audit-logs.*` mutating overrides.
+    admin.permissions.push(
+      { resource: AUDIT_READ_RESOURCE, action: 'read' },
+      { resource: AUDIT_READ_RESOURCE, action: 'list' },
+    );
     for (const perm of CAMPUS_MANAGE) {
       if (
         !admin.permissions.some((p) => p.resource === perm.resource && p.action === perm.action)

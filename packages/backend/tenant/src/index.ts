@@ -128,6 +128,8 @@ export type {
   RolesAuditEvent,
   RolesAuditOperation,
   RolesAuditEmitter,
+  RolesAuditActor,
+  RolesAuditActorResolver,
   UpdateRoleInput as UpdateRoleServiceInput,
 } from './roles-service.js';
 // PRC-L170: delegated-permission ceiling
@@ -136,8 +138,14 @@ export type {
   PermissionRef,
   RoleEntity,
   RolesRepository,
+  RolesAuditDirective,
+  RolesTxnAuditClient,
+  RolesTxnAuditEvent,
+  RolesTxnAuditPort,
   UserListFilter,
   UserRecord,
+  UserQuery,
+  UserQueryWindow,
 } from './roles-repository.js';
 export { InMemoryRolesRepository } from './in-memory-roles-repository.js';
 export type { BuiltInRoleSeed } from './in-memory-roles-repository.js';

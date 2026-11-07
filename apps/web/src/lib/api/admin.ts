@@ -14,9 +14,9 @@
  *   • Client-side helpers used by the federated React Router shell
  *     (`apps/web/src/RootRouter.tsx`). These talk to the gateway directly
  *     using `fetch` and are the surface the Roles & Permissions page
- *     consumes. Every mutation calls `recordHighRiskAuditEvent()` so the
- *     audit log captures a high-risk record per Requirement 33 AC 4 /
- *     Requirement 42 AC 5.
+ *     consumes. The high-risk audit trail for every role/user mutation is
+ *     written SERVER-SIDE, in the same database transaction as the mutation
+ *     (PRC-L264); the browser no longer emits a (client-trusted) audit event.
  */
 
 // ────────────────────────────────────────────────────────────────────────
@@ -87,15 +87,6 @@ export const ADMIN_API_ENDPOINTS = {
    * snapshot.
    */
   TENANT_SETTINGS: '/api/v1/tenant/settings',
-  /**
-   * High-risk audit event endpoint (per task 59.3 contract).
-   *
-   * The gateway aliases this to the audit service's create endpoint
-   * (`POST /api/v1/audit` in `@proctira/backend-audit`). The dedicated
-   * `/events` suffix lets the gateway namespace high-risk records for
-   * routing to a SIEM sidechannel without touching the bulk audit API.
-   */
-  AUDIT_EVENTS: '/api/v1/audit/events',
 } as const;
 
 /** Permission entry mirrored from the policy registry (task 39.1). */
@@ -135,30 +126,6 @@ export interface ListUsersOptions {
   status?: TenantUser['status'];
   page?: number;
   pageSize?: number;
-}
-
-/**
- * Audit risk levels recognised by the audit pipeline. The Roles & Permissions
- * page only ever emits `high` (Requirement 33 AC 4), but we type the union
- * for clarity.
- */
-export type AuditRiskLevel = 'low' | 'medium' | 'high';
-
-/** High-risk audit event payload sent on every mutation. */
-export interface HighRiskAuditEvent {
-  entityType: 'role' | 'user';
-  entityId: string;
-  operation: 'CREATE' | 'UPDATE' | 'DELETE';
-  beforeValues?: Record<string, unknown> | null;
-  afterValues?: Record<string, unknown> | null;
-  /**
-   * Human-readable summary of the change. The backend audit service stores
-   * this in `metadata.summary` for the inline "recent changes" list rendered
-   * in §R.3 of the design.
-   */
-  summary: string;
-  /** Always `'high'` — exposed on the type so consumers can be explicit. */
-  riskLevel: AuditRiskLevel;
 }
 
 /** Configuration shared by every admin client helper. */
@@ -254,44 +221,6 @@ async function adminFetch<T>(
   return (payload as T) ?? (undefined as unknown as T);
 }
 
-// ─── Audit emitter ───────────────────────────────────────────────────────
-
-/**
- * Posts a high-risk audit event to the audit service.
- *
- * Requirement 33 AC 4 mandates that every authorization-policy change is
- * recorded with the actor, the previous policy state, and the new policy
- * state. The Roles & Permissions UI calls this helper after every mutation
- * succeeds. Failures are bubbled up so the UI can surface a warning — the
- * Settings page treats audit-pipeline failures as non-fatal but visible
- * (the role mutation has already succeeded server-side).
- */
-export async function recordHighRiskAuditEvent(
-  event: Omit<HighRiskAuditEvent, 'riskLevel'> & Partial<Pick<HighRiskAuditEvent, 'riskLevel'>>,
-  options: AdminClientOptions = {},
-): Promise<void> {
-  const body = {
-    entityType: event.entityType,
-    entityId: event.entityId,
-    operation: event.operation,
-    beforeValues: event.beforeValues ?? null,
-    afterValues: event.afterValues ?? null,
-    metadata: {
-      riskLevel: event.riskLevel ?? 'high',
-      summary: event.summary,
-    },
-  };
-
-  await adminFetch<void>(
-    ADMIN_API_ENDPOINTS.AUDIT_EVENTS,
-    {
-      method: 'POST',
-      body: JSON.stringify(body),
-    },
-    options,
-  );
-}
-
 // ─── Roles ────────────────────────────────────────────────────────────────
 
 export async function listTenantRoles(options: AdminClientOptions = {}): Promise<TenantRole[]> {
@@ -324,23 +253,13 @@ export async function createRole(
   payload: CreateRolePayload,
   options: AdminClientOptions = {},
 ): Promise<TenantRole> {
-  const role = await adminFetch<TenantRole>(
+  // PRC-L264: the high-risk role audit row is written server-side, in the same
+  // transaction as the mutation (tenant-admin plugin). No browser-emitted audit.
+  return adminFetch<TenantRole>(
     ADMIN_API_ENDPOINTS.ROLES,
     { method: 'POST', body: JSON.stringify(payload) },
     options,
   );
-  await recordHighRiskAuditEvent(
-    {
-      entityType: 'role',
-      entityId: role.id,
-      operation: 'CREATE',
-      beforeValues: null,
-      afterValues: { name: role.name, permissions: role.permissions },
-      summary: `Created role '${role.name}'`,
-    },
-    options,
-  );
-  return role;
 }
 
 export interface UpdateRolePermissionsPayload {
@@ -350,47 +269,28 @@ export interface UpdateRolePermissionsPayload {
 export async function updateRolePermissions(
   roleId: string,
   payload: UpdateRolePermissionsPayload,
-  context: { roleName: string; previousPermissions: RolePermission[] },
+  _context: { roleName: string; previousPermissions: RolePermission[] },
   options: AdminClientOptions = {},
 ): Promise<TenantRole> {
-  const role = await adminFetch<TenantRole>(
+  // PRC-L264: audit is written server-side in the mutation transaction.
+  // `_context` is retained for call-site compatibility (before/after is now
+  // captured server-side, not sent by the browser).
+  return adminFetch<TenantRole>(
     `${ADMIN_API_ENDPOINTS.ROLES}/${encodeURIComponent(roleId)}/permissions`,
     { method: 'PATCH', body: JSON.stringify(payload) },
     options,
   );
-  await recordHighRiskAuditEvent(
-    {
-      entityType: 'role',
-      entityId: roleId,
-      operation: 'UPDATE',
-      beforeValues: { permissions: context.previousPermissions },
-      afterValues: { permissions: role.permissions },
-      summary: `Updated permissions on role '${context.roleName}'`,
-    },
-    options,
-  );
-  return role;
 }
 
 export async function deleteRole(
   roleId: string,
-  context: { roleName: string },
+  _context: { roleName: string },
   options: AdminClientOptions = {},
 ): Promise<void> {
+  // PRC-L264: audit is written server-side in the mutation transaction.
   await adminFetch<void>(
     `${ADMIN_API_ENDPOINTS.ROLES}/${encodeURIComponent(roleId)}`,
     { method: 'DELETE' },
-    options,
-  );
-  await recordHighRiskAuditEvent(
-    {
-      entityType: 'role',
-      entityId: roleId,
-      operation: 'DELETE',
-      beforeValues: { name: context.roleName },
-      afterValues: null,
-      summary: `Deleted role '${context.roleName}'`,
-    },
     options,
   );
 }
@@ -429,26 +329,15 @@ export async function listTenantUsers(
 export async function assignRolesToUser(
   userId: string,
   roleIds: string[],
-  context: { userDisplayName: string; previousRoleIds: string[] },
+  _context: { userDisplayName: string; previousRoleIds: string[] },
   options: AdminClientOptions = {},
 ): Promise<TenantUser> {
-  const user = await adminFetch<TenantUser>(
+  // PRC-L264: audit is written server-side in the mutation transaction.
+  return adminFetch<TenantUser>(
     `${ADMIN_API_ENDPOINTS.USERS}/${encodeURIComponent(userId)}/roles`,
     { method: 'PATCH', body: JSON.stringify({ roleIds }) },
     options,
   );
-  await recordHighRiskAuditEvent(
-    {
-      entityType: 'user',
-      entityId: userId,
-      operation: 'UPDATE',
-      beforeValues: { roleIds: context.previousRoleIds },
-      afterValues: { roleIds: user.roleIds },
-      summary: `Assigned ${user.roleIds.length} role(s) to '${context.userDisplayName}'`,
-    },
-    options,
-  );
-  return user;
 }
 
 // ─── Matrix helpers (pure — used by UI and tests) ────────────────────────

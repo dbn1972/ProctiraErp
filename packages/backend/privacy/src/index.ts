@@ -20,7 +20,11 @@ export type {
   LegalHoldEntity,
   ListPage,
   OffboardChecklistItem,
+  PrivacyAuditDirective,
   PrivacyRepository,
+  PrivacyTxnAuditClient,
+  PrivacyTxnAuditEvent,
+  PrivacyTxnAuditPort,
   StuckPrivacyJobRef,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
@@ -30,6 +34,7 @@ export {
   resetSharedInMemoryPrivacyRepositoryForTests,
 } from './shared-store.js';
 export { createPrivacyRepository, isPgPrivacyEnabled } from './create-privacy-repository.js';
+export type { CreatePrivacyRepositoryOptions } from './create-privacy-repository.js';
 export {
   PgPrivacyRepository,
   getSharedPrivacyPool,

@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'yaml';
@@ -72,4 +72,24 @@ test('workflow only allows a skip when the operator disabled require_live', () =
   assert.match(beforeAllow.slice(beforeAllow.lastIndexOf('if ')), /INPUT_REQUIRE_LIVE" = "false"/);
   const harness = steps.find((s) => (s.run ?? '').includes('run-e2e-backend-ready.sh'));
   assert.equal(harness.env.E2E_ALLOW_SKIP, "${{ steps.mode.outputs.allow_skip || '0' }}");
+});
+
+test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=on (PRC-L461)', () => {
+  const dir = dirname(workflowPath);
+  const seedSteps = readdirSync(dir)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .flatMap((f) => {
+      const wf = yaml.parse(readFileSync(resolve(dir, f), 'utf8'));
+      return Object.values(wf?.jobs ?? {})
+        .flatMap((j) => j.steps ?? [])
+        .filter((s) => /db\/seeds\/006_sunrise_public_school_demo\.sql/.test(s.run ?? ''))
+        .map((s) => ({ file: f, name: s.name, env: s.env ?? {}, run: s.run }));
+    });
+  assert.ok(seedSteps.length > 0, 'e2e-backend-ready.yml applies seed 006');
+  for (const s of seedSteps) {
+    const bound =
+      /-c proctira\.allow_demo_seed=on/.test(String(s.env.PGOPTIONS ?? '')) ||
+      /PGOPTIONS=["']?-c proctira\.allow_demo_seed=on/.test(s.run);
+    assert.ok(bound, `${s.file} step "${s.name}" applies 006 without proctira.allow_demo_seed=on`);
+  }
 });

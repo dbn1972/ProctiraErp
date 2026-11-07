@@ -18,6 +18,7 @@
  *   GET    /tenant/users                     POST /tenant/users (invite)
  *   PATCH  /tenant/users/:userId/roles       PATCH /tenant/users/:userId/status
  *   GET/PUT /tenant/settings
+ *   POST/DELETE /tenant/scim-token          (PRC-M027: issue-or-rotate / revoke)
  *
  * G-924: the same RolesService also backs SCIM 2.0 provisioning at
  * `/scim/v2/{Users,Groups}` (see scim-plugin.ts) so IdP pushes are audited
@@ -41,6 +42,7 @@ import {
   TenantService,
   type BuiltInRoleSeed,
   type RolesAuditEvent,
+  type RolesTxnAuditPort,
   type TenantSettingsStore,
 } from '@proctira/backend-tenant';
 import {
@@ -52,8 +54,10 @@ import {
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { credentialKindOf } from './credential-principals.js';
 import { createGatewayRbacRegistry, PLATFORM_ADMIN_ROLE_IDS } from './rbac-registry.js';
 import { scimPlugin } from './scim-plugin.js';
+import type { ScimTokenStore } from './scim-token-store.js';
 
 const brandingRbacRegistry = createGatewayRbacRegistry();
 const BRANDING_ACTIONS: Record<string, PermissionAction> = {
@@ -119,6 +123,11 @@ export interface TenantAdminPluginOptions {
   onAudit?: (event: TenantAdminAuditEvent) => Promise<void> | void;
   /** G-924: SCIM 2.0 base path; default `/scim/v2`. Set `false` to disable. */
   scimPrefix?: string | false;
+  /**
+   * PRC-M027: hashed SCIM provisioning tokens. Defaults to the gateway's
+   * `scimTokenStore` decorator; without one the token routes are not mounted.
+   */
+  scimTokenStore?: ScimTokenStore;
   /** PRC-L003: shared tenant service; defaults to the `fastify.tenantService` decorator. */
   tenantService?: TenantService;
   /**
@@ -127,6 +136,13 @@ export interface TenantAdminPluginOptions {
    * (fail closed); set `false` only where an outbox guarantees delivery.
    */
   failOnAuditError?: boolean;
+  /**
+   * PRC-L264: same-transaction audit port. When provided (Postgres mode), the
+   * roles repository appends the high-risk role/user audit row in the mutation
+   * transaction via `@proctira/backend-audit`, replacing the removed
+   * browser-emitted audit. The gateway builds it in `domain-plugins.ts`.
+   */
+  txnAuditPort?: RolesTxnAuditPort;
 }
 
 /** PRC-M466: surfaced (as 503) when a high-risk role/user audit write fails. */
@@ -171,7 +187,10 @@ export const tenantAdminPlugin = fp(
   async (fastify: FastifyInstance, options: TenantAdminPluginOptions) => {
     const prefix = options.prefix ?? '/tenant';
     const seed = builtInRoleSeed();
-    const { repository, persistence } = createRolesRepository(seed);
+    // PRC-L264: when the gateway supplies a same-transaction audit port, the
+    // Postgres roles repository writes the high-risk role/user audit row inside
+    // the mutation transaction (no post-hoc, client-trusted audit).
+    const { repository, persistence } = createRolesRepository(seed, options.txnAuditPort);
     // W1-SEC-12: settings store follows the same fail-closed policy as roles
     // (Pg when DATABASE_URL; never silent memory when Postgres is required).
     let settingsStore: TenantSettingsStore;
@@ -199,36 +218,49 @@ export const tenantAdminPlugin = fp(
       );
     });
 
-    const rolesService = new RolesService(repository, async (event) => {
-      if (!options.onAudit) return;
-      const actor = auditActorStore.getStore();
-      try {
-        await options.onAudit({
-          ...event,
+    const rolesService = new RolesService(
+      repository,
+      async (event) => {
+        if (!options.onAudit) return;
+        const actor = auditActorStore.getStore();
+        try {
+          await options.onAudit({
+            ...event,
+            actorId: actor?.actorId ?? null,
+            ipAddress: actor?.ipAddress ?? null,
+            requestId: actor?.requestId ?? null,
+          });
+        } catch (error) {
+          // PRC-M466: never silently drop a high-risk before/after record. Log for alerting and,
+          // by default, fail the request so the caller does not see an unaudited success.
+          fastify.log.error(
+            {
+              err: error,
+              requestId: actor?.requestId ?? null,
+              tenantId: event.tenantId,
+              entityType: event.entityType,
+              entityId: event.entityId,
+              operation: event.operation,
+              riskLevel: event.metadata.riskLevel,
+            },
+            'tenant admin audit write failed',
+          );
+          if (options.failOnAuditError !== false && event.metadata.riskLevel === 'high') {
+            throw new TenantAdminAuditError(error);
+          }
+        }
+      },
+      // PRC-L264: supply the request actor so the same-transaction audit row
+      // (written by the Postgres repository) carries the real caller.
+      () => {
+        const actor = auditActorStore.getStore();
+        return {
           actorId: actor?.actorId ?? null,
           ipAddress: actor?.ipAddress ?? null,
           requestId: actor?.requestId ?? null,
-        });
-      } catch (error) {
-        // PRC-M466: never silently drop a high-risk before/after record. Log for alerting and,
-        // by default, fail the request so the caller does not see an unaudited success.
-        fastify.log.error(
-          {
-            err: error,
-            requestId: actor?.requestId ?? null,
-            tenantId: event.tenantId,
-            entityType: event.entityType,
-            entityId: event.entityId,
-            operation: event.operation,
-            riskLevel: event.metadata.riskLevel,
-          },
-          'tenant admin audit write failed',
-        );
-        if (options.failOnAuditError !== false && event.metadata.riskLevel === 'high') {
-          throw new TenantAdminAuditError(error);
-        }
-      }
-    });
+        };
+      },
+    );
 
     await registerRolesRoutes(fastify, { rolesService, prefix });
     await registerTenantSettingsRoutes(fastify, {
@@ -342,6 +374,52 @@ export const tenantAdminPlugin = fp(
       },
     );
 
+    // PRC-M027: dedicated SCIM credential lifecycle. Tenant administrators
+    // (`user: manage` via the exact mutating-inventory override) issue or rotate
+    // the tenant's single SCIM token (raw value shown once) and revoke it.
+    const scimTokens =
+      options.scimTokenStore ??
+      (fastify.hasDecorator('scimTokenStore') ? fastify.scimTokenStore : undefined);
+    if (options.scimPrefix !== false && scimTokens) {
+      const tenantOfRequest = (request: { tenantId?: string; user?: unknown }) =>
+        request.tenantId ?? (request.user as { tenantId?: string } | undefined)?.tenantId;
+      const refuseCredential = (request: { user?: unknown }) =>
+        Boolean(credentialKindOf(request.user));
+      fastify.post(`${prefix}/scim-token`, async (request, reply) => {
+        const tenantId = tenantOfRequest(request);
+        if (!tenantId || refuseCredential(request)) {
+          return reply.code(tenantId ? 403 : 400).send({
+            statusCode: tenantId ? 403 : 400,
+            code: 'FORBIDDEN',
+            message: 'tenant administrator required',
+          });
+        }
+        const sub = (request.user as { sub?: unknown } | undefined)?.sub;
+        const { token, record } = await scimTokens.issue(
+          tenantId,
+          typeof sub === 'string' ? sub : null,
+        );
+        return reply.code(201).header('cache-control', 'no-store').send({
+          id: record.tokenId,
+          token,
+          issuedAt: record.issuedAt,
+          message: 'Copy this SCIM token now; it is not shown again. Issuing a new one revokes it.',
+        });
+      });
+      fastify.delete(`${prefix}/scim-token`, async (request, reply) => {
+        const tenantId = tenantOfRequest(request);
+        if (!tenantId || refuseCredential(request)) {
+          return reply.code(tenantId ? 403 : 400).send({
+            statusCode: tenantId ? 403 : 400,
+            code: 'FORBIDDEN',
+            message: 'tenant administrator required',
+          });
+        }
+        const revoked = await scimTokens.revoke(tenantId);
+        return reply.code(200).send({ revoked });
+      });
+    }
+
     if (options.scimPrefix !== false) {
       await fastify.register(scimPlugin, {
         rolesService,
@@ -351,3 +429,10 @@ export const tenantAdminPlugin = fp(
   },
   { name: 'tenant-admin-plugin' },
 );
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** PRC-M027: hashed SCIM provisioning token store (decorated by app.ts). */
+    scimTokenStore: ScimTokenStore;
+  }
+}

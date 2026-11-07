@@ -56,6 +56,23 @@ function getActorId(request: FastifyRequest): string | null {
 }
 
 /**
+ * PRC-M013: resolve the authenticated caller + request context for the
+ * same-transaction student PII audit. The actor id comes ONLY from the verified
+ * JWT (never a client-supplied field); ip/requestId from the gateway.
+ */
+function buildAuditActor(request: FastifyRequest): {
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+} {
+  return {
+    actorId: getActorId(request),
+    ipAddress: request.ip ?? null,
+    requestId: request.id ?? null,
+  };
+}
+
+/**
  * Options for registering student routes.
  */
 export interface StudentRoutesOptions {
@@ -288,11 +305,13 @@ export async function registerStudentRoutes(
       try {
         assertStudentWriteAccess(getRoles(request), 'student.update');
         // PRC-L365: optional optimistic-concurrency precondition (409 on stale).
+        // PRC-M013: actor from the verified JWT drives the same-transaction audit.
         const student = await studentService.update(
           tenantId,
           paramsResult.data.id,
           bodyResult.data,
           expectedUpdatedAt ? { expectedUpdatedAt } : {},
+          buildAuditActor(request),
         );
         reply.header('ETag', studentEtag(student.updatedAt));
         return reply.status(200).send(formatStudentResponse(student));
@@ -511,7 +530,8 @@ export async function registerStudentRoutes(
 
       try {
         assertStudentWriteAccess(getRoles(request), 'student.delete');
-        await studentService.delete(tenantId, paramsResult.data.id);
+        // PRC-M013: actor from the verified JWT drives the same-transaction audit.
+        await studentService.delete(tenantId, paramsResult.data.id, buildAuditActor(request));
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {

@@ -19,6 +19,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import {
   auditPlugin,
+  configureAuditChainKey,
   createAuditRepository,
   createRetentionScheduler,
   DEFAULT_RETENTION_INTERVAL_MS,
@@ -32,6 +33,7 @@ import {
   DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
   isIssuedBeforeTenantRevocation,
   createOtpChallengeStore,
+  createPreMfaTicketCodecFromEnv,
   createSmsProviderFromEnv,
   createUserInviteRepository,
   evaluatePermission,
@@ -75,13 +77,28 @@ import { observabilityPlugin, registerServiceSLO, SLO_CATALOG } from '@proctira/
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
+import { createGatewayAuditIngestDrain } from './audit-ingest-drain.js';
 import { registerAuthAudit } from './auth-audit.js';
 import {
   billingEntitlementsEnforced,
   evaluateBillingEntitlement,
   tenantIdFromRequest,
 } from './billing-entitlements.js';
-import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
+import {
+  assertAuthBootPolicy,
+  resolveAuditChainKey,
+  resolvePreviousJwtSecret,
+  type GatewayConfig,
+} from './config.js';
+import {
+  authenticateCredential,
+  authorizeCredentialPrincipal,
+  createApiKeyCredentialLookup,
+  credentialKindOf,
+  SHIPPED_API_KEY_SCOPE_TABLE,
+  type ApiKeyCredentialLookup,
+  type ApiKeyScopeGrant,
+} from './credential-principals.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import {
   decideInstitutionScope,
@@ -129,9 +146,16 @@ import {
   createGatewayRbacRegistry,
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
+  AUDIT_READ_RESOURCE,
+  isAuditLogsReadPath,
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
+import {
+  createScimTokenStore,
+  resolveScimTokenPepper,
+  type ScimTokenStore,
+} from './scim-token-store.js';
 import { createTenantDefaultsSeederFromEnv } from './tenant-admin-plugin.js';
 import { getTenantCustomRoleProvider } from './tenant-custom-roles.js';
 import {
@@ -174,6 +198,18 @@ export interface BuildAppOptions {
   tenantSessionRevocationStore?: TenantSessionRevocationStore;
   /** PRC-H008: override TENANT_SUSPEND_BLOCK_AUTH (default true) for tests / DI. */
   tenantSuspendBlocksAuth?: boolean;
+  /** PRC-M027 / PRC-L298: credential-principal dependencies (tests / DI). */
+  credentialPrincipals?: {
+    scimTokenStore?: ScimTokenStore;
+    scimTokenPepper?: string;
+    /** PRC-L298: API-key lookup (default: developer-portal Postgres key hash). */
+    apiKeyLookup?: ApiKeyCredentialLookup;
+    /**
+     * PRC-L298: test-only scope table. Production always uses the shipped
+     * (empty) table; it is not configurable from the environment.
+     */
+    apiKeyScopeTable?: Readonly<Record<string, ApiKeyScopeGrant>>;
+  };
 }
 
 /**
@@ -607,8 +643,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // PRC-M498: throttled sends / lockouts are alertable (SMS pumping, guessing).
     onAbuseSignal: (signal) => app.log.warn({ otpAbuse: signal }, 'otp abuse signal'),
   });
-  await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
-  await registerMfaRoutes(app, { otpService, prefix: '/auth' });
+  // PRC-M497: OTP send/verify are bound to a login through the pre-MFA ticket
+  // (MFA_PRE_TICKET_SECRET; never JWT_SECRET). Without the secret in a deployed
+  // environment no ticket is accepted, so OTP send stays fail-closed (401).
+  const preMfaTicket = createPreMfaTicketCodecFromEnv(process.env);
+  if (!preMfaTicket) {
+    app.log.warn('MFA_PRE_TICKET_SECRET is not set; SMS OTP send/verify stay disabled (PRC-M497)');
+  }
+  const mfaRouteOptions = { otpService, ...(preMfaTicket ? { preMfaTicket } : {}) };
+  await registerMfaRoutes(app, { ...mfaRouteOptions, prefix: '/api/v1/auth' });
+  await registerMfaRoutes(app, { ...mfaRouteOptions, prefix: '/auth' });
 
   // Admin invites (Postgres when DATABASE_URL is set — G-704). Only useful when Keycloak (or another IdP) is on.
   if (keycloak) {
@@ -626,6 +670,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       legacyRootRedirects: true,
     });
   }
+
+  // PRC-M027: dedicated hashed SCIM provisioning tokens. Deployed boots need
+  // SCIM_TOKEN_PEPPER from the secret manager (resolveScimTokenPepper throws).
+  const scimTokenPepper =
+    options.credentialPrincipals?.scimTokenPepper ?? resolveScimTokenPepper(process.env);
+  const scimTokens =
+    options.credentialPrincipals?.scimTokenStore ?? createScimTokenStore(scimTokenPepper);
+  if (!app.hasDecorator('scimTokenStore')) {
+    app.decorate('scimTokenStore', scimTokens);
+  }
+  // PRC-L298: inbound developer-portal API keys (read-only, scope-table bound).
+  const apiKeyLookup = options.credentialPrincipals?.apiKeyLookup ?? createApiKeyCredentialLookup();
+  const apiKeyScopeTable =
+    options.credentialPrincipals?.apiKeyScopeTable ?? SHIPPED_API_KEY_SCOPE_TABLE;
 
   // G-504 — secrets accepted during rotation (current first, then previous).
   const jwtVerifySecrets = verifySecretCandidates({
@@ -690,6 +748,37 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
           }
         }
       }
+      return;
+    }
+
+    // PRC-M027 / PRC-L298: credential principals (dedicated SCIM tokens, API
+    // keys) are resolved before any JWT strategy; a SCIM path never accepts a JWT.
+    let credentialAuth: Awaited<ReturnType<typeof authenticateCredential>>;
+    try {
+      credentialAuth = await authenticateCredential({
+        path: url,
+        bearer,
+        scimTokens,
+        scimPepper: scimTokenPepper,
+        apiKeys: apiKeyLookup,
+      });
+    } catch (error) {
+      request.log.error({ err: error }, 'credential lookup failed');
+      return reply.status(503).send({
+        code: 'CREDENTIAL_LOOKUP_UNAVAILABLE',
+        message: 'Credential could not be verified; try again shortly',
+        statusCode: 503,
+      });
+    }
+    if (credentialAuth.kind === 'unauthorized') {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: credentialAuth.message,
+        statusCode: 401,
+      });
+    }
+    if (credentialAuth.kind === 'principal') {
+      request.user = credentialAuth.principal as unknown as typeof request.user;
       return;
     }
 
@@ -1063,6 +1152,43 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
+  // 8d-key. PRC-M200 — install the audit-chain HMAC signing key BEFORE the drain
+  // (and before any synchronous same-txn audited mutation can run). In a deployed
+  // environment resolveAuditChainKey fails closed on a missing / dev / placeholder
+  // / short key, so the gateway refuses to boot rather than signing the keyed
+  // chain with an unsafe key (checked once at boot — no request-time 503). Not
+  // deployed: the fixed dev key (key_id "dev") is used, which a deployed verifier
+  // rejects.
+  configureAuditChainKey(
+    resolveAuditChainKey(process.env.NODE_ENV, process.env.AUDIT_CHAIN_HMAC_KEY),
+  );
+
+  // 8d''. PRC-M200 / DR4-4 — seal system-origin audit events (demo seed, jobs,
+  // async side-effects enqueued into audit_ingest_queue) into the keyed HMAC
+  // chain. Runs once at boot and then on an unref'd interval, single-flight per
+  // replica. Opt out with AUDIT_INGEST_DRAIN=0; interval via
+  // AUDIT_INGEST_DRAIN_INTERVAL_MS. Skipped under NODE_ENV=test (tests drive
+  // the drain's runOnce directly against a throwaway Postgres).
+  if (process.env.AUDIT_INGEST_DRAIN !== '0' && process.env.NODE_ENV !== 'test') {
+    const ingestDrain = createGatewayAuditIngestDrain({
+      logger: app.log,
+      intervalMs: Number(process.env.AUDIT_INGEST_DRAIN_INTERVAL_MS) || undefined,
+    });
+    if (ingestDrain) {
+      // Seal anything already queued before accepting traffic, then schedule.
+      await ingestDrain.runOnce().catch((error) => {
+        app.log.error(
+          { error: error instanceof Error ? error.message : String(error) },
+          'audit ingest drain boot run failed',
+        );
+      });
+      ingestDrain.start();
+      app.addHook('onClose', async () => {
+        ingestDrain.stop();
+      });
+    }
+  }
+
   // 8e. Mount billing + tenant lifecycle (G-106). Tenant routes use a non-clashing
   // prefix because platform-admin UI owns `/api/v1/tenants`.
   await app.register(billingPlugin, {
@@ -1243,6 +1369,27 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       });
     }
 
+    // DR4-1 / PRC-M027 / PRC-L298: credential principals are authorised here, before every
+    // early return below (unguarded mutations, gateway utilities, self-service
+    // reads, portal writes, platform-area grants): only their fixed allow-list.
+    const credential = credentialKindOf(user);
+    if (credential) {
+      const decision = authorizeCredentialPrincipal({
+        principal: user as unknown as { credential: typeof credential; scopes?: string[] },
+        method,
+        path: url,
+        apiKeyScopeTable,
+      });
+      if (!decision.ok) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: decision.message,
+          statusCode: 403,
+        });
+      }
+      return;
+    }
+
     const roles = user.roles ?? [];
     const isPlatformAdmin = roles.some((r) => {
       const id = typeof r === 'string' ? r : r.roleId;
@@ -1269,8 +1416,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       resource = gate.guard.resource;
       action = gate.guard.action;
     } else {
-      resource = resourceForApiPath(url);
-      if (!resource) return;
+      // PRC-L280: a READ of the tenant audit-log API resolves to the dedicated
+      // `audit-read` resource (held by the tenant admin + platform admins),
+      // not the platform-admin-only `platform` resource, so a tenant admin can
+      // read its own audit trail. The audit route handler + RLS bind every row
+      // to the caller's tenant; audit WRITES keep the `platform` guard via the
+      // mutating-route overrides, so this does not widen audit writes.
+      if (isAuditLogsReadPath(method, url)) {
+        resource = AUDIT_READ_RESOURCE;
+      } else {
+        resource = resourceForApiPath(url);
+        if (!resource) return;
+      }
     }
 
     // Platform control plane: platform_admin / super-admin role only (G-104/G-702).
