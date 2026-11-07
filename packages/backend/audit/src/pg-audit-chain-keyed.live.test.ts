@@ -32,6 +32,9 @@
  *  10. Drain tenant listing (UAT-DB-002): in platform scope the runtime role
  *      gets pending tenant ids + counts from audit_ingest_pending_tenants(),
  *      while queued rows stay visible only to their own tenant.
+ *  11. Archival keeps key_id (UAT-DB-004): keyed rows moved to
+ *      audit_log_archive by audit_archive_expired_entries() keep their key_id,
+ *      and verifyChain stays valid across archive + active rows.
  *
  * Two connections are used, matching the tamper suite:
  *   - the runtime pool (`DATABASE_URL`, e.g. proctira_app) writes + verifies
@@ -720,6 +723,53 @@ describe('PRC-M200 keyed audit chain (live Postgres)', () => {
           client.query('SELECT * FROM audit_ingest_pending_tenants()'),
         ),
       ).rejects.toThrow(/platform context required/);
+    },
+  );
+
+  it.skipIf(!live)(
+    'archival keeps key_id on archived keyed rows and the chain still verifies (UAT-DB-004)',
+    async () => {
+      // Fresh tenant (cut-over 0): rows 1-2 are past a 12-month retention, row 3 is recent.
+      const tenantId = randomUUID();
+      await ensurePgTestTenant(ownerPool!, tenantId);
+      const old = new Date();
+      old.setMonth(old.getMonth() - 24);
+      for (let n = 1; n <= 3; n += 1) {
+        const row = { ...input(tenantId, n), timestamp: n < 3 ? old : new Date() };
+        await withPgTenant(runtimePool!, tenantId, (client) =>
+          appendAuditEntryOnClient(client, row),
+        );
+      }
+      const repo = new PgAuditRepository(runtimePool!);
+      await repo.setRetentionConfig({
+        tenantId,
+        retentionMonths: 12,
+        archivalEnabled: true,
+        archivalDestination: 's3://audit-archive',
+        lastArchivalAt: null,
+      });
+
+      expect((await repo.archiveExpiredEntries(tenantId)).archivedCount).toBe(2);
+
+      const keyId = currentAuditChainKey().keyId;
+      const archived = await asOwner(tenantId, async (client) => {
+        const res = (await client.query(
+          `SELECT chain_seq::int AS seq, key_id FROM audit_log_archive
+            WHERE tenant_id::text = $1 ORDER BY chain_seq`,
+          [tenantId],
+        )) as { rows: Array<{ seq: number; key_id: string | null }> };
+        return res.rows;
+      });
+      expect(archived).toEqual([
+        { seq: 1, key_id: keyId },
+        { seq: 2, key_id: keyId },
+      ]);
+
+      const result = await repo.verifyChain(tenantId);
+      expect(result.brokenAt).toBeNull();
+      expect(result.valid).toBe(true);
+      expect(result.checkedEntries).toBe(3);
+      expect(result.headSeq).toBe(3);
     },
   );
 });

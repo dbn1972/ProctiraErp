@@ -14,8 +14,11 @@
 --     key_id and verify as HMAC. The runtime role can never move a cut-over
 --     (privilege class trigger_owned, 294), so forged "legacy" rows cannot be
 --     back-dated past the boundary.
+--   * audit_archive_expired_entries() (119) is redefined to copy key_id into
+--     audit_log_archive (UAT-DB-004).
 --
--- Additive / idempotent. Does not touch 022/028/053/069/119 (checksum ledger).
+-- Additive / idempotent. Does not edit the 022/028/053/069/119 files (checksum
+-- ledger); 119's function is replaced by CREATE OR REPLACE below.
 -- Needs DB review (chain cut-over + verifier contract change).
 
 ALTER TABLE audit_log_entries
@@ -26,6 +29,107 @@ ALTER TABLE audit_log_archive
 
 COMMENT ON COLUMN audit_log_entries.key_id IS
   'PRC-M200: HMAC key id that signed entry_hash. NULL = legacy unkeyed sha256 row (at/below the tenant cut-over).';
+
+-- UAT-DB-004: archival must carry key_id. 119's audit_archive_expired_entries()
+-- copies an explicit column list that predates key_id, so an archived keyed row
+-- landed in audit_log_archive with key_id NULL. Above the cut-over the verifier
+-- then reads it as a forged unkeyed row, verifyChain fails for good, and the
+-- signing key id is lost. The redefinition below is 119's function verbatim
+-- (signature, SECURITY DEFINER, search_path, tenant guard, retention lookup,
+-- DELETE ... RETURNING / INSERT CTE, GUC handling, grants) with key_id added to
+-- the INSERT target list and the SELECT list; every other audit_log_entries
+-- column was already copied. It lives here, right after the key_id columns are
+-- added, rather than in a new file: 119 is on main and in the checksum ledger,
+-- 291-296 is B07's own range (297-302 is reserved by another track), and this
+-- file is unmerged, so B07 ships the column and its archival copy together with
+-- no window in which a keyed row can be archived without its key id.
+CREATE OR REPLACE FUNCTION audit_archive_expired_entries(p_tenant_id TEXT)
+RETURNS TABLE (archived_count INTEGER, cutoff_at TIMESTAMPTZ, destination TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_months      INTEGER;
+  v_enabled     BOOLEAN;
+  v_destination TEXT;
+  v_cutoff      TIMESTAMPTZ;
+  v_count       INTEGER;
+  -- tenant_id is uuid after 100_tenant_id_uuid_fks (APPLY_STRICT_FKS=1) and text before it;
+  -- compare in the column's own type so the (tenant_id, …) indexes are used.
+  v_cast        TEXT;
+BEGIN
+  IF p_tenant_id IS NULL OR p_tenant_id = ''
+     OR p_tenant_id IS DISTINCT FROM NULLIF(current_setting('app.tenant_id', true), '') THEN
+    RAISE EXCEPTION 'audit archival tenant must match the bound app.tenant_id'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT CASE WHEN data_type = 'uuid' THEN '::uuid' ELSE '' END
+    INTO v_cast
+    FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'audit_log_entries' AND column_name = 'tenant_id';
+
+  EXECUTE format(
+    'SELECT retention_months, archival_enabled, archival_destination
+       FROM audit_retention_configs WHERE tenant_id = $1%s',
+    (SELECT CASE WHEN data_type = 'uuid' THEN '::uuid' ELSE '' END
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'audit_retention_configs'
+        AND column_name = 'tenant_id')
+  ) INTO v_months, v_enabled, v_destination USING p_tenant_id;
+
+  IF NOT COALESCE(v_enabled, FALSE) OR v_months IS NULL OR v_months < 1 THEN
+    RETURN QUERY SELECT 0, NULL::TIMESTAMPTZ, v_destination;
+    RETURN;
+  END IF;
+
+  v_cutoff := now() - make_interval(months => v_months);
+
+  -- The append-only trigger (022) only lets the archival routine delete.
+  PERFORM set_config('app.audit_archival', '1', true);
+
+  EXECUTE format(
+    'WITH moved AS (
+       DELETE FROM audit_log_entries
+        WHERE tenant_id = $1%s AND occurred_at < $2
+       RETURNING *
+     ), archived AS (
+       INSERT INTO audit_log_archive (
+         id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+         ip_address, occurred_at, before_values, after_values, metadata, created_at,
+         chain_seq, prev_hash, entry_hash, key_id, archived_at, destination
+       )
+       SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+              ip_address, occurred_at, before_values, after_values, metadata, created_at,
+              chain_seq, prev_hash, entry_hash, key_id, now(), $3
+         FROM moved
+       RETURNING 1
+     )
+     SELECT count(*)::INTEGER FROM archived',
+    COALESCE(v_cast, '')
+  ) INTO v_count USING p_tenant_id, v_cutoff, v_destination;
+
+  PERFORM set_config('app.audit_archival', '', true);
+
+  UPDATE audit_retention_configs
+     SET last_archival_at = now(), updated_at = now()
+   WHERE tenant_id::text = p_tenant_id;
+
+  RETURN QUERY SELECT v_count, v_cutoff, v_destination;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION audit_archive_expired_entries(TEXT) FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'proctira_app') THEN
+    GRANT EXECUTE ON FUNCTION audit_archive_expired_entries(TEXT) TO proctira_app;
+    -- Re-assert the 053 posture: the runtime role never deletes audit rows directly.
+    REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER ON audit_log_entries FROM proctira_app;
+  END IF;
+END $$;
 
 -- Per-tenant cut-over: the head chain_seq when the keyed chain takes over.
 -- Written only by the migration (295) and never by the runtime role, so the
