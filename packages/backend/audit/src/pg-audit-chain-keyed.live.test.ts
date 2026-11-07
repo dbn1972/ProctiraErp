@@ -28,6 +28,9 @@
  *      NOBYPASSRLS migrator records cut-over = head seq for tenants whose
  *      legacy unkeyed chain predates 291, restores FORCE RLS, keeps the first
  *      boundary on re-run, and the keyed verifier accepts the legacy rows.
+ *  10. Drain tenant listing (UAT-DB-002): in platform scope the runtime role
+ *      gets pending tenant ids + counts from audit_ingest_pending_tenants(),
+ *      while queued rows stay visible only to their own tenant.
  *
  * Two connections are used, matching the tamper suite:
  *   - the runtime pool (`DATABASE_URL`, e.g. proctira_app) writes + verifies
@@ -42,7 +45,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import pg from 'pg';
@@ -614,6 +617,86 @@ describe('PRC-M200 keyed audit chain (live Postgres)', () => {
         await client.query('ROLLBACK').catch(() => undefined);
         client.release();
       }
+    },
+  );
+
+  it.skipIf(!live)(
+    'platform-scope pending-tenant listing returns only tenant id + count; queued rows stay tenant-private (UAT-DB-002)',
+    async () => {
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      await ensurePgTestTenant(ownerPool!, tenantA);
+      await ensurePgTestTenant(ownerPool!, tenantB);
+      const enqueue = (tenantId: string, n: number) =>
+        withPgTenant(runtimePool!, tenantId, async (client) => {
+          for (let i = 0; i < n; i += 1) {
+            await client.query(
+              `INSERT INTO audit_ingest_queue
+                 (tenant_id, entity_type, entity_id, operation, actor_kind, dedupe_key)
+               VALUES ($1, 'demo', 'd1', 'CREATE', 'system:test', $2)`,
+              [tenantId, randomUUID()],
+            );
+          }
+        });
+      await enqueue(tenantA, 2);
+      await enqueue(tenantB, 1);
+
+      // The drain's platform scope (runtime role, app.platform_admin='1', no
+      // tenant bound).
+      const platform = await withPlatformScope(runtimePool!, async (client) => {
+        const listing = (await client.query('SELECT * FROM audit_ingest_pending_tenants()')) as {
+          fields: Array<{ name: string }>;
+          rows: Array<{ tenant_id: string; pending_count: string }>;
+        };
+        const direct = (await client.query(
+          `SELECT count(*)::int AS n FROM audit_ingest_queue WHERE tenant_id = ANY ($1::uuid[])`,
+          [[tenantA, tenantB]],
+        )) as { rows: Array<{ n: number }> };
+        const guc = (await client.query(
+          `SELECT coalesce(current_setting('app.tenant_id', true), '') AS t`,
+        )) as { rows: Array<{ t: string }> };
+        return {
+          columns: listing.fields.map((f) => f.name),
+          rows: listing.rows,
+          direct: direct.rows[0]!.n,
+          guc: guc.rows[0]!.t,
+        };
+      });
+      // Only the tenant id and the count leave the definer.
+      expect(platform.columns).toEqual(['tenant_id', 'pending_count']);
+      const ours = platform.rows
+        .filter((r) => r.tenant_id === tenantA || r.tenant_id === tenantB)
+        .map((r) => ({ tenantId: r.tenant_id, pending: Number(r.pending_count) }))
+        .sort((x, y) => x.tenantId.localeCompare(y.tenantId));
+      expect(ours).toEqual(
+        [
+          { tenantId: tenantA, pending: 2 },
+          { tenantId: tenantB, pending: 1 },
+        ].sort((x, y) => x.tenantId.localeCompare(y.tenantId)),
+      );
+      // Platform scope still reads no queued content, and the listing leaves
+      // the caller's tenant GUC unbound.
+      expect(platform.direct).toBe(0);
+      expect(platform.guc).toBe('');
+
+      // A tenant-bound session sees only its own queue rows.
+      const asA = await withPgTenant(runtimePool!, tenantA, async (client) => {
+        const res = (await client.query(
+          `SELECT count(*)::int AS total,
+                  count(*) FILTER (WHERE tenant_id = $1)::int AS other
+             FROM audit_ingest_queue WHERE tenant_id = ANY ($2::uuid[])`,
+          [tenantB, [tenantA, tenantB]],
+        )) as { rows: Array<{ total: number; other: number }> };
+        return res.rows[0];
+      });
+      expect(asA).toEqual({ total: 2, other: 0 });
+
+      // A tenant session cannot call the platform listing.
+      await expect(
+        withPgTenant(runtimePool!, tenantA, (client) =>
+          client.query('SELECT * FROM audit_ingest_pending_tenants()'),
+        ),
+      ).rejects.toThrow(/platform context required/);
     },
   );
 });

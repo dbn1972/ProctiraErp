@@ -182,6 +182,20 @@ COMMENT ON FUNCTION audit_ingest_seal(text, bigint, text, text, text) IS
 -- can iterate them and bind each tenant GUC in turn. SECURITY DEFINER with a
 -- platform guard: callable only when app.platform_admin='1' (the drain binds
 -- the platform context), never by a tenant session.
+--
+-- UAT-DB-002 (B07 Q14). The definer runs as the table owner, and FORCE RLS
+-- applies the tenant_isolation policy above to the owner too (the migrator is
+-- NOBYPASSRLS). The platform scope binds no app.tenant_id, so a single
+-- cross-tenant scan sees no rows and the drain never seals anything. The queue
+-- policy keeps no platform branch, so queued content stays readable only by its
+-- own tenant. Instead the function walks tenants (platform-readable through the
+-- 021 tenants policy) and, for each one, binds that tenant's GUC
+-- transaction-locally and counts its unsealed rows under the unchanged tenant
+-- policy, using the explicit tenant_id predicate so the pending index drives
+-- the probe. Only (tenant id, count) leaves the function. The caller's
+-- app.tenant_id is restored before returning; a failure aborts the caller's
+-- transaction, which discards the local binding with it. Cost is one index
+-- probe per tenant per drain tick.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION audit_ingest_pending_tenants()
 RETURNS TABLE (tenant_id text, pending_count bigint)
@@ -189,23 +203,41 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+  v_caller_tenant text := COALESCE(current_setting('app.tenant_id', true), '');
+  v_tenants uuid[];
+  v_tenant uuid;
+  v_count bigint;
 BEGIN
   IF current_setting('app.platform_admin', true) IS DISTINCT FROM '1' THEN
     RAISE EXCEPTION 'audit_ingest_pending_tenants: platform context required'
       USING ERRCODE = '42501';
   END IF;
-  -- tenant_id is returned as text (the drain binds it as the app.tenant_id GUC).
-  RETURN QUERY
-    SELECT q.tenant_id::text, count(*)::bigint
-    FROM audit_ingest_queue q
-    WHERE q.sealed_at IS NULL
-    GROUP BY q.tenant_id
-    ORDER BY q.tenant_id;
+  -- Snapshot the tenant ids first so the per-tenant GUC changes below cannot
+  -- affect which tenants are visible.
+  SELECT COALESCE(array_agg(tn.id ORDER BY tn.id), ARRAY[]::uuid[])
+    INTO v_tenants
+    FROM tenants tn;
+  FOREACH v_tenant IN ARRAY v_tenants LOOP
+    PERFORM set_config('app.tenant_id', v_tenant::text, true);
+    SELECT count(*) INTO v_count
+      FROM audit_ingest_queue q
+     WHERE q.tenant_id = v_tenant
+       AND q.sealed_at IS NULL;
+    IF v_count > 0 THEN
+      -- tenant_id is returned as text (the drain binds it as the app.tenant_id GUC).
+      tenant_id := v_tenant::text;
+      pending_count := v_count;
+      RETURN NEXT;
+    END IF;
+  END LOOP;
+  PERFORM set_config('app.tenant_id', v_caller_tenant, true);
+  RETURN;
 END;
 $$;
 
 COMMENT ON FUNCTION audit_ingest_pending_tenants() IS
-  'PRC-M200/DR4-4: tenants with unsealed queue rows (SECURITY DEFINER, platform-context only).';
+  'PRC-M200/DR4-4: tenants with unsealed queue rows, tenant id + count only (SECURITY DEFINER, platform-context only; counts each tenant under its own RLS binding, UAT-DB-002).';
 
 DO $$
 BEGIN
