@@ -9,6 +9,8 @@
  *             to the migrator/runtime role, MIGRATOR_PASSWORD/APP_ROLE_PASSWORD
  *             are required from .env, and db/docker-init/* hard-codes no
  *             `PASSWORD '<literal>'`.
+ *   UAT-ENV-008 (PRC-M311 step): the MinIO image is pinned by `@sha256:` digest
+ *             and not taken from a repository that cannot be pulled anonymously.
  *
  * Usage: node tools/scripts/check-compose-contract.mjs [--root <dir>]
  */
@@ -81,12 +83,62 @@ export function checkDockerInitPasswords(files) {
   return errors;
 }
 
+/**
+ * MinIO repositories that cannot be pulled anonymously (UAT-ENV-008): Docker Hub
+ * `minio/minio` was withdrawn and `quay.io/minio/minio` requires authentication.
+ */
+const UNPULLABLE_MINIO_REPOS = new Set([
+  'minio/minio',
+  'docker.io/minio/minio',
+  'index.docker.io/minio/minio',
+  'quay.io/minio/minio',
+]);
+
+/** Splits an image reference into its repository (no tag, no digest) and digest. */
+export function parseImageRef(image) {
+  const s = String(image ?? '').trim();
+  const at = s.indexOf('@');
+  const name = at >= 0 ? s.slice(0, at) : s;
+  const digest = at >= 0 ? s.slice(at + 1) : '';
+  const lastSlash = name.lastIndexOf('/');
+  const colon = name.lastIndexOf(':');
+  const repository = colon > lastSlash ? name.slice(0, colon) : name;
+  return { repository, digest };
+}
+
+/**
+ * UAT-ENV-008 / PRC-M311: every MinIO service image (service `minio` or an image
+ * whose repository ends in `/minio`) is pinned by `@sha256:` digest and does not
+ * come from a repository that cannot be pulled anonymously.
+ */
+export function checkMinioImagePin(compose) {
+  const errors = [];
+  for (const [name, svc] of Object.entries(compose?.services ?? {})) {
+    const image = svc?.image;
+    if (image === undefined) continue;
+    const { repository, digest } = parseImageRef(image);
+    if (name !== 'minio' && !/(^|\/)minio$/.test(repository)) continue;
+    if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
+      errors.push(
+        `docker-compose.yml service ${name} image '${image}' is not pinned by @sha256: digest (UAT-ENV-008, PRC-M311)`,
+      );
+    }
+    if (UNPULLABLE_MINIO_REPOS.has(repository)) {
+      errors.push(
+        `docker-compose.yml service ${name} image '${image}' uses ${repository}, which cannot be pulled anonymously (UAT-ENV-008, PRC-M311)`,
+      );
+    }
+  }
+  return errors;
+}
+
 /** Runs every contract over the parsed files. */
 export function checkComposeContract({ compose, dockerInit = {} }) {
   return [
     ...checkBuiltServiceHealthchecks(compose),
     ...checkPostgresBootstrap(compose),
     ...checkDockerInitPasswords(dockerInit),
+    ...checkMinioImagePin(compose),
   ];
 }
 
