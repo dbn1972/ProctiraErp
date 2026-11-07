@@ -111,14 +111,18 @@ export function createPgQueueSealer(pool: PgPoolWithConnect): QueueSealer {
           },
           async loadPending(): Promise<PendingAuditQueueRow[]> {
             // RLS pins this to the bound tenant; oldest-first by surrogate id so
-            // the chain order is deterministic.
+            // the chain order is deterministic. The explicit tenant predicate
+            // lets the (tenant_id, id) pending index drive the scan: the
+            // policy's tenant_id::text comparison cannot be an index condition.
             const { rows } = (await client.query(
               `SELECT id, tenant_id, entity_type, entity_id, operation, user_id,
                       actor_kind, user_name, ip_address, occurred_at,
                       before_values, after_values, metadata
                  FROM audit_ingest_queue
                 WHERE sealed_at IS NULL
+                  AND tenant_id = $1
                 ORDER BY id ASC`,
+              [tenantId],
             )) as { rows: Array<Record<string, unknown>> };
             return rows.map(mapPendingRow);
           },
