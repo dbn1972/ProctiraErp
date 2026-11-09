@@ -29,6 +29,8 @@ import type {
   RoleEntity,
   RolesRepository,
   UserListFilter,
+  UserQuery,
+  UserQueryWindow,
   UserRecord,
 } from './roles-repository.js';
 
@@ -405,6 +407,34 @@ export class RolesService {
       metadata: { riskLevel: 'high', change: 'user_invited' },
     });
     return user;
+  }
+
+  /**
+   * PRC-M026: exact-match / role filter plus an offset window, evaluated by the
+   * repository (SQL for Postgres). Repositories without `queryUsers` fall back
+   * to paging `listUsers`.
+   */
+  async queryUsers(
+    tenantId: string,
+    query: UserQuery,
+    window: UserQueryWindow,
+  ): Promise<{ data: UserRecord[]; total: number }> {
+    if (this.repository.queryUsers) return this.repository.queryUsers(tenantId, query, window);
+    const all: UserRecord[] = [];
+    for (let page = 1; ; page += 1) {
+      const result = await this.repository.listUsers(
+        tenantId,
+        query.roleId ? { roleId: query.roleId } : {},
+        { page, pageSize: 200 },
+      );
+      all.push(...result.data);
+      if (result.data.length < 200 || all.length >= result.meta.totalItems) break;
+    }
+    const needle = query.match?.value.toLowerCase();
+    const rows = query.match
+      ? all.filter((u) => (u[query.match!.attribute] ?? '').toLowerCase() === needle)
+      : all;
+    return { data: rows.slice(window.offset, window.offset + window.limit), total: rows.length };
   }
 
   /** PRC-M026: single-row user lookup (no directory scan). */

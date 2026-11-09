@@ -12,7 +12,9 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import {
+  canonicalizeDocumentTenantId,
   PgDocumentCollection,
+  withPgTenant,
   withPlatformScope,
   type PgPoolWithConnect,
   type PgQueryable,
@@ -23,6 +25,8 @@ import type {
   RoleEntity,
   RolesRepository,
   UserListFilter,
+  UserQuery,
+  UserQueryWindow,
   UserRecord,
 } from './roles-repository.js';
 
@@ -47,6 +51,13 @@ function toDoc(entity: RoleEntity): RoleDoc {
     updatedAt: entity.updatedAt.toISOString(),
   };
 }
+
+/** PRC-M026: JSON keys of the matchable user attributes (fixed; never user input). */
+const PG_USER_ATTRIBUTE = {
+  email: 'email',
+  externalId: 'externalId',
+  displayName: 'displayName',
+} as const satisfies Record<Exclude<NonNullable<UserQuery['match']>['attribute'], 'id'>, string>;
 
 export class PgRolesRepository implements RolesRepository {
   private readonly roles: PgDocumentCollection<RoleDoc>;
@@ -222,6 +233,56 @@ export class PgRolesRepository implements RolesRepository {
       data: rows.slice(offset, offset + pageSize),
       meta: { page, pageSize, totalItems, totalPages },
     };
+  }
+
+  /**
+   * PRC-M026: the SCIM filter and window run in SQL on the tenant-bound
+   * connection (RLS on control_plane_documents), so one lookup or one page
+   * never loads the tenant's whole directory into the gateway.
+   */
+  async queryUsers(
+    tenantId: string,
+    query: UserQuery,
+    window: UserQueryWindow,
+  ): Promise<{ data: UserRecord[]; total: number }> {
+    const owner = canonicalizeDocumentTenantId(tenantId);
+    const params: unknown[] = [owner];
+    const where = [`collection = 'tenant.users'`, `tenant_id = $1`];
+    if (query.roleId) {
+      params.push(query.roleId);
+      where.push(`(data->'roleIds') ? $${params.length}`);
+    }
+    if (query.match) {
+      params.push(query.match.value);
+      const column =
+        query.match.attribute === 'id'
+          ? 'id'
+          : `COALESCE(data->>'${PG_USER_ATTRIBUTE[query.match.attribute]}', '')`;
+      where.push(`lower(${column}) = lower($${params.length})`);
+    }
+    params.push(Math.max(0, Math.trunc(window.limit)), Math.max(0, Math.trunc(window.offset)));
+    const sql = `SELECT data, COUNT(*) OVER () AS total
+                   FROM control_plane_documents
+                  WHERE ${where.join(' AND ')}
+                  ORDER BY data->>'displayName' ASC, id ASC
+                  LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    return withPgTenant(this.pool, owner, async (client) => {
+      const res = await client.query(sql, params);
+      const rows = res.rows as Array<{ data: UserRecord; total: string | number }>;
+      if (rows.length > 0) {
+        return {
+          data: rows.map((r) => ({ ...r.data, roleIds: [...(r.data.roleIds ?? [])] })),
+          total: Number(rows[0]!.total),
+        };
+      }
+      if (window.offset <= 0) return { data: [], total: 0 };
+      // A window past the end still reports the real total.
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM control_plane_documents WHERE ${where.join(' AND ')}`,
+        params.slice(0, -2),
+      );
+      return { data: [], total: Number((count.rows[0] as { total: number }).total) };
+    });
   }
 
   async findUserById(tenantId: string, id: string): Promise<UserRecord | null> {

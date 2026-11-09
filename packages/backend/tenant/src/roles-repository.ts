@@ -66,6 +66,23 @@ export interface UserListFilter {
   status?: UserRecord['status'];
 }
 
+/**
+ * PRC-M026: one exact-match lookup (the `attribute eq "value"` filters SCIM
+ * IdPs send) and/or a role-membership filter, evaluated by the store.
+ */
+export interface UserQuery {
+  /** Case-insensitive exact match on one attribute. */
+  match?: { attribute: 'email' | 'externalId' | 'id' | 'displayName'; value: string };
+  /** Only users holding this role id. */
+  roleId?: string;
+}
+
+/** PRC-M026: offset window over the ordered (displayName, id) user list. */
+export interface UserQueryWindow {
+  offset: number;
+  limit: number;
+}
+
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 /** Repository contract for the Settings → Roles & Permissions surface. */
@@ -98,6 +115,16 @@ export interface RolesRepository {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<UserRecord>>;
   findUserById(tenantId: string, id: string): Promise<UserRecord | null>;
+  /**
+   * PRC-M026: filter + window evaluated by the store (SQL for Postgres) so a
+   * SCIM lookup or page never loads the whole tenant directory. Returns the
+   * window and the total match count.
+   */
+  queryUsers?(
+    tenantId: string,
+    query: UserQuery,
+    window: UserQueryWindow,
+  ): Promise<{ data: UserRecord[]; total: number }>;
   findUserByEmail(tenantId: string, email: string): Promise<UserRecord | null>;
   /** Create or replace a user record (G-910 invite / directory sync). */
   upsertUser(user: UserRecord): Promise<UserRecord>;
