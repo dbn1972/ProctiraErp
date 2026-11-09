@@ -17,10 +17,16 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  appendAuditEntryOnClient,
+  currentAuditChainKey,
+  toCreateAuditLogInput,
+} from '@proctira/backend-audit';
+import {
   closeSharedPgPools,
   createPrismaClient,
   getSharedPgPool,
   withPgTenant,
+  type PgQueryable,
 } from '@proctira/database';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
@@ -45,33 +51,32 @@ const throwingAudit: StaffTxnAuditPort = {
   },
 };
 
-/** Port that writes a real audit row on the mutation's own transaction client. */
+/**
+ * Port that writes a real audit row on the mutation's own transaction client
+ * through the production keyed path (PRC-M200): `appendAuditEntryOnClient`
+ * locks and advances the tenant chain head via the SECURITY DEFINER functions,
+ * because the runtime role has no DML on audit_chain_heads (migration 294).
+ * Same event mapping as the gateway's StaffTxnAuditPort.
+ */
 function recordingAudit(seen: StaffTxnAuditEvent[]): StaffTxnAuditPort {
   return {
     async appendAuditInTxn(client: StaffTxnAuditClient, event: StaffTxnAuditEvent) {
-      await client.query(
-        `INSERT INTO audit_chain_heads (tenant_id) VALUES ($1::uuid) ON CONFLICT (tenant_id) DO NOTHING`,
-        [event.tenantId],
-      );
-      await client.query(
-        `INSERT INTO audit_log_entries (
-           id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-           ip_address, occurred_at, before_values, after_values, metadata
-         ) VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8,$9::timestamptz,$10::jsonb,$11::jsonb,$12::jsonb)`,
-        [
-          randomUUID(),
-          event.tenantId,
-          event.entityType,
-          event.entityId,
-          event.operation,
-          event.actorId ?? 'system',
-          event.actorId ?? 'system',
-          event.ipAddress ?? '0.0.0.0',
-          new Date().toISOString(),
-          event.beforeValues == null ? null : JSON.stringify(event.beforeValues),
-          event.afterValues == null ? null : JSON.stringify(event.afterValues),
-          JSON.stringify(event.metadata),
-        ],
+      await appendAuditEntryOnClient(
+        client as unknown as PgQueryable,
+        toCreateAuditLogInput({
+          tenantId: event.tenantId,
+          entityType: event.entityType,
+          entityId: event.entityId,
+          operation: event.operation,
+          userId: event.actorId ?? 'system',
+          userName: event.actorId ?? 'system',
+          ipAddress: event.ipAddress ?? '0.0.0.0',
+          beforeValues: event.beforeValues,
+          afterValues: event.afterValues,
+          metadata: event.requestId
+            ? { ...event.metadata, requestId: event.requestId }
+            : event.metadata,
+        }),
       );
       seen.push(event);
     },
@@ -107,6 +112,34 @@ describe.skipIf(!live)('PrismaStaffRepository same-transaction audit (PRC-M013, 
         [tenantId, entityId],
       );
       return Number((res.rows[0] as { c: number }).c);
+    });
+  }
+
+  /** PRC-M200: the tenant chain head and this entity's keyed audit rows. */
+  async function chainState(
+    tenantId: string,
+    entityId: string,
+  ): Promise<{ headSeq: number; rows: Array<{ keyId: string | null; chainSeq: number }> }> {
+    return withPgTenant(pool!, tenantId, async (client) => {
+      const head = await client.query(
+        `SELECT head_seq FROM audit_chain_heads WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      const rows = await client.query(
+        `SELECT key_id, chain_seq FROM audit_log_entries
+          WHERE tenant_id = $1 AND entity_id = $2`,
+        [tenantId, entityId],
+      );
+      const headRow = head.rows[0] as { head_seq: string | number } | undefined;
+      return {
+        headSeq: Number(headRow?.head_seq ?? 0),
+        rows: (rows.rows as Array<{ key_id: string | null; chain_seq: string | number }>).map(
+          (r) => ({
+            keyId: r.key_id,
+            chainSeq: Number(r.chain_seq),
+          }),
+        ),
+      };
     });
   }
 
@@ -173,6 +206,7 @@ describe.skipIf(!live)('PrismaStaffRepository same-transaction audit (PRC-M013, 
     const seed = new StaffService(new PrismaStaffRepository(prisma!));
     const staff = await newStaff(seed, tenantId);
 
+    const chainBefore = await chainState(tenantId, staff.id);
     const seen: StaffTxnAuditEvent[] = [];
     const service = new StaffService(new PrismaStaffRepository(prisma!, recordingAudit(seen)));
     const updated = await service.update(
@@ -186,5 +220,11 @@ describe.skipIf(!live)('PrismaStaffRepository same-transaction audit (PRC-M013, 
     expect(seen.map((e) => e.entityId)).toContain(staff.id);
     // Exactly one audit row for this staff id (no post-hoc double write).
     expect(await countAudit(tenantId, staff.id)).toBe(1);
+    // PRC-M200: the row is keyed (key_id set) and sits at the advanced chain head.
+    const chainAfter = await chainState(tenantId, staff.id);
+    expect(chainAfter.headSeq).toBe(chainBefore.headSeq + 1);
+    expect(chainAfter.rows).toEqual([
+      { keyId: currentAuditChainKey().keyId, chainSeq: chainAfter.headSeq },
+    ]);
   });
 });

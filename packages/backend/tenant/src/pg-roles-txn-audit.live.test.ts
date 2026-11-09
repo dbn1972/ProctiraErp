@@ -12,7 +12,12 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { withPgTenant } from '@proctira/database';
+import {
+  appendAuditEntryOnClient,
+  currentAuditChainKey,
+  toCreateAuditLogInput,
+} from '@proctira/backend-audit';
+import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -65,6 +70,35 @@ describe.skipIf(!live)('PgRolesRepository same-transaction audit (PRC-L264, live
     });
   }
 
+  /** PRC-M200: the tenant's chain head sequence (0 before the first append). */
+  async function headSeq(tenantId: string): Promise<number> {
+    return withPgTenant(pool!, tenantId, async (client) => {
+      const res = await client.query(
+        `SELECT head_seq FROM audit_chain_heads WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      const row = res.rows[0] as { head_seq: string | number } | undefined;
+      return Number(row?.head_seq ?? 0);
+    });
+  }
+
+  /** PRC-M200: key_id and chain_seq of this entity's audit rows. */
+  async function keyedRows(
+    tenantId: string,
+    entityId: string,
+  ): Promise<Array<{ keyId: string | null; chainSeq: number }>> {
+    return withPgTenant(pool!, tenantId, async (client) => {
+      const res = await client.query(
+        `SELECT key_id, chain_seq FROM audit_log_entries
+          WHERE tenant_id = $1 AND entity_id = $2`,
+        [tenantId, entityId],
+      );
+      return (res.rows as Array<{ key_id: string | null; chain_seq: string | number }>).map(
+        (r) => ({ keyId: r.key_id, chainSeq: Number(r.chain_seq) }),
+      );
+    });
+  }
+
   beforeAll(async () => {
     await ensureTenant(TENANT);
   });
@@ -100,26 +134,25 @@ describe.skipIf(!live)('PgRolesRepository same-transaction audit (PRC-L264, live
     const auditEvents: Array<{ entityId: string }> = [];
     const okAudit: RolesTxnAuditPort = {
       async appendAuditInTxn(client, event) {
-        // Write a real audit row on the SAME client/txn as the mutation.
-        await client.query(
-          `INSERT INTO audit_log_entries (
-             id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-             ip_address, occurred_at, before_values, after_values, metadata
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb)`,
-          [
-            randomUUID(),
-            event.tenantId,
-            event.entityType,
-            event.entityId,
-            event.operation,
-            event.actorId ?? 'system',
-            event.actorId ?? 'system',
-            event.ipAddress ?? '0.0.0.0',
-            new Date(),
-            event.beforeValues == null ? null : JSON.stringify(event.beforeValues),
-            event.afterValues == null ? null : JSON.stringify(event.afterValues),
-            JSON.stringify(event.metadata),
-          ],
+        // Write a real audit row on the SAME client/txn as the mutation, through
+        // the production keyed path (PRC-M200, same mapping as the gateway's
+        // RolesTxnAuditPort): the head advances via the SECURITY DEFINER functions.
+        await appendAuditEntryOnClient(
+          client as unknown as PgQueryable,
+          toCreateAuditLogInput({
+            tenantId: event.tenantId,
+            entityType: event.entityType,
+            entityId: event.entityId,
+            operation: event.operation,
+            userId: event.actorId ?? 'system',
+            userName: event.actorId ?? 'system',
+            ipAddress: event.ipAddress ?? '0.0.0.0',
+            beforeValues: event.beforeValues,
+            afterValues: event.afterValues,
+            metadata: event.requestId
+              ? { ...event.metadata, requestId: event.requestId }
+              : event.metadata,
+          }),
         );
         auditEvents.push({ entityId: event.entityId });
       },
@@ -128,6 +161,7 @@ describe.skipIf(!live)('PgRolesRepository same-transaction audit (PRC-L264, live
     const service = new RolesService(repo);
 
     const name = `Atomic ${Date.now().toString(36)}`;
+    const headBefore = await headSeq(TENANT);
     const created = await service.createRole(TENANT, {
       name,
       permissions: [{ resource: 'student', action: 'read' }],
@@ -138,5 +172,11 @@ describe.skipIf(!live)('PgRolesRepository same-transaction audit (PRC-L264, live
     expect(auditEvents.map((e) => e.entityId)).toContain(created.id);
     // Exactly one audit row for this role (no post-hoc double write).
     expect(await countAudit(TENANT, created.id)).toBe(1);
+    // PRC-M200: the row is keyed (key_id set) and sits at the advanced chain head.
+    const headAfter = await headSeq(TENANT);
+    expect(headAfter).toBe(headBefore + 1);
+    expect(await keyedRows(TENANT, created.id)).toEqual([
+      { keyId: currentAuditChainKey().keyId, chainSeq: headAfter },
+    ]);
   });
 });
