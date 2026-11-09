@@ -20,6 +20,8 @@
 #                   PR spec set must pass; a red job blocks the PR.
 #   schedule      — nightly, hard-fail, broader spec set.
 #   dispatch      — operator picks specs; require_live defaults to true.
+#   push (main)   — only the registration live journey job (UAT-API-004), so
+#                   every main merge commit runs the journey with a backend.
 #
 # Honest scope (no live IdP / Keycloak secrets): all live specs authenticate
 # with HS256 cookies (JWT_SECRET) — no seeded password login is claimed here.
@@ -29,6 +31,12 @@ name: E2E Backend Ready
 
 on:
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'redesign/**'
+  push:
+    branches: [main]
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -169,6 +177,8 @@ permissions:
 jobs:
   e2e-backend-ready-shard:
     name: E2E backend-ready shard ${{ matrix.shard }}/${{ strategy.job-total }}
+    # push to main runs only registration-live-journey (UAT-API-004).
+    if: github.event_name != 'push'
     timeout-minutes: 45
     runs-on: ubuntu-latest
     strategy:
@@ -361,13 +371,125 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # UAT-API-004 / PRC-M568: registration-portal live submit -> track journey
+  # (apps/registration-portal/e2e/03-registration-live-journey.spec.ts) on its
+  # own database. A separate job so the web shards and their steps stay
+  # unchanged; the live gate below requires it. Runs on PRs, nightly and on
+  # every push to main (the shards and the gate do not run on push). There is
+  # no skip path: a missing seed, gateway or portal, or any skipped test fails.
+  registration-live-journey:
+    name: Registration portal live journey (UAT-API-004 / PRC-M568)
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    env:
+      # Seeded by tools/e2e/seed-e2e-registration.sql (run by the harness);
+      # the spec applies to this institution's published form.
+      E2E_REGISTRATION_INSTITUTION_ID: 00000000-0000-4000-8000-00000000e0b1
+      E2E_REGISTRATION_PORT: '3002'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit-test registration live harness contracts
+        run: >-
+          node --test
+          tools/scripts/run-e2e-registration-live.test.mjs
+          tools/scripts/assert-registration-live-report.test.mjs
+
+      - name: Provision migrator + runtime roles and database (W1-DATA-10)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          BOOTSTRAP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+          MIGRATOR_PASSWORD=proctira_test \
+          APP_ROLE_PASSWORD=proctira_app_test \
+          BOOTSTRAP_DB_NAME=proctira_test \
+          BOOTSTRAP_EXTENSIONS=1 \
+          BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1 \
+            bash tools/scripts/bootstrap-db-roles.sh
+
+      - name: Run database migrations (Prisma)
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+
+      - name: Apply domain SQL schemas (G-002) with production FK posture (G-718)
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          APPLY_SEEDS: '1'
+          APPLY_STRICT_FKS: '1'
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @proctira/registration-portal exec playwright install --with-deps chromium
+
+      - name: Run registration live journey (seed + gateway + portal)
+        run: bash tools/scripts/run-e2e-registration-live.sh
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
+          CI: true
+
+      - name: Upload registration live journey report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: registration-live-journey-report
+          path: |
+            apps/registration-portal/playwright-report/
+            apps/registration-portal/test-results/
+            .e2e-registration-gateway.log
+            .e2e-registration-portal.log
+          retention-days: 14
+          if-no-files-found: ignore
+
   # Required check name is unchanged. Matrix leg names must not reuse it:
   # branch protection matches the job name string, and CI Aggregate does not
   # list this workflow.
   e2e-backend-ready:
     name: E2E backend-ready live gate (G-401 / G-706)
-    needs: e2e-backend-ready-shard
-    if: always()
+    needs: [e2e-backend-ready-shard, registration-live-journey]
+    if: always() && github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -427,6 +549,19 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 14
           if-no-files-found: error
+
+      # UAT-API-004: the required check also covers the registration journey.
+      # Anything but success (failure, cancelled, skipped) fails the gate.
+      - name: Require the registration live journey (UAT-API-004)
+        if: always()
+        env:
+          REGISTRATION_RESULT: ${{ needs.registration-live-journey.result }}
+        run: |
+          echo "- Registration live journey: \`$REGISTRATION_RESULT\`" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$REGISTRATION_RESULT" != "success" ]]; then
+            echo "error: registration live journey result is $REGISTRATION_RESULT (expected success)" >&2
+            exit 1
+          fi
 
       - name: Require every shard and the merged report
         if: always()

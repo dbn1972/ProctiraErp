@@ -91,7 +91,11 @@ test.describe('Registration Portal — live submit and track', () => {
     await page.getByLabel(/guardian name/i).fill('E2E Guardian');
     await page.getByLabel(/guardian phone/i).fill('+911234567890');
     await page.getByRole('button', { name: /^next$/i }).click();
+    // Wait for each step: a second "Next" clicked before the client-side
+    // navigation lands hits the previous step's button (UAT-API-004 flake).
+    await expect(page).toHaveURL(/\/documents/);
     await page.getByRole('button', { name: /^next$/i }).click();
+    await expect(page).toHaveURL(/\/review/);
     await page.getByRole('button', { name: /^submit$/i }).click();
     await expect(page.getByRole('alert').first()).toBeVisible();
     await expect(page).not.toHaveURL(/\/apply\/success/);
