@@ -2,7 +2,7 @@
  * PRC-M354: document audit rows go through the hash-chained append on the same
  * transaction (chain_seq / prev_hash / entry_hash populated).
  */
-import { currentAuditChainKey } from '@proctira/backend-audit';
+import { computeKeyedEntryHash, currentAuditChainKey } from '@proctira/backend-audit';
 import { describe, expect, it, vi } from 'vitest';
 import { PgScholarshipDocumentStore } from '../pg-document-store.js';
 
@@ -91,6 +91,26 @@ describe('PgScholarshipDocumentStore audit chain (PRC-M354)', () => {
     expect(params[3]).toBe('00000000-0000-4000-8000-0000000000f1');
     expect(String(params[12])).toMatch(/^[0-9a-f]{64}$/); // entry_hash (HMAC)
     expect(params[13]).toBe(currentAuditChainKey().keyId); // key_id
+    // The HMAC links to the chain: it covers the prev_hash read from audit_chain_lock_head
+    // (head 4 = 'a'*64) and exactly the fields sent to audit_chain_append.
+    const parseJson = (v: unknown) => (v == null ? null : (JSON.parse(String(v)) as never));
+    const hashedInput = {
+      id: String(params[1]),
+      tenantId: String(params[0]),
+      entityType: String(params[2]),
+      entityId: String(params[3]),
+      operation: params[4] as 'CREATE',
+      userId: String(params[5]),
+      userName: String(params[6]),
+      ipAddress: String(params[7]),
+      timestamp: params[8] as Date,
+      beforeValues: parseJson(params[9]),
+      afterValues: parseJson(params[10]),
+      metadata: parseJson(params[11]),
+    };
+    expect(params[12]).toBe(
+      computeKeyedEntryHash(hashedInput, 'a'.repeat(64), currentAuditChainKey()),
+    );
     expect(head).toEqual({ head_seq: 5, head_hash: params[12] });
   });
 });
