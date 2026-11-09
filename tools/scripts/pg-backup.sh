@@ -17,6 +17,14 @@
 #   BACKUP_S3_SSE_KMS_KEY_ID  KMS key when BACKUP_S3_SSE=aws:kms
 #   BACKUP_S3_OBJECT_LOCK_MODE  GOVERNANCE|COMPLIANCE (WORM; optional)
 #   BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS  retain-until days for Object Lock
+#   BACKUP_S3_OBJECT_LOCK_GOVERNANCE_UNTIL  (PRC-M624) UTC date (YYYY-MM-DD) up
+#                           to which Object Lock uses GOVERNANCE; on/after it the
+#                           mode switches to COMPLIANCE. Set to go-live + 30 days
+#                           per DECISION_REGISTER ## 41 ("GOVERNANCE for the first
+#                           30 days, then COMPLIANCE"). Overrides
+#                           BACKUP_S3_OBJECT_LOCK_MODE. A malformed date fails
+#                           closed. When unset, BACKUP_S3_OBJECT_LOCK_MODE is used
+#                           unchanged.
 set -euo pipefail
 # Dumps (and any plaintext intermediate) are readable by the owner only.
 umask 077
@@ -24,6 +32,35 @@ umask 077
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=tools/scripts/backup-crypto.sh
 source "$ROOT/tools/scripts/backup-crypto.sh"
+
+# PRC-M624 — resolve the effective Object Lock mode from a GOVERNANCE->COMPLIANCE
+# anchor date (DECISION_REGISTER ## 41: GOVERNANCE for the first 30 days, then
+# COMPLIANCE). When BACKUP_S3_OBJECT_LOCK_GOVERNANCE_UNTIL is set, exports
+# BACKUP_S3_OBJECT_LOCK_MODE=GOVERNANCE while today's UTC date is before it and
+# COMPLIANCE on/after it; a malformed anchor fails closed. When the anchor is
+# unset, any explicit BACKUP_S3_OBJECT_LOCK_MODE is left unchanged.
+resolve_object_lock_mode() {
+  local until="${BACKUP_S3_OBJECT_LOCK_GOVERNANCE_UNTIL:-}"
+  [[ -z "$until" ]] && return 0
+  if ! [[ "$until" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "ERROR: BACKUP_S3_OBJECT_LOCK_GOVERNANCE_UNTIL must be a UTC date YYYY-MM-DD (got '${until}')" >&2
+    exit 1
+  fi
+  local until_epoch now_epoch
+  until_epoch="$(date -u -d "${until}T00:00:00Z" +%s 2>/dev/null \
+    || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "${until}T00:00:00Z" +%s 2>/dev/null || true)"
+  if [[ -z "$until_epoch" ]]; then
+    echo "ERROR: BACKUP_S3_OBJECT_LOCK_GOVERNANCE_UNTIL is not a valid date: '${until}'" >&2
+    exit 1
+  fi
+  now_epoch="$(date -u +%s)"
+  if (( now_epoch < until_epoch )); then
+    export BACKUP_S3_OBJECT_LOCK_MODE="GOVERNANCE"
+  else
+    export BACKUP_S3_OBJECT_LOCK_MODE="COMPLIANCE"
+  fi
+  echo "==> object-lock mode ${BACKUP_S3_OBJECT_LOCK_MODE} (governance-until ${until})" >&2
+}
 
 DB_URL="${DATABASE_URL:?DATABASE_URL is required}"
 BACKUP_DIR="${BACKUP_DIR:-$ROOT/.backups}"
@@ -73,6 +110,7 @@ if [[ "$FINAL_OUT" != "$OUT" ]]; then
   echo "==> Encrypted artifact (${BYTES} bytes): ${FINAL_OUT}"
 fi
 
+resolve_object_lock_mode
 backup_offsite_sync "$FINAL_OUT"
 
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-0}"

@@ -131,6 +131,19 @@ export interface CdnAdapterHealth {
 }
 
 /**
+ * PRC-L489: injectable transport for the adapters (tests, custom HTTP agents).
+ * Production uses the global `fetch` and a lazily created CloudFront SDK client.
+ */
+export interface CdnAdapterDeps {
+  /** HTTP client for Nginx PURGE / custom invalidation / health probes. */
+  fetchImpl?: typeof fetch;
+  /** CloudFront SDK client (anything with the SDK's `send(command)`). */
+  cloudFrontClient?: { send(command: unknown): Promise<unknown> };
+  /** Request timeout in ms (default 10 000). */
+  timeoutMs?: number;
+}
+
+/**
  * CDN Adapter Interface
  *
  * Provides an abstraction over CDN providers for:

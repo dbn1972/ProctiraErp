@@ -69,6 +69,44 @@ ingress:
     admin: 'admin.proctira.io'
     developers: 'developers.proctira.io'
 
+# -- cert-manager ClusterIssuer (PRC-L565)
+# A wildcard certificate for `*.proctira.io` cannot be issued with the HTTP-01
+# challenge; it requires a DNS-01 solver. This chart can render a Route 53
+# DNS-01 ClusterIssuer that authenticates through IRSA (a projected service
+# account role) so NO static AWS access keys are ever stored in the cluster.
+#
+# DISABLED BY DEFAULT and left disabled in production until the operating
+# inputs exist (decision register ## 41, Topic 25 — WAITING_ON_INPUT):
+#   - hostedZoneID: the Route 53 hosted zone for proctira.io
+#   - role.roleArn: the IAM role ARN (IRSA) cert-manager assumes to write
+#     the _acme-challenge TXT records
+# Until those are supplied, enabling this block renders an incomplete issuer,
+# so the template fails closed (see cluster-issuer.yaml) rather than shipping a
+# broken issuer. When enabled, the ingress annotation must point at
+# `clusterIssuer.name` instead of the externally-managed `letsencrypt-prod`.
+certManager:
+  clusterIssuer:
+    # Must stay false until the DNS-01 provider + solver identity are provisioned.
+    enabled: false
+    name: letsencrypt-dns01
+    # ACME directory (Let's Encrypt production by default).
+    acmeServer: https://acme-v02.api.letsencrypt.org/directory
+    # Contact address for ACME expiry/abuse notices.
+    email: devops@proctira.io
+    # Secret name cert-manager uses to store the ACME account private key.
+    privateKeySecretRef: letsencrypt-dns01-account-key
+    dns01:
+      provider: route53
+      # AWS region for the Route 53 API (hosted zones are global, but the
+      # client still needs a region).
+      region: ap-south-1
+      # WAITING_ON_INPUT: Route 53 hosted zone ID for proctira.io.
+      hostedZoneID: ''
+      role:
+        # IRSA: cert-manager's ServiceAccount assumes this role; no static keys.
+        # WAITING_ON_INPUT: the IAM role ARN with Route53 TXT-record write access.
+        roleArn: ''
+
 # -- API Gateway service
 apiGateway:
   enabled: true
@@ -1184,6 +1222,10 @@ dr:
       # COMPLIANCE with retainDays >= retentionDays (fail-closed in template).
       objectLock:
         mode: '' # GOVERNANCE | COMPLIANCE | '' (disabled)
+        # PRC-M624: UTC date (YYYY-MM-DD) up to which Object Lock uses
+        # GOVERNANCE; on/after it pg-backup.sh switches to COMPLIANCE. Empty
+        # disables the switch (the static `mode` above is used as-is).
+        governanceUntil: ''
         retainDays: 0
   phiRetention:
     enabled: true

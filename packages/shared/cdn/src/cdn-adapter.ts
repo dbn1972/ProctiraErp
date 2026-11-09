@@ -5,7 +5,7 @@
  * Supports CloudFront, Nginx, and custom CDN providers.
  */
 
-import type { CdnAdapter, CdnConfig } from './types.js';
+import type { CdnAdapter, CdnAdapterDeps, CdnConfig } from './types.js';
 import { CloudFrontCdnAdapter } from './adapters/cloudfront.js';
 import { NginxCdnAdapter } from './adapters/nginx.js';
 import { CustomCdnAdapter } from './adapters/custom.js';
@@ -28,17 +28,18 @@ export class CdnError extends Error {
  * Creates a CDN adapter instance based on the provided configuration.
  *
  * @param config - CDN configuration specifying the adapter type and settings
+ * @param deps - optional transport overrides (PRC-L489)
  * @returns A configured CDN adapter instance
  * @throws CdnError if the adapter type is unsupported
  */
-export function createCdnAdapter(config: CdnConfig): CdnAdapter {
+export function createCdnAdapter(config: CdnConfig, deps: CdnAdapterDeps = {}): CdnAdapter {
   switch (config.adapter) {
     case 'cloudfront':
-      return new CloudFrontCdnAdapter(config);
+      return new CloudFrontCdnAdapter(config, deps);
     case 'nginx':
-      return new NginxCdnAdapter(config);
+      return new NginxCdnAdapter(config, deps);
     case 'custom':
-      return new CustomCdnAdapter(config);
+      return new CustomCdnAdapter(config, deps);
     default:
       throw new CdnError(
         `Unsupported CDN adapter: ${String((config as { adapter: string }).adapter)}`,

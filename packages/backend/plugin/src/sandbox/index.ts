@@ -2,7 +2,8 @@
  * Plugin Sandbox Module
  *
  * Provides isolated execution environments for plugin code:
- * - PluginSandbox: Worker thread-based isolation (production, untrusted code)
+ * - PluginSandbox: restricted child-process isolation (Node permission model, no string
+ *   code generation, empty env, vm realm without require/process; PRC-M602)
  * - InProcessSandbox: VM-based isolation (testing, trusted code)
  *
  * Both implementations enforce:
