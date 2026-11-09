@@ -416,6 +416,9 @@ jobs:
             exit 1
           fi
           pnpm --filter @proctira/web exec playwright merge-reports --reporter=html "$GITHUB_WORKSPACE/blob-flat"
+          # UAT-ENV-007: merged JSON for the skip gate in the next step.
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$GITHUB_WORKSPACE/e2e-backend-ready-merged.json" \
+            pnpm --filter @proctira/web exec playwright merge-reports --reporter=json "$GITHUB_WORKSPACE/blob-flat"
         env:
           E2E_SHARD_TOTAL: ${{ env.E2E_SHARD_TOTAL }}
 
@@ -436,6 +439,8 @@ jobs:
           BLOBS_OUTCOME: ${{ steps.blobs.outcome }}
           MERGE_OUTCOME: ${{ steps.merge.outcome }}
           E2E_SHARD_TOTAL: ${{ env.E2E_SHARD_TOTAL }}
+          # Non-empty only for a dispatch with a custom spec list.
+          CUSTOM_SPECS: ${{ github.event_name == 'workflow_dispatch' && inputs.specs || '' }}
         run: |
           set -euo pipefail
           {
@@ -459,3 +464,12 @@ jobs:
             echo "error: shard jobs succeeded but blob merge did not (blobs=$BLOBS_OUTCOME merge=$MERGE_OUTCOME)" >&2
             exit 1
           fi
+          # UAT-ENV-007: fail on any skip not on the allowlist. The PR and
+          # nightly spec sets contain every allowlisted test, so require each
+          # one to be present and still skipping; a custom dispatch list may not.
+          GATE_ARGS=(--mode merged --report "$GITHUB_WORKSPACE/e2e-backend-ready-merged.json")
+          if [[ -z "$CUSTOM_SPECS" ]]; then
+            GATE_ARGS+=(--require-allowlisted)
+          fi
+          node tools/scripts/assert-playwright-skips.mjs "${GATE_ARGS[@]}"
+          echo "- Skip gate (UAT-ENV-007): pass" >> "$GITHUB_STEP_SUMMARY"
