@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import type { PolicyAuditPort } from './audit-port.js';
 import type { PolicyRepository } from './policy-repository.js';
 import { PolicyService } from './policy-service.js';
 import { registerPolicyRoutes } from './routes.js';
@@ -21,6 +22,12 @@ export interface PolicyPluginOptions {
   repository: PolicyRepository;
   /** Route prefix for policies (default: '/policies') */
   prefix?: string;
+  /**
+   * PRC-M608: optional durable, tenant-aware audit sink. When provided, every
+   * policy lifecycle mutation is recorded through it carrying the real actor
+   * and tenant. When omitted, no audit row is emitted (behaviour-preserving).
+   */
+  auditPort?: PolicyAuditPort;
 }
 
 // Extend Fastify types
@@ -35,10 +42,10 @@ declare module 'fastify' {
  */
 export const policyPlugin = fp(
   async function policyPluginImpl(fastify: FastifyInstance, options: PolicyPluginOptions) {
-    const { repository, prefix = '/policies' } = options;
+    const { repository, prefix = '/policies', auditPort } = options;
 
     // Create policy service instance
-    const policyService = new PolicyService(repository);
+    const policyService = new PolicyService(repository, auditPort);
 
     // Decorate fastify with the policy service
     fastify.decorate('policyService', policyService);

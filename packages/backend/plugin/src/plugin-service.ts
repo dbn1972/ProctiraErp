@@ -13,6 +13,7 @@
 import { NotFoundError, ConflictError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { PluginAuditPort, PluginAuditEvent } from './audit-port.js';
 import { validateCompatibility } from './compatibility.js';
 import type { ExtensionPointRegistry } from './extension-points/extension-point-registry.js';
 import type { PluginRepository, PluginEntity, PluginInstallEntity } from './plugin-repository.js';
@@ -39,7 +40,27 @@ export class PluginService {
      * registrations so the plugin stops receiving payloads.
      */
     private readonly registry?: Pick<ExtensionPointRegistry, 'unregisterAllForInstall'>,
+    /**
+     * PRC-L477: injected audit sink carrying the real actor and tenant. When
+     * provided, all lifecycle audit events are recorded through it (durable,
+     * tenant-aware). When omitted, the service falls back to the repository's
+     * audit log so existing callers and tests are unchanged.
+     */
+    private readonly auditPort?: PluginAuditPort,
   ) {}
+
+  /**
+   * PRC-L477: record a plugin audit event through the injected port when one is
+   * configured, otherwise through the repository. The caller always supplies the
+   * real `actor` and `tenantId`; this method never substitutes a `'system'` actor.
+   */
+  private async audit(entry: PluginAuditEvent) {
+    if (this.auditPort) {
+      await this.auditPort.record(entry);
+      return;
+    }
+    await this.repository.createAuditEntry(entry);
+  }
 
   /**
    * Register a new plugin in the registry.
@@ -96,7 +117,7 @@ export class PluginService {
     }
 
     // Audit log (use a system tenant for registry-level operations)
-    await this.repository.createAuditEntry({
+    await this.audit({
       id: uuidv4(),
       pluginId,
       tenantId: 'system',
@@ -175,6 +196,19 @@ export class PluginService {
       );
     }
 
+    // PRC-L479: consent ceiling — consent may not exceed the plugin's declared
+    // requiredPermissions, so an install cannot silently grant a permission the
+    // manifest never asked for. Anything consented beyond requiredPermissions is
+    // rejected (fail-closed), not clamped.
+    const excessPermissions = consentedPermissions.filter(
+      (p) => !plugin.requiredPermissions.includes(p),
+    );
+    if (excessPermissions.length > 0) {
+      throw new BusinessRuleError(
+        `Consented permissions exceed the plugin's required permissions: ${excessPermissions.join(', ')}`,
+      );
+    }
+
     const installId = uuidv4();
 
     // Record permissions
@@ -207,7 +241,7 @@ export class PluginService {
     }
 
     // Audit log
-    await this.repository.createAuditEntry({
+    await this.audit({
       id: uuidv4(),
       pluginId,
       tenantId,
@@ -248,7 +282,7 @@ export class PluginService {
     });
 
     // Audit log
-    await this.repository.createAuditEntry({
+    await this.audit({
       id: uuidv4(),
       pluginId: install.pluginId,
       tenantId,
@@ -288,7 +322,7 @@ export class PluginService {
     const hooksUnregistered = this.registry?.unregisterAllForInstall(installId) ?? 0;
 
     // Audit log
-    await this.repository.createAuditEntry({
+    await this.audit({
       id: uuidv4(),
       pluginId: install.pluginId,
       tenantId,
@@ -335,7 +369,7 @@ export class PluginService {
     const hooksUnregistered = this.registry?.unregisterAllForInstall(installId) ?? 0;
 
     // Audit log
-    await this.repository.createAuditEntry({
+    await this.audit({
       id: uuidv4(),
       pluginId: install.pluginId,
       tenantId,
@@ -392,7 +426,7 @@ export class PluginService {
     await this.repository.revokePermission(permissionId, actor);
 
     // Audit log
-    await this.repository.createAuditEntry({
+    await this.audit({
       id: uuidv4(),
       pluginId: install.pluginId,
       tenantId,

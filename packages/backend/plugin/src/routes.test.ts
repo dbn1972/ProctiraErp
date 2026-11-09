@@ -36,9 +36,18 @@ beforeEach(async () => {
 
   // Add tenant context decorator for testing
   app.decorateRequest('tenantId', '');
+  // PRC-M603/M627: routes now require an admin principal. These CRUD happy-path
+  // tests run as a platform admin (which satisfies both the platform-admin
+  // register guard and the tenant-admin install/enable/disable/uninstall guard);
+  // dedicated 403 cases live in authz.test.ts.
+  app.decorateRequest('user', null);
   app.addHook('onRequest', async (request) => {
     (request as unknown as { tenantId: string }).tenantId =
       (request.headers['x-tenant-id'] as string) || '';
+    (request as unknown as { user: { sub: string; roles: { roleId: string }[] } }).user = {
+      sub: 'user-admin-1',
+      roles: [{ roleId: 'platform_admin' }],
+    };
   });
 
   const repository = new InMemoryPluginRepository();

@@ -11,6 +11,7 @@ import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/commo
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { PolicyAuditEvent, PolicyAuditPort } from './audit-port.js';
 import {
   PolicyEvaluationEngine,
   type PolicyEvaluationContext,
@@ -35,8 +36,30 @@ import type {
 export class PolicyService {
   private readonly evaluationEngine: PolicyEvaluationEngine;
 
-  constructor(private readonly repository: PolicyRepository) {
+  constructor(
+    private readonly repository: PolicyRepository,
+    /**
+     * PRC-M608: injected audit sink carrying the real actor and tenant. When
+     * provided, every policy lifecycle mutation (create/update/activate/
+     * deactivate/assign/removeAssignment) is recorded through it (durable,
+     * tenant-aware). When omitted, the service does not emit, so a parked
+     * package never writes a `'system'`-attributed or tenant-less audit row.
+     */
+    private readonly auditPort?: PolicyAuditPort,
+  ) {
     this.evaluationEngine = new PolicyEvaluationEngine(repository);
+  }
+
+  /**
+   * PRC-M608: record a policy audit event through the injected port when one is
+   * configured. The caller always supplies the real `actor` and `tenantId`;
+   * this method never substitutes a `'system'` actor. When no port and/or no
+   * actor is provided, nothing is emitted (behaviour-preserving for callers
+   * that have not wired an audit sink, e.g. the parked package's own tests).
+   */
+  private async audit(event: PolicyAuditEvent | undefined): Promise<void> {
+    if (!event || !this.auditPort) return;
+    await this.auditPort.record(event);
   }
 
   // ─── Policy CRUD ─────────────────────────────────────────────────────────
@@ -52,7 +75,7 @@ export class PolicyService {
    *
    * @throws ConflictError if name already exists
    */
-  async create(tenantId: string, input: CreatePolicyInput): Promise<PolicyEntity> {
+  async create(tenantId: string, input: CreatePolicyInput, actor?: string): Promise<PolicyEntity> {
     // Check name uniqueness within tenant
     const existingByName = await this.repository.findByName(input.name, tenantId);
     if (existingByName) {
@@ -88,6 +111,9 @@ export class PolicyService {
       createdBy: null,
     });
 
+    if (actor) {
+      await this.audit({ action: 'create', actor, tenantId, policyId });
+    }
     return created;
   }
 
@@ -99,7 +125,12 @@ export class PolicyService {
    * @throws NotFoundError if policy not found
    * @throws ConflictError if name conflicts with another policy
    */
-  async update(tenantId: string, id: string, input: UpdatePolicyInput): Promise<PolicyEntity> {
+  async update(
+    tenantId: string,
+    id: string,
+    input: UpdatePolicyInput,
+    actor?: string,
+  ): Promise<PolicyEntity> {
     // Read, name check, version record and write happen as one repository
     // step so concurrent edits cannot mint duplicate versions or names (PRC-L478).
     const result = await this.repository.updateAtomically(id, tenantId, (existing) =>
@@ -110,6 +141,9 @@ export class PolicyService {
     }
     if (result.status === 'name_conflict') {
       throw new ConflictError(`Policy with name '${input.name ?? ''}' already exists`);
+    }
+    if (actor) {
+      await this.audit({ action: 'update', actor, tenantId, policyId: id });
     }
     return result.entity;
   }
@@ -160,7 +194,7 @@ export class PolicyService {
    * @throws NotFoundError if policy not found
    * @throws BusinessRuleError if policy is already active
    */
-  async activate(tenantId: string, id: string): Promise<PolicyEntity> {
+  async activate(tenantId: string, id: string, actor?: string): Promise<PolicyEntity> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Policy with id '${id}' not found`);
@@ -175,6 +209,9 @@ export class PolicyService {
       throw new NotFoundError(`Policy with id '${id}' not found`);
     }
 
+    if (actor) {
+      await this.audit({ action: 'activate', actor, tenantId, policyId: id });
+    }
     return updated;
   }
 
@@ -184,7 +221,7 @@ export class PolicyService {
    * @throws NotFoundError if policy not found
    * @throws BusinessRuleError if policy is already inactive
    */
-  async deactivate(tenantId: string, id: string): Promise<PolicyEntity> {
+  async deactivate(tenantId: string, id: string, actor?: string): Promise<PolicyEntity> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Policy with id '${id}' not found`);
@@ -199,6 +236,9 @@ export class PolicyService {
       throw new NotFoundError(`Policy with id '${id}' not found`);
     }
 
+    if (actor) {
+      await this.audit({ action: 'deactivate', actor, tenantId, policyId: id });
+    }
     return updated;
   }
 
@@ -276,6 +316,7 @@ export class PolicyService {
   async assignPolicy(
     tenantId: string,
     input: CreatePolicyAssignmentInput,
+    actor?: string,
   ): Promise<PolicyAssignmentEntity> {
     const policy = await this.repository.findById(input.policyId, tenantId);
     if (!policy) {
@@ -286,13 +327,24 @@ export class PolicyService {
       throw new BusinessRuleError('Only active policies can be assigned');
     }
 
-    return this.repository.createAssignment({
+    const assignment = await this.repository.createAssignment({
       id: uuidv4(),
       policyId: input.policyId,
       targetType: input.targetType,
       targetId: input.targetId ?? null,
       tenantId,
     });
+
+    if (actor) {
+      await this.audit({
+        action: 'assign',
+        actor,
+        tenantId,
+        policyId: input.policyId,
+        assignmentId: assignment.id,
+      });
+    }
+    return assignment;
   }
 
   /**
@@ -300,7 +352,12 @@ export class PolicyService {
    *
    * @throws NotFoundError if assignment not found
    */
-  async removeAssignment(tenantId: string, policyId: string, assignmentId: string): Promise<void> {
+  async removeAssignment(
+    tenantId: string,
+    policyId: string,
+    assignmentId: string,
+    actor?: string,
+  ): Promise<void> {
     // PRC-L487: the assignment must belong to the policy named in the URL path,
     // so a caller cannot delete an assignment of a different policy by guessing
     // an assignment id under an unrelated :id.
@@ -313,6 +370,10 @@ export class PolicyService {
     const removed = await this.repository.removeAssignment(assignmentId, tenantId);
     if (!removed) {
       throw new NotFoundError(`Assignment with id '${assignmentId}' not found`);
+    }
+
+    if (actor) {
+      await this.audit({ action: 'remove_assignment', actor, tenantId, policyId, assignmentId });
     }
   }
 
