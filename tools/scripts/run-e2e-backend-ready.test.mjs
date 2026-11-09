@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -97,11 +97,14 @@ const AX = [
 const PASS_A = ['08b-legal-pages.spec.ts', ['Legal pages', 'privacy page renders']];
 const PASS_B = ['17c-module-a11y-smoke.spec.ts', ['17c', 'health page is axe clean']];
 
-/** Minimal Playwright JSON report: rows are [file, titlePath, status]. */
+/**
+ * Minimal Playwright JSON report: rows are [file, titlePath, status, test?];
+ * the optional test object overrides fields such as expectedStatus/results.
+ */
 function pwReport(rows, overrides = {}) {
   const stats = { expected: 0, unexpected: 0, flaky: 0, skipped: 0 };
   const files = new Map();
-  rows.forEach(([file, titles, status], i) => {
+  rows.forEach(([file, titles, status, testFields = {}], i) => {
     stats[status] += 1;
     if (!files.has(file)) files.set(file, { title: file, file, specs: [], suites: [] });
     let suite = files.get(file);
@@ -120,6 +123,7 @@ function pwReport(rows, overrides = {}) {
           status,
           expectedStatus: status === 'skipped' ? 'skipped' : 'passed',
           results: [],
+          ...testFields,
         },
       ],
     });
@@ -202,7 +206,7 @@ test('skip gate: missing, unreadable or empty report fails closed', async () => 
   assert.equal(main(['--report', join(dir, 'empty.json')], quiet), 1);
   writeFileSync(join(dir, 'nosuites.json'), '{}');
   assert.equal(main(['--report', join(dir, 'nosuites.json')], quiet), 1);
-  const none = await gate([], { mode: 'shard' });
+  const none = await gate([], { mode: 'merged' });
   assert.equal(none.ok, false);
   assert.match(none.errors.join('\n'), /executed no tests/);
   assert.equal(main([], quiet), 2, 'usage error without --report');
@@ -343,7 +347,7 @@ test('harness runs the skip gate on a fresh shard report and fails when it fails
   );
   assert.match(
     text,
-    /assert-playwright-skips\.mjs" --mode shard --report "\$PW_JSON_REPORT"\nSKIP_GATE_EXIT=\$\?/,
+    /assert-playwright-skips\.mjs" --mode "\$SKIP_GATE_MODE" --report "\$PW_JSON_REPORT"\nSKIP_GATE_EXIT=\$\?/,
   );
   assert.match(text, /if \[\[ "\$SKIP_GATE_EXIT" -ne 0 \]\]; then[\s\S]*?exit 1/);
   assert.ok(text.indexOf('rm -f "$PW_JSON_REPORT"') < text.indexOf('playwright test'));
@@ -382,4 +386,139 @@ test('live gate merges a JSON report and runs the merged skip gate', () => {
       assert.ok(wf.env[set].split(/\s+/).includes(`e2e/${e.file}`), `${set} has e2e/${e.file}`);
     }
   }
+});
+
+// Review r1: a test that fails and then calls test.skip() on a retry is
+// reported as status "flaky" with expectedStatus "skipped" (Playwright 1.63).
+const FAIL_THEN_SKIP = {
+  expectedStatus: 'skipped',
+  results: [{ status: 'failed' }, { status: 'skipped' }],
+};
+const FAIL_THEN_PASS = {
+  expectedStatus: 'passed',
+  results: [{ status: 'failed' }, { status: 'passed' }],
+};
+
+test('skip gate: a fail-then-skip retry (flaky, expectedStatus skipped) is an unlisted skip', async () => {
+  const { evaluatePlaywrightReport } = await loadGate();
+  const report = pwReport([
+    [...PASS_A, 'expected'],
+    [...PASS_B, 'flaky', FAIL_THEN_SKIP],
+  ]);
+  for (const mode of ['shard', 'merged']) {
+    const r = evaluatePlaywrightReport(report, { entries: [] }, { mode });
+    assert.equal(r.ok, false);
+    assert.match(
+      r.errors.join('\n'),
+      /unlisted skip: 17c-module-a11y-smoke\.spec\.ts:\d+ 17c > health page is axe clean \[chromium\] \(status flaky, expected skipped\)/,
+    );
+    // counts and the stats reconciliation stay on the raw status.
+    assert.equal(r.counts.flaky, 1);
+    assert.equal(r.counts.skipped, 0);
+    assert.doesNotMatch(r.errors.join('\n'), /stats\./);
+  }
+});
+
+test('skip gate: an allowlisted fail-then-skip retry is a skip, not a stale entry', async () => {
+  const r = await gate(
+    [
+      [...PASS_A, 'expected'],
+      [...GW, 'flaky', FAIL_THEN_SKIP],
+    ],
+    { mode: 'shard' },
+  );
+  assert.equal(r.ok, true, r.errors.join('\n'));
+  assert.match(r.notes.join('\n'), /allowlisted skip: 16f-institutions-profile-write\.spec\.ts/);
+});
+
+test('skip gate: a fail-then-pass flaky test is still accepted', async () => {
+  const r = await gate(
+    [
+      [...PASS_A, 'expected'],
+      [...PASS_B, 'flaky', FAIL_THEN_PASS],
+    ],
+    { mode: 'shard' },
+  );
+  assert.equal(r.ok, true, r.errors.join('\n'));
+  assert.equal(r.counts.flaky, 1);
+  assert.equal(r.executed, 2);
+});
+
+test('skip gate: an empty shard report passes in shard mode only', async () => {
+  const shard = await gate([], { mode: 'shard' });
+  assert.equal(shard.ok, true, shard.errors.join('\n'));
+  assert.match(shard.notes.join('\n'), /empty shard/);
+  assert.equal(shard.executed, 0);
+  // A shard that lists tests but executes none still fails.
+  const allSkipped = await gate([[...GW, 'skipped']], { mode: 'shard' });
+  assert.equal(allSkipped.ok, false);
+  assert.match(allSkipped.errors.join('\n'), /executed no tests/);
+  // Stats that disagree with an empty suite list are not an empty shard.
+  const drift = await gate([], { mode: 'shard' }, { expected: 1 });
+  assert.equal(drift.ok, false);
+  assert.match(drift.errors.join('\n'), /stats\.expected=1/);
+});
+
+test('skip gate: the merged gate still fails an empty run', async () => {
+  for (const options of [{ mode: 'merged' }, { mode: 'merged', requireAllowlisted: true }]) {
+    const r = await gate([], options);
+    assert.equal(r.ok, false);
+    assert.match(r.errors.join('\n'), /report executed no tests \(empty run\)/);
+  }
+});
+
+// Review r1 issue 4: the harness uses merged mode on an unsharded run. PATH
+// stubs for pnpm/curl/psql replace the gateway and Playwright; the real gate runs.
+function runStubbedHarness(fixture, shard) {
+  const dir = mkdtempSync(join(tmpdir(), 'pw-harness-stub-'));
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  const stub = (name, body) =>
+    writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+  stub(
+    'pnpm',
+    [
+      'case "$*" in',
+      '  *"api-gateway build"*) exit 0 ;;',
+      '  *"api-gateway start"*) exec sleep 60 ;;',
+      '  *"playwright test"*) cp "$STUB_FIXTURE" "$PLAYWRIGHT_JSON_OUTPUT_FILE"; exit 0 ;;',
+      '  *) echo "unexpected pnpm $*" >&2; exit 99 ;;',
+      'esac',
+    ].join('\n'),
+  );
+  // First curl is the stale-gateway probe (must fail); later health checks pass.
+  stub(
+    'curl',
+    'n=$(cat "$STUB_CURL_COUNT" 2>/dev/null || echo 0); echo $((n+1)) >"$STUB_CURL_COUNT"; [[ "$n" -eq 0 ]] && exit 7 || exit 0',
+  );
+  stub('psql', 'exit 0');
+  const fixturePath = join(dir, 'fixture.json');
+  writeFileSync(fixturePath, JSON.stringify(fixture));
+  return runHarness({
+    PATH: `${bin}:${process.env.PATH}`,
+    DATABASE_URL: 'postgresql://stub/stub',
+    E2E_GATEWAY_URL: 'http://127.0.0.1:59998',
+    E2E_SKIP_TENANT_SEED: '1',
+    E2E_SKIP_SUNRISE_SEED: '1',
+    E2E_PLAYWRIGHT_JSON_REPORT: join(dir, 'report.json'),
+    PLAYWRIGHT_SHARD: shard,
+    STUB_FIXTURE: fixturePath,
+    STUB_CURL_COUNT: join(dir, 'curl.count'),
+  });
+}
+
+test('harness gates an unsharded run in merged mode and a shard in shard mode', () => {
+  // a11y-axe.spec.ts ran but the allowlisted AX title is gone (renamed).
+  const fixture = pwReport([
+    [...GW, 'skipped'],
+    ['a11y-axe.spec.ts', [AX[1][0], 'renamed'], 'expected'],
+  ]);
+  const local = runStubbedHarness(fixture, '');
+  assert.equal(local.status, 1, local.stdout + local.stderr);
+  assert.match(local.stdout, /Skip gate \(UAT-ENV-007, mode merged\)/);
+  assert.match(local.stderr, /missing although a11y-axe\.spec\.ts ran/);
+  const shard = runStubbedHarness(fixture, '1/4');
+  assert.equal(shard.status, 0, shard.stdout + shard.stderr);
+  assert.match(shard.stdout, /Skip gate \(UAT-ENV-007, mode shard\)/);
+  assert.match(shard.stdout, /mode=shard executed=1 skipped=1/);
 });

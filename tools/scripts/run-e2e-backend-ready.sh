@@ -37,6 +37,7 @@
 #                    Playwright, assert-playwright-skips.mjs fails the run on a
 #                    missing report or any skip not on
 #                    tools/scripts/e2e-backend-ready-skip-allowlist.json (UAT-ENV-007).
+#                    Shard mode with PLAYWRIGHT_SHARD, merged mode without.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -47,7 +48,7 @@ for arg in "$@"; do
   case "$arg" in
     --skip-stack) SKIP_STACK=1 ;;
     --help|-h)
-      sed -n '2,39p' "$0"
+      sed -n '2,40p' "$0"
       exit 0
       ;;
     *)
@@ -272,8 +273,14 @@ rm -f "$PW_JSON_REPORT"
 PLAYWRIGHT_JSON_OUTPUT_FILE="$PW_JSON_REPORT" \
   pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium --workers="${PW_WORKERS}" "${PW_SHARD_ARGS[@]}" "${PW_GREP_ARGS[@]}"
 PW_EXIT=$?
-echo "==> Skip gate (UAT-ENV-007): ${PW_JSON_REPORT}"
-node "$ROOT/tools/scripts/assert-playwright-skips.mjs" --mode shard --report "$PW_JSON_REPORT"
+# An unsharded run holds every selected test, so use merged mode: it also fails
+# when an allowlisted test is missing although its spec file ran (rename).
+SKIP_GATE_MODE=shard
+if [[ -z "$PW_SHARD" ]]; then
+  SKIP_GATE_MODE=merged
+fi
+echo "==> Skip gate (UAT-ENV-007, mode ${SKIP_GATE_MODE}): ${PW_JSON_REPORT}"
+node "$ROOT/tools/scripts/assert-playwright-skips.mjs" --mode "$SKIP_GATE_MODE" --report "$PW_JSON_REPORT"
 SKIP_GATE_EXIT=$?
 set -e
 

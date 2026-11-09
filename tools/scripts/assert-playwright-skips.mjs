@@ -5,17 +5,21 @@
  * The E2E backend-ready shards and live gate used to fail only on unexpected
  * tests, so a shard could be green while silently skipping tests. This gate
  * fails when:
- *   - the report is missing, unreadable, malformed or executed no test;
+ *   - the report is missing, unreadable, malformed or executed no test (a
+ *     shard report with no tests at all is allowed, see below);
  *   - the report has top-level errors or unexpected (failed) tests;
  *   - its per-test statuses do not add up to `stats`;
- *   - any skipped test is not on the allowlist
- *     (tools/scripts/e2e-backend-ready-skip-allowlist.json);
+ *   - any skipped test (outcome `skipped`, or expectedStatus `skipped`, which
+ *     covers a fail-then-skip retry reported as `flaky`) is not on the
+ *     allowlist (tools/scripts/e2e-backend-ready-skip-allowlist.json);
  *   - an allowlisted test ran and did not skip (stale entry).
  * Merged mode (the live gate, all shards in one report) also fails when an
  * allowlisted test is absent although its spec file ran. With
  * --require-allowlisted it fails when an allowlisted test is absent at all.
  * Shard mode cannot require presence: Playwright puts each test in exactly one
  * shard, so an allowlisted test is legitimately absent from the other shards.
+ * For the same reason shard mode accepts a report with no suites and all-zero
+ * stats (a custom dispatch with fewer tests than shards); merged mode does not.
  *
  * Allowlist entries are keyed by spec file (relative to the Playwright testDir,
  * apps/web/e2e) plus the full title path (describe titles, then the test
@@ -86,8 +90,18 @@ export function parseAllowlist(doc) {
 }
 
 /**
+ * A test counts as skipped for the allowlist checks when its outcome is
+ * `skipped` or when Playwright expected it to skip. A test that fails and then
+ * calls test.skip() on a retry has expectedStatus `skipped` but outcome
+ * `flaky`; it never passed, so it must not count as executed.
+ */
+export function isSkip(row) {
+  return row.status === 'skipped' || row.expectedStatus === 'skipped';
+}
+
+/**
  * Flattens a Playwright JSON report into one row per test (spec x project).
- * @returns {Array<{file: string, titlePath: string[], status: string, project: string, line: number}>}
+ * @returns {Array<{file: string, titlePath: string[], status: string, expectedStatus: string, project: string, line: number}>}
  */
 export function collectTests(report) {
   const rootDir = report?.config?.rootDir;
@@ -100,6 +114,7 @@ export function collectTests(report) {
           file,
           titlePath: [...titles, String(spec.title)],
           status: String(t?.status ?? ''),
+          expectedStatus: String(t?.expectedStatus ?? ''),
           project: String(t?.projectName ?? ''),
           line: Number(spec.line ?? 0),
         });
@@ -152,7 +167,16 @@ export function evaluatePlaywrightReport(report, allowlistDoc, options = {}) {
       errors.push(`stats.${s}=${report.stats[s]} but the report lists ${counts[s]} ${s} test(s)`);
     }
   }
-  if (counts.expected + counts.unexpected + counts.flaky === 0) {
+  // A small custom dispatch can leave a shard with no tests at all (no suites,
+  // all-zero stats). Allow that in shard mode only; the merged gate still
+  // fails an empty run.
+  const emptyReport =
+    rows.length === 0 &&
+    report.suites.length === 0 &&
+    STATUSES.every((s) => Number(report.stats[s] ?? 0) === 0);
+  if (emptyReport && mode === 'shard') {
+    notes.push('empty shard: the report lists no tests; the merged gate checks the full run');
+  } else if (counts.expected + counts.unexpected + counts.flaky === 0) {
     errors.push('report executed no tests (empty run)');
   }
   if (counts.unexpected > 0) {
@@ -165,9 +189,9 @@ export function evaluatePlaywrightReport(report, allowlistDoc, options = {}) {
     const key = testKey(row.file, row.titlePath);
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(row);
-    if (row.status === 'skipped' && !allowed.has(key)) {
+    if (isSkip(row) && !allowed.has(key)) {
       errors.push(
-        `unlisted skip: ${row.file}:${row.line} ${row.titlePath.join(' > ')} [${row.project}]`,
+        `unlisted skip: ${row.file}:${row.line} ${row.titlePath.join(' > ')} [${row.project}] (status ${row.status}, expected ${row.expectedStatus})`,
       );
     }
   }
@@ -176,7 +200,7 @@ export function evaluatePlaywrightReport(report, allowlistDoc, options = {}) {
   for (const entry of allowlist.entries) {
     const label = `${entry.file} ${entry.title.join(' > ')}`;
     const found = byKey.get(entry.key) ?? [];
-    const ran = found.filter((r) => r.status !== 'skipped');
+    const ran = found.filter((r) => !isSkip(r));
     if (ran.length > 0) {
       errors.push(
         `stale allowlist entry: ${label} ran with status ${ran.map((r) => r.status).join(',')}; remove it from the allowlist`,
