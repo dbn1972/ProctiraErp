@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { OtpAuthError, OtpRateLimitError, OtpValidationError } from './otp-service.js';
 import type { OtpService } from './otp-service.js';
+import { readPreMfaTicket, type PreMfaTicketCodec } from './pre-mfa-ticket.js';
 import type { UserLookup } from './routes.js';
 import type { SessionService } from './session-service.js';
 import type { TokenService } from './token-service.js';
@@ -43,6 +44,13 @@ export interface MfaRoutesOptions {
    * the verified challenge. The verify response never carries a bare userId.
    */
   issueCompletionTicket?: (verified: PrimaryAuthContext) => Promise<string>;
+  /**
+   * PRC-M497: pre-MFA ticket minted by the login handler after the primary
+   * factor. When set (and `resolvePrimaryAuth` is not), the ticket is the
+   * primary-auth proof for `/mfa/otp/send` AND `/mfa/verify`, and verify
+   * refuses a challenge that belongs to a different user/tenant.
+   */
+  preMfaTicket?: PreMfaTicketCodec;
 }
 
 /** Identity established by the primary authentication factor. */
@@ -81,9 +89,15 @@ export async function registerMfaRoutes(
     userLookup,
     prefix = '/auth',
     resolvePhone,
-    resolvePrimaryAuth,
     issueCompletionTicket,
+    preMfaTicket,
   } = options;
+  // PRC-M497: the pre-MFA ticket is the default primary-auth proof.
+  const resolvePrimaryAuth =
+    options.resolvePrimaryAuth ??
+    (preMfaTicket
+      ? async (request: FastifyRequest) => preMfaTicket.verify(readPreMfaTicket(request))
+      : undefined);
 
   /**
    * POST /auth/mfa/otp/send
@@ -198,8 +212,29 @@ export async function registerMfaRoutes(
         });
       }
 
+      // PRC-M497: with a primary-auth binding configured, verify also needs the
+      // pre-MFA ticket and the challenge must belong to that login.
+      const primary = resolvePrimaryAuth ? await resolvePrimaryAuth(request) : undefined;
+      if (resolvePrimaryAuth && !primary) {
+        return reply.status(401).send({
+          code: 'PRIMARY_AUTH_REQUIRED',
+          message: 'Sign in with your primary credentials before verifying a code',
+          statusCode: 401,
+        });
+      }
+
       try {
         const verified = await otpService.verifyChallenge({ mfaToken, code });
+        if (
+          primary &&
+          (verified.userId !== primary.userId || verified.tenantId !== primary.tenantId)
+        ) {
+          return reply.status(401).send({
+            code: 'MFA_BINDING_MISMATCH',
+            message: 'This code does not belong to the current sign-in',
+            statusCode: 401,
+          });
+        }
 
         // When token infrastructure is wired, issue a full session.
         if (tokenService && sessionService && userLookup) {

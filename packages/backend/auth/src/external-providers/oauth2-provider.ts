@@ -8,12 +8,19 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  parsePendingAuthState,
+  PENDING_AUTH_STATE_TTL_SECONDS,
+  pendingAuthStateKey,
+  resolvePendingAuthStateStore,
+} from './pending-auth-state.js';
 import type {
   ExternalAuthProvider,
   OAuth2ProviderConfig,
   AuthInitiationResult,
   AuthCallbackParams,
   ExternalUserProfile,
+  PendingAuthStateStore,
 } from './types.js';
 import { ExternalAuthError } from './types.js';
 
@@ -90,11 +97,8 @@ export class OAuth2Provider implements ExternalAuthProvider {
   private readonly httpClient: HttpClient;
   private readonly extractUserInfo: UserInfoExtractor;
 
-  // Store state tokens for CSRF validation (in production, use Redis/DB)
-  private readonly pendingStates = new Map<
-    string,
-    { tenantId: string; codeVerifier: string; createdAt: number }
-  >();
+  /** PRC-M589: replica-shared pending state (state -> tenant + PKCE verifier). */
+  private readonly stateStore: PendingAuthStateStore;
 
   constructor(
     config: OAuth2ProviderConfig,
@@ -106,6 +110,10 @@ export class OAuth2Provider implements ExternalAuthProvider {
     this.displayName = config.displayName;
     this.extractUserInfo = extractUserInfo;
     this.httpClient = httpClient ?? new FetchHttpClient();
+    this.stateStore = resolvePendingAuthStateStore(
+      config.stateStore,
+      `OAuth2 provider '${config.providerId}'`,
+    );
   }
 
   /**
@@ -116,10 +124,11 @@ export class OAuth2Provider implements ExternalAuthProvider {
     const state = uuidv4();
     // PRC-M589: PKCE (S256) binds the code to this login attempt.
     const codeVerifier = randomBytes(48).toString('base64url');
-    this.pendingStates.set(state, { tenantId, codeVerifier, createdAt: Date.now() });
-
-    // Clean up old states (older than 10 minutes)
-    this.cleanupStates();
+    await this.stateStore.put(
+      pendingAuthStateKey(this.providerId, state),
+      JSON.stringify({ tenantId, codeVerifier }),
+      PENDING_AUTH_STATE_TTL_SECONDS,
+    );
 
     const params = new URLSearchParams({
       client_id: this.config.clientId,
@@ -169,8 +178,12 @@ export class OAuth2Provider implements ExternalAuthProvider {
       );
     }
 
-    // Validate state (CSRF protection)
-    const storedState = this.pendingStates.get(params.state);
+    // Validate state (CSRF protection). PRC-M589: single-use take from the
+    // shared store, so any replica can complete the login exactly once.
+    const storedState = parsePendingAuthState<{ tenantId: string; codeVerifier: string }>(
+      await this.stateStore.take(pendingAuthStateKey(this.providerId, params.state)),
+      ['tenantId', 'codeVerifier'],
+    );
     if (!storedState) {
       throw new ExternalAuthError(
         'Invalid or expired state parameter',
@@ -178,9 +191,6 @@ export class OAuth2Provider implements ExternalAuthProvider {
         'OAUTH2_INVALID_STATE',
       );
     }
-
-    // Remove used state
-    this.pendingStates.delete(params.state);
 
     // Verify tenant matches
     if (storedState.tenantId !== tenantId) {
@@ -250,17 +260,5 @@ export class OAuth2Provider implements ExternalAuthProvider {
     }
 
     return this.extractUserInfo(response.data);
-  }
-
-  /**
-   * Clean up expired state tokens (older than 10 minutes).
-   */
-  private cleanupStates(): void {
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    for (const [state, data] of this.pendingStates.entries()) {
-      if (data.createdAt < tenMinutesAgo) {
-        this.pendingStates.delete(state);
-      }
-    }
   }
 }
