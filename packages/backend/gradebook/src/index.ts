@@ -83,10 +83,14 @@ export {
 } from './grade-workflow.js';
 export {
   assertTranscriptSigningConfigured,
+  BOARD_EXPORT_SIGNING_KEY_MISSING_MESSAGE,
+  BoardExportSigningKeyMissingError,
   createBoardExportDownloadToken,
   DEV_EPHEMERAL_TRANSCRIPT_KEY_ID,
   DEV_EPHEMERAL_TRANSCRIPT_KMS_REF,
+  isBoardExportSigningKeyMissingError,
   isTranscriptSigningKeyMissingError,
+  prepareBoardExportSigningAtStartup,
   prepareTranscriptSigningAtStartup,
   resolveTranscriptSigningMaterial,
   signTranscriptChecksum,

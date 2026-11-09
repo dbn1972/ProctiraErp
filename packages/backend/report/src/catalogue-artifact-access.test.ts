@@ -43,8 +43,11 @@ async function appAs(roles: string[], sub: string, shared: Shared): Promise<Fast
   apps.push(app);
   app.decorateRequest('user', undefined);
   app.addHook('onRequest', async (request) => {
+    // PRC-L339: the verified principal carries the tenant (as from a JWT claim);
+    // the catalogue no longer trusts the x-tenant-id header.
     (request as typeof request & { user: unknown }).user = {
       sub,
+      tenantId: TENANT,
       roles: roles.map((r) => ({ roleId: r, roleName: r })),
     };
   });

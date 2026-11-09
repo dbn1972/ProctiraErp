@@ -27,7 +27,7 @@
       "dependsOn": ["build"],
       "cache": false,
       "outputs": ["playwright-report/**", "test-results/**"],
-      "env": ["DATABASE_URL", "REDIS_URL"]
+      "env": ["DATABASE_URL", "REDIS_URL", "E2E_LIVE_LANE", "E2E_REQUIRE_LIVE"]
     },
     "lint": {
       "dependsOn": ["^build"],
