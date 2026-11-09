@@ -44,6 +44,8 @@ export const NOT_FROM_SHARED_BUNDLE = Object.freeze({
   PHI_KMS_KEY_VERSION: 'key version selector (not a secret); plain env/config',
   WEBHOOK_SIGNING_KMS_CLIENT: 'KMS client selector (not a secret); plain env/config',
   WEBHOOK_SIGNING_KMS_REGION: 'AWS region (not a secret); plain env/config',
+  S3_SSE_KMS_KEY_ID:
+    'S3 SSE-KMS key identifier/ARN selector (not a secret); it names the CMK for server-side encryption, the credentials to use it come from the pod IAM role; plain env/config',
 });
 
 const ENV_READ = /\b(?:process\.env|env)(?:\??\.|\??\.?\[\s*['"`])([A-Z][A-Z0-9_]{2,})/g;
