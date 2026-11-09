@@ -8,6 +8,15 @@
 -- is appended after the named screen-review rows. Attendance is five recent
 -- dates including CURRENT_DATE so "Reporting today" is non-zero.
 --
+-- PRC-L462: re-running this seed is safe and leaves identical state. The
+-- idempotency gate in .github/workflows/e2e-backend-ready.yml applies this
+-- file twice and diffs the per-tenant row counts produced by
+-- db/seeds/006_sunrise_demo_rowcounts.sql across every tenant-scoped table;
+-- any drift (a single-use teardown leaving stale rows) fails CI. The
+-- section_meetings teardown above is the re-runnable path that keeps that
+-- gate green. (The demo institution sector/ownership values are a separate,
+-- WAITING_ON_INPUT residual on PRC-L462 and are not touched here.)
+--
 -- Not applied by tools/scripts/apply-sql.sh. Run after Prisma migrate and
 -- domain SQL (so staff_assignments, fee plans, and consent versioning exist):
 --

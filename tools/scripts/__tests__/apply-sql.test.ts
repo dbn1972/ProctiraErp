@@ -599,3 +599,225 @@ INSERT INTO w1_data05_phase_probe (id) VALUES (20) ON CONFLICT DO NOTHING;
     }
   });
 });
+
+// PRC-L556: the seed-checksum re-baseline allow-list. A reviewed exact-triple
+// entry re-baselines a *seed* file's ledger checksum without re-applying; every
+// other mismatch still fails closed, and a numbered migration can never be
+// re-baselined.
+describe('apply-sql.sh seed checksum re-baseline (PRC-L556, static contract)', () => {
+  const seedFiles = [
+    '006b_transport_seed.sql',
+    '007b_communication_seed.sql',
+    '008b_hostel_seed.sql',
+    '009b_library_seed.sql',
+    '010b_parent_portal_seed.sql',
+    '077b_guardian_custody_demo_seed.sql',
+  ];
+
+  it('is_seed_file gates the allow-list; the branch lives inside the mismatch path', () => {
+    // The lookup is only reachable from the fail-closed txn-path mismatch branch.
+    // (There is an earlier "phase checksum mismatch" message on the non-txn path;
+    // use the exact per-file error line to anchor the comparison.)
+    const mismatchIdx = scriptSource.indexOf('error: W1-DATA-05 checksum mismatch for $name"');
+    const lookupIdx = scriptSource.indexOf('seed_rebaseline_lookup "$name"');
+    expect(lookupIdx).toBeGreaterThan(0);
+    expect(mismatchIdx).toBeGreaterThan(0);
+    // The re-baseline call precedes (guards) the fail-closed error in the block.
+    expect(lookupIdx).toBeLessThan(mismatchIdx);
+    // Helper rejects non-seed files via is_seed_file before reading the file.
+    expect(scriptSource).toMatch(/is_seed_file "\$name" \|\| return 1/);
+    // Seeds-only regex is re-checked on the entry's own filename.
+    expect(scriptSource).toMatch(/\^\[0-9\]\+b_\.\*_seed/);
+  });
+
+  it('the shipped allow-list names only seed files with the current file checksum', () => {
+    const list = JSON.parse(
+      readFileSync(resolve(here, '..', 'seed-checksum-rebaseline.json'), 'utf8'),
+    ) as Array<{ filename: string; oldChecksum: string; newChecksum: string; prcId: string }>;
+    expect(Array.isArray(list)).toBe(true);
+    for (const e of list) {
+      expect(e.filename, `${e.filename} must be a seed file`).toMatch(/^[0-9]+b_.*_seed\.sql$/);
+      expect(e.oldChecksum).toMatch(/^[0-9a-f]{64}$/);
+      expect(e.newChecksum).toMatch(/^[0-9a-f]{64}$/);
+      // newChecksum must equal the checksum of the file as shipped on this branch.
+      const current = sha256(resolve(sqlDir, e.filename));
+      expect(current, `${e.filename} newChecksum must match the shipped file`).toBe(e.newChecksum);
+      // A re-baseline is only meaningful when the content actually changed.
+      expect(e.newChecksum).not.toBe(e.oldChecksum);
+    }
+    // Every edited colocated seed is covered.
+    for (const f of seedFiles) {
+      expect(
+        list.some((e) => e.filename === f),
+        `${f} missing from allow-list`,
+      ).toBe(true);
+    }
+  });
+
+  it('each colocated seed binds the tenant GUC and RAISEs on a zero-row RLS no-op', () => {
+    for (const f of seedFiles) {
+      const body = readFileSync(resolve(sqlDir, f), 'utf8');
+      // Cert-seed pattern: bind the canonical tenant GUC before writes.
+      expect(body, `${f} must bind set_app_tenant_id`).toMatch(/set_app_tenant_id\(/);
+      // Fail closed on a zero-row no-op (RLS filtered insert).
+      expect(body, `${f} must RAISE on zero rows`).toMatch(
+        /RAISE EXCEPTION 'PRC-L556:[\s\S]*zero rows/,
+      );
+    }
+  });
+});
+
+describe.skipIf(!LIVE_URL)('apply-sql.sh seed re-baseline (live Postgres, PRC-L556)', () => {
+  let fixtureRoot = '';
+  let fixtureSql = '';
+  let allowListPath = '';
+
+  function writeFixture(name: string, body: string): string {
+    const p = join(fixtureSql, name);
+    writeFileSync(p, body, 'utf8');
+    return p;
+  }
+
+  function resetLedger() {
+    const r = psql(
+      LIVE_URL,
+      `DROP TABLE IF EXISTS schema_migration_phases CASCADE;
+       DROP TABLE IF EXISTS schema_migrations CASCADE;`,
+    );
+    expect(r.status, r.stderr).toBe(0);
+  }
+
+  function baseEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+    return {
+      DATABASE_URL: LIVE_URL,
+      MIGRATOR_DATABASE_URL: LIVE_URL,
+      APPLY_SQL_DIR: fixtureSql,
+      SEED_REBASELINE_FILE: allowListPath,
+      APPLY_SEEDS: '1',
+      APPLY_STRICT_FKS: '0',
+      CI: '',
+      ...extra,
+    };
+  }
+
+  it('re-baselines only a listed exact triple; every other mismatch fails closed', () => {
+    fixtureRoot = mkdtempSync(join(tmpdir(), 'l556-'));
+    fixtureSql = join(fixtureRoot, 'sql');
+    mkdirSync(fixtureSql, { recursive: true });
+    allowListPath = join(fixtureRoot, 'rebaseline.json');
+    chmodSync(scriptPath, 0o755);
+
+    try {
+      resetLedger();
+
+      // A seed fixture and a numbered-migration fixture.
+      const seedV1 = `CREATE TABLE IF NOT EXISTS l556_probe (id int PRIMARY KEY);
+INSERT INTO l556_probe (id) VALUES (1) ON CONFLICT DO NOTHING;`;
+      const seed = writeFixture('900b_demo_seed.sql', seedV1);
+      const mig = writeFixture(
+        '901_demo_migration.sql',
+        `INSERT INTO l556_probe (id) VALUES (2) ON CONFLICT DO NOTHING;`,
+      );
+      const oldSeedSum = sha256(seed);
+
+      // First apply records both checksums.
+      writeFileSync(allowListPath, '[]', 'utf8');
+      const first = runApply(baseEnv());
+      expect(first.status, first.stderr + first.stdout).toBe(0);
+      expect(
+        psql(
+          LIVE_URL,
+          `SELECT checksum FROM schema_migrations WHERE filename = '900b_demo_seed.sql'`,
+        ).stdout,
+      ).toBe(oldSeedSum);
+
+      // (1) Modify the seed but DO NOT list it → re-apply still fails closed.
+      writeFileSync(seed, `${seedV1}\n-- drift (unlisted)`, 'utf8');
+      const unlisted = runApply(baseEnv());
+      expect(unlisted.status, 'unlisted drift must fail').not.toBe(0);
+      expect(`${unlisted.stderr}${unlisted.stdout}`).toMatch(/checksum mismatch/);
+
+      // (2) List the exact {filename, oldChecksum, newChecksum} triple → re-baseline.
+      const newSeedSum = sha256(seed);
+      writeFileSync(
+        allowListPath,
+        JSON.stringify([
+          {
+            filename: '900b_demo_seed.sql',
+            oldChecksum: oldSeedSum,
+            newChecksum: newSeedSum,
+            prcId: 'PRC-L556',
+          },
+        ]),
+        'utf8',
+      );
+      const rebaselined = runApply(baseEnv());
+      expect(rebaselined.status, rebaselined.stderr + rebaselined.stdout).toBe(0);
+      expect(rebaselined.stdout).toMatch(/Re-baseline seed .*900b_demo_seed\.sql/);
+      expect(
+        psql(
+          LIVE_URL,
+          `SELECT checksum FROM schema_migrations WHERE filename = '900b_demo_seed.sql'`,
+        ).stdout,
+      ).toBe(newSeedSum);
+      // Not re-applied: row count unchanged (id=1 only).
+      expect(psql(LIVE_URL, `SELECT count(*) FROM l556_probe WHERE id = 1`).stdout).toBe('1');
+
+      // (3a) A listed entry whose oldChecksum no longer matches the ledger fails.
+      writeFileSync(seed, `${seedV1}\n-- drift again`, 'utf8');
+      writeFileSync(
+        allowListPath,
+        JSON.stringify([
+          {
+            filename: '900b_demo_seed.sql',
+            oldChecksum: 'deadbeef'.repeat(8), // wrong old value
+            newChecksum: sha256(seed),
+            prcId: 'PRC-L556',
+          },
+        ]),
+        'utf8',
+      );
+      const wrongOld = runApply(baseEnv());
+      expect(wrongOld.status, 'wrong oldChecksum must fail').not.toBe(0);
+      expect(`${wrongOld.stderr}${wrongOld.stdout}`).toMatch(/checksum mismatch/);
+
+      // (3b) A listed NON-seed migration can never be re-baselined.
+      // Start from a clean ledger so 900b applies cleanly and the mismatch is
+      // reached on the numbered migration alone.
+      resetLedger();
+      const seedClean = `CREATE TABLE IF NOT EXISTS l556_probe (id int PRIMARY KEY);
+INSERT INTO l556_probe (id) VALUES (1) ON CONFLICT DO NOTHING;`;
+      const migV1 = `INSERT INTO l556_probe (id) VALUES (2) ON CONFLICT DO NOTHING;`;
+      writeFileSync(seed, seedClean, 'utf8');
+      writeFileSync(mig, migV1, 'utf8');
+      writeFileSync(allowListPath, '[]', 'utf8');
+      const clean = runApply(baseEnv());
+      expect(clean.status, clean.stderr + clean.stdout).toBe(0);
+
+      // Drift ONLY the numbered migration and list it for re-baseline → rejected
+      // by is_seed_file; the apply still fails closed on that migration.
+      const migDrift = `${migV1}\n-- drift`;
+      writeFileSync(mig, migDrift, 'utf8');
+      writeFileSync(
+        allowListPath,
+        JSON.stringify([
+          {
+            filename: '901_demo_migration.sql',
+            oldChecksum: sha256(join(fixtureSql, '901_demo_migration.sql')), // = new file sum
+            newChecksum: sha256(join(fixtureSql, '901_demo_migration.sql')),
+            prcId: 'PRC-L556',
+          },
+        ]),
+        'utf8',
+      );
+      const nonSeed = runApply(baseEnv());
+      expect(nonSeed.status, 'listed non-seed migration must still fail').not.toBe(0);
+      expect(`${nonSeed.stderr}${nonSeed.stdout}`).toMatch(
+        /checksum mismatch for 901_demo_migration\.sql/,
+      );
+    } finally {
+      resetLedger();
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+});

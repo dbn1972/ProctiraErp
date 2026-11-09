@@ -254,7 +254,26 @@ jobs:
           APPLY_STRICT_FKS: '1'
 
       - name: Seed Sunrise Public School demo (institution detail tabs)
-        run: psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+        # PRC-L462: the demo seed must be idempotent (its header documents a
+        # teardown-before-reinsert for section_meetings and relies on fixed
+        # ids + ON CONFLICT everywhere else). Apply it twice and assert the
+        # per-tenant row counts of every tenant-scoped table are byte-for-byte
+        # identical across the re-apply — a single-use teardown that leaves
+        # stale rows on the second run would make the two snapshots diverge and
+        # fail this gate.
+        run: |
+          set -euo pipefail
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -q -t -A \
+            -f db/seeds/006_sunrise_demo_rowcounts.sql | grep -E '=[0-9]+$' | sort > /tmp/sunrise-rowcounts-1.txt
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -q -t -A \
+            -f db/seeds/006_sunrise_demo_rowcounts.sql | grep -E '=[0-9]+$' | sort > /tmp/sunrise-rowcounts-2.txt
+          if ! diff -u /tmp/sunrise-rowcounts-1.txt /tmp/sunrise-rowcounts-2.txt; then
+            echo "PRC-L462: sunrise demo seed is NOT idempotent — re-apply changed tenant row counts (see diff above)" >&2
+            exit 1
+          fi
+          echo "PRC-L462: sunrise demo seed idempotent across re-apply ($(wc -l < /tmp/sunrise-rowcounts-1.txt) tenant tables, no drift)"
         env:
           MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
 

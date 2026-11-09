@@ -64,6 +64,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=migration-timeouts.sh
 source "$ROOT/tools/scripts/migration-timeouts.sh"
 SQL_DIR="${APPLY_SQL_DIR:-$ROOT/db/sql}"
+# PRC-L556: reviewed allow-list for seed checksum re-baselines. Consulted ONLY in
+# the checksum-mismatch branch and ONLY for seed files; numbered migrations can
+# never be re-baselined. A fixture run (APPLY_SQL_DIR set) may override the path.
+SEED_REBASELINE_FILE="${SEED_REBASELINE_FILE:-$ROOT/tools/scripts/seed-checksum-rebaseline.json}"
 DRY_RUN=0
 APPLY_SEEDS="${APPLY_SEEDS:-0}"
 # W1-DATA-06: production/CI default ON; explicit 0/1 always wins.
@@ -188,6 +192,41 @@ file_checksum() {
 file_needs_no_tx() {
   # CREATE INDEX CONCURRENTLY (and similar) cannot run inside a transaction.
   grep -qiE '[[:space:]]CONCURRENTLY[[:space:]]' "$1" 2>/dev/null
+}
+
+# PRC-L556: look up a seed-checksum re-baseline allow-list entry.
+# Args: <basename> <ledger_old_checksum> <current_file_checksum>
+# Prints the matching entry's prcId and returns 0 ONLY when:
+#   - the allow-list file exists and is valid JSON, AND
+#   - is_seed_file(basename) is true (numbered migrations can never re-baseline), AND
+#   - exactly one entry has filename == basename, AND
+#   - that entry's oldChecksum == the ledger checksum, AND
+#   - that entry's newChecksum == the current file checksum.
+# Any other condition returns non-zero so the caller fails closed exactly as before.
+seed_rebaseline_lookup() {
+  local name="$1" ledger="$2" cur="$3"
+  [[ -f "$SEED_REBASELINE_FILE" ]] || return 1
+  # Seeds only: an allow-list entry naming a non-seed file is rejected here.
+  is_seed_file "$name" || return 1
+  SRB_NAME="$name" SRB_LEDGER="$ledger" SRB_CUR="$cur" \
+    node -e '
+      const fs = require("fs");
+      let list;
+      try { list = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); }
+      catch { process.exit(1); }
+      if (!Array.isArray(list)) process.exit(1);
+      const name = process.env.SRB_NAME;
+      const matches = list.filter(e => e && e.filename === name);
+      // Reject duplicates or a missing entry.
+      if (matches.length !== 1) process.exit(1);
+      const e = matches[0];
+      // Reject an entry that names a non-seed file.
+      if (!/^[0-9]+b_.*_seed\.sql$/.test(String(e.filename))) process.exit(1);
+      if (typeof e.oldChecksum !== "string" || typeof e.newChecksum !== "string") process.exit(1);
+      if (e.oldChecksum !== process.env.SRB_LEDGER) process.exit(1);
+      if (e.newChecksum !== process.env.SRB_CUR) process.exit(1);
+      process.stdout.write(String(e.prcId || ""));
+    ' "$SEED_REBASELINE_FILE"
 }
 
 for arg in "$@"; do
@@ -529,6 +568,22 @@ SQL
   fi
 
   if [[ "$status" != "missing" && "$status" != "null" ]]; then
+    # PRC-L556: a reviewed seed re-baseline updates the ledger checksum without
+    # re-applying, mirroring the NULL-adoption path below. Accepted ONLY for a
+    # seed file whose allow-list entry's {oldChecksum,newChecksum} exactly match
+    # the ledger checksum and the current file checksum. Every other mismatch
+    # (unlisted file, wrong old value, listed non-seed migration) falls through
+    # to the existing fail-closed error.
+    if rebaseline_prc="$(seed_rebaseline_lookup "$name" "$status" "$sum")"; then
+      echo "==> Re-baseline seed $rel: ledger $status → $sum (${rebaseline_prc:-reviewed}; skip re-apply)"
+      psql_q -q -v name="$name" -v sum="$sum" <<'SQL'
+UPDATE schema_migrations
+SET checksum = :'sum', applied_at = NOW()
+WHERE filename = :'name';
+SQL
+      LEDGER_SKIPPED=$((LEDGER_SKIPPED + 1))
+      continue
+    fi
     echo "error: W1-DATA-05 checksum mismatch for $name" >&2
     echo "  ledger: $status" >&2
     echo "  file:   $sum" >&2
