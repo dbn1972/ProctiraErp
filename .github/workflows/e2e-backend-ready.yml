@@ -44,12 +44,12 @@ on:
   workflow_dispatch:
     inputs:
       require_live:
-        description: 'Fail if api-gateway does not become healthy (E2E_REQUIRE_LIVE=1)'
+        description: 'Web shards: fail if api-gateway does not become healthy (E2E_REQUIRE_LIVE=1). The registration journey always runs live (Q12: no skip path)'
         required: false
         type: boolean
         default: true
       skip_stack:
-        description: 'Scaffolding only — migrate/SQL then skip gateway + Playwright'
+        description: 'Web shards only: migrate/SQL then skip gateway + Playwright. The registration journey always runs (Q12: no skip path)'
         required: false
         type: boolean
         default: false
@@ -443,6 +443,12 @@ jobs:
           BOOTSTRAP_EXTENSIONS=1 \
           BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1 \
             bash tools/scripts/bootstrap-db-roles.sh
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: migrator role bypasses RLS' ELSE 'migrator role OK: NOSUPERUSER NOBYPASSRLS' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^migrator role OK'
+          PGPASSWORD=proctira_app_test psql -h localhost -U proctira_app -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: app role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
 
       - name: Run database migrations (Prisma)
         run: pnpm --filter @proctira/database run prisma:migrate:deploy

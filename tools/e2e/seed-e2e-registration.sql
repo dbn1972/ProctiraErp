@@ -24,15 +24,19 @@
 BEGIN;
 SELECT set_config('app.platform_admin', '1', true);
 SELECT set_config('app.tenant_id', :'tenant_id', true);
--- psql does not expand :vars inside the DO body below; pass the id this way.
+-- psql does not expand :vars inside the DO body below; pass the values this way.
 SELECT set_config('e2e.registration_institution_id', :'institution_id', true);
+SELECT set_config('e2e.registration_tenant_slug', :'slug', true);
 
+-- Reactivate only a fixture-owned row: an existing tenant with this id but
+-- another slug is left untouched, and the verify below then fails.
 INSERT INTO tenants (id, name, slug, config, status)
 VALUES (:'tenant_id'::uuid, 'E2E Registration Tenant', :'slug', '{}'::jsonb, 'active')
 ON CONFLICT (id) DO UPDATE
   SET status = 'active',
       deleted_at = NULL,
-      updated_at = now();
+      updated_at = now()
+  WHERE tenants.slug = EXCLUDED.slug;
 
 INSERT INTO geographic_areas (id, tenant_id, name, code, level, parent_id, path, lft, rgt)
 VALUES (
@@ -63,17 +67,19 @@ VALUES (gen_random_uuid(), :'tenant_id'::uuid, :'institution_id'::uuid, 1, '[]':
 ON CONFLICT (tenant_id, institution_id, version) DO NOTHING;
 
 -- Fail closed if the fixture is not in the state the journey needs (for
--- example a slug or institution id already owned by another tenant, or a
--- later form version with fields).
+-- example a tenant id already used with another slug, an institution id
+-- already owned by another tenant, or a later form version with fields).
 DO $verify$
 DECLARE
   v_tenant uuid := current_setting('app.tenant_id')::uuid;
   v_institution uuid := current_setting('e2e.registration_institution_id')::uuid;
+  v_slug text := current_setting('e2e.registration_tenant_slug');
   v_ok boolean;
 BEGIN
   SELECT EXISTS (
            SELECT 1 FROM tenants t
-            WHERE t.id = v_tenant AND t.status = 'active' AND t.deleted_at IS NULL)
+            WHERE t.id = v_tenant AND t.slug = v_slug
+              AND t.status = 'active' AND t.deleted_at IS NULL)
      AND EXISTS (
            SELECT 1 FROM institutions i
             WHERE i.id = v_institution AND i.tenant_id = v_tenant
@@ -85,8 +91,8 @@ BEGIN
            LIMIT 1)
     INTO v_ok;
   IF v_ok IS NOT TRUE THEN
-    RAISE EXCEPTION 'E2E registration fixture is not seeded as required (tenant %, institution %)',
-      v_tenant, v_institution;
+    RAISE EXCEPTION 'E2E registration fixture is not seeded as required (tenant %, slug %, institution %)',
+      v_tenant, v_slug, v_institution;
   END IF;
 END
 $verify$;

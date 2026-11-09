@@ -35,10 +35,15 @@ function runHarness(env) {
     'E2E_REGISTRATION_TENANT_ID',
     'E2E_REGISTRATION_TENANT_SLUG',
     'GITHUB_STEP_SUMMARY',
+    'CI',
   ]) {
     delete base[k];
   }
-  return spawnSync('bash', [script], { encoding: 'utf8', env: { ...base, ...env } });
+  return spawnSync('bash', [script], {
+    encoding: 'utf8',
+    env: { ...base, ...env },
+    timeout: 30_000,
+  });
 }
 
 for (const missing of [
@@ -62,6 +67,42 @@ test('a non-uuid institution id fails closed', () => {
   assert.match(r.stderr, /must be a v4 uuid/);
 });
 
+const NON_LOCAL_REFUSAL = /MIGRATOR_DATABASE_URL host '.*' is not loopback/;
+
+for (const url of [
+  'postgresql://mig@db.example.com:5432/none',
+  'postgresql://mig:p@10.0.0.5/none',
+  'postgresql://mig@127.0.0.1:1,db.example.com:2/none',
+  'postgresql://mig@127.0.0.1:1/none?sslmode=disable&host=db.example.com',
+]) {
+  test(`outside CI a non-loopback migrator host is refused before seeding (${url})`, () => {
+    const r = runHarness({ ...VALID_ENV, MIGRATOR_DATABASE_URL: url });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, NON_LOCAL_REFUSAL);
+    assert.doesNotMatch(r.stdout, /Seeding/);
+  });
+}
+
+for (const url of [
+  'postgresql://mig@localhost:1/none',
+  'postgresql://mig@[::1]:1/none',
+  'postgresql:///none?host=%2Fvar%2Frun%2Fpostgresql',
+]) {
+  test(`outside CI a loopback or socket migrator host passes the guard (${url})`, () => {
+    const r = runHarness({ ...VALID_ENV, MIGRATOR_DATABASE_URL: url });
+    assert.doesNotMatch(r.stderr, NON_LOCAL_REFUSAL);
+  });
+}
+
+test('CI=true allows a non-loopback migrator host', () => {
+  const r = runHarness({
+    ...VALID_ENV,
+    CI: 'true',
+    MIGRATOR_DATABASE_URL: 'postgresql://mig@192.0.2.1:1/none?connect_timeout=1',
+  });
+  assert.doesNotMatch(r.stderr, NON_LOCAL_REFUSAL);
+});
+
 test('harness requires the live journey, binds loopback and asserts the report', () => {
   const text = readFileSync(script, 'utf8');
   assert.match(text, /E2E_BACKEND_READY=1/);
@@ -73,12 +114,44 @@ test('harness requires the live journey, binds loopback and asserts the report',
   assert.match(text, /assert-registration-live-report\.mjs" --report/);
 });
 
+test('harness runs Playwright without retries and writes the uploaded html report', () => {
+  const text = readFileSync(script, 'utf8');
+  assert.match(
+    text,
+    /playwright test e2e\/03-registration-live-journey\.spec\.ts[^\n]*\n[^\n]*--retries=0/,
+  );
+  assert.match(text, /--reporter=list,json,html/);
+  assert.match(text, /PLAYWRIGHT_HTML_OPEN=never/);
+  assert.match(
+    text,
+    /PLAYWRIGHT_HTML_OUTPUT_DIR="\$ROOT\/apps\/registration-portal\/playwright-report"/,
+  );
+  const upload = job.steps.find((s) => s.uses?.startsWith('actions/upload-artifact'));
+  assert.match(upload.with.path, /^apps\/registration-portal\/playwright-report\/$/m);
+});
+
 test('fixture seed is test data only (no grant, RLS or schema change)', () => {
   const sql = readFileSync(seedPath, 'utf8').replace(/--.*$/gm, '');
   // CREATE/ALTER also cover role attributes and policies.
   assert.doesNotMatch(sql, /\b(GRANT|REVOKE|CREATE|ALTER|DROP|TRUNCATE|DELETE)\b/i);
   assert.match(sql, /INSERT INTO admission_form_configurations/);
   assert.match(sql, /'\[\]'::jsonb/);
+});
+
+test('fixture tenant upsert touches only a row with the fixture slug', () => {
+  const sql = readFileSync(seedPath, 'utf8').replace(/--.*$/gm, '');
+  const upsert = sql.match(/INSERT INTO tenants[\s\S]*?;/)?.[0];
+  assert.ok(upsert, 'tenant upsert');
+  assert.match(upsert, /ON CONFLICT \(id\) DO UPDATE[\s\S]*WHERE tenants\.slug = EXCLUDED\.slug;$/);
+});
+
+test('fixture verify requires the tenant slug passed through set_config', () => {
+  const sql = readFileSync(seedPath, 'utf8').replace(/--.*$/gm, '');
+  assert.match(sql, /set_config\('e2e\.registration_tenant_slug', :'slug', true\)/);
+  const verify = sql.match(/DO \$verify\$[\s\S]*\$verify\$;/)?.[0];
+  assert.ok(verify, 'verify block');
+  assert.match(verify, /v_slug text := current_setting\('e2e\.registration_tenant_slug'\)/);
+  assert.match(verify, /t\.id = v_tenant AND t\.slug = v_slug/);
 });
 
 test('workflow runs the registration job on PRs, nightly and main pushes', () => {
@@ -93,6 +166,20 @@ test('workflow runs the registration job on PRs, nightly and main pushes', () =>
   assert.match(steps, /bash tools\/scripts\/run-e2e-registration-live\.sh/);
   assert.match(steps, /tools\/scripts\/run-e2e-registration-live\.test\.mjs/);
   assert.doesNotMatch(JSON.stringify(job), /E2E_LIVE_LANE|E2E_ALLOW_SKIP|continue-on-error/);
+});
+
+test('registration job asserts the migrator and app roles do not bypass RLS', () => {
+  const provision = job.steps.find((s) => /bootstrap-db-roles\.sh/.test(s.run ?? ''));
+  assert.ok(provision, 'provision step');
+  assert.match(provision.run, /-U proctira -d proctira_test[\s\S]*rolsuper OR rolbypassrls/);
+  assert.match(provision.run, /grep -q '\^migrator role OK'/);
+  assert.match(provision.run, /-U proctira_app -d proctira_test[\s\S]*rolsuper OR rolbypassrls/);
+  assert.match(provision.run, /grep -q '\^app role OK'/);
+  const order = job.steps.map((s) => s.name ?? '');
+  assert.ok(
+    order.indexOf(provision.name) < order.findIndex((n) => /Run registration live journey/.test(n)),
+    'role checks run before the journey',
+  );
 });
 
 test('push to main runs only the registration job', () => {

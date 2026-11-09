@@ -34,6 +34,13 @@
 #   E2E_REGISTRATION_PORT            Portal port (default 3002)
 #   E2E_REGISTRATION_REPORT          Playwright JSON report path
 #                                    (default apps/registration-portal/test-results/registration-live.json)
+#   CI                               "true" allows a non-loopback MIGRATOR_DATABASE_URL host
+#
+# Outside CI the seed refuses a MIGRATOR_DATABASE_URL whose host is not
+# loopback, and on exit the harness restores apps/registration-portal/next-env.d.ts
+# when next build rewrote it (only if it was unmodified before the run).
+# Playwright runs with --retries=0: the report check fails on flaky, so a retry
+# could only add runtime before the same failure.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
@@ -41,7 +48,7 @@ cd "$ROOT"
 for arg in "$@"; do
   case "$arg" in
     --help|-h)
-      sed -n '2,36p' "$0"
+      sed -n '2,43p' "$0"
       exit 0
       ;;
     *)
@@ -66,6 +73,43 @@ TENANT_ID="${E2E_REGISTRATION_TENANT_ID:-00000000-0000-4000-8000-00000000e001}"
 [[ "$TENANT_ID" =~ $UUID_RE ]] || fail "E2E_REGISTRATION_TENANT_ID must be a v4 uuid"
 SLUG="${E2E_REGISTRATION_TENANT_SLUG:-e2e-registration}"
 [[ "$SLUG" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || fail "E2E_REGISTRATION_TENANT_SLUG must be one DNS label"
+
+# The seed writes as the migrator. Outside CI, refuse any database that is not
+# on this machine (loopback host or a Unix socket path).
+is_local_host() {
+  case "$1" in
+    "" | localhost | 127.* | ::1 | /*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+# Prints every host in a libpq URL: each comma-separated authority host and
+# any host= query parameter (percent-encoded socket paths decoded).
+url_hosts() {
+  local rest="${1#*://}" authority part kv
+  authority="${rest%%[/?]*}"
+  authority="${authority##*@}"
+  local IFS=','
+  for part in $authority; do
+    case "$part" in
+      \[*) part="${part#\[}" && printf '%s\n' "${part%%\]*}" ;;
+      *) printf '%s\n' "${part%%:*}" ;;
+    esac
+  done
+  if [[ "$rest" == *\?* ]]; then
+    IFS='&'
+    for kv in ${rest#*\?}; do
+      if [[ "$kv" == host=* ]]; then
+        printf '%s\n' "${kv#host=}" | sed 's/%2[Ff]/\//g'
+      fi
+    done
+  fi
+}
+if [[ "${CI:-}" != "true" ]]; then
+  while IFS= read -r host; do
+    is_local_host "$host" ||
+      fail "MIGRATOR_DATABASE_URL host '${host}' is not loopback; the fixture seed runs only against a local database unless CI=true"
+  done < <(url_hosts "$MIGRATOR_DATABASE_URL")
+fi
 command -v psql >/dev/null 2>&1 || fail "psql is required to seed the registration fixture"
 command -v curl >/dev/null 2>&1 || fail "curl is required for health checks"
 
@@ -110,9 +154,25 @@ stop_group() {
     wait "$pid" 2>/dev/null || true
   fi
 }
+# next build rewrites next-env.d.ts. Outside CI, put back the tracked file on
+# exit, but only when it had no local edits before this run.
+NEXT_ENV_FILE=apps/registration-portal/next-env.d.ts
+RESTORE_NEXT_ENV=0
+if [[ "${CI:-}" != "true" ]] && command -v git >/dev/null 2>&1 &&
+  git -C "$ROOT" ls-files --error-unmatch -- "$NEXT_ENV_FILE" >/dev/null 2>&1 &&
+  git -C "$ROOT" diff --quiet -- "$NEXT_ENV_FILE"; then
+  RESTORE_NEXT_ENV=1
+fi
+restore_next_env() {
+  if [[ "$RESTORE_NEXT_ENV" == "1" ]] && ! git -C "$ROOT" diff --quiet -- "$NEXT_ENV_FILE"; then
+    echo "==> Restoring ${NEXT_ENV_FILE} (rewritten by next build)"
+    git -C "$ROOT" checkout -- "$NEXT_ENV_FILE" || true
+  fi
+}
 cleanup() {
   stop_group "$PORTAL_PID" "registration portal"
   stop_group "$GATEWAY_PID" "api-gateway"
+  restore_next_env
 }
 trap cleanup EXIT
 
@@ -177,9 +237,11 @@ E2E_REQUIRE_LIVE=1 \
 E2E_REGISTRATION_INSTITUTION_ID="$INSTITUTION_ID" \
 PLAYWRIGHT_BASE_URL="$PORTAL_PUBLIC_URL" \
 PLAYWRIGHT_JSON_OUTPUT_FILE="$REPORT" \
+PLAYWRIGHT_HTML_OUTPUT_DIR="$ROOT/apps/registration-portal/playwright-report" \
+PLAYWRIGHT_HTML_OPEN=never \
   pnpm --filter @proctira/registration-portal exec \
   playwright test e2e/03-registration-live-journey.spec.ts \
-  --project=chromium --workers=1 --reporter=list,json
+  --project=chromium --workers=1 --retries=0 --reporter=list,json,html
 PW_EXIT=$?
 # Fail closed on skipped, flaky or missing tests even when Playwright exits 0.
 node "$ROOT/tools/scripts/assert-registration-live-report.mjs" --report "$REPORT"
