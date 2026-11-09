@@ -942,6 +942,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          # UAT-API-003: the gate also runs the REDIS_URL-gated suites.
+          REDIS_URL: redis://localhost:6379
           CI: true
           FORBID_TEST_SKIPS: '1'
           PG_TEST_MIN_EXECUTED: '25'

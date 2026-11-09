@@ -43,6 +43,14 @@ export function isPgGateFile(file = '') {
   if (n.endsWith('.integration.test.ts')) return true;
   if (n.endsWith('/create-admissions-pipeline-store.test.ts')) return true;
   if (n.endsWith('/bed-assignment.test.ts')) return true;
+  // UAT-API-002: keep in step with tools/vitest.pg-gate.config.ts include.
+  if (n.includes('packages/backend/') && n.endsWith('.pg.test.ts')) return true;
+  if (n.endsWith('/examination/src/allocation-concurrency.test.ts')) return true;
+  if (n.endsWith('/examination/src/room-clash-scoping.test.ts')) return true;
+  if (n.endsWith('/api-gateway/src/insights-ui-plugin.test.ts')) return true;
+  // UAT-API-003: REDIS_URL-gated cases run in the same gate (needs REDIS_URL).
+  if (n.endsWith('/auth/src/keycloak/password-throttle-redis.test.ts')) return true;
+  if (n.endsWith('/api-gateway/src/tenant-status-bus.redis.test.ts')) return true;
   return false;
 }
 
