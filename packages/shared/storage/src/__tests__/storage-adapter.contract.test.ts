@@ -122,16 +122,16 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
         const mockStream = Readable.from(['file content']);
         mockSend.mockResolvedValueOnce({ Body: mockStream });
 
-        const result = await adapter.download('tenants/tenant-001/file.txt');
+        const result = await adapter.download('tenants/tenant-001/file.txt', 'tenant-001');
         expect(result).toBeInstanceOf(Readable);
       });
 
       it('should throw when object not found', async () => {
         mockSend.mockResolvedValueOnce({ Body: null });
 
-        await expect(adapter.download('tenants/tenant-001/missing.txt')).rejects.toThrow(
-          'Object not found',
-        );
+        await expect(
+          adapter.download('tenants/tenant-001/missing.txt', 'tenant-001'),
+        ).rejects.toThrow('Object not found');
       });
     });
 
@@ -139,13 +139,15 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
       it('should delete without throwing', async () => {
         mockSend.mockResolvedValueOnce({});
 
-        await expect(adapter.delete('tenants/tenant-001/file.txt')).resolves.toBeUndefined();
+        await expect(
+          adapter.delete('tenants/tenant-001/file.txt', 'tenant-001'),
+        ).resolves.toBeUndefined();
       });
     });
 
     describe('getSignedUrl', () => {
       it('should return a signed URL string', async () => {
-        const url = await adapter.getSignedUrl('tenants/tenant-001/file.txt', 3600);
+        const url = await adapter.getSignedUrl('tenants/tenant-001/file.txt', 3600, 'tenant-001');
         expect(url).toContain('https://');
       });
     });
@@ -170,7 +172,7 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
           IsTruncated: false,
         });
 
-        const result = await adapter.listObjects('tenants/tenant-001/');
+        const result = await adapter.listObjects('tenants/tenant-001/', undefined, 'tenant-001');
 
         expect(result.objects).toHaveLength(2);
         expect(result.objects[0]!.key).toBe('tenants/tenant-001/file1.txt');
@@ -185,7 +187,11 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
           NextContinuationToken: 'next-token',
         });
 
-        const result = await adapter.listObjects('tenants/tenant-001/', { maxKeys: 1 });
+        const result = await adapter.listObjects(
+          'tenants/tenant-001/',
+          { maxKeys: 1 },
+          'tenant-001',
+        );
 
         expect(result.isTruncated).toBe(true);
         expect(result.nextContinuationToken).toBe('next-token');
@@ -197,7 +203,11 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
           IsTruncated: false,
         });
 
-        const result = await adapter.listObjects('tenants/tenant-001/empty/');
+        const result = await adapter.listObjects(
+          'tenants/tenant-001/empty/',
+          undefined,
+          'tenant-001',
+        );
         expect(result.objects).toHaveLength(0);
       });
 
@@ -211,7 +221,11 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
           ],
         });
 
-        const result = await adapter.listObjects('tenants/tenant-001/', { delimiter: '/' });
+        const result = await adapter.listObjects(
+          'tenants/tenant-001/',
+          { delimiter: '/' },
+          'tenant-001',
+        );
         expect(result.commonPrefixes).toEqual([
           'tenants/tenant-001/documents/',
           'tenants/tenant-001/images/',

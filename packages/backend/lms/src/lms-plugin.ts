@@ -4,6 +4,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { prepareLmsFileSigningAtStartup } from './lms-file-store.js';
 import type { LmsRepository } from './lms-repository.js';
 import { LmsService, type LmsAuditSink } from './lms-service.js';
 import { registerLmsRoutes } from './routes.js';
@@ -26,6 +27,14 @@ declare module 'fastify' {
 
 export const lmsPlugin = fp(
   async function lmsPluginImpl(fastify: FastifyInstance, options: LmsPluginOptions) {
+    prepareLmsFileSigningAtStartup(process.env, {
+      warn: (obj, msg) => {
+        fastify.log.warn(obj, msg);
+      },
+      error: (obj, msg) => {
+        fastify.log.error(obj, msg);
+      },
+    });
     const { repository, prefix = '/lms' } = options;
     const lmsService =
       options.service ?? new LmsService(repository, { auditSink: options.auditSink ?? null });

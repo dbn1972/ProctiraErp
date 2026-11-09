@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  BoardExportSigningKeyMissingError,
   createBoardExportDownloadToken,
   DEV_EPHEMERAL_TRANSCRIPT_KEY_ID,
   DEV_EPHEMERAL_TRANSCRIPT_KMS_REF,
+  prepareBoardExportSigningAtStartup,
   prepareTranscriptSigningAtStartup,
+  resetDevBoardExportSigningForTests,
   resetDevTranscriptSigningForTests,
   resolveTranscriptSigningMaterial,
   signTranscriptChecksum,
@@ -38,6 +41,115 @@ describe('board export signed download', () => {
     expect(verifyBoardExportDownloadToken(TENANT, JOB, 'nope').ok).toBe(false);
     const past = `${Math.floor(Date.now() / 1000) - 10}.deadbeef`;
     expect(verifyBoardExportDownloadToken(TENANT, JOB, past).ok).toBe(false);
+  });
+});
+
+describe('PRC-L310 board export dedicated signing secret', () => {
+  const prevBoard = process.env.SIS_BOARD_EXPORT_SIGNING_SECRET;
+  const prevJwt = process.env.JWT_SECRET;
+  const prevNode = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    resetDevBoardExportSigningForTests();
+  });
+
+  afterEach(() => {
+    if (prevBoard === undefined) delete process.env.SIS_BOARD_EXPORT_SIGNING_SECRET;
+    else process.env.SIS_BOARD_EXPORT_SIGNING_SECRET = prevBoard;
+    if (prevJwt === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = prevJwt;
+    if (prevNode === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prevNode;
+    resetDevBoardExportSigningForTests();
+  });
+
+  it('uses the dedicated board-export secret (never JWT_SECRET)', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SIS_BOARD_EXPORT_SIGNING_SECRET = 'dedicated-board-export-secret-v1';
+    process.env.JWT_SECRET = 'jwt-must-not-sign-board-exports';
+    const { token } = createBoardExportDownloadToken(TENANT, JOB, 120);
+    expect(verifyBoardExportDownloadToken(TENANT, JOB, token)).toEqual({ ok: true });
+
+    // A token minted while only JWT_SECRET is present must NOT verify against the
+    // dedicated secret — proving JWT_SECRET is not an accepted signing key.
+    delete process.env.SIS_BOARD_EXPORT_SIGNING_SECRET;
+    expect(() => createBoardExportDownloadToken(TENANT, JOB, 120)).toThrow(
+      BoardExportSigningKeyMissingError,
+    );
+  });
+
+  it('fail-closes in a deployed env when the dedicated secret is missing', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.SIS_BOARD_EXPORT_SIGNING_SECRET;
+    process.env.JWT_SECRET = 'should-not-be-used-for-board-exports';
+    expect(() => createBoardExportDownloadToken(TENANT, JOB)).toThrow(
+      BoardExportSigningKeyMissingError,
+    );
+    try {
+      createBoardExportDownloadToken(TENANT, JOB);
+    } catch (error) {
+      expect(error).toBeInstanceOf(BoardExportSigningKeyMissingError);
+      const body = (error as BoardExportSigningKeyMissingError).toJSON();
+      expect(body.statusCode).toBe(503);
+      expect(body.code).toBe('BOARD_EXPORT_SIGNING_KEY_MISSING');
+      expect(body.message).toMatch(/SIS_BOARD_EXPORT_SIGNING_SECRET/);
+      expect(body.message).not.toMatch(/should-not-be-used-for-board-exports/);
+    }
+  });
+
+  it('fail-closes when the dedicated secret equals JWT_SECRET', () => {
+    process.env.NODE_ENV = 'staging';
+    process.env.JWT_SECRET = 'shared-bad-secret';
+    process.env.SIS_BOARD_EXPORT_SIGNING_SECRET = 'shared-bad-secret';
+    expect(() => createBoardExportDownloadToken(TENANT, JOB)).toThrow(/must not equal JWT_SECRET/i);
+  });
+
+  it('fail-closes on the committed dev placeholder outside development', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SIS_BOARD_EXPORT_SIGNING_SECRET = 'sis-board-export-dev-secret-change-me';
+    expect(() => createBoardExportDownloadToken(TENANT, JOB)).toThrow(
+      BoardExportSigningKeyMissingError,
+    );
+  });
+
+  it('uses one logged ephemeral key outside production when the secret is unset', () => {
+    process.env.NODE_ENV = 'test';
+    delete process.env.SIS_BOARD_EXPORT_SIGNING_SECRET;
+    process.env.JWT_SECRET = 'jwt-must-not-become-board-export-key';
+    const warnings: unknown[][] = [];
+    const log = {
+      warn: (...args: unknown[]) => {
+        warnings.push(args);
+      },
+      error: () => {
+        throw new Error('production error log must not run outside production');
+      },
+    };
+    prepareBoardExportSigningAtStartup(process.env, log);
+    const { token } = createBoardExportDownloadToken(TENANT, JOB, 120);
+    expect(verifyBoardExportDownloadToken(TENANT, JOB, token)).toEqual({ ok: true });
+    expect(warnings).toHaveLength(1);
+    const serialized = JSON.stringify(warnings);
+    expect(serialized).toMatch(/SIS_BOARD_EXPORT_SIGNING_SECRET/);
+    expect(serialized).toMatch(/ephemeral/);
+    expect(serialized).not.toContain('jwt-must-not-become-board-export-key');
+  });
+
+  it('startup boot guard logs an actionable error in a deployed env without a secret', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.SIS_BOARD_EXPORT_SIGNING_SECRET;
+    const errors: unknown[][] = [];
+    const log = {
+      warn: () => {
+        throw new Error('dev warn must not run in production');
+      },
+      error: (...args: unknown[]) => {
+        errors.push(args);
+      },
+    };
+    prepareBoardExportSigningAtStartup(process.env, log);
+    expect(errors).toHaveLength(1);
+    expect(JSON.stringify(errors)).toMatch(/SIS_BOARD_EXPORT_SIGNING_SECRET/);
   });
 });
 
