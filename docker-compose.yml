@@ -133,7 +133,12 @@ services:
       - proctira
 
   minio:
-    image: minio/minio:latest
+    # Docker Hub minio/minio is withdrawn and quay.io/minio/minio needs auth (UAT-ENV-008).
+    # Third-party rebuild of the last community release, pinned by digest; no curl inside.
+    image: docker.io/alpine/minio:RELEASE.2025-10-15T17-29-55Z@sha256:cf23643a6cf9ce159c57643ceb88279e431262282428c9e0bf3a7ef1a97e84b4
+    # The image defaults to uid 100 and has no /data, so the volume mounts root-owned;
+    # run as root like the official image did, keeping existing minio-data volumes usable.
+    user: '0:0'
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -145,7 +150,7 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ['CMD', 'curl', '--fail', 'http://localhost:9000/minio/health/live']
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9000/minio/health/live']
       interval: 15s
       timeout: 5s
       retries: 5
@@ -174,6 +179,10 @@ services:
   # ---------------------------------------------------------------------------
   # Application services
   # ---------------------------------------------------------------------------
+  # UAT-ENV-009: application ports bind to APP_BIND_ADDRESS (default
+  # 127.0.0.1), separate from the data ports' BIND_ADDRESS so the apps can be
+  # opened to the network while datastores stay on loopback;
+  # check-compose-contract.mjs enforces the loopback default.
   api-gateway:
     build:
       context: .
@@ -235,7 +244,7 @@ services:
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
-      - '${GATEWAY_PORT:-3000}:3000'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${GATEWAY_PORT:-3000}:3000'
     # W1-OPS-18: explicit readiness so dependants wait on service_healthy
     healthcheck:
       test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3000/health/ready']
@@ -273,7 +282,7 @@ services:
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
-      - '${ETL_WORKER_PORT:-3010}:3010'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${ETL_WORKER_PORT:-3010}:3010'
     # W1-OPS-18: readiness probe (no compose dependants today; required for healthy status)
     healthcheck:
       test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3010/health/ready']
@@ -310,7 +319,7 @@ services:
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-exam-document-worker}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports:
-      - '${EXAM_DOCUMENT_WORKER_PORT:-3025}:3025'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${EXAM_DOCUMENT_WORKER_PORT:-3025}:3025'
     healthcheck:
       test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3025/health/ready']
       interval: 10s
@@ -341,7 +350,7 @@ services:
       TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-proctira.localhost}
       TENANT_FALLBACK_SLUG: ${TENANT_FALLBACK_SLUG:-india}
     ports:
-      - '${WEB_PORT:-3001}:3001'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3001}:3001'
     # W1-OPS-18: app health so public-website waits on service_healthy
     healthcheck:
       test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3001/api/health']
@@ -368,7 +377,7 @@ services:
       # Server-only; required in production (portal fails fast when unset).
       GATEWAY_URL: ${GATEWAY_URL:-http://api-gateway:3000}
     ports:
-      - '${REGISTRATION_PORTAL_PORT:-3002}:3002'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${REGISTRATION_PORTAL_PORT:-3002}:3002'
     # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
     # so compose dependents can use service_healthy; same probe as web.
     healthcheck:
@@ -400,7 +409,7 @@ services:
       STATUS_PROBE_API_URL: ${STATUS_PROBE_API_URL:-http://api-gateway:3000/health}
       STATUS_PROBE_AUTH_URL: ${STATUS_PROBE_AUTH_URL:-http://api-gateway:3000/health/live}
     ports:
-      - '${PUBLIC_WEBSITE_PORT:-3003}:3003'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${PUBLIC_WEBSITE_PORT:-3003}:3003'
     # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
     # so compose dependents can use service_healthy; same probe as web.
     healthcheck:
@@ -429,7 +438,7 @@ services:
       GATEWAY_URL: ${GATEWAY_URL}
       COOKIE_SECRET: ${COOKIE_SECRET}
     ports:
-      - '${ADMIN_CONSOLE_PORT:-3004}:3004'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${ADMIN_CONSOLE_PORT:-3004}:3004'
     # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
     # so compose dependents can use service_healthy; same probe as web.
     healthcheck:
@@ -456,7 +465,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
-      - '${DEVELOPER_PORTAL_PORT:-3005}:3005'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${DEVELOPER_PORTAL_PORT:-3005}:3005'
     # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
     # so compose dependents can use service_healthy; same probe as web.
     healthcheck:
@@ -487,7 +496,7 @@ services:
       REDIS_URL: ${REDIS_URL}
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
-      - '${INSTALL_WIZARD_PORT:-3100}:3100'
+      - '${APP_BIND_ADDRESS:-127.0.0.1}:${INSTALL_WIZARD_PORT:-3100}:3100'
     # PRC-L335: declared (not only inherited from the Dockerfile HEALTHCHECK)
     # so compose dependents can use service_healthy; same probe as web.
     healthcheck:

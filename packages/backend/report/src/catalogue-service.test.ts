@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { isPdfBuffer } from '@proctira/pdf-lite';
 import Fastify from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryReportBlobStore } from './blob-store.js';
 import { reportCataloguePlugin } from './catalogue-plugin.js';
@@ -14,6 +14,14 @@ import { InMemoryScheduleDelivery } from './schedule-delivery.js';
 import { computeNextRunAt, createReportScheduler } from './scheduler.js';
 
 // PRC-H080: these unit tests run without a DB pool and explicitly opt into demo rows.
+// UAT-API-007: providers and dashboards call getSharedPgPool(), which reads DATABASE_URL,
+// so a runner-exported DATABASE_URL would send them to the live database. Remove a
+// runner-exported DATABASE_URL before any import so the demo path is used. A local
+// packages/shared/database/.env can still set it during import (Prisma client autoload),
+// as before.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+});
 process.env.REPORT_DEMO_DATA = '1';
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
@@ -234,10 +242,11 @@ describe('G-909 catalogue plugin routes', () => {
     app.addHook('onRequest', async (request) => {
       (
         request as typeof request & {
-          user: { sub: string; roles: Array<{ roleName: string }> };
+          user: { sub: string; tenantId: string; roles: Array<{ roleName: string }> };
         }
       ).user = {
         sub: 'principal',
+        tenantId: TENANT_A,
         roles: [{ roleName: 'PRINCIPAL' }],
       };
     });
@@ -254,6 +263,7 @@ describe('G-909 catalogue plugin routes', () => {
     roleNames: string[],
     sub = 'principal',
     shared?: { store: InMemoryReportStore; blobs: InMemoryReportBlobStore },
+    tenantId: string = TENANT_A,
   ) {
     const app = Fastify();
     apps.push(app);
@@ -261,10 +271,15 @@ describe('G-909 catalogue plugin routes', () => {
     app.addHook('onRequest', async (request) => {
       (
         request as typeof request & {
-          user: { sub: string; roles: Array<{ roleId: string; roleName: string }> };
+          user: {
+            sub: string;
+            tenantId: string;
+            roles: Array<{ roleId: string; roleName: string }>;
+          };
         }
       ).user = {
         sub,
+        tenantId,
         roles: roleNames.map((r) => ({ roleId: r, roleName: r })),
       };
     });
@@ -318,12 +333,13 @@ describe('G-909 catalogue plugin routes', () => {
     expect(download.headers['x-artifact-sha256']).toBe(run.sha256);
     expect(sha256Hex(Buffer.from(download.rawPayload))).toBe(run.sha256);
 
-    // Cross-tenant: the token is bound to (TENANT_A, artifact), so tenant B is rejected
-    // (403 on the token check, before the artifact is even looked up).
-    const foreign = await app.inject({
+    // Cross-tenant: the token is bound to (TENANT_A, artifact). A principal
+    // verified for tenant B is rejected on the token check (PRC-L339: tenant
+    // comes from the verified principal, not the x-tenant-id header).
+    const attackerB = await buildAs(['principal'], 'attacker-b', undefined, TENANT_B);
+    const foreign = await attackerB.inject({
       method: 'GET',
       url: downloadPath,
-      headers: { 'x-tenant-id': TENANT_B },
     });
     expect([403, 404]).toContain(foreign.statusCode);
   });
@@ -395,8 +411,13 @@ describe('G-909 catalogue plugin routes', () => {
     const app = Fastify();
     apps.push(app);
     app.addHook('preHandler', async (req) => {
-      (req as typeof req & { user?: { sub: string; roles: Array<{ roleName: string }> } }).user = {
+      (
+        req as typeof req & {
+          user?: { sub: string; tenantId: string; roles: Array<{ roleName: string }> };
+        }
+      ).user = {
         sub: 'parent-user-1',
+        tenantId: TENANT_A,
         roles: [{ roleName: 'PARENT' }],
       };
     });

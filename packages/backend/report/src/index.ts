@@ -99,19 +99,34 @@ export type { ReportCataloguePluginOptions } from './catalogue-plugin.js';
 export { CatalogueService } from './catalogue-service.js';
 export { createReportStore, resetSharedReportStoreForTests } from './create-report-store.js';
 export { InMemoryReportStore } from './report-store.js';
-export { InMemoryReportBlobStore, createReportBlobStore } from './blob-store.js';
+export {
+  InMemoryReportBlobStore,
+  ReportBlobReadError,
+  createReportBlobStore,
+  createS3ReportBlobStore,
+} from './blob-store.js';
+export type { ReportBlobStore, S3BlobStoreAdapter } from './blob-store.js';
 export { computeNextRunAt, createReportScheduler } from './scheduler.js';
 export { REPORT_CATALOGUE, resolveReportKey } from './catalogue.js';
 export type { CatalogueReportKey, CatalogueReportFormat, CatalogueEntry } from './catalogue.js';
 export { registerCatalogueRoutes } from './catalogue-routes.js';
 export { sha256Hex } from './generators.js';
-export { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
+export {
+  createReportDownloadToken,
+  isReportDownloadSigningKeyMissingError,
+  prepareReportDownloadSigningAtStartup,
+  REPORT_DOWNLOAD_SIGNING_KEY_MISSING_MESSAGE,
+  ReportDownloadSigningKeyMissingError,
+  resetDevReportDownloadSigningForTests,
+  verifyReportDownloadToken,
+} from './signed-download.js';
 export { buildRoleDashboard, inferDashboardRole } from './dashboards.js';
 export type { DashboardRole, RoleDashboard } from './dashboards.js';
 
-export {
-  InMemoryScheduleDelivery,
-  NoopScheduleDelivery,
-} from './schedule-delivery.js';
+export { InMemoryScheduleDelivery, NoopScheduleDelivery } from './schedule-delivery.js';
 export type { ScheduleDeliveryPort, ScheduleDeliveryRequest } from './schedule-delivery.js';
 export { REPORT_SCHEDULE_LEASE_MS, REPORT_SCHEDULE_RETRY_MS } from './catalogue-service.js';
+
+// PRC-L340: report audit event emission (field names, not PHI values).
+export { NoopReportAuditPort, RecordingReportAuditPort } from './report-audit.js';
+export type { ReportAuditAction, ReportAuditEvent, ReportAuditPort } from './report-audit.js';
