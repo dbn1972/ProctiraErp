@@ -11,6 +11,8 @@
  *             `PASSWORD '<literal>'`.
  *   UAT-ENV-008 (PRC-M311 step): the MinIO image is pinned by `@sha256:` digest
  *             and not taken from a repository that cannot be pulled anonymously.
+ *   UAT-ENV-009: every published port binds to a loopback host IP
+ *             (`${BIND_ADDRESS:-127.0.0.1}:...` or `host_ip:`), never all interfaces.
  *
  * Usage: node tools/scripts/check-compose-contract.mjs [--root <dir>]
  */
@@ -84,6 +86,59 @@ export function checkDockerInitPasswords(files) {
 }
 
 /**
+ * Splits a short-syntax port spec on `:` outside `${...}` and `[...]`, so
+ * `${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3001}:3001` gives three parts.
+ */
+export function splitPortSpec(spec) {
+  const parts = [];
+  let current = '';
+  let depth = 0;
+  for (const ch of String(spec)) {
+    if (ch === '{' || ch === '[') depth += 1;
+    else if (ch === '}' || ch === ']') depth -= 1;
+    if (ch === ':' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+/** True when a host IP (literal or `${VAR:-default}`) resolves to a loopback address. */
+export function isLoopbackHostIp(value) {
+  const ip = composeDefault(value).replace(/^\[(.*)\]$/, '$1');
+  return /^127(\.\d{1,3}){3}$/.test(ip) || ip === '::1';
+}
+/**
+ * UAT-ENV-009: every published port names a loopback host IP, normally
+ * `${BIND_ADDRESS:-127.0.0.1}`. A port without one listens on every interface.
+ * Handles the short syntax (`'ip:host:container'`) and the long syntax (`host_ip:`).
+ */
+export function checkPublishedPortBindAddress(compose) {
+  const errors = [];
+  for (const [name, svc] of Object.entries(compose?.services ?? {})) {
+    for (const port of svc?.ports ?? []) {
+      let hostIp;
+      if (port !== null && typeof port === 'object') {
+        hostIp = port.host_ip;
+      } else {
+        const parts = splitPortSpec(port);
+        hostIp = parts.length === 3 ? parts[0] : undefined;
+      }
+      if (hostIp === undefined || !isLoopbackHostIp(hostIp)) {
+        const shown = typeof port === 'object' ? JSON.stringify(port) : String(port);
+        errors.push(
+          `docker-compose.yml service ${name} publishes port ${shown} without a loopback bind address; use '\${BIND_ADDRESS:-127.0.0.1}:<host>:<container>' (UAT-ENV-009)`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+/**
  * MinIO repositories that cannot be pulled anonymously (UAT-ENV-008): Docker Hub
  * `minio/minio` was withdrawn and `quay.io/minio/minio` requires authentication.
  */
@@ -136,6 +191,7 @@ export function checkMinioImagePin(compose) {
 export function checkComposeContract({ compose, dockerInit = {} }) {
   return [
     ...checkBuiltServiceHealthchecks(compose),
+    ...checkPublishedPortBindAddress(compose),
     ...checkPostgresBootstrap(compose),
     ...checkDockerInitPasswords(dockerInit),
     ...checkMinioImagePin(compose),
