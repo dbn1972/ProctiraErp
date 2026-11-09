@@ -1,5 +1,5 @@
 /**
- * Local compose contract (PRC-L335, PRC-L460, UAT-ENV-009).
+ * Local compose contract (PRC-L335, PRC-L460, UAT-ENV-008, UAT-ENV-009).
  * Run with: node --test tools/scripts/check-compose-contract.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -10,10 +10,12 @@ import { fileURLToPath } from 'node:url';
 import {
   checkBuiltServiceHealthchecks,
   checkDockerInitPasswords,
+  checkMinioImagePin,
   checkPostgresBootstrap,
   checkPublishedPortBindAddress,
   composeDefault,
   isLoopbackHostIp,
+  parseImageRef,
   splitPortSpec,
 } from './check-compose-contract.mjs';
 
@@ -148,6 +150,53 @@ test('UAT-ENV-009: isLoopbackHostIp resolves ${VAR:-default}', () => {
   assert.equal(isLoopbackHostIp('::1'), true);
   assert.equal(isLoopbackHostIp(''), false);
 });
+
+const PINNED_MINIO =
+  'docker.io/alpine/minio:RELEASE.2025-10-15T17-29-55Z@sha256:cf23643a6cf9ce159c57643ceb88279e431262282428c9e0bf3a7ef1a97e84b4';
+
+test('UAT-ENV-008: parseImageRef splits repository and digest', () => {
+  assert.deepEqual(parseImageRef('minio/minio:latest'), { repository: 'minio/minio', digest: '' });
+  assert.deepEqual(parseImageRef('localhost:5000/minio'), {
+    repository: 'localhost:5000/minio',
+    digest: '',
+  });
+  assert.equal(parseImageRef(PINNED_MINIO).repository, 'docker.io/alpine/minio');
+  assert.match(parseImageRef(PINNED_MINIO).digest, /^sha256:cf23643a/);
+});
+
+test('UAT-ENV-008: base minio/minio:latest fails (no digest, unpullable repository)', () => {
+  const errors = checkMinioImagePin({ services: { minio: { image: 'minio/minio:latest' } } });
+  assert.equal(errors.length, 2);
+  assert.match(errors[0], /service minio image 'minio\/minio:latest' is not pinned by @sha256:/);
+  assert.match(errors[1], /uses minio\/minio, which cannot be pulled anonymously/);
+});
+
+test('UAT-ENV-008: a tag-only or quay.io MinIO image fails', () => {
+  const tagOnly = checkMinioImagePin({
+    services: { s3: { image: 'docker.io/alpine/minio:RELEASE.2025-10-15T17-29-55Z' } },
+  });
+  assert.equal(tagOnly.length, 1);
+  assert.match(tagOnly[0], /service s3 .* not pinned/);
+  const quay = checkMinioImagePin({
+    services: { minio: { image: `quay.io/minio/minio@${parseImageRef(PINNED_MINIO).digest}` } },
+  });
+  assert.deepEqual(quay.length, 1);
+  assert.match(quay[0], /uses quay.io\/minio\/minio/);
+});
+
+test('UAT-ENV-008: the digest-pinned alpine/minio image passes; other images are out of scope', () => {
+  assert.deepEqual(
+    checkMinioImagePin({
+      services: {
+        minio: { image: PINNED_MINIO },
+        redis: { image: 'redis:7' },
+        web: { build: '.' },
+      },
+    }),
+    [],
+  );
+});
+
 test('repository docker-compose.yml passes the contract', () => {
   const r = spawnSync(process.execPath, [SCRIPT], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
