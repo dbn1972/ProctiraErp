@@ -18,9 +18,18 @@
  *
  *   • 2xx → `dequeue` and record `succeeded`.
  *
- *   • 4xx (except 408 / 429) → leave in queue, mark `lastError`, and
- *     stop attempting (the user must amend or discard via the
- *     conflict dialog). Outcome: `failed_permanent`.
+ *   • 401 / 403 → the session, not the op, is the problem: the drain
+ *     pauses without spending an attempt and resumes on the next drain
+ *     after sign-in (PRC-L544). Outcome: `paused_auth`.
+ *
+ *   • Other 4xx (except 408 / 429) → leave in queue, mark `lastError`,
+ *     and park it (`attemptCount = MAX_ATTEMPTS`) so no later drain
+ *     resends it; the user must amend or discard via the conflict
+ *     dialog (PRC-L544). Outcome: `failed_permanent`.
+ *
+ *   • One drain at a time per tab and, with the Web Locks API, across
+ *     tabs. Same-origin replays carry the double-submit CSRF header and
+ *     `credentials: 'same-origin'` (PRC-L544).
  *
  *   • 408 / 429 / 5xx / network error → bump `attemptCount`, set
  *     `lastError` and `lastAttemptAt`, wait `backoffFor(attemptCount)`,
@@ -50,6 +59,7 @@
  *     drain short. The next checkpoint is between operations.
  */
 
+import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
 import { dequeue, peekAll, persistAttempt, type SyncQueueOperation } from './syncQueue';
 import { canReplayFor, getSyncIdentity, type SyncIdentity } from './identity';
 
@@ -88,7 +98,7 @@ export const MAX_ATTEMPTS = BACKOFF_SCHEDULE_MS.length;
 /** Outcome of a single replay attempt. Surfaced to callers so the
  * Connectivity_Indicator and the toast hook can summarise progress.
  */
-export type ReplayOutcome = 'succeeded' | 'failed_permanent' | 'failed_transient';
+export type ReplayOutcome = 'succeeded' | 'failed_permanent' | 'failed_transient' | 'paused_auth';
 
 export interface ReplayResult {
   id: string;
@@ -208,7 +218,32 @@ async function readBodyFull(response: Response): Promise<string> {
   }
 }
 
+/**
+ * PRC-L544: 401 / 403 mean the session (not the operation) is the problem.
+ * The drain pauses without burning an attempt, so the queue resumes after the
+ * user signs in again instead of exhausting every op against a dead session.
+ */
+function isAuthStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+/**
+ * PRC-L544: same-origin BFF routes enforce the double-submit CSRF check on
+ * unsafe methods, so a replay carries the current `csrf_token` cookie value.
+ * Never sent to another origin.
+ */
+function csrfHeaderFor(url: string): Record<string, string> {
+  if (!url.startsWith('/') || url.startsWith('//')) return {};
+  const token = readCsrfTokenFromDocument();
+  return token ? { [CSRF_HEADER]: token } : {};
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
+
+/** PRC-L544: Web Locks name shared by every tab's replay drain. */
+export const REPLAY_LOCK_NAME = 'proctira-sync-replay';
+
+let activeDrain: Promise<ReplayResult[]> | null = null;
 
 /**
  * Replay every pending operation in submission order. See module
@@ -217,11 +252,29 @@ async function readBodyFull(response: Response): Promise<string> {
  * `fetcher` is required so callers (the ConnectivityProvider in
  * particular) can inject an instrumented fetch (auth refresh,
  * telemetry, etc.) without monkey-patching the global.
+ *
+ * PRC-L544: single-flight. A call while a drain runs in this tab returns that
+ * drain's promise; across tabs the Web Locks API (when available) lets only one
+ * tab drain at a time and a second tab returns `[]` instead of double-sending.
  */
-export async function replayAll(
+export function replayAll(
   fetcher: typeof fetch,
   options: ReplayOptions = {},
 ): Promise<ReplayResult[]> {
+  if (activeDrain) return activeDrain;
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  const run = locks?.request
+    ? locks.request(REPLAY_LOCK_NAME, { ifAvailable: true }, (lock) =>
+        lock ? drainQueue(fetcher, options) : [],
+      )
+    : drainQueue(fetcher, options);
+  activeDrain = Promise.resolve(run).finally(() => {
+    activeDrain = null;
+  });
+  return activeDrain;
+}
+
+async function drainQueue(fetcher: typeof fetch, options: ReplayOptions): Promise<ReplayResult[]> {
   const wait = options.wait ?? setTimeoutWait;
   const now = options.now ?? Date.now;
   const signal = options.signal;
@@ -230,6 +283,7 @@ export async function replayAll(
 
   const queue = await peekAll();
   const results: ReplayResult[] = [];
+  let pausedForAuth = false;
 
   for (const initial of queue) {
     if (signal?.aborted) break;
@@ -255,6 +309,7 @@ export async function replayAll(
       const headers = {
         ...(op.payload.headers ?? {}),
         ...buildHeaders(op),
+        ...csrfHeaderFor(op.payload.url),
         'Idempotency-Key': op.idempotencyKey,
       };
 
@@ -265,6 +320,8 @@ export async function replayAll(
           method: op.operationType,
           headers,
           body: op.payload.body ?? undefined,
+          // PRC-L544: the session cookie rides along to same-origin routes only.
+          credentials: 'same-origin',
           signal,
         });
       } catch (err) {
@@ -283,6 +340,16 @@ export async function replayAll(
         break;
       }
 
+      if (response && isAuthStatus(response.status)) {
+        // PRC-L544: pause the whole drain; the op keeps its attempt count.
+        outcome = 'paused_auth';
+        status = response.status;
+        error = formatError(response.status, response.statusText || 'sign-in required');
+        responseBody = undefined;
+        pausedForAuth = true;
+        break;
+      }
+
       if (response) {
         const isTransient = isTransientStatus(response.status);
         // Capture the full body once per terminal/transient response.
@@ -296,7 +363,10 @@ export async function replayAll(
           bodyExcerpt,
         );
 
-        const updated = await persistAttempt(op.id, op.attemptCount + 1, attemptedAt, message);
+        // PRC-L544: a permanent 4xx parks the op (attemptCount = MAX_ATTEMPTS)
+        // so later drains never resend it; the user amends or discards it.
+        const nextAttempt = isTransient ? op.attemptCount + 1 : MAX_ATTEMPTS;
+        const updated = await persistAttempt(op.id, nextAttempt, attemptedAt, message);
         // The record was deleted out from under us (user discarded
         // mid-replay). Record the most recent state we knew about
         // and move on to the next operation.
@@ -355,6 +425,7 @@ export async function replayAll(
       ...(responseBody !== undefined ? { responseBody } : {}),
       attemptCount: op.attemptCount,
     });
+    if (pausedForAuth) break;
   }
 
   return results;

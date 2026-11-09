@@ -32,6 +32,11 @@ vi.mock('@/lib/auth', () => ({
     exp: 9999999999,
   }),
 }));
+// PRC-L265: gateway.ts reads the tenant from the verified token claims.
+vi.mock('@/lib/auth/verified-token', () => ({
+  readSessionToken: async () => ({ sub: 'user-1', tenantId: mockTenantId, exp: 9999999999 }),
+  tenantIdFromClaims: (claims: { tenantId?: string } | null) => claims?.tenantId ?? null,
+}));
 
 const fetchMock = vi.fn<(...args: [string, RequestInit?]) => Promise<Response>>();
 vi.stubGlobal('fetch', fetchMock);
@@ -148,13 +153,12 @@ describe('gatewayFetch auth fallbacks and failures (PRC-M489)', () => {
     expect(headers.get('Authorization')).toBeNull();
     expect(headers.get('X-Tenant-ID')).toBe('tenant-from-header');
   });
-  it('falls back to "default" tenant when neither cookie nor header is present', async () => {
+  it('refuses (sends nothing) when neither a verified cookie nor a host tenant is present (PRC-L265)', async () => {
     mockGet.mockReturnValue(undefined);
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     const { gatewayFetch } = await import('./gateway');
-    const res = await gatewayFetch('/students');
-    expect((fetchMock.mock.calls[0]![1]!.headers as Headers).get('X-Tenant-ID')).toBe('default');
-    expect(res).toMatchObject({ ok: true, status: 204, data: null });
+    const res = await gatewayFetch('/students', { throwOnError: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ ok: false, status: 401, error: { code: 'TENANT_UNRESOLVED' } });
   });
   it('maps a network failure to NETWORK_ERROR (throwing and non-throwing)', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));

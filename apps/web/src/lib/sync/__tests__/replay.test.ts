@@ -317,7 +317,8 @@ describe('replayAll — permanent failures', () => {
 
     const op = await getOperation(id);
     expect(op).not.toBeNull();
-    expect(op!.attemptCount).toBe(1);
+    // PRC-L544: a permanent 4xx parks the op so later drains never resend it.
+    expect(op!.attemptCount).toBe(MAX_ATTEMPTS);
     expect(op!.lastError).toMatch(/BAD_REQUEST/);
   });
 

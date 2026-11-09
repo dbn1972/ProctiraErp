@@ -9,7 +9,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { AUTH_COOKIES, decodeTokenPayload, isTokenExpired, type TokenPayload } from './session';
+import { AUTH_COOKIES, isTokenExpired, type TokenPayload } from './session';
+import { readSessionToken, tenantIdFromClaims } from './verified-token';
 
 /** Result returned by getSession. */
 export interface ServerSession {
@@ -23,10 +24,10 @@ export interface ServerSession {
  * Reads authentication cookies on the server and returns the parsed session
  * if available. Returns `null` when there is no token or the token is malformed.
  *
- * The access token is decoded WITHOUT signature verification, so BFF role
- * checks here are UX gating only (navigation, SSR shell). The API gateway is
- * the enforcement point: it verifies the JWT on every forwarded call, ignores
- * client X-Tenant-ID and requires a verified tenant claim (PRC-L254).
+ * PRC-L254: the access token's signature, issuer and audience are verified
+ * against the IdP JWKS (see `./verified-token.ts`); a forged or unsigned token
+ * yields no session. The API gateway still verifies the JWT on every forwarded
+ * call, ignores client X-Tenant-ID and requires a verified tenant claim.
  */
 export async function getSession(): Promise<ServerSession | null> {
   const jar = await cookies();
@@ -37,15 +38,18 @@ export async function getSession(): Promise<ServerSession | null> {
     return null;
   }
 
-  const payload = decodeTokenPayload(accessToken);
-  if (!payload) {
+  const claims = await readSessionToken(accessToken, { ignoreExpiry: true });
+  if (!claims) {
     return null;
   }
+  const payload = claims as unknown as TokenPayload;
+  // Keycloak tokens carry `tenant_id`; expose it under the BFF's `tenantId`.
+  const tenantId = tenantIdFromClaims(claims);
 
   return {
     accessToken,
     refreshToken,
-    user: payload,
+    user: tenantId ? { ...payload, tenantId } : payload,
     isExpired: isTokenExpired(accessToken),
   };
 }

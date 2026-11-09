@@ -12,6 +12,10 @@ vi.mock('@/lib/auth', () => ({
   AUTH_COOKIES: { ACCESS_TOKEN: 'access_token' },
   decodeTokenPayload: () => ({ tenantId: 'tenant-1' }),
 }));
+vi.mock('@/lib/auth/verified-token', () => ({
+  readSessionToken: async () => ({ tenantId: 'tenant-1' }),
+  tenantIdFromClaims: (claims: { tenantId?: string } | null) => claims?.tenantId ?? null,
+}));
 
 const fetchMock = vi.fn();
 vi.stubGlobal('fetch', fetchMock);

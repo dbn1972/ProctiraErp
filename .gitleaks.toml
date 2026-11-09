@@ -73,6 +73,11 @@ regexes = [
   # original value still surfaces. Referenced by zero non-test files; not a
   # credential for any real system.
   '''l563-institution-scope-test-key''',
+  # packages/backend/auth/src/mfa-routes.test.ts (branch history, PRC-M497, commit ecf14d59)
+  # HMAC key for an in-test createPreMfaTicketCodec that mints and verifies its
+  # own pre-MFA tickets. Referenced by zero non-test files; not in any manifest,
+  # Helm values file or .env template; not a credential for any real system.
+  '''pre-mfa-test-secret-0123456789abcdef''',
 ]
 
 paths = [

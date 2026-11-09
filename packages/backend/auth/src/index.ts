@@ -102,6 +102,16 @@ export { InMemoryLockoutStore } from './lockout-store.js';
 export { PrismaRefreshTokenStore } from './refresh-token-store.js';
 export { PrismaSessionStore } from './session-store.js';
 
+// PRC-M497: pre-MFA ticket (primary factor -> OTP send/verify binding)
+export {
+  createPreMfaTicketCodec,
+  createPreMfaTicketCodecFromEnv,
+  DEFAULT_PRE_MFA_TICKET_TTL_SECONDS,
+  PRE_MFA_TICKET_HEADER,
+  readPreMfaTicket,
+} from './pre-mfa-ticket.js';
+export type { PreMfaPrincipal, PreMfaTicketCodec } from './pre-mfa-ticket.js';
+
 // Routes
 export { registerAuthRoutes } from './routes.js';
 export type { AuthRoutesOptions, UserLookup } from './routes.js';
@@ -123,6 +133,7 @@ export {
   createOIDCProvider,
   SAMLProvider,
   DefaultSAMLResponseParser,
+  NodeSamlResponseParser,
   createSAMLProvider,
   // Handler
   ExternalAuthHandler,

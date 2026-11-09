@@ -4,6 +4,8 @@
  */
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryWebTicketStore } from '../keycloak/routes.js';
+
 import type { ExternalAuthHandler } from './external-auth-handler.js';
 import { registerExternalAuthRoutes } from './external-auth-routes.js';
 
@@ -104,5 +106,66 @@ describe('PRC-M589 external auth routes', () => {
       url: `/auth/external/ticket?ticket=${ticket}`,
     });
     expect(again.statusCode).toBe(401);
+  });
+});
+
+describe('PRC-M589 ticket store is replica-shared when deployed', () => {
+  const handler = {
+    listProviders: () => [],
+    initiateAuth: vi.fn(async () => ({ redirectUrl: 'https://idp/auth', state: 's' })),
+    handleCallback: vi.fn(async () => result),
+  } as unknown as ExternalAuthHandler;
+
+  it('a deployed process refuses the process-local ticket store default', async () => {
+    const saved = process.env['NODE_ENV'];
+    const app = Fastify();
+    try {
+      process.env['NODE_ENV'] = 'production';
+      await expect(registerExternalAuthRoutes(app, { handler })).rejects.toThrow(/PRC-M589/);
+    } finally {
+      process.env['NODE_ENV'] = saved;
+      await app.close();
+    }
+  });
+
+  it('a ticket minted on one replica is redeemed once on another through the shared store', async () => {
+    const shared = new MemoryWebTicketStore();
+    const mk = async () => {
+      const app = Fastify();
+      app.addHook('onRequest', async (req: FastifyRequest) => {
+        (req as FastifyRequest & { tenantId?: string }).tenantId = 'tenant-1';
+      });
+      await registerExternalAuthRoutes(app, {
+        handler,
+        successRedirectUrl: 'https://app.example.com/sso/done',
+        ticketStore: shared,
+      });
+      await app.ready();
+      return app;
+    };
+    const a = await mk();
+    const b = await mk();
+    try {
+      const cb = await a.inject({
+        method: 'GET',
+        url: '/auth/external/google/callback?code=c&state=s',
+        headers: { cookie: 'ext_auth_state=s' },
+      });
+      expect(cb.statusCode).toBe(302);
+      const ticket = new URL(String(cb.headers.location)).searchParams.get('ticket');
+      const redeem = await b.inject({
+        method: 'GET',
+        url: `/auth/external/ticket?ticket=${ticket}`,
+      });
+      expect(redeem.statusCode).toBe(200);
+      const replay = await a.inject({
+        method: 'GET',
+        url: `/auth/external/ticket?ticket=${ticket}`,
+      });
+      expect(replay.statusCode).toBe(401);
+    } finally {
+      await a.close();
+      await b.close();
+    }
   });
 });

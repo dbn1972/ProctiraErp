@@ -11,7 +11,8 @@ import { redirect } from 'next/navigation';
 
 import { ADMIN_AUTH_COOKIES } from './cookies';
 import { hasRole, type AdminArea, type PlatformRole } from './roles';
-import { decodeAdminToken, isAdminTokenExpired, type AdminTokenPayload } from './session';
+import { isAdminTokenExpired, toAdminTokenPayload, type AdminTokenPayload } from './session';
+import { readPlatformToken } from './verified-token';
 
 export interface AdminServerSession {
   accessToken: string;
@@ -28,8 +29,11 @@ export async function getSession(): Promise<AdminServerSession | null> {
 
   if (!accessToken) return null;
 
-  const payload = decodeAdminToken(accessToken);
-  if (!payload) return null;
+  // PRC-L202: signature, issuer, audience and the platform tenant are verified
+  // before any claim is trusted. Expiry is reported through `isExpired`.
+  const claims = await readPlatformToken(accessToken, { ignoreExpiry: true });
+  if (!claims) return null;
+  const payload = toAdminTokenPayload(claims);
 
   return {
     accessToken,
@@ -48,6 +52,11 @@ export async function requireSession(returnTo?: string): Promise<AdminServerSess
   if (!session || session.isExpired) {
     const params = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
     redirect(`/login${params}`);
+  }
+  // PRC-L202: a verified platform token without any platform role sees no
+  // console page (the dashboard included).
+  if (!session.user.platformRole) {
+    redirect('/forbidden');
   }
   return session;
 }

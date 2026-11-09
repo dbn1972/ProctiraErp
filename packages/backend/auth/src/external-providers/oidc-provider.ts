@@ -11,12 +11,19 @@ import { KeycloakJwksClient, decodeJwt, verifyRs256 } from '../keycloak/verify.j
 
 import type { HttpClient } from './oauth2-provider.js';
 import { FetchHttpClient } from './oauth2-provider.js';
+import {
+  parsePendingAuthState,
+  PENDING_AUTH_STATE_TTL_SECONDS,
+  pendingAuthStateKey,
+  resolvePendingAuthStateStore,
+} from './pending-auth-state.js';
 import type {
   ExternalAuthProvider,
   OIDCProviderConfig,
   AuthInitiationResult,
   AuthCallbackParams,
   ExternalUserProfile,
+  PendingAuthStateStore,
 } from './types.js';
 import { ExternalAuthError } from './types.js';
 
@@ -52,17 +59,18 @@ export class OIDCProvider implements ExternalAuthProvider {
   private static readonly DISCOVERY_TTL_MS = 60 * 60 * 1000;
   private static readonly CLOCK_SKEW_SECONDS = 60;
 
-  // Store state/nonce for validation
-  private readonly pendingAuths = new Map<
-    string,
-    { tenantId: string; nonce: string; createdAt: number }
-  >();
+  /** PRC-M589: replica-shared pending state (state -> tenant + nonce). */
+  private readonly stateStore: PendingAuthStateStore;
 
   constructor(config: OIDCProviderConfig, httpClient?: HttpClient) {
     this.config = config;
     this.providerId = config.providerId;
     this.displayName = config.displayName;
     this.httpClient = httpClient ?? new FetchHttpClient();
+    this.stateStore = resolvePendingAuthStateStore(
+      config.stateStore,
+      `OIDC provider '${config.providerId}'`,
+    );
   }
 
   /**
@@ -126,9 +134,12 @@ export class OIDCProvider implements ExternalAuthProvider {
     const state = uuidv4();
     const nonce = uuidv4();
 
-    // Store state and nonce for callback validation
-    this.pendingAuths.set(state, { tenantId, nonce, createdAt: Date.now() });
-    this.cleanupPendingAuths();
+    // PRC-M589: store state and nonce in the shared store for callback validation.
+    await this.stateStore.put(
+      pendingAuthStateKey(this.providerId, state),
+      JSON.stringify({ tenantId, nonce }),
+      PENDING_AUTH_STATE_TTL_SECONDS,
+    );
 
     const params = new URLSearchParams({
       client_id: this.config.clientId,
@@ -174,8 +185,11 @@ export class OIDCProvider implements ExternalAuthProvider {
       );
     }
 
-    // Validate state
-    const storedAuth = this.pendingAuths.get(params.state);
+    // Validate state. PRC-M589: single-use take from the shared store.
+    const storedAuth = parsePendingAuthState<{ tenantId: string; nonce: string }>(
+      await this.stateStore.take(pendingAuthStateKey(this.providerId, params.state)),
+      ['tenantId', 'nonce'],
+    );
     if (!storedAuth) {
       throw new ExternalAuthError(
         'Invalid or expired state parameter',
@@ -183,8 +197,6 @@ export class OIDCProvider implements ExternalAuthProvider {
         'OIDC_INVALID_STATE',
       );
     }
-
-    this.pendingAuths.delete(params.state);
 
     if (storedAuth.tenantId !== tenantId) {
       throw new ExternalAuthError(
@@ -320,18 +332,6 @@ export class OIDCProvider implements ExternalAuthProvider {
       avatarUrl: picture,
       rawAttributes: payload,
     };
-  }
-
-  /**
-   * Clean up expired pending auth states (older than 10 minutes).
-   */
-  private cleanupPendingAuths(): void {
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    for (const [state, data] of this.pendingAuths.entries()) {
-      if (data.createdAt < tenMinutesAgo) {
-        this.pendingAuths.delete(state);
-      }
-    }
   }
 
   /**
