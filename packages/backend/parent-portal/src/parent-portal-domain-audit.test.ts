@@ -28,7 +28,7 @@ type QueryCall = { sql: string; values: unknown[]; client: unknown };
  * Fake connectable pg pool: every `withPgTenant` call checks out ONE client (recorded on
  * `connects`) that answers BEGIN/set_config/COMMIT with empty rows, synthesizes a RETURNING row
  * for every domain INSERT/UPDATE this suite issues, and otherwise returns rows matching what
- * `appendAuditEntryOnClient` (audit_chain_heads / audit_log_entries) expects. Every query made
+ * `appendAuditEntryOnClient` (audit_chain_lock_head / audit_chain_append) expects. Every query made
  * on that client is pushed to the shared `calls` log tagged with the client instance, so a test
  * can assert the domain write and the audit INSERT share the identical client object.
  */
@@ -50,18 +50,13 @@ function createFakePool() {
           if (/^SELECT set_config/.test(sql.trim())) {
             return { rows: [] };
           }
-          // audit_chain_heads upsert / lock read (txn-mutation-audit.ts).
-          if (/INSERT INTO audit_chain_heads/.test(sql)) {
-            return { rows: [] };
-          }
-          if (/SELECT head_seq, head_hash FROM audit_chain_heads/.test(sql)) {
+          // PRC-M200 keyed chain (txn-mutation-audit.ts): lock the head, then append the
+          // audit_log_entries row through the SECURITY DEFINER function (migration 292).
+          if (/FROM audit_chain_lock_head\(/.test(sql)) {
             return { rows: [{ head_seq: 0, head_hash: null }] };
           }
-          if (/UPDATE audit_chain_heads/.test(sql)) {
-            return { rows: [] };
-          }
-          if (/INSERT INTO audit_log_entries/.test(sql)) {
-            return { rows: [{ ...rowStubFor('audit_log_entries', values) }] };
+          if (/FROM audit_chain_append\(/.test(sql)) {
+            return { rows: [{ chain_seq: 1, prev_hash: null }] };
           }
           // UPDATE ... parent_consents ... valid_to ... RETURNING id  (close step)
           if (/UPDATE parent_consents/.test(sql) && /RETURNING id/.test(sql)) {
@@ -183,24 +178,6 @@ function createFakePool() {
 function rowStubFor(table: string, values: unknown[]): Record<string, unknown> {
   const now = new Date();
   switch (table) {
-    case 'audit_log_entries':
-      return {
-        id: values[0],
-        tenant_id: values[1],
-        entity_type: values[2],
-        entity_id: values[3],
-        operation: values[4],
-        user_id: values[5],
-        user_name: values[6],
-        ip_address: values[7],
-        occurred_at: values[8],
-        before_values: null,
-        after_values: null,
-        metadata: null,
-        chain_seq: 1,
-        prev_hash: null,
-        entry_hash: 'deadbeef',
-      };
     case 'parent_consents':
       return {
         id: values[0],
@@ -273,8 +250,9 @@ function rowStubFor(table: string, values: unknown[]): Record<string, unknown> {
   }
 }
 
+/** The audit_log_entries write: PRC-M200 appends it through audit_chain_append(...). */
 function auditInsertCalls(calls: QueryCall[]): QueryCall[] {
-  return calls.filter((c) => /INSERT INTO audit_log_entries/.test(c.sql));
+  return calls.filter((c) => /FROM audit_chain_append\(/.test(c.sql));
 }
 
 function stubEnsureSchema(repo: PgParentPortalRepository): void {
