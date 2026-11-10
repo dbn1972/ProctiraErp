@@ -127,4 +127,46 @@ describe.skipIf(!live)('PgRolesRepository (live)', () => {
     const listed = await upperService.listRoles(upper);
     expect(listed.map((r) => r.id)).toContain(created.id);
   });
+  // PRC-M026: SCIM filters / pages run in SQL on the tenant-bound connection.
+  it('queryUsers filters, pages and counts in SQL and never crosses tenants', async () => {
+    const tag = Date.now().toString(36);
+    const roles = await service.listRoles(TENANT_A);
+    const roleId = roles[0]!.id;
+    for (let i = 0; i < 4; i += 1) {
+      await service.inviteUser(TENANT_A, {
+        email: `m026-${tag}-${i}@school.org`,
+        displayName: `M026 ${tag} ${i}`,
+        roleIds: i < 2 ? [roleId] : [],
+      });
+    }
+    await service.inviteUser(TENANT_B, {
+      email: `m026-${tag}-0@school.org`,
+      displayName: `M026 ${tag} B`,
+      roleIds: [],
+    });
+    const byEmail = await repo.queryUsers(
+      TENANT_A,
+      { match: { attribute: 'email', value: `M026-${tag}-3@SCHOOL.ORG` } },
+      { offset: 0, limit: 10 },
+    );
+    expect(byEmail.total).toBe(1);
+    expect(byEmail.data[0]!.displayName).toBe(`M026 ${tag} 3`);
+    const members = await repo.queryUsers(TENANT_A, { roleId }, { offset: 0, limit: 100 });
+    expect(members.data.filter((u) => u.email.includes(tag))).toHaveLength(2);
+    const page = await repo.queryUsers(
+      TENANT_A,
+      { match: { attribute: 'email', value: `m026-${tag}-1@school.org` } },
+      { offset: 5, limit: 2 },
+    );
+    expect(page).toEqual({ data: [], total: 1 });
+    const crossTenant = await repo.queryUsers(
+      TENANT_B,
+      { match: { attribute: 'email', value: `m026-${tag}-3@school.org` } },
+      { offset: 0, limit: 10 },
+    );
+    expect(crossTenant.total).toBe(0);
+    // A tenant-A role id never matches tenant-B rows.
+    const crossRole = await repo.queryUsers(TENANT_B, { roleId }, { offset: 0, limit: 10 });
+    expect(crossRole.total).toBe(0);
+  });
 });

@@ -24,6 +24,7 @@ import type { OffboardStaffInput } from './offboard-schemas.js';
 import type { CreateStaffInput, UpdateStaffInput } from './schemas.js';
 import { emitStaffAudit, type StaffAuditOptions } from './staff-audit.js';
 import type {
+  StaffAuditDirective,
   StaffEntity,
   StaffFilter,
   StaffOffboardRecord,
@@ -39,6 +40,17 @@ export interface StaffOffboardStatusView {
   reason: string | null;
   decidedBy: string | null;
   decidedAt: string | null;
+}
+
+/**
+ * PRC-M013: request-scoped actor context so a staff PII mutation can write its
+ * audit row in the SAME transaction (via {@link StaffAuditDirective}). Supplied
+ * by the route from the verified JWT only (never trusted headers).
+ */
+export interface StaffAuditActor {
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
 }
 
 /** PRC-M371: keys beginning with '__' are server-owned (e.g. __offboard, __profile). */
@@ -80,6 +92,36 @@ export class StaffService {
     /** PRC-M544: offboarding is audited (no sink: unchanged behaviour). */
     private readonly options: StaffAuditOptions = {},
   ) {}
+
+  /**
+   * PRC-M013: true when the repository writes the staff mutation audit row in the
+   * same transaction as the mutation. When true the service passes a
+   * {@link StaffAuditDirective} to the repo and must NOT also emit a post-hoc
+   * durable audit row for that mutation (the gateway sink skips it).
+   */
+  private get transactionalAudit(): boolean {
+    return this.repository.supportsTransactionalAudit === true;
+  }
+
+  /** PRC-M013: build the same-transaction audit directive from the actor + change. */
+  private buildAuditDirective(
+    operation: StaffAuditDirective['operation'],
+    actor: StaffAuditActor | undefined,
+    beforeValues: Record<string, unknown> | null,
+    afterValues: Record<string, unknown> | null,
+    action: string,
+  ): StaffAuditDirective | undefined {
+    if (!this.transactionalAudit) return undefined;
+    return {
+      operation,
+      beforeValues,
+      afterValues,
+      metadata: { regulated: `staff.${action}`, action },
+      actorId: actor?.actorId ?? null,
+      ipAddress: actor?.ipAddress ?? null,
+      requestId: actor?.requestId ?? null,
+    };
+  }
 
   /**
    * Create a new staff record.
@@ -158,7 +200,12 @@ export class StaffService {
    * @throws NotFoundError if staff not found
    * @throws ConflictError if identity number uniqueness violated
    */
-  async update(tenantId: string, id: string, input: UpdateStaffInput): Promise<StaffEntity> {
+  async update(
+    tenantId: string,
+    id: string,
+    input: UpdateStaffInput,
+    actor?: StaffAuditActor,
+  ): Promise<StaffEntity> {
     assertNoReservedCustomDataKeys(input.customData);
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
@@ -189,9 +236,34 @@ export class StaffService {
       updateData.customData = { ...input.customData, ...reserved };
     }
 
-    const updated = await this.repository.update(id, tenantId, updateData);
+    // PRC-M013: PII fields changed by this update (no raw values echoed to the
+    // audit metadata beyond the before/after envelope the chain stores).
+    const changedFields = Object.keys(updateData);
+    const directive = this.buildAuditDirective(
+      'UPDATE',
+      actor,
+      { fields: changedFields },
+      { fields: changedFields },
+      'update',
+    );
+    const updated = await this.repository.update(id, tenantId, updateData, directive);
     if (!updated) {
       throw new NotFoundError(`Staff with id '${id}' not found`);
+    }
+    // PRC-M013: durable audit is written in-transaction by the repository. When
+    // the repo cannot (in-memory), emit the post-hoc sink so no mutation is
+    // silently unaudited.
+    if (!directive) {
+      await emitStaffAudit(this.options.auditSink, {
+        tenantId,
+        action: 'staff.update',
+        entityType: 'staff',
+        entityId: id,
+        actorId: actor?.actorId ?? null,
+        operation: 'UPDATE',
+        before: { fields: changedFields },
+        after: { fields: changedFields },
+      });
     }
 
     return updated;
@@ -320,7 +392,7 @@ export class StaffService {
    *
    * @throws NotFoundError if staff not found
    */
-  async delete(tenantId: string, id: string): Promise<void> {
+  async delete(tenantId: string, id: string, actor?: StaffAuditActor): Promise<void> {
     // PRC-L157: block delete when HR/payroll history references this staff member.
     if (this.repository.countDependents) {
       const counts = await this.repository.countDependents(id, tenantId);
@@ -333,9 +405,23 @@ export class StaffService {
         );
       }
     }
-    const deleted = await this.repository.delete(id, tenantId);
+    // PRC-M013: durable audit on the same transaction as the soft-delete.
+    const directive = this.buildAuditDirective('DELETE', actor, { id }, null, 'delete');
+    const deleted = await this.repository.delete(id, tenantId, directive);
     if (!deleted) {
       throw new NotFoundError(`Staff with id '${id}' not found`);
+    }
+    if (!directive) {
+      await emitStaffAudit(this.options.auditSink, {
+        tenantId,
+        action: 'staff.delete',
+        entityType: 'staff',
+        entityId: id,
+        actorId: actor?.actorId ?? null,
+        operation: 'DELETE',
+        before: { id },
+        after: null,
+      });
     }
   }
 
@@ -351,6 +437,7 @@ export class StaffService {
     id: string,
     input: OffboardStaffInput,
     decidedBy: string,
+    actor?: StaffAuditActor,
   ): Promise<StaffOffboardStatusView> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
@@ -372,9 +459,19 @@ export class StaffService {
       decidedAt: new Date().toISOString(),
     };
 
+    // PRC-M013: offboarding audit on the same transaction as the write; actor
+    // defaults to the decider when no request context is threaded.
+    const directive = this.buildAuditDirective(
+      'UPDATE',
+      actor ?? { actorId: decidedBy, ipAddress: null, requestId: null },
+      { status: existing.status },
+      { status: 'INACTIVE', effectiveDate: meta.effectiveDate, reason: meta.reason },
+      'offboard',
+    );
+
     // PRC-M381: one conditional write; a concurrent offboard that already won
     // (offboard_status set) makes this write a no-op.
-    const updated = await this.repository.markOffboarded(id, tenantId, meta);
+    const updated = await this.repository.markOffboarded(id, tenantId, meta, directive);
     if (!updated) {
       const current = await this.repository.findById(id, tenantId);
       if (!current) {
@@ -382,16 +479,20 @@ export class StaffService {
       }
       throw new ConflictError(`Staff with id '${id}' is already inactive/offboarded`);
     }
-    await emitStaffAudit(this.options.auditSink, {
-      tenantId,
-      action: 'staff.offboard',
-      entityType: 'staff',
-      entityId: id,
-      actorId: decidedBy,
-      operation: 'UPDATE',
-      before: { status: existing.status },
-      after: { status: updated.status, effectiveDate: meta.effectiveDate, reason: meta.reason },
-    });
+    // PRC-M013: when the repository wrote the audit row in-transaction, do NOT
+    // emit a second post-hoc durable row. Keep the post-hoc path for in-memory.
+    if (!directive) {
+      await emitStaffAudit(this.options.auditSink, {
+        tenantId,
+        action: 'staff.offboard',
+        entityType: 'staff',
+        entityId: id,
+        actorId: decidedBy,
+        operation: 'UPDATE',
+        before: { status: existing.status },
+        after: { status: updated.status, effectiveDate: meta.effectiveDate, reason: meta.reason },
+      });
+    }
 
     return this.toOffboardView(updated, meta);
   }

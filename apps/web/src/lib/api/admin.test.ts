@@ -11,13 +11,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import * as adminModule from './admin';
 import {
   ADMIN_API_ENDPOINTS,
   assignRolesToUser,
   createRole,
   deleteRole,
   permissionKey,
-  recordHighRiskAuditEvent,
   roleHasPermission,
   togglePermission,
   updateRolePermissions,
@@ -141,9 +141,18 @@ describe('admin matrix helpers', () => {
   });
 });
 
-// ─── Audit-event dispatch ────────────────────────────────────────────────
+// ─── PRC-L264: no browser-emitted (client-trusted) audit ──────────────────
+//
+// The role/user audit trail is now written server-side, inside the same
+// database transaction as the mutation (tenant-admin plugin → PgRolesRepository
+// txn-audit port). The browser must NOT POST a before/after audit record: that
+// path targeted an UNMOUNTED endpoint (`/api/v1/audit/events`; the gateway only
+// mounts the audit plugin at `/api/v1/audit-logs`) and was a client-supplied,
+// client-trusted audit — an anti-pattern. These tests assert each mutation hits
+// ONLY its own endpoint and never the audit endpoint, and that the browser
+// audit emitter is gone from the module surface.
 
-describe('admin client → audit event dispatch', () => {
+describe('admin client → no browser-emitted audit (PRC-L264)', () => {
   let originalFetch: typeof fetch;
 
   beforeEach(() => {
@@ -155,32 +164,12 @@ describe('admin client → audit event dispatch', () => {
     vi.clearAllMocks();
   });
 
-  it('recordHighRiskAuditEvent posts riskLevel=high to the audit endpoint', async () => {
-    const fetcher = makeFetchSpy(() => emptyResponse(201));
-    await recordHighRiskAuditEvent(
-      {
-        entityType: 'role',
-        entityId: 'role-1',
-        operation: 'UPDATE',
-        beforeValues: { permissions: [] },
-        afterValues: { permissions: [{ resource: 'student', action: 'read' }] },
-        summary: 'Test summary',
-      },
-      { fetcher: asFetch(fetcher) },
-    );
-
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    const [url, init] = fetcher.mock.calls[0]!;
-    expect(url).toBe(ADMIN_API_ENDPOINTS.AUDIT_EVENTS);
-    expect((init as RequestInit).method).toBe('POST');
-    const body = JSON.parse(String((init as RequestInit).body));
-    expect(body.metadata.riskLevel).toBe('high');
-    expect(body.metadata.summary).toBe('Test summary');
-    expect(body.entityType).toBe('role');
-    expect(body.operation).toBe('UPDATE');
+  it('does not expose a browser audit emitter or an audit-events endpoint', () => {
+    expect('recordHighRiskAuditEvent' in adminModule).toBe(false);
+    expect('AUDIT_EVENTS' in ADMIN_API_ENDPOINTS).toBe(false);
   });
 
-  it('createRole emits a CREATE audit event with the new role snapshot', async () => {
+  it('createRole calls only the roles endpoint (no audit POST)', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const fetcher = makeFetchSpy((url, init) => {
       calls.push({ url, init: init ?? {} });
@@ -189,35 +178,17 @@ describe('admin client → audit event dispatch', () => {
     });
 
     const role = await createRole(
-      {
-        name: 'Curriculum Lead',
-        permissions: [{ resource: 'assessment', action: 'manage' }],
-      },
+      { name: 'Curriculum Lead', permissions: [{ resource: 'assessment', action: 'manage' }] },
       { fetcher: asFetch(fetcher) },
     );
 
     expect(role).toEqual(FIXTURE_ROLE);
-
-    // Two calls: the role create + the audit event.
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe(ADMIN_API_ENDPOINTS.ROLES);
-    expect(calls[0]!.init.method).toBe('POST');
-
-    const auditCall = calls[1]!;
-    expect(auditCall.url).toBe(ADMIN_API_ENDPOINTS.AUDIT_EVENTS);
-    const auditBody = JSON.parse(String(auditCall.init.body));
-    expect(auditBody).toMatchObject({
-      entityType: 'role',
-      entityId: FIXTURE_ROLE.id,
-      operation: 'CREATE',
-      beforeValues: null,
-      afterValues: { name: FIXTURE_ROLE.name, permissions: FIXTURE_ROLE.permissions },
-      metadata: { riskLevel: 'high' },
-    });
-    expect(auditBody.metadata.summary).toContain('Curriculum Lead');
+    expect(calls.some((c) => c.url.includes('/audit'))).toBe(false);
   });
 
-  it('updateRolePermissions emits an UPDATE audit event with before/after diff', async () => {
+  it('updateRolePermissions calls only the permissions endpoint (no audit POST)', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const updated: TenantRole = {
       ...FIXTURE_ROLE,
@@ -237,23 +208,16 @@ describe('admin client → audit event dispatch', () => {
     );
 
     expect(role).toEqual(updated);
-    expect(calls).toHaveLength(2);
-    const auditCall = calls[1]!;
-    const auditBody = JSON.parse(String(auditCall.init.body));
-    expect(auditBody.operation).toBe('UPDATE');
-    expect(auditBody.beforeValues).toEqual({ permissions: FIXTURE_ROLE.permissions });
-    expect(auditBody.afterValues).toEqual({ permissions: updated.permissions });
-    expect(auditBody.metadata.riskLevel).toBe('high');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toContain(`${ADMIN_API_ENDPOINTS.ROLES}/`);
+    expect(calls.some((c) => c.url.includes('/audit'))).toBe(false);
   });
 
-  it('deleteRole emits a DELETE audit event with the deleted snapshot', async () => {
+  it('deleteRole calls only the role endpoint (no audit POST)', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const fetcher = makeFetchSpy((url, init) => {
       calls.push({ url, init: init ?? {} });
-      if (url.startsWith(`${ADMIN_API_ENDPOINTS.ROLES}/`) && init?.method === 'DELETE') {
-        return emptyResponse(204);
-      }
-      return emptyResponse(201);
+      return emptyResponse(204);
     });
 
     await deleteRole(
@@ -262,14 +226,12 @@ describe('admin client → audit event dispatch', () => {
       { fetcher: asFetch(fetcher) },
     );
 
-    expect(calls).toHaveLength(2);
-    const auditBody = JSON.parse(String(calls[1]!.init.body));
-    expect(auditBody.operation).toBe('DELETE');
-    expect(auditBody.afterValues).toBeNull();
-    expect(auditBody.metadata.riskLevel).toBe('high');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.init.method).toBe('DELETE');
+    expect(calls.some((c) => c.url.includes('/audit'))).toBe(false);
   });
 
-  it('assignRolesToUser emits an UPDATE audit event for the role-to-user grid', async () => {
+  it('assignRolesToUser calls only the user-roles endpoint (no audit POST)', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const updated: TenantUser = { ...FIXTURE_USER, roleIds: ['role-1', 'role-2'] };
     const fetcher = makeFetchSpy((url, init) => {
@@ -286,34 +248,9 @@ describe('admin client → audit event dispatch', () => {
     );
 
     expect(user.roleIds).toEqual(['role-1', 'role-2']);
-
-    const auditBody = JSON.parse(String(calls[1]!.init.body));
-    expect(auditBody.entityType).toBe('user');
-    expect(auditBody.beforeValues).toEqual({ roleIds: FIXTURE_USER.roleIds });
-    expect(auditBody.afterValues).toEqual({ roleIds: updated.roleIds });
-    expect(auditBody.metadata.riskLevel).toBe('high');
-  });
-
-  it('throws an AdminApiError when the audit endpoint rejects the event', async () => {
-    const fetcher = makeFetchSpy(() =>
-      jsonResponse({ code: 'INTERNAL_ERROR', message: 'audit pipeline down' }, 500),
-    );
-
-    await expect(
-      recordHighRiskAuditEvent(
-        {
-          entityType: 'role',
-          entityId: 'role-1',
-          operation: 'CREATE',
-          summary: 'noop',
-        },
-        { fetcher: asFetch(fetcher) },
-      ),
-    ).rejects.toMatchObject({
-      name: 'AdminApiError',
-      status: 500,
-      code: 'INTERNAL_ERROR',
-    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toContain(`${ADMIN_API_ENDPOINTS.USERS}/`);
+    expect(calls.some((c) => c.url.includes('/audit'))).toBe(false);
   });
 });
 // ─── PRC-M486: CSRF header on admin mutations ────────────────────────────

@@ -50,12 +50,27 @@ export interface AuditEntry {
   timestamp: string;
   /** IP address of the client that made the request */
   ipAddress: string;
+  /**
+   * PRC-L590 — tamper-evident durable chain position, assigned by the durable
+   * store (`@proctira/backend-audit` via {@link DurableAuditStore}). The
+   * per-tenant chain starts at `chainSeq` 1 with `prevHash === null`; each later
+   * entry's `prevHash` links to the previous entry's `entryHash`. These are
+   * `null` only for the ephemeral test store ({@link InMemoryAuditStore}), which
+   * is never a production audit path.
+   */
+  chainSeq?: number | null;
+  prevHash?: string | null;
+  entryHash?: string | null;
 }
 
 /**
- * Input for creating a new audit entry (id and timestamp are auto-generated).
+ * Input for creating a new audit entry. `id`, `timestamp` and the durable-chain
+ * fields (`chainSeq`/`prevHash`/`entryHash`) are assigned by the store.
  */
-export type CreateAuditEntryInput = Omit<AuditEntry, 'id' | 'timestamp'>;
+export type CreateAuditEntryInput = Omit<
+  AuditEntry,
+  'id' | 'timestamp' | 'chainSeq' | 'prevHash' | 'entryHash'
+>;
 
 /**
  * Filter options for querying audit entries.

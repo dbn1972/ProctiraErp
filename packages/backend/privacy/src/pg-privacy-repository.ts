@@ -18,6 +18,9 @@ import {
   NON_TERMINAL_ANONYMIZATION_JOB_STATUSES,
 } from './privacy-repository.js';
 import type {
+  PrivacyAuditDirective,
+  PrivacyTxnAuditEvent,
+  PrivacyTxnAuditPort,
   ReleaseStalledErasureResult,
   AnonymizationJobEntity,
   CorrectionRequestEntity,
@@ -220,10 +223,51 @@ async function insertAnonymizationJob(
   return mapAnonymization(result.rows[0] as Record<string, unknown>);
 }
 export class PgPrivacyRepository implements PrivacyRepository {
-  constructor(private readonly pool: PgPoolLike) {}
+  constructor(
+    private readonly pool: PgPoolLike,
+    /**
+     * PRC-M013: when provided, erasure state-transition audit rows are written
+     * on the mutation's own transaction (atomic with the state change). The
+     * gateway injects a port backed by the keyed audit chain; without it the
+     * service keeps the post-hoc audit path.
+     */
+    private readonly txnAuditPort?: PrivacyTxnAuditPort,
+  ) {}
+
+  /** PRC-M013: true only when a transactional audit port was injected. */
+  get supportsTransactionalAudit(): boolean {
+    return this.txnAuditPort !== undefined;
+  }
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
     return withPgTenant(this.pool, tenantId, fn);
+  }
+
+  /**
+   * PRC-M013: append the erasure audit row on the mutation's own client. A
+   * throwing port (audit failure) propagates out of the enclosing
+   * `withPgTenant` transaction, rolling the state change back.
+   */
+  private async appendErasureAuditInTxn(
+    client: PgQueryable,
+    tenantId: string,
+    entityId: string,
+    audit: PrivacyAuditDirective,
+  ): Promise<void> {
+    if (!this.txnAuditPort) return;
+    const event: PrivacyTxnAuditEvent = {
+      tenantId,
+      entityType: 'privacy_erasure',
+      entityId,
+      operation: 'UPDATE',
+      beforeValues: audit.beforeValues,
+      afterValues: audit.afterValues,
+      metadata: audit.metadata,
+      actorId: audit.actorId,
+      ipAddress: audit.ipAddress,
+      requestId: audit.requestId,
+    };
+    await this.txnAuditPort.appendAuditInTxn(client, event);
   }
 
   async ensureSchema(): Promise<void> {
@@ -379,6 +423,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
     options?: { expectedStatus?: ErasureRequestEntity['status'] },
+    audit?: PrivacyAuditDirective,
   ): Promise<ErasureRequestEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -411,6 +456,11 @@ export class PgPrivacyRepository implements PrivacyRepository {
         ],
       );
       if (!result.rows[0]) return null;
+      // PRC-M013: audit row shares the update's transaction — a throwing port
+      // rolls the status change back.
+      if (audit) {
+        await this.appendErasureAuditInTxn(client, tenantId, id, audit);
+      }
       return mapErasure(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -577,6 +627,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     tenantId: string,
     patch: { reviewedBy: string; statusReason: string },
     job: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
+    audit?: PrivacyAuditDirective,
   ): Promise<{ erasure: ErasureRequestEntity; job: AnonymizationJobEntity } | null> {
     await this.ensureSchema();
     // PRC-M320: CAS status flip + job insert share one withPgTenant transaction; an insert
@@ -594,6 +645,11 @@ export class PgPrivacyRepository implements PrivacyRepository {
       );
       if (!flipped.rows[0]) return null;
       const created = await insertAnonymizationJob(client, job);
+      // PRC-M013: audit the approved -> in_progress transition atomically with
+      // the flip + job insert.
+      if (audit) {
+        await this.appendErasureAuditInTxn(client, tenantId, requestId, audit);
+      }
       return {
         erasure: mapErasure(flipped.rows[0] as Record<string, unknown>),
         job: created,
@@ -605,6 +661,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     tenantId: string,
     patch: { reviewedBy: string; statusReason: string },
     staleBefore: Date,
+    audit?: PrivacyAuditDirective,
   ): Promise<ReleaseStalledErasureResult> {
     await this.ensureSchema();
     // Review #554: one withPgTenant transaction. Row locks on the request and on its open
@@ -652,6 +709,11 @@ export class PgPrivacyRepository implements PrivacyRepository {
          RETURNING *`,
         [requestId, tenantId, patch.reviewedBy, patch.statusReason],
       );
+      // PRC-M013: audit the in_progress -> approved release atomically with the
+      // job-fence + status change.
+      if (audit) {
+        await this.appendErasureAuditInTxn(client, tenantId, requestId, audit);
+      }
       return {
         outcome: 'released',
         erasure: mapErasure(released.rows[0] as Record<string, unknown>),

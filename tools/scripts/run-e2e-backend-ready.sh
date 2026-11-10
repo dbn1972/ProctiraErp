@@ -163,11 +163,27 @@ fi
 # Vihar directory (named classes, KPIs, schedule). apply-sql.sh does not load
 # db/seeds/*.sql — apply 006 here with the migrator URL when present so RLS
 # and owner privileges match CI's schema apply step.
-if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" != "1" ]]; then
+#
+# PRC-L461 / DR4-3: the demo seed is a privileged, destructive-ish fixture load
+# that must never run by accident. It is now guarded by the GUC
+# proctira.allow_demo_seed (the seed raises unless it is 'on') and this harness
+# resolves a strict precedence before invoking psql:
+#   1. E2E_SKIP_SUNRISE_SEED=1   -> skip the seed entirely (no psql).
+#   2. else ALLOW_SUNRISE_DEMO_SEED=1 -> run the seed with the GUC bound via
+#      PGOPTIONS so the seed's allow_demo_seed guard is satisfied.
+#   3. else                      -> fail closed, naming BOTH env vars, so a
+#      caller must consciously pick skip or opt-in. This stops an un-guarded
+#      demo seed from silently loading on a real environment.
+if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" == "1" ]]; then
+  echo "==> E2E_SKIP_SUNRISE_SEED=1 — skipping Sunrise demo seed"
+elif [[ "${ALLOW_SUNRISE_DEMO_SEED:-0}" == "1" ]]; then
   if command -v psql >/dev/null 2>&1; then
     SUNRISE_SEED_URL="${MIGRATOR_DATABASE_URL:-$DATABASE_URL}"
-    echo "==> Seeding Sunrise demo (db/seeds/006_sunrise_public_school_demo.sql)"
-    psql "$SUNRISE_SEED_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/db/seeds/006_sunrise_public_school_demo.sql"
+    echo "==> Seeding Sunrise demo (db/seeds/006_sunrise_public_school_demo.sql, proctira.allow_demo_seed=on)"
+    # PGOPTIONS binds the allow_demo_seed GUC for the whole psql connection so
+    # the seed's in-file guard passes; the GUC is never persisted server-side.
+    PGOPTIONS="-c proctira.allow_demo_seed=on" \
+      psql "$SUNRISE_SEED_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/db/seeds/006_sunrise_public_school_demo.sql"
   else
     echo "warn: psql not on PATH — skipping Sunrise demo seed (set E2E_SKIP_SUNRISE_SEED=1 to silence)" >&2
     if [[ "$LIVE_REQUIRED" == "1" ]]; then
@@ -175,6 +191,11 @@ if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" != "1" ]]; then
       exit 1
     fi
   fi
+else
+  echo "error: Sunrise demo seed requires an explicit decision (PRC-L461/DR4-3):" >&2
+  echo "       set E2E_SKIP_SUNRISE_SEED=1 to skip it, or" >&2
+  echo "       set ALLOW_SUNRISE_DEMO_SEED=1 to load it with proctira.allow_demo_seed=on." >&2
+  exit 1
 fi
 
 # A stale gateway on the port would make the health check pass against code

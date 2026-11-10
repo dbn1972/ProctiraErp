@@ -242,6 +242,9 @@ externalSecret:
       - REPORT_DOWNLOAD_SIGNING_SECRET
       - LMS_FILE_SIGNING_SECRET
       - ADMISSIONS_OFFER_SIGNING_SECRET
+      # PRC-M332: HMAC key for registration bot challenges; deployed boots
+      # refuse to mount registration without it.
+      - REGISTRATION_CHALLENGE_SECRET
       - ETL_CONNECTOR_SECRET_KEY
       - WEBHOOK_SIGNING_KMS_KEY_ID
     etl-worker: [DATABASE_URL, KAFKA_BROKERS, REDIS_URL, RABBITMQ_URL]

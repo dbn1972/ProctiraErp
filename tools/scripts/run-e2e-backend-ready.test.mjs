@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -521,4 +521,24 @@ test('harness gates an unsharded run in merged mode and a shard in shard mode', 
   assert.equal(shard.status, 0, shard.stdout + shard.stderr);
   assert.match(shard.stdout, /Skip gate \(UAT-ENV-007, mode shard\)/);
   assert.match(shard.stdout, /mode=shard executed=1 skipped=1/);
+});
+
+test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=on (PRC-L461)', () => {
+  const dir = dirname(workflowPath);
+  const seedSteps = readdirSync(dir)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .flatMap((f) => {
+      const wf = yaml.parse(readFileSync(resolve(dir, f), 'utf8'));
+      return Object.values(wf?.jobs ?? {})
+        .flatMap((j) => j.steps ?? [])
+        .filter((s) => /db\/seeds\/006_sunrise_public_school_demo\.sql/.test(s.run ?? ''))
+        .map((s) => ({ file: f, name: s.name, env: s.env ?? {}, run: s.run }));
+    });
+  assert.ok(seedSteps.length > 0, 'e2e-backend-ready.yml applies seed 006');
+  for (const s of seedSteps) {
+    const bound =
+      /-c proctira\.allow_demo_seed=on/.test(String(s.env.PGOPTIONS ?? '')) ||
+      /PGOPTIONS=["']?-c proctira\.allow_demo_seed=on/.test(s.run);
+    assert.ok(bound, `${s.file} step "${s.name}" applies 006 without proctira.allow_demo_seed=on`);
+  }
 });

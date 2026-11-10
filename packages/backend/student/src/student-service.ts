@@ -19,6 +19,7 @@ import { admissionNoOf } from './admission-number.js';
 import { dateOfBirthError } from './date-of-birth.js';
 import type { CreateStudentInput, MergeStudentsInput, UpdateStudentInput } from './schemas.js';
 import type {
+  StudentAuditDirective,
   StudentEntity,
   StudentFilter,
   StudentRepository,
@@ -34,6 +35,19 @@ function assertValidDateOfBirth(value: string): void {
     ]);
   }
 }
+
+/**
+ * PRC-M013: the authenticated caller behind a student PII mutation, resolved
+ * from the verified JWT by the gateway route. Used to attribute the
+ * same-transaction audit row. All fields are null outside a request.
+ */
+export interface StudentAuditActor {
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+const ANONYMOUS_ACTOR: StudentAuditActor = { actorId: null, ipAddress: null, requestId: null };
 
 export type ReassignEnrollments = (input: {
   tenantId: string;
@@ -145,6 +159,7 @@ export class StudentService {
     id: string,
     input: UpdateStudentInput,
     options: StudentUpdateOptions = {},
+    actor: StudentAuditActor = ANONYMOUS_ACTOR,
   ): Promise<StudentEntity> {
     if (input.dateOfBirth !== undefined) assertValidDateOfBirth(input.dateOfBirth);
     const existing = await this.repository.findById(id, tenantId);
@@ -218,12 +233,49 @@ export class StudentService {
       updateData.customData = mergedCustom;
     }
 
-    const updated = await this.repository.update(id, tenantId, updateData, options);
+    // PRC-M013: when the repository writes the audit row in the mutation's own
+    // transaction, pass the directive (before/after field names + actor) so a
+    // student PII update can never commit without its durable audit row. The
+    // in-memory repo (no transactional audit) ignores it and the gateway's
+    // post-hoc domain-audit sink keeps auditing that path.
+    const auditDirective = this.buildAuditDirective('UPDATE', existing, updateData, actor);
+    const updated = await this.repository.update(id, tenantId, updateData, options, auditDirective);
     if (!updated) {
       throw new NotFoundError(`Student with id '${id}' not found`);
     }
 
     return updated;
+  }
+
+  /**
+   * PRC-M013: build the same-transaction audit directive for a student PII
+   * mutation, or `undefined` when the repository does not support transactional
+   * audit (keeps the in-memory / post-hoc path unchanged). PII values are NOT
+   * stored — only the changed field NAMES and the student id — so the audit row
+   * carries no child PII.
+   */
+  private buildAuditDirective(
+    operation: 'UPDATE' | 'DELETE',
+    before: StudentEntity,
+    changes: Partial<StudentEntity> | null,
+    actor: StudentAuditActor,
+  ): StudentAuditDirective | undefined {
+    if (!this.repository.supportsTransactionalAudit) return undefined;
+    const changedFields =
+      operation === 'UPDATE' && changes
+        ? Object.keys(changes).filter((k) => (changes as Record<string, unknown>)[k] !== undefined)
+        : [];
+    return {
+      operation,
+      // Field names only — never the PII values (DPDP data minimisation).
+      beforeValues: null,
+      afterValues: null,
+      metadata:
+        operation === 'UPDATE' ? { studentId: before.id, changedFields } : { studentId: before.id },
+      actorId: actor.actorId,
+      ipAddress: actor.ipAddress,
+      requestId: actor.requestId,
+    };
   }
 
   /**
@@ -268,7 +320,11 @@ export class StudentService {
    * @throws NotFoundError if student not found
    * @throws BusinessRuleError if an active privacy legal hold blocks deletion (W1-SEC-06)
    */
-  async delete(tenantId: string, id: string): Promise<void> {
+  async delete(
+    tenantId: string,
+    id: string,
+    actor: StudentAuditActor = ANONYMOUS_ACTOR,
+  ): Promise<void> {
     if (this.assertDestructiveDeleteAllowed) {
       await this.assertDestructiveDeleteAllowed({
         tenantId,
@@ -276,7 +332,20 @@ export class StudentService {
         subjectId: id,
       });
     }
-    const deleted = await this.repository.delete(id, tenantId);
+    // PRC-M013: when the repository supports transactional audit, the soft-delete
+    // and its durable audit row commit (or roll back) together.
+    const auditDirective = this.repository.supportsTransactionalAudit
+      ? ({
+          operation: 'DELETE' as const,
+          beforeValues: null,
+          afterValues: null,
+          metadata: { studentId: id },
+          actorId: actor.actorId,
+          ipAddress: actor.ipAddress,
+          requestId: actor.requestId,
+        } satisfies StudentAuditDirective)
+      : undefined;
+    const deleted = await this.repository.delete(id, tenantId, auditDirective);
     if (!deleted) {
       throw new NotFoundError(`Student with id '${id}' not found`);
     }
