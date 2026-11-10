@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
-    "chokidar": "^3.6.0",
+    "chokidar": "^6.0.0",
     "fast-check": "^4.10.2",
     "typescript": "^5.4.0",
     "vitest": "^3.2.7"
@@ -41,7 +41,7 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "chokidar": "^3.6.0"
+    "chokidar": "^6.0.0"
   },
   "peerDependenciesMeta": {
     "chokidar": {
