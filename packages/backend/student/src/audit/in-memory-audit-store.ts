@@ -11,8 +11,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
-import type { AuditEntry, CreateAuditEntryInput, AuditQueryFilter } from './types.js';
 import type { AuditStore } from './audit-store.js';
+import type { AuditEntry, CreateAuditEntryInput, AuditQueryFilter } from './types.js';
 
 /**
  * Extracts the YYYY-MM partition key from an ISO timestamp.
@@ -24,6 +24,10 @@ function getPartitionKey(timestamp: string): string {
 /**
  * In-memory audit store for testing purposes.
  * Entries are stored in a Map keyed by month partition.
+ *
+ * PRC-L590: this store is TEST-ONLY. It is ephemeral (lost on process exit) and
+ * carries no tamper-evident chain, so it must never be the runtime audit path.
+ * The runtime uses {@link DurableAuditStore} over the durable chained store.
  */
 export class InMemoryAuditStore implements AuditStore {
   /** Partitioned storage: Map<YYYY-MM, AuditEntry[]> */

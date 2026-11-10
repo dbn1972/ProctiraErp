@@ -5,7 +5,7 @@
  * specific error with retry and hides the empty-state setup CTAs.
  */
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ok = <T,>(data: T) => ({ ok: true as const, data });
 const fail = (error: string) => ({ ok: false as const, error });
@@ -38,6 +38,14 @@ vi.mock('@/components/timetable/institution-week-grid', () => ({
 vi.mock('@/components/timetable/meeting-create-form', () => ({ MeetingCreateForm: () => null }));
 
 const params = Promise.resolve({ id: 'inst-1' });
+
+// The first cold import of each page transforms its whole module graph. On a
+// loaded CI runner that took longer than the 5 s test timeout, so warm both
+// pages once here; the per-test imports below then hit the module cache.
+beforeAll(async () => {
+  await import('./substitutions/page');
+  await import('./page');
+}, 30_000);
 
 function allOk() {
   tt.listSubstitutions.mockResolvedValue(ok([]));

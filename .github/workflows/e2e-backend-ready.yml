@@ -257,6 +257,9 @@ jobs:
         run: psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
         env:
           MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+          # PRC-L461: 006 raises unless proctira.allow_demo_seed=on. Bound for
+          # this psql connection only, as run-e2e-backend-ready.sh does.
+          PGOPTIONS: '-c proctira.allow_demo_seed=on'
 
       - name: Multi-board 3×2×500 certification (G-408)
         run: |
@@ -336,6 +339,12 @@ jobs:
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
           # Harness is fail-closed unless E2E_ALLOW_SKIP=1 (PRC-L389).
           E2E_ALLOW_SKIP: ${{ steps.mode.outputs.allow_skip || '0' }}
+          # PRC-L461 / DR4-3: the demo seed is opt-in. CI does not load the
+          # Sunrise demo fixture (the live specs it serves are not in the
+          # backend-ready smoke list); skip it explicitly so the harness does
+          # not fail closed on the missing decision. A caller that needs the
+          # demo rows sets ALLOW_SUNRISE_DEMO_SEED=1 instead.
+          E2E_SKIP_SUNRISE_SEED: '1'
           PLAYWRIGHT_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
           CI: true
 

@@ -78,6 +78,16 @@ regexes = [
   # own pre-MFA tickets. Referenced by zero non-test files; not in any manifest,
   # Helm values file or .env template; not a credential for any real system.
   '''pre-mfa-test-secret-0123456789abcdef''',
+  # packages/backend/audit/src/audit-keyed-chain.test.ts (branch history, PRC-M200, commit 8ff16842)
+  # packages/backend/audit/src/audit-ingest-drain.test.ts (branch history, PRC-M200, commit 7494939b)
+  # In-memory HMAC chain keys (keyId k1 / rotated k2) passed to a test-local
+  # AuditChainKeyResolver; the tests assert chain sealing, rotation and verify
+  # behaviour only. PR-range gitleaks scans walk every commit in
+  # PR_BASE_SHA..PR_HEAD_SHA, so the values in those commits surface regardless
+  # of head. Referenced by zero non-test files; not in any manifest, Helm values
+  # file or .env template; not a credential for any real system.
+  '''test-key-k1-0123456789abcdef''',
+  '''rotated-key-k2-fedcba9876543210''',
 ]
 
 paths = [

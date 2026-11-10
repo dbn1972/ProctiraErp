@@ -96,7 +96,13 @@ const PRESERVED: Record<PreservedDomain, readonly string[]> = {
   audit_archives: [
     // Application-/trigger-written immutable ledgers (no runtime DELETE grant).
     'admission_form_configurations',
+    // 291 (PRC-M200): per-tenant keyed-chain tamper boundary; migration-written,
+    // runtime SELECT only (trigger_owned). Losing it breaks verifyChain.
+    'audit_chain_cutover',
     'audit_chain_heads',
+    // 293 (PRC-M200): queued system-origin audit events awaiting seal into the
+    // keyed chain (append_only); unsealed rows are audit evidence not yet chained.
+    'audit_ingest_queue',
     'audit_log_entries',
     'audit_retention_configs',
     'enrollment_history',
