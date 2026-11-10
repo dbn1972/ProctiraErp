@@ -27,6 +27,7 @@ import { assertWithinPermissionCeiling } from './permission-ceiling.js';
 import type {
   PermissionRef,
   RoleEntity,
+  RolesAuditDirective,
   RolesRepository,
   UserListFilter,
   UserQuery,
@@ -80,6 +81,21 @@ export interface RolesAuditEvent {
  */
 export type RolesAuditEmitter = (event: RolesAuditEvent) => Promise<void> | void;
 
+/**
+ * PRC-L264: actor context for a role/user mutation, resolved per request by
+ * the gateway (JWT `sub`, client IP, request id). When the repository writes
+ * audit in the mutation transaction, the service threads this context into the
+ * `RolesAuditDirective` so the same-transaction row carries the real caller.
+ */
+export interface RolesAuditActor {
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+/** Resolver supplied by the gateway; returns the current request's actor. */
+export type RolesAuditActorResolver = () => RolesAuditActor;
+
 // ─── Inputs ───────────────────────────────────────────────────────────────
 
 export interface CreateRoleInput {
@@ -107,7 +123,63 @@ export class RolesService {
   constructor(
     private readonly repository: RolesRepository,
     private readonly emitAudit: RolesAuditEmitter = async () => undefined,
+    /**
+     * PRC-L264: resolves the current request's actor so a same-transaction
+     * audit row (written by a transactional repository) carries the real
+     * caller. Defaults to an anonymous actor for in-process / non-request use.
+     */
+    private readonly resolveAuditActor: RolesAuditActorResolver = () => ({
+      actorId: null,
+      ipAddress: null,
+      requestId: null,
+    }),
   ) {}
+
+  /**
+   * PRC-L264: true when the repository persists the high-risk audit row in the
+   * same transaction as the mutation. In that mode the service passes a
+   * {@link RolesAuditDirective} to the repository and does NOT emit a post-hoc
+   * audit event (avoids a double write and the post-hoc atomicity gap).
+   */
+  private get auditInTxn(): boolean {
+    return this.repository.supportsTransactionalAudit === true;
+  }
+
+  /** PRC-L264: build the same-transaction audit directive for a mutation. */
+  private auditDirective(event: RolesAuditEvent): RolesAuditDirective {
+    const actor = this.resolveAuditActor();
+    return {
+      beforeValues: event.beforeValues,
+      afterValues: event.afterValues,
+      metadata: event.metadata,
+      actorId: actor.actorId,
+      ipAddress: actor.ipAddress,
+      requestId: actor.requestId,
+    };
+  }
+
+  /**
+   * PRC-L264: emit the post-mutation audit event.
+   *
+   * - Post-hoc mode (in-memory repo): the emitter performs the durable write.
+   * - Txn-audit mode (Postgres repo): the durable row was already written in
+   *   the mutation transaction, so the event is tagged `auditPersistedInTxn`
+   *   and the emitter runs only non-durable side effects (role-cache
+   *   invalidation), never a second durable write.
+   *
+   * The event is always emitted so side effects (e.g. cache invalidation) fire
+   * regardless of persistence mode.
+   */
+  private async emitAuditSideEffects(event: RolesAuditEvent): Promise<void> {
+    if (this.auditInTxn) {
+      await this.emitAudit({
+        ...event,
+        metadata: { ...event.metadata, auditPersistedInTxn: true },
+      });
+      return;
+    }
+    await this.emitAudit(event);
+  }
 
   // ─── Permission catalog ────────────────────────────────────────────────
 
@@ -158,8 +230,7 @@ export class RolesService {
     }
 
     const id = uuidv4();
-    // PRC-L371: atomic conditional insert replaces the check-then-insert race.
-    const role = await this.repository.createRoleIfNameAbsent({
+    const createData = {
       id,
       tenantId,
       roleId: id,
@@ -167,22 +238,41 @@ export class RolesService {
       description: input.description ?? null,
       builtIn: false,
       permissions: input.permissions.map((p) => ({ ...p })),
+    };
+    // afterValues snapshot of the role that will be persisted (stable shape,
+    // identical to `snapshot(role)` for the fields it records).
+    const afterSnapshot = this.snapshot({
+      ...createData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
-    if (!role) {
-      throw new ConflictError(`Role with name '${input.name}' already exists`);
-    }
-
-    await this.emitAudit({
+    const auditEvent: RolesAuditEvent = {
       tenantId,
       entityType: 'role',
-      entityId: role.id,
+      entityId: id,
       operation: 'CREATE',
       beforeValues: null,
-      afterValues: this.snapshot(role),
+      afterValues: afterSnapshot,
       metadata: {
         riskLevel: 'high',
         change: 'role_created',
       },
+    };
+    // PRC-L371: atomic conditional insert replaces the check-then-insert race.
+    // PRC-L264: in txn-audit mode the repository writes the audit row in the
+    // same transaction as the role insert.
+    const role = await this.repository.createRoleIfNameAbsent(
+      createData,
+      this.auditInTxn ? this.auditDirective(auditEvent) : undefined,
+    );
+    if (!role) {
+      throw new ConflictError(`Role with name '${input.name}' already exists`);
+    }
+
+    await this.emitAuditSideEffects({
+      ...auditEvent,
+      entityId: role.id,
+      afterValues: this.snapshot(role),
     });
 
     return role;
@@ -224,28 +314,43 @@ export class RolesService {
     if (input.permissions) this.validatePermissions(input.permissions);
 
     const before = this.snapshot(existing);
-    const updated = await this.repository.updateRole(tenantId, id, {
+    const updateData = {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.description !== undefined ? { description: input.description ?? null } : {}),
       ...(input.permissions !== undefined
         ? { permissions: input.permissions.map((p) => ({ ...p })) }
         : {}),
-    });
-    if (!updated) throw new NotFoundError(`Role with id '${id}' not found`);
-
-    await this.emitAudit({
+    };
+    // Projected after-snapshot (matches what the repository persists) so the
+    // same-transaction audit directive can be built before the write.
+    const projected: RoleEntity = {
+      ...existing,
+      ...updateData,
+      permissions: updateData.permissions ?? existing.permissions,
+      updatedAt: new Date(),
+    };
+    const auditEvent: RolesAuditEvent = {
       tenantId,
       entityType: 'role',
       entityId: id,
       operation: 'UPDATE',
       beforeValues: before,
-      afterValues: this.snapshot(updated),
+      afterValues: this.snapshot(projected),
       metadata: {
         riskLevel: 'high',
         change:
           input.permissions !== undefined ? 'role_permissions_changed' : 'role_metadata_changed',
       },
-    });
+    };
+    const updated = await this.repository.updateRole(
+      tenantId,
+      id,
+      updateData,
+      this.auditInTxn ? this.auditDirective(auditEvent) : undefined,
+    );
+    if (!updated) throw new NotFoundError(`Role with id '${id}' not found`);
+
+    await this.emitAuditSideEffects({ ...auditEvent, afterValues: this.snapshot(updated) });
 
     return updated;
   }
@@ -273,9 +378,7 @@ export class RolesService {
       );
     }
 
-    await this.repository.deleteRole(tenantId, id);
-
-    await this.emitAudit({
+    const auditEvent: RolesAuditEvent = {
       tenantId,
       entityType: 'role',
       entityId: id,
@@ -286,7 +389,14 @@ export class RolesService {
         riskLevel: 'high',
         change: 'role_deleted',
       },
-    });
+    };
+    await this.repository.deleteRole(
+      tenantId,
+      id,
+      this.auditInTxn ? this.auditDirective(auditEvent) : undefined,
+    );
+
+    await this.emitAuditSideEffects(auditEvent);
   }
 
   // ─── Users / Assignments ───────────────────────────────────────────────
@@ -341,20 +451,29 @@ export class RolesService {
       );
     }
 
-    const updated = await this.repository.setUserRoles(tenantId, userId, dedup);
-    if (!updated) throw new NotFoundError(`User with id '${userId}' not found`);
-
-    await this.emitAudit({
+    const auditEvent: RolesAuditEvent = {
       tenantId,
       entityType: 'user',
       entityId: userId,
       operation: 'UPDATE',
       beforeValues: { roleIds: previousRoleIds },
-      afterValues: { roleIds: [...updated.roleIds] },
+      afterValues: { roleIds: [...dedup] },
       metadata: {
         riskLevel: 'high',
         change: 'user_roles_assigned',
       },
+    };
+    const updated = await this.repository.setUserRoles(
+      tenantId,
+      userId,
+      dedup,
+      this.auditInTxn ? this.auditDirective(auditEvent) : undefined,
+    );
+    if (!updated) throw new NotFoundError(`User with id '${userId}' not found`);
+
+    await this.emitAuditSideEffects({
+      ...auditEvent,
+      afterValues: { roleIds: [...updated.roleIds] },
     });
 
     return updated;

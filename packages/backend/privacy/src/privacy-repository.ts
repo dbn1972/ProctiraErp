@@ -112,9 +112,69 @@ export const NON_TERMINAL_ANONYMIZATION_JOB_STATUSES: readonly AnonymizationJobS
 export const CORRECTION_VALUE_REDACTED = '[REDACTED]';
 
 /**
+ * PRC-M013 (B07, Topic 5 Option A — PII export / privacy): the audit row for an
+ * erasure state transition must be written in the SAME transaction as the
+ * transition, so a crash between "erasure state committed" and "audit written"
+ * can never leave an unaudited durable privacy-lifecycle mutation.
+ */
+export interface PrivacyTxnAuditEvent {
+  tenantId: string;
+  /** Privacy lifecycle entity audited in-transaction. */
+  entityType: 'privacy_erasure';
+  entityId: string;
+  operation: 'UPDATE';
+  /** Field names + status change only — never the subject's PII values (DPDP minimisation). */
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  /** JWT `sub` of the caller; null when raised outside an authenticated request. */
+  actorId: string | null;
+  /** Client IP resolved by the gateway; null outside a request. */
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+/**
+ * The injected client type is intentionally structural (`query(text, values)`)
+ * so this package does not import a database client type. The gateway passes a
+ * `PgQueryable`-shaped adapter built over the mutation's own transaction.
+ */
+export interface PrivacyTxnAuditClient {
+  query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
+}
+
+export interface PrivacyTxnAuditPort {
+  /** Append the audit row on the caller's transaction client. */
+  appendAuditInTxn(client: PrivacyTxnAuditClient, event: PrivacyTxnAuditEvent): Promise<void>;
+}
+
+/**
+ * PRC-M013: audit context a mutating erasure call carries so the audit row is
+ * written in the same transaction. Supplied by {@link PrivacyService} only when
+ * the repository advertises {@link PrivacyRepository.supportsTransactionalAudit}.
+ */
+export interface PrivacyAuditDirective {
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+/**
  * W1-SEC-06: every find/update-by-id takes tenantId and filters by it (IDOR fail-closed).
  */
 export interface PrivacyRepository {
+  /**
+   * PRC-M013: when `true`, the repository writes the erasure state-transition
+   * audit row in the SAME transaction as the transition (given a
+   * {@link PrivacyAuditDirective}), so the service must NOT also emit a post-hoc
+   * audit event for that transition. Absent / `false` (e.g. the in-memory
+   * repository) keeps the post-hoc path.
+   */
+  readonly supportsTransactionalAudit?: boolean;
+
   createLegalHold(data: Omit<LegalHoldEntity, 'createdAt' | 'updatedAt'>): Promise<LegalHoldEntity>;
   updateLegalHold(
     id: string,
@@ -147,6 +207,12 @@ export interface PrivacyRepository {
      * still in this status; otherwise `null` is returned (PRC-H076).
      */
     options?: { expectedStatus?: ErasureRequestEntity['status'] },
+    /**
+     * PRC-M013: when supplied (and the repository supports transactional audit),
+     * the audit row is appended on the same transaction as the status update, so
+     * an audit-append failure rolls the update back.
+     */
+    audit?: PrivacyAuditDirective,
   ): Promise<ErasureRequestEntity | null>;
   /**
    * PRC-M320: atomically move an erasure `approved` -> `in_progress` AND create its
@@ -158,6 +224,8 @@ export interface PrivacyRepository {
     tenantId: string,
     patch: { reviewedBy: string; statusReason: string },
     job: Omit<AnonymizationJobEntity, 'createdAt' | 'updatedAt'>,
+    /** PRC-M013: audit row appended on the same transaction as the status flip + job insert. */
+    audit?: PrivacyAuditDirective,
   ): Promise<{ erasure: ErasureRequestEntity; job: AnonymizationJobEntity } | null>;
   /**
    * PRC-M320 (review #554): manual `in_progress` -> `approved` for a stalled run. In ONE
@@ -171,6 +239,8 @@ export interface PrivacyRepository {
     tenantId: string,
     patch: { reviewedBy: string; statusReason: string },
     staleBefore: Date,
+    /** PRC-M013: audit row appended on the same transaction as the release. */
+    audit?: PrivacyAuditDirective,
   ): Promise<ReleaseStalledErasureResult>;
   findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null>;
   listErasureRequests(tenantId: string, page?: ListPage): Promise<ErasureRequestEntity[]>;

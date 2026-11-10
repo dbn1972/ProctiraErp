@@ -36,8 +36,32 @@ export type {
 
 // G-913 hash chain + runtime retention
 export { computeEntryHash, canonicalJson, verifyEntrySequence } from './audit-hash.js';
+// PRC-M200 keyed HMAC chain
+export {
+  computeKeyedEntryHash,
+  verifyKeyedEntrySequence,
+  DEV_AUDIT_CHAIN_KEY_ID,
+} from './audit-hash.js';
+export type { AuditChainKey, AuditChainKeyResolver, KeyedVerifyOptions } from './audit-hash.js';
 export { createRetentionScheduler, DEFAULT_RETENTION_INTERVAL_MS } from './retention-scheduler.js';
 export type { RetentionScheduler, RetentionSchedulerOptions } from './retention-scheduler.js';
+
+// PRC-M200 / DR4-4 audit ingest drain (seals queued system-origin audit rows)
+export {
+  createAuditIngestDrain,
+  DEFAULT_AUDIT_INGEST_DRAIN_INTERVAL_MS,
+} from './audit-ingest-drain.js';
+export type {
+  AuditIngestDrain,
+  AuditIngestDrainOptions,
+  AuditIngestDrainResult,
+  AuditIngestDrainLogger,
+  PendingAuditQueueRow,
+  QueueSealer,
+  TenantSealOps,
+  AuditChainHeadState,
+  SealArgs,
+} from './audit-ingest-drain.js';
 
 // In-memory repository (for testing)
 export { InMemoryAuditRepository } from './in-memory-repository.js';
@@ -50,6 +74,8 @@ export type { AuditPersistence } from './create-audit-repository.js';
 // W1-SEC-10 COMPLETE — same-txn regulated mutation audit
 export {
   appendAuditEntryOnClient,
+  configureAuditChainKey,
+  currentAuditChainKey,
   newMutationAuditCorrelationId,
   runRegulatedMutationInTxn,
   toCreateAuditLogInput,

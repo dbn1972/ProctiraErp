@@ -131,6 +131,7 @@ import {
   createStudentCorrectionApplier,
   createStaffCorrectionApplier,
 } from '@proctira/backend-privacy';
+import type { PrivacyTxnAuditPort } from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
   createAdmissionsCrmStore,
@@ -157,6 +158,7 @@ import {
   createAssignmentRepository,
   createStaffRepository,
   staffPlugin,
+  type StaffTxnAuditPort,
 } from '@proctira/backend-staff';
 import {
   bindAttendanceHeatmapSource,
@@ -164,6 +166,8 @@ import {
   createStudentRepository,
   studentPlugin,
 } from '@proctira/backend-student';
+import type { StudentTxnAuditPort } from '@proctira/backend-student';
+import type { RolesTxnAuditPort } from '@proctira/backend-tenant';
 import {
   createTimetableRepository,
   createTimetableOpsStore,
@@ -179,7 +183,7 @@ import {
   workflowPlugin,
 } from '@proctira/backend-workflow';
 import { BusinessRuleError, ConflictError } from '@proctira/common';
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
+import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import { createStorageAdapter } from '@proctira/storage';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
@@ -945,7 +949,38 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // G-914 360 routes share the /students prefix (photo, id-card, siblings,
       // consents, discipline, attendance-heatmap).
       // W2-JOB-06: durable import queue when QUEUE_BACKEND / RABBITMQ_URL set.
-      const repository = createStudentRepository();
+      // PRC-M013: when a shared Pg pool is available, give the student repository
+      // a same-transaction audit port so a student PII mutation (update/delete)
+      // writes its durable hash-chained audit row inside the mutation transaction
+      // (via @proctira/backend-audit's appendAuditEntryOnClient on the mutation's
+      // own client). A forced audit failure rolls the student change back, so no
+      // unaudited durable student PII mutation can exist. Mirrors the staff
+      // StaffTxnAuditPort / tenant-admin RolesTxnAuditPort.
+      const studentTxnAuditPort: StudentTxnAuditPort | undefined = getSharedPgPool()
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
+      const repository = createStudentRepository({ txnAuditPort: studentTxnAuditPort });
       const importHandle = await createStudentImportQueueFromEnv();
       if (importHandle) {
         scope.addHook('onClose', async () => {
@@ -1109,10 +1144,44 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory —
       // for both staff profiles and assignments.
+      // PRC-M013: when a shared Pg pool is available, give the staff repository a
+      // same-transaction audit port so a staff PII mutation (update/offboard/
+      // delete) writes its durable hash-chained audit row inside the mutation
+      // transaction (via @proctira/backend-audit's appendAuditEntryOnClient on
+      // the mutation's own client). A forced audit failure rolls the staff
+      // change back, so no unaudited durable staff mutation can exist. Mirrors
+      // the PRC-L264 tenant-admin RolesTxnAuditPort.
+      const staffTxnAuditPort: StaffTxnAuditPort | undefined = getSharedPgPool()
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
       await scope.register(staffPlugin, {
-        repository: createStaffRepository(),
+        repository: createStaffRepository({ txnAuditPort: staffTxnAuditPort }),
         assignmentRepository: sharedAssignmentRepository(),
         // PRC-M544: payroll runs, contracts, salary, leave decisions, offboarding, verification.
+        // PRC-M013: staff update/offboard/delete are now audited in-transaction by
+        // the repository; the service skips this post-hoc sink for those (only the
+        // in-memory path without a port still uses it).
         auditSink: domainAuditSink('staff'),
         prefix: '/staff',
       });
@@ -1538,12 +1607,47 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // G-910: tenant-scoped roles/users/settings for the web /admin console.
       // Postgres (control_plane_documents, RLS) when DATABASE_URL, else in-memory.
+      // PRC-L264: when a shared Pg pool is available, give the roles repository a
+      // same-transaction audit port so the high-risk role/user audit row is
+      // written inside the mutation transaction (via @proctira/backend-audit's
+      // appendAuditEntryOnClient on the repository's client). This replaces the
+      // removed browser-emitted audit and closes the post-hoc atomicity gap.
+      const tenantAdminTxnAuditPort: RolesTxnAuditPort | undefined = getSharedPgPool()
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
       await scope.register(tenantAdminPlugin, {
         prefix: '/tenant',
+        txnAuditPort: tenantAdminTxnAuditPort,
         onAudit: async (event) => {
           // PRC-H101: a role edit must change gateway allow/deny promptly. Drop the
           // cached custom roles for this tenant so the next request reloads them.
           if (event.entityType === 'role') invalidateTenantCustomRoles(event.tenantId);
+          // PRC-L264: when the durable audit row was already written in the
+          // mutation transaction (Postgres repository), do NOT write a second
+          // post-hoc row — only the side effect above runs. The post-hoc
+          // durable write stays for the in-memory path.
+          if (event.metadata?.auditPersistedInTxn) return;
           const auditService = (
             scope as unknown as {
               auditService?: { recordAudit: (input: Record<string, unknown>) => Promise<unknown> };
@@ -1902,8 +2006,44 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // a pool, erasure/offboard stay 'not implemented' (501) — never faked.
       const privacyPool = getSharedPgPool();
       const financeHealthMode = readFinanceHealthErasureMode();
+      // PRC-M013 (Topic 5 Option A — PII export / privacy): erasure state
+      // transitions write their audit row in the SAME transaction as the state
+      // change (via @proctira/backend-audit's appendAuditEntryOnClient on the
+      // mutation's own client). A forced audit failure rolls the transition
+      // back, so no unaudited durable erasure-lifecycle mutation can exist.
+      // Mirrors the staff/student/tenant-admin txn-audit ports.
+      const privacyTxnAuditPort: PrivacyTxnAuditPort | undefined = privacyPool
+        ? {
+            appendAuditInTxn: async (client, event) => {
+              await appendAuditEntryOnClient(
+                client as unknown as PgQueryable,
+                toCreateAuditLogInput({
+                  tenantId: event.tenantId,
+                  entityType: event.entityType,
+                  entityId: event.entityId,
+                  operation: event.operation,
+                  // PRC-L205: real caller; 'system'/0.0.0.0 only outside a request.
+                  userId: event.actorId ?? 'system',
+                  userName: event.actorId ?? 'system',
+                  ipAddress: event.ipAddress ?? '0.0.0.0',
+                  beforeValues: event.beforeValues,
+                  afterValues: event.afterValues,
+                  metadata: event.requestId
+                    ? { ...event.metadata, requestId: event.requestId }
+                    : event.metadata,
+                }),
+              );
+            },
+          }
+        : undefined;
+      // PRC-M013: the /privacy HTTP path uses a repository that carries the
+      // txn-audit port so erasure transitions audit atomically; the shared
+      // destructive-delete gate keeps the port-less repository.
+      const privacyHttpRepository = privacyTxnAuditPort
+        ? createPrivacyRepository({ txnAuditPort: privacyTxnAuditPort })
+        : sharedPrivacyRepository;
       await scope.register(privacyPlugin, {
-        repository: sharedPrivacyRepository,
+        repository: privacyHttpRepository,
         prefix: '/privacy',
         ...(privacyPool
           ? {
