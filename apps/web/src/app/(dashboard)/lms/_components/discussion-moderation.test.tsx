@@ -57,6 +57,10 @@ describe('DiscussionModeration (PRC-M106)', () => {
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Thread is locked'));
     expect(box.value).toBe('My reply');
 
+    // The alert can commit before the transition's isPending reverts (a loaded
+    // CI runner splits the two commits), and a click on the still-disabled
+    // button submits nothing. Wait for the button, as a user would.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reply' })).toBeEnabled());
     actions.createDiscussionPostAction.mockResolvedValueOnce({ status: 'success', id: 'p2' });
     fireEvent.click(screen.getByRole('button', { name: 'Reply' }));
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Reply posted.'));
