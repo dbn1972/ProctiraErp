@@ -1,6 +1,11 @@
 import { existsSync } from 'node:fs';
 
-import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test';
+import {
+  defineConfig,
+  devices,
+  type PlaywrightTestConfig,
+  type ReporterDescription,
+} from '@playwright/test';
 
 import { resolveWebServerCommand } from './e2e/web-server-command';
 
@@ -22,11 +27,15 @@ const HOST = process.env.PLAYWRIGHT_WEB_HOST ?? '127.0.0.1';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 function ciReporter(): PlaywrightTestConfig['reporter'] {
-  if (!process.env.CI) return 'list';
+  // UAT-ENV-007: the backend-ready harness sets PLAYWRIGHT_JSON_OUTPUT_FILE so
+  // tools/scripts/assert-playwright-skips.mjs can fail the run on unlisted skips.
+  const jsonFile = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
+  const json: ReporterDescription[] = jsonFile ? [['json', { outputFile: jsonFile }]] : [];
+  if (!process.env.CI) return [['list'], ...json];
   if (process.env.PLAYWRIGHT_SHARD) {
-    return [['list'], ['html', { open: 'never' }], ['blob']];
+    return [['list'], ['html', { open: 'never' }], ['blob'], ...json];
   }
-  return [['list'], ['html', { open: 'never' }]];
+  return [['list'], ['html', { open: 'never' }], ...json];
 }
 
 export default defineConfig({
