@@ -108,6 +108,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           # .gitleaks.toml extends the upstream defaults (useDefault = true) and only
@@ -126,7 +127,29 @@ jobs:
               --redact \
               --verbose \
               --exit-code 1
+          elif [ "${EVENT_NAME}" = "push" ]; then
+            # UAT-ENV-014: without --log-opts gitleaks runs `git log --all`, and the
+            # fetch-depth 0 checkout fetches every branch, so a commit that exists
+            # only on an unmerged branch failed main's push CI. Scan the full
+            # ancestry of the pushed commit instead: every commit reachable from it
+            # (all of main's history on a main push), merged branches included,
+            # and nothing that is only on other refs.
+            git cat-file -e "${PUSH_SHA}^{commit}" || {
+              echo "error: pushed commit '${PUSH_SHA}' is not in the checkout" >&2
+              exit 1
+            }
+            gitleaks detect \
+              --source . \
+              --config .gitleaks.toml \
+              --log-opts "${PUSH_SHA}" \
+              --redact \
+              --verbose \
+              --exit-code 1
           else
+            # schedule / workflow_dispatch: full-repository scan of every fetched
+            # branch and tag (`git log --all`). These runs are standalone, not part
+            # of CI Aggregate (Required), and are the only scan of branches that
+            # never trigger push CI; failures go to the scheduled-gates watchdog.
             gitleaks detect \
               --source . \
               --config .gitleaks.toml \
