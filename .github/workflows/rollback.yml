@@ -82,13 +82,13 @@ jobs:
 
       - name: Set Kubernetes context
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
-        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5
+        uses: azure/k8s-set-context@5f008dfddbbc9df61ba40a7aaa912c6033ba62fc # v5
         with:
           kubeconfig: ${{ secrets.KUBECONFIG }}
 
       - name: Install Helm
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5
         with:
           version: 'v3.14.0'
 
