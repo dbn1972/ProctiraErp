@@ -196,7 +196,7 @@ import {
 import { createAttendanceHolidayLookup } from './attendance-holiday-lookup.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
-import { domainAuditSink } from './domain-audit-sink.js';
+import { domainAuditSink, reportCatalogueAuditPort } from './domain-audit-sink.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
@@ -1525,7 +1525,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'report',
     proxyPrefixes: ['/reports'],
     register: async (scope) => {
-      await scope.register(reportCataloguePlugin);
+      // UAT-SEC-001 / PRC-L340: generate, download, download-denied and schedule events go
+      // to the keyed audit_log_entries chain (no-op only without a shared pool).
+      await scope.register(reportCataloguePlugin, { audit: reportCatalogueAuditPort() });
     },
   },
   {

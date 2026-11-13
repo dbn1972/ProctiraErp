@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { liveJourneyGate } from './helpers/live-gate';
 
 /**
@@ -20,6 +20,37 @@ const LIVE_GATE = liveJourneyGate();
 const INSTITUTION_ID = process.env.E2E_REGISTRATION_INSTITUTION_ID ?? '';
 const TYPE = process.env.E2E_REGISTRATION_TYPE ?? 'primary';
 
+/**
+ * Fills step 1 and moves to /documents.
+ *
+ * RegistrationProvider replaces the whole draft in its mount effect, so a fill
+ * that lands before that effect runs is lost (CI run 43360874584: First Name
+ * "Required", URL stayed on step 1). Wait until React has hydrated the form
+ * (a click before that submits the form natively and drops ?institutionId),
+ * then fill and press Next until step 2 loads.
+ */
+async function completePersonalStep(
+  page: Page,
+  applicant: { lastName: string; dob: string; gender: 'male' | 'female' },
+) {
+  await page.waitForFunction(() => {
+    const button = document.querySelector('main form button[type="submit"]');
+    return !!button && Object.keys(button).some((key) => key.startsWith('__reactProps$'));
+  });
+  await expect(async () => {
+    if (/\/documents/.test(page.url())) return;
+    const step = { timeout: 2_000 };
+    await page.getByLabel(/first name/i).fill('E2E', step);
+    await page.getByLabel(/last name/i).fill(applicant.lastName, step);
+    await page.getByLabel(/date of birth/i).fill(applicant.dob, step);
+    await page.locator('#gender').selectOption(applicant.gender, step);
+    await page.getByLabel(/guardian name/i).fill('E2E Guardian', step);
+    await page.getByLabel(/guardian phone/i).fill('+911234567890', step);
+    await page.getByRole('button', { name: /^next$/i }).click(step);
+    await expect(page).toHaveURL(/\/documents/, { timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 test.describe('Registration Portal — live gate', () => {
   test('live journey is configured where it is required', () => {
     test.skip(!LIVE_GATE.required, LIVE_GATE.reason);
@@ -38,13 +69,11 @@ test.describe('Registration Portal — live submit and track', () => {
   test('applicant submits and receives a tracking number', async ({ page }) => {
     expect(INSTITUTION_ID, 'E2E_REGISTRATION_INSTITUTION_ID must be seeded').not.toBe('');
     await page.goto(`/apply/${TYPE}?institutionId=${encodeURIComponent(INSTITUTION_ID)}`);
-    await page.getByLabel(/first name/i).fill('E2E');
-    await page.getByLabel(/last name/i).fill(`Applicant${Date.now() % 100000}`);
-    await page.getByLabel(/date of birth/i).fill(dob);
-    await page.locator('#gender').selectOption('female');
-    await page.getByLabel(/guardian name/i).fill('E2E Guardian');
-    await page.getByLabel(/guardian phone/i).fill('+911234567890');
-    await page.getByRole('button', { name: /^next$/i }).click();
+    await completePersonalStep(page, {
+      lastName: `Applicant${Date.now() % 100000}`,
+      dob,
+      gender: 'female',
+    });
 
     await expect(page).toHaveURL(/\/documents/);
     await page.getByRole('button', { name: /^next$/i }).click();
@@ -84,13 +113,7 @@ test.describe('Registration Portal — live submit and track', () => {
       route.request().method() === 'POST' ? route.abort('connectionrefused') : route.continue(),
     );
     await page.goto(`/apply/${TYPE}?institutionId=${encodeURIComponent(INSTITUTION_ID)}`);
-    await page.getByLabel(/first name/i).fill('E2E');
-    await page.getByLabel(/last name/i).fill('Down');
-    await page.getByLabel(/date of birth/i).fill(dob);
-    await page.locator('#gender').selectOption('male');
-    await page.getByLabel(/guardian name/i).fill('E2E Guardian');
-    await page.getByLabel(/guardian phone/i).fill('+911234567890');
-    await page.getByRole('button', { name: /^next$/i }).click();
+    await completePersonalStep(page, { lastName: 'Down', dob, gender: 'male' });
     // Wait for each step: a second "Next" clicked before the client-side
     // navigation lands hits the previous step's button (UAT-API-004 flake).
     await expect(page).toHaveURL(/\/documents/);
