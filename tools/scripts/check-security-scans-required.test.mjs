@@ -83,6 +83,14 @@ test('secret scan without gitleaks detect fails', () => {
   assert.match(r.stderr, /gitleaks/);
 });
 
+test('push secret scan without the pushed-commit range fails (UAT-ENV-014)', () => {
+  const r = runInMirror({
+    [SCANS]: (t) => replaceOnce(t, '--log-opts "${PUSH_SHA}"', '--log-opts "--all"'),
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /secret scan on push must cover the full history of the pushed commit/);
+});
+
 test('ci-aggregate not depending on security-scans fails', () => {
   const r = runInMirror({
     [CI]: (t) => t.replace(/^(\s*)- security-scans$/m, '$1- security-scans-dropped'),
