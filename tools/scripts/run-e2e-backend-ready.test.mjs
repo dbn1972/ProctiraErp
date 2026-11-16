@@ -79,6 +79,22 @@ test('workflow only allows a skip when the operator disabled require_live', () =
   assert.equal(harness.env.E2E_ALLOW_SKIP, "${{ steps.mode.outputs.allow_skip || '0' }}");
 });
 
+// UAT-ENV-015: the shards run @proctira/web on `next dev` (the harness builds only
+// api-gateway), so every route compiles on demand. With two Playwright workers on a
+// hosted runner, compiles and live writes queue behind each other: the nightly on
+// 87bd3a6f (run 43423176859) failed 16f:57 on all three attempts on latency alone.
+// One worker per shard is what the UAT runner uses and passes with.
+test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const shard = wf.jobs['e2e-backend-ready-shard'];
+  assert.ok(shard, 'e2e-backend-ready-shard job present');
+  const harness = (shard.steps ?? []).find((s) =>
+    (s.run ?? '').includes('run-e2e-backend-ready.sh'),
+  );
+  assert.ok(harness, 'shard job runs the harness');
+  assert.equal(harness.env?.PLAYWRIGHT_WORKERS, '1');
+});
+
 // UAT-ENV-007: skip gate for the shard and merged Playwright JSON reports.
 // The gate module is imported per test so the harness tests above still run
 // (and these fail individually) on a tree without it.
