@@ -20,7 +20,7 @@
     "@proctira/backend-install": "workspace:*",
     "@proctira/common": "workspace:*",
     "@sinclair/typebox": "^0.34.52",
-    "uuid": "^14.0.2"
+    "uuid": "^14.0.3"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
