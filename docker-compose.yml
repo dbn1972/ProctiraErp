@@ -54,7 +54,7 @@ services:
       - proctira
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: unless-stopped
     # PRC-M311: authenticated Redis; REDIS_URL must carry the same password.
     command:
