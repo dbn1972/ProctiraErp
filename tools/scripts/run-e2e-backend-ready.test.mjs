@@ -80,10 +80,9 @@ test('workflow only allows a skip when the operator disabled require_live', () =
 });
 
 // UAT-ENV-015: the shards run @proctira/web on `next dev` (the harness builds only
-// api-gateway), so every route compiles on demand. With two Playwright workers on a
-// hosted runner, compiles and live writes queue behind each other: the nightly on
-// 87bd3a6f (run 43423176859) failed 16f:57 on all three attempts on latency alone.
-// One worker per shard is what the UAT runner uses and passes with.
+// api-gateway). In the nightly on 87bd3a6f (run 43423176859) 16f:57 timed out on all
+// three attempts with 15-16 s requests. One worker per shard cuts runner contention;
+// the UAT runner uses one worker and passes.
 test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
   const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
   const shard = wf.jobs['e2e-backend-ready-shard'];
@@ -93,6 +92,24 @@ test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
   );
   assert.ok(harness, 'shard job runs the harness');
   assert.equal(harness.env?.PLAYWRIGHT_WORKERS, '1');
+});
+
+// UAT-ENV-015: upload-artifact skips hidden files by default, so a step that lists a
+// dotfile (gateway / portal logs) must set include-hidden-files or the log is dropped.
+test('upload steps that list a dotfile set include-hidden-files (UAT-ENV-015)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const uploads = Object.values(wf.jobs)
+    .flatMap((j) => j.steps ?? [])
+    .filter((s) => String(s.uses ?? '').startsWith('actions/upload-artifact@'));
+  const withDotfile = uploads.filter((s) =>
+    String(s.with?.path ?? '')
+      .split('\n')
+      .some((l) => /^\.[^/]/.test(l.trim())),
+  );
+  assert.ok(withDotfile.length >= 2, 'shard and registration uploads list dotfile logs');
+  for (const s of withDotfile) {
+    assert.equal(s.with['include-hidden-files'], true, `${s.name} drops its dotfile logs`);
+  }
 });
 
 // UAT-ENV-007: skip gate for the shard and merged Playwright JSON reports.

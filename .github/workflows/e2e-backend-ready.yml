@@ -356,11 +356,11 @@ jobs:
           # demo rows sets ALLOW_SUNRISE_DEMO_SEED=1 instead.
           E2E_SKIP_SUNRISE_SEED: '1'
           PLAYWRIGHT_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
-          # UAT-ENV-015: one worker per shard. The web server is `next dev`, which
-          # compiles each route on first request; two workers on a hosted runner
-          # queued compiles behind live writes until 16f:57 timed out on all three
-          # attempts (nightly 43423176859). Shards run in parallel jobs, so the
-          # wall time stays within timeout-minutes.
+          # UAT-ENV-015: one worker per shard to cut runner contention. The web
+          # server is `next dev` (routes compile on first request); in nightly
+          # 43423176859, 16f:57 timed out on all three attempts with 15-16 s
+          # requests. Shards still run as four parallel jobs; expected 10-20 min
+          # of Playwright per shard (to be confirmed on the first runs).
           PLAYWRIGHT_WORKERS: '1'
           CI: true
 
@@ -503,6 +503,8 @@ jobs:
             apps/registration-portal/test-results/
             .e2e-registration-gateway.log
             .e2e-registration-portal.log
+          # Dotfile logs: upload-artifact skips hidden files by default.
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: ignore
 
