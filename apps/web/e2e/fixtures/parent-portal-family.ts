@@ -18,6 +18,7 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fake-session';
 import { parentPortalJwtHeaders } from './parent-portal-auth';
+import { ensureSharedAcademicYear, uniqueGradeOrder } from './test-data';
 
 export const TENANT_A = '00000000-0000-4000-8000-000000000001';
 export const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
@@ -212,6 +213,48 @@ export async function createFamily(
     householdId,
     children,
   };
+}
+
+async function adminPost(request: APIRequestContext, path: string, data: unknown): Promise<string> {
+  const res = await request.post(`${GATEWAY_URL}/api/v1${path}`, { headers: adminHeaders(), data });
+  expect(res.status(), `POST ${path}: ${await res.text()}`).toBe(201);
+  return (await res.json()).id as string;
+}
+
+/**
+ * Per-run grade + class in the shared tenant-A year, with the given children
+ * enrolled (`POST /enrollments`, so each child has a current institution).
+ */
+export async function enrolInSharedYear(
+  request: APIRequestContext,
+  tag: string,
+  studentIds: string[],
+): Promise<{ periodId: string; classId: string }> {
+  if (!TAG_RE.test(tag)) throw new Error(`Unexpected tag: ${tag}`);
+  const period = await ensureSharedAcademicYear(request, GATEWAY_URL, adminHeaders());
+  const gradeId = await adminPost(request, '/grades', {
+    name: `PP Grade ${tag}`,
+    code: `P${tag.slice(0, 6)}`,
+    order: uniqueGradeOrder(),
+  });
+  const classId = await adminPost(request, '/classes', {
+    institutionId: INSTITUTION_A,
+    gradeId,
+    academicPeriodId: period.id,
+    name: `PP Class ${tag}`,
+    capacity: 30,
+  });
+  for (const studentId of studentIds) {
+    await adminPost(request, '/enrollments', {
+      studentId,
+      institutionId: INSTITUTION_A,
+      gradeId,
+      classId,
+      academicPeriodId: period.id,
+      enrolledAt: new Date().toISOString().slice(0, 10),
+    });
+  }
+  return { periodId: period.id, classId };
 }
 
 export async function openAsGuardian(page: Page, family: Family): Promise<void> {

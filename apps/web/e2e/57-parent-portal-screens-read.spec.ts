@@ -24,6 +24,7 @@ import {
   TENANT_A,
   adminHeaders,
   createFamily,
+  enrolInSharedYear,
   guardianHeaders,
   newTag,
   openAsGuardian,
@@ -31,7 +32,7 @@ import {
   type Family,
 } from './fixtures/parent-portal-family';
 import { createSignedJwt } from './fixtures/fake-session';
-import { ensureSharedAcademicYear, uniqueGradeOrder } from './fixtures/test-data';
+import { ensureSharedAcademicYear } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
@@ -99,52 +100,6 @@ function pastWeekdays(count: number): string[] {
 function rerunSafeDueAt(): string {
   const anchor = Date.UTC(2026, 0, 1);
   return new Date(anchor - (Date.now() - anchor)).toISOString();
-}
-
-/** Per-run grade + class in the shared year, with the given children enrolled. */
-async function enrolInSharedYear(
-  request: APIRequestContext,
-  tag: string,
-  studentIds: string[],
-): Promise<{ periodId: string; classId: string }> {
-  const period = await ensureSharedAcademicYear(request, GATEWAY_URL, adminHeaders());
-  const grade = await send(
-    request,
-    'post',
-    '/grades',
-    { name: `PP Grade ${tag}`, code: `P${tag.slice(0, 6)}`, order: uniqueGradeOrder() },
-    201,
-  );
-  const klass = await send(
-    request,
-    'post',
-    '/classes',
-    {
-      institutionId: INSTITUTION_A,
-      gradeId: grade.id,
-      academicPeriodId: period.id,
-      name: `PP Class ${tag}`,
-      capacity: 30,
-    },
-    201,
-  );
-  for (const studentId of studentIds) {
-    await send(
-      request,
-      'post',
-      '/enrollments',
-      {
-        studentId,
-        institutionId: INSTITUTION_A,
-        gradeId: grade.id,
-        classId: klass.id,
-        academicPeriodId: period.id,
-        enrolledAt: isoDay(new Date()),
-      },
-      201,
-    );
-  }
-  return { periodId: period.id, classId: klass.id as string };
 }
 
 /** Enrol in SECTION_A and publish one grade (as e2e/42). */
