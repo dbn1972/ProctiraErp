@@ -6,7 +6,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -103,6 +110,32 @@ test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
   );
   assert.ok(harness, 'shard job runs the harness');
   assert.equal(harness.env?.PLAYWRIGHT_WORKERS, '1');
+});
+
+// Parent portal screen -> API -> DB coverage (57 read, 58 form saves, 59 privacy/tenancy).
+// All three always run nightly. PR membership follows the measured shard-time rule:
+// add in order 59, 58, 57 while max shard + (projected CI minutes of the added specs / 4)
+// x 1.25 stays <= 22.5 (half of timeout-minutes 45). Measured: 13.50 + 2.753 / 4 x 1.25
+// = 14.36 min with all three, so all three are in PR_SPECS. Removing one is a visible change here.
+const PARENT_SCREEN_SPECS = [
+  '57-parent-portal-screens-read.spec.ts',
+  '58-parent-portal-screens-write.spec.ts',
+  '59-parent-portal-privacy-tenancy.spec.ts',
+];
+const PARENT_SCREEN_PR_SUBSET = PARENT_SCREEN_SPECS;
+test('parent portal screen specs are in the nightly set (and the measured PR subset)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of PARENT_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.equal(
+      pr.includes(`e2e/${file}`),
+      PARENT_SCREEN_PR_SUBSET.includes(file),
+      `PR_SPECS membership of e2e/${file} matches the measured subset`,
+    );
+  }
 });
 
 // UAT-ENV-015: upload-artifact skips hidden files by default, so a step that lists a
