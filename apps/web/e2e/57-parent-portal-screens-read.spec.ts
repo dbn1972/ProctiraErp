@@ -20,7 +20,6 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 import {
   GATEWAY_URL,
   INSTITUTION_A,
-  SECTION_A,
   TENANT_A,
   adminHeaders,
   createFamily,
@@ -28,6 +27,7 @@ import {
   guardianHeaders,
   newTag,
   openAsGuardian,
+  publishGrade,
   studentHeaders,
   type Family,
 } from './fixtures/parent-portal-family';
@@ -100,26 +100,6 @@ function pastWeekdays(count: number): string[] {
 function rerunSafeDueAt(): string {
   const anchor = Date.UTC(2026, 0, 1);
   return new Date(anchor - (Date.now() - anchor)).toISOString();
-}
-
-/** Enrol in SECTION_A and publish one grade (as e2e/42). */
-async function publishGrade(
-  request: APIRequestContext,
-  studentId: string,
-  assessmentCode: string,
-): Promise<string> {
-  await send(request, 'post', `/timetable/sections/${SECTION_A}/enrollments`, { studentId }, 201);
-  const entry = await send(
-    request,
-    'put',
-    '/gradebook/entries',
-    { sectionId: SECTION_A, studentId, assessmentCode, numericScore: 88 },
-    200,
-  );
-  for (const action of ['submit', 'approve', 'lock', 'publish']) {
-    await send(request, 'post', `/gradebook/entries/${entry.id}/transition`, { action }, 200);
-  }
-  return entry.id as string;
 }
 
 async function createAssignment(

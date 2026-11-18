@@ -257,6 +257,30 @@ export async function enrolInSharedYear(
   return { periodId: period.id, classId };
 }
 
+/** Enrol in SECTION_A (tenant A) and publish one grade (as e2e/42); returns the entry id. */
+export async function publishGrade(
+  request: APIRequestContext,
+  studentId: string,
+  assessmentCode: string,
+): Promise<string> {
+  assertUuid(studentId, 'student id');
+  await adminPost(request, `/timetable/sections/${SECTION_A}/enrollments`, { studentId });
+  const res = await request.put(`${GATEWAY_URL}/api/v1/gradebook/entries`, {
+    headers: adminHeaders(),
+    data: { sectionId: SECTION_A, studentId, assessmentCode, numericScore: 88 },
+  });
+  expect(res.status(), `PUT /gradebook/entries: ${await res.text()}`).toBe(200);
+  const entryId = (await res.json()).id as string;
+  for (const action of ['submit', 'approve', 'lock', 'publish']) {
+    const step = await request.post(
+      `${GATEWAY_URL}/api/v1/gradebook/entries/${entryId}/transition`,
+      { headers: adminHeaders(), data: { action } },
+    );
+    expect(step.status(), `transition ${action}: ${await step.text()}`).toBe(200);
+  }
+  return entryId;
+}
+
 export async function openAsGuardian(page: Page, family: Family): Promise<void> {
   await setupGatewayTenantSession(page, {
     sub: family.guardianSub,
