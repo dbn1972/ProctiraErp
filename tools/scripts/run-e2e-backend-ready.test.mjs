@@ -66,6 +66,17 @@ test('harness gateway binds to loopback, not 0.0.0.0', () => {
   assert.match(text, /HOST="\$\{E2E_GATEWAY_HOST:-127\.0\.0\.1\}"/);
 });
 
+// PRC-M484: payInvoiceAction fails closed unless the web server is flagged for
+// sandbox payments; /parent/fees can only save through its Pay form with it set.
+test('harness enables sandbox fee payments for the E2E web server (parent fees form)', () => {
+  const text = readFileSync(script, 'utf8');
+  const flag = /export FEES_STAFF_SANDBOX_PAYMENTS="\$\{FEES_STAFF_SANDBOX_PAYMENTS:-true\}"/;
+  assert.match(text, flag);
+  const run = text.search(/playwright test /);
+  assert.ok(run > 0, 'harness runs playwright test');
+  assert.ok(text.search(flag) < run, 'flag is exported before playwright test starts');
+});
+
 test('workflow only allows a skip when the operator disabled require_live', () => {
   const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
   const steps = Object.values(wf.jobs).flatMap((j) => j.steps ?? []);
