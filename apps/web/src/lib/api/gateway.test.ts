@@ -93,6 +93,21 @@ describe('gatewayFetch', () => {
     expect(result.error?.code).toBe('VALIDATION_ERROR');
   });
 
+  it('returns the response correlation id on a non-2xx response (D1b)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ code: 'INTERNAL_ERROR', message: 'boom' }), {
+        status: 500,
+        headers: {
+          'content-type': 'application/json',
+          'x-correlation-id': '2ee7694a-4534-4ad0-a4bf-44cc3f17b9d7',
+        },
+      }),
+    );
+    const { gatewayFetch } = await import('./gateway');
+    const result = await gatewayFetch('/students', { throwOnError: false });
+    expect(result.ok).toBe(false);
+    expect(result.correlationId).toBe('2ee7694a-4534-4ad0-a4bf-44cc3f17b9d7');
+  });
   it('turns revalidate 0 into cache no-store so the Data Cache cannot serve a stale plan', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ items: [] }), {
