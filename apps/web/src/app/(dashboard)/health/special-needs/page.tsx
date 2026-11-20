@@ -33,6 +33,8 @@ import {
   type SpecialNeedRecord,
 } from '@/lib/api/health';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { personDisplayName } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -100,7 +102,18 @@ export default async function SpecialNeedsPage() {
       </section>
     );
   }
-  const records = result.items;
+  // PRC-M088: live rows carry no name (studentName ''); resolve it from the
+  // caller's student directory, as /health does, so the row and its "View"
+  // link always name the student.
+  const studentLabels = await loadStudentLabelMap(result.items.map((r) => r.studentId));
+  const records = result.items.map((r) => ({
+    ...r,
+    studentName: personDisplayName(
+      studentLabels.get(r.studentId),
+      r.studentName,
+      'Unknown student',
+    ),
+  }));
   const total = records.length;
 
   return (

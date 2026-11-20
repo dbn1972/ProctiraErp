@@ -92,3 +92,48 @@ describe('health record detail page (PRC-H021)', () => {
     expect(screen.getByTestId('health-vaccinations-error')).toHaveAttribute('role', 'alert');
   });
 });
+
+describe('health record detail heading (D3, PRC-M088)', () => {
+  /** A live record: the gateway never stores names, so studentName is ''. */
+  const liveRecord = {
+    id: STUDENT,
+    studentId: STUDENT,
+    studentName: '',
+    allergies: ['Peanut'],
+    chronicConditions: [],
+    lastUpdated: '2026-11-20',
+  };
+
+  beforeEach(() => {
+    gatewayFetch.mockReset();
+    getStudent.mockReset();
+    respond({
+      '/health/records/': { ok: true, status: 200, data: liveRecord },
+      '/health/vaccinations/': { ok: true, status: 200, data: { data: [] } },
+    });
+  });
+
+  it("names the student in the h1 from this tenant's directory when the record has no name", async () => {
+    getStudent.mockResolvedValue({ id: STUDENT, firstName: 'Asha', lastName: 'Rao' });
+    await renderPage();
+    expect(getStudent).toHaveBeenCalledWith(STUDENT);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Asha Rao$/);
+    expect(screen.getByText('Peanut')).toBeInTheDocument();
+  });
+
+  it('cross-tenant negative: an id the caller cannot resolve gets a fixed, non-empty heading', async () => {
+    // GET /students/:id is tenant-scoped (RLS); another tenant's student answers 404.
+    getStudent.mockResolvedValue(null);
+    await renderPage();
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1).toHaveTextContent(/^Unknown student$/);
+    expect(h1.textContent).not.toContain(STUDENT.slice(0, 8));
+  });
+
+  it('a denied directory read still renders the record under the fallback heading', async () => {
+    getStudent.mockRejectedValue(new Error('403'));
+    await renderPage();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Unknown student$/);
+    expect(screen.getByText('Peanut')).toBeInTheDocument();
+  });
+});
