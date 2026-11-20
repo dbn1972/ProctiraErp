@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **100**
+- Playwright specs: **102**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -32,7 +32,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/__tests/error-boundary` | smoke | `09-error-boundary-recovery.spec.ts` |
 | `/academic-periods` | a11y, dark, functional, smoke, touch | `27-academics-setup-write-smoke.spec.ts`<br>`38-academic-calendar-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/academic-periods/[id]/bell-schedules` | smoke | `22-timetable-inventory-smoke.spec.ts` |
-| `/academic-periods/[id]/calendar` | functional | `38-academic-calendar-write-smoke.spec.ts` |
+| `/academic-periods/[id]/calendar` | functional, smoke | `38-academic-calendar-write-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts` |
 | `/admin` | a11y, dark, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/notification-rules` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/permissions` | a11y, dark, functional, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`35-admin-console-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
@@ -127,10 +127,10 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/institutions/[id]/timetable/substitutions` | dark, functional, touch | `16e-institutions-timetable-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions/new` | a11y, functional, smoke | `09-route-permission-coupling.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`16f-institutions-profile-write.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/library` | a11y, dark, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/library/[id]` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/library/[id]` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`48-library-ops-write-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/library/circulation` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/library/fines` | a11y, dark, functional, touch | `48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/library/holds` | a11y, dark, functional, touch | `48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/library/holds` | a11y, dark, functional, smoke, touch | `48-library-ops-write-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/library/opac` | a11y, dark, functional, touch | `48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/library/overdues` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/lms` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`26-lms-write-smoke.spec.ts`<br>`47-lms-depth-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
@@ -173,7 +173,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/staff/payroll` | a11y, dark, functional, touch | `52-staff-hr-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/staff/substitutions` | a11y, smoke | `22-timetable-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students` | a11y, dark, functional, rtl, smoke, touch | `04-transfer-and-workflow.spec.ts`<br>`05-bulk-import.spec.ts`<br>`06-language-and-rtl.spec.ts`<br>`07-tenant-isolation.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`34-examinations-write-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`45-exam-ops-write-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/students/[id]` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`05-bulk-import.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/students/[id]` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`05-bulk-import.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students/[id]/edit` | smoke | `15-overview-people-inventory-smoke.spec.ts` |
 | `/students/[id]/enroll` | smoke | `55-enrol-progression-smoke.spec.ts` |
 | `/students/[id]/transfer` | smoke | `15-overview-people-inventory-smoke.spec.ts` |
@@ -230,15 +230,15 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 
 | Page | Coverage kinds | Specs |
 |---|---|---|
-| `/student` | a11y, dark, rtl, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/student/attendance` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/student/calendar` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/student/grades` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/student/homework` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/student/library` | functional | `48-library-ops-write-smoke.spec.ts` |
-| `/student/notices` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/student/pal` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/student/timetable` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student` | a11y, dark, rtl, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student/attendance` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student/calendar` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student/grades` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student/homework` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student/library` | functional, smoke | `48-library-ops-write-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts` |
+| `/student/notices` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student/pal` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/student/timetable` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`60-student-portal-screens-read.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
 
 ## auth
 

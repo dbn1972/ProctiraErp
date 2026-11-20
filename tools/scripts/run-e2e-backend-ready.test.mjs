@@ -6,7 +6,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -92,6 +99,32 @@ test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
   );
   assert.ok(harness, 'shard job runs the harness');
   assert.equal(harness.env?.PLAYWRIGHT_WORKERS, '1');
+});
+
+// Student portal screen -> API -> DB coverage (60 read, 61 privacy/tenancy).
+// Both always run nightly. PR membership follows the measured shard-time rule: add 61,
+// then 60, only while baseline + pending + (projected CI minutes of the added specs / 4)
+// x 1.25 stays <= 16.0 at one worker. Measured: 14.83 max PR shard + 0.86 pending parent
+// specs + 0.854 / 4 x 1.25 = 15.96 min with both, so both are in PR_SPECS. Removing one is
+// a visible change here.
+const STUDENT_SCREEN_SPECS = [
+  '60-student-portal-screens-read.spec.ts',
+  '61-student-portal-privacy-tenancy.spec.ts',
+];
+const STUDENT_SCREEN_PR_SUBSET = STUDENT_SCREEN_SPECS;
+test('student portal screen specs are in the nightly set (and the measured PR subset)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of STUDENT_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.equal(
+      pr.includes(`e2e/${file}`),
+      STUDENT_SCREEN_PR_SUBSET.includes(file),
+      `PR_SPECS membership of e2e/${file} matches the measured subset`,
+    );
+  }
 });
 
 // UAT-ENV-015: upload-artifact skips hidden files by default, so a step that lists a
