@@ -92,8 +92,7 @@ test.describe('Health screens — live form saves (E2E_BACKEND_READY)', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(item).toHaveCount(1, { timeout: 20_000 });
     await expect(item).toContainText(description);
-    // D1 (defects.md): the register link does not carry the student name yet; the name
-    // assertion lives in d1-allergies-test.patch.
+    // The register student-name link (D1, fixed in #730) is asserted in spec 63.
 
     const allergies = await getRows(request, ha, `/health/allergies/student/${student.id}`);
     expect(

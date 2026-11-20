@@ -114,10 +114,11 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
     const doseRow = main.locator('li', { hasText: vaccine });
     await expect(doseRow).toHaveCount(1);
     await expect(doseRow).toContainText(`· dose 1 · ${PAST_DOSE_DATE}`);
-    // D3 (defects.md): the heading does not name the student yet. The name assertion is in
-    // d3-studentId-test.patch for the fix PR; here only the record route and heading exist.
     await expect(page).toHaveURL(new RegExp(`/health/${student.id}$`));
     await expect(main.locator('h1')).toHaveCount(1);
+    // D3 (fixed in #730): the heading names the student although the gateway sends
+    // studentName '' (PRC-M088); the page resolves the name from the directory.
+    await expect.soft(main.locator('h1').first()).toContainText(student.label);
   });
 
   test('/health/allergies lists the allergy under the student name', async ({ page, request }) => {
@@ -136,9 +137,10 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
     const item = page.locator('main li').filter({ has: page.locator(href) });
     await expect(item).toHaveCount(1, { timeout: 20_000 });
     await expect(item).toContainText(allergy);
-    // D1 (defects.md): the link does not carry the student name yet. The name assertion is
-    // in d1-allergies-test.patch for the fix PR; here the link to this student's record exists.
-    await expect(item.locator(href)).toHaveCount(1);
+    const link = item.locator(href);
+    await expect(link).toHaveCount(1);
+    // D1 (fixed in #730): the link carries the student name resolved from the directory.
+    await expect.soft(link).toContainText(student.label);
   });
 
   test('/health/vaccinations lists the dose under the student name', async ({ page, request }) => {
@@ -316,8 +318,8 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
     await expect(tr).toContainText('Moderate');
     await expect(tr).toContainText(accommodation);
     await expect(tr).toContainText('Active');
-    // D2 (defects.md): the row does not name the student yet. The name assertion is in
-    // d2-special-needs-test.patch for the fix PR; here the row links to this student.
     await expect(tr.locator(`a[href="/students/${student.id}"]`)).toHaveCount(1);
+    // D2 (fixed in #730): the row names the student resolved from the directory.
+    await expect.soft(tr).toContainText(student.label);
   });
 });
