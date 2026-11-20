@@ -29,6 +29,7 @@ import {
   listStudentVaccinationsResult,
 } from '@/lib/api/health';
 import { getStudent } from '@/lib/api/students';
+import { personDisplayName } from '@/lib/entity-label';
 import { cn } from '@/lib/utils';
 
 /* ---------------------------------------------------------------- helpers */
@@ -92,24 +93,35 @@ export default async function HealthRecordPage(props: PageProps) {
     return <HealthRecordLoadFailure status={recordResult.status} kind={recordResult.kind} />;
   }
   const record = recordResult.ok ? recordResult.record : null;
-  const student = record ? null : await getStudent(params.studentId);
+  // PRC-M088: live records carry studentName '' (not nullish), so the name must
+  // come from the caller's student directory. With a record on file the lookup is
+  // best-effort: a denied or failed read falls back to a fixed label.
+  const student = !record
+    ? await getStudent(params.studentId)
+    : record.studentName?.trim()
+      ? null
+      : await getStudent(params.studentId).catch(() => null);
   if (!record && !student) notFound();
   const hasRecord = record !== null;
 
-  const displayName =
-    record?.studentName ??
-    (`${student?.firstName ?? ''} ${student?.lastName ?? ''}`.trim() || 'Student');
-  const profile = record ?? {
-    id: params.studentId,
-    studentId: params.studentId,
-    studentName: displayName,
-    bloodType: null,
-    allergies: [],
-    chronicConditions: [],
-    emergencyContactName: null,
-    emergencyContactPhone: null,
-    lastUpdated: '',
-  };
+  const displayName = personDisplayName(
+    `${student?.firstName ?? ''} ${student?.lastName ?? ''}`,
+    record?.studentName,
+    'Unknown student',
+  );
+  const profile = record
+    ? { ...record, studentName: displayName }
+    : {
+        id: params.studentId,
+        studentId: params.studentId,
+        studentName: displayName,
+        bloodType: null,
+        allergies: [],
+        chronicConditions: [],
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+        lastUpdated: '',
+      };
 
   const vaccinationsResult = await listStudentVaccinationsResult(params.studentId);
   const vaccinations = vaccinationsResult.ok ? vaccinationsResult.items : [];

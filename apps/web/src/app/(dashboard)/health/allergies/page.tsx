@@ -8,6 +8,8 @@ import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { canAccessHealthRecords, listHealthRecordsResult } from '@/lib/api/health';
+import { personDisplayName } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +32,18 @@ export default async function HealthAllergiesPage() {
       </div>
     );
   }
-  const flagged = result.items.filter((r) => (r.allergies?.length ?? 0) > 0);
+  // PRC-M088: live records carry no name (studentName ''); resolve it from the
+  // caller's student directory, as /health does, and never render an empty link.
+  const withAllergies = result.items.filter((r) => (r.allergies?.length ?? 0) > 0);
+  const studentLabels = await loadStudentLabelMap(withAllergies.map((r) => r.studentId));
+  const flagged = withAllergies.map((r) => ({
+    ...r,
+    studentName: personDisplayName(
+      studentLabels.get(r.studentId),
+      r.studentName,
+      'Unknown student',
+    ),
+  }));
 
   return (
     <div className="space-y-6 p-6">
