@@ -582,7 +582,9 @@ test('health screen specs 63-65 exist and run nightly', () => {
     '64-health-screens-write.spec.ts',
     '65-health-privacy-phi.spec.ts',
   ];
-  // Timing decision recorded in the health screen-coverage task evidence/timing.md.
+  // Nightly only: the worst PR shard job already takes 17.17 min (CI run 44258213737,
+  // shard 3/4), above the 16-min budget, so any of 63-65 would push it further over.
+  // Move a spec here only together with PR_SPECS.
   const HEALTH_SPECS_IN_PR = [];
   const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
   const pr = wf.env.PR_SPECS.split(/\s+/);

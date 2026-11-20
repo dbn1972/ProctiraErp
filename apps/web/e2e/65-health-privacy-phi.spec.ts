@@ -580,6 +580,10 @@ test.describe('Health privacy and PHI access log — live (E2E_BACKEND_READY)', 
 
     await page.context().clearCookies();
     await openAs(page, auditor);
+    // /health/phi-access shows the newest 100 rows tenant-wide, so the reader's rows are on
+    // it only if no other test reads PHI meanwhile (GET /health/records logs one row per
+    // student). Run with PLAYWRIGHT_WORKERS=1 on a reused database; CI shards use 1 worker
+    // and fresh databases. The API check below filters by studentId and has no such limit.
     await page.goto('/health/phi-access', { waitUntil: 'domcontentloaded' });
     const readerRows = page.locator('main tr', { hasText: reader.sub });
     const detail = readerRows.filter({ hasText: 'health_record.detail' });

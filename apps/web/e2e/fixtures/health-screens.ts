@@ -25,8 +25,6 @@ export const GATEWAY_URL =
 /** Seeded by tools/e2e/seed-e2e-tenants.sql. */
 export const TENANT_A = '00000000-0000-4000-8000-000000000001';
 export const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
-/** Tenant A institution (tools/e2e/seed-e2e-tenants.sql). */
-export const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 
 /** 8 upper-case hex characters, unique per call. */
 export function newTag(): string {
@@ -299,11 +297,4 @@ export async function waitForReact(locator: Locator): Promise<void> {
       { message: 'React props attached', timeout: 20_000 },
     )
     .toBe(true);
-}
-
-/** Soft-assert that none of `strings` appear in `scope`. */
-export async function expectNoneVisible(scope: Page | Locator, strings: string[]): Promise<void> {
-  for (const s of strings) {
-    await expect.soft(scope.getByText(s), `"${s}" must not be shown`).toHaveCount(0);
-  }
 }
