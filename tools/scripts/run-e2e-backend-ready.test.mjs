@@ -585,8 +585,7 @@ test('health screen specs 63-65 exist and run nightly', () => {
   // Nightly only: the worst PR shard job already takes 17.17 min (CI run 44258213737,
   // shard 3/4), above the 16-min budget, so any of 63-65 would push it further over.
   // Move a spec here only together with PR_SPECS.
-  // TEMPORARY measurement commit: reverted before merge (PR CI timing for 63-65).
-  const HEALTH_SPECS_IN_PR = HEALTH_SPECS;
+  const HEALTH_SPECS_IN_PR = [];
   const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
   const pr = wf.env.PR_SPECS.split(/\s+/);
   for (const f of HEALTH_SPECS) {
