@@ -6,6 +6,7 @@ import {
   apiHeaders,
   createCounsellor,
   createStudent,
+  deleteStudentVaccinations,
   healthAdmin,
   newTag,
   openAs,
@@ -119,12 +120,13 @@ test.describe('Health screens — live form saves (E2E_BACKEND_READY)', () => {
     const tag = newTag();
     const ha = healthAdmin(`hl-admin-${tag}`);
     const today = todayUtc();
-    // The register renders the first 100 rows by date_administered DESC (O5).
+    // The register renders the first 100 rows by date_administered DESC (O5). Specs 63-65
+    // delete or back-date their doses, so a high count means leftovers.
     const before = await getRows(request, ha, '/health/vaccinations');
     const othersToday = before.filter((v) => v.dateAdministered === today).length;
     expect(
       othersToday,
-      `${othersToday} vaccination rows dated ${today} already exist in tenant A; the register shows the first 100, so this test needs a fresh database`,
+      `${othersToday} vaccination rows dated ${today} already exist in tenant A (left by aborted runs or other specs); the register shows only the first 100`,
     ).toBeLessThan(99);
 
     const student = await createStudent(request, ha, tag);
@@ -133,45 +135,50 @@ test.describe('Health screens — live form saves (E2E_BACKEND_READY)', () => {
     const batch = `HL-BATCH-${tag}`;
     const notes = `HL vaccine notes ${tag}`;
 
-    await openAs(page, ha);
-    await page.goto('/health/vaccinations/new', { waitUntil: 'domcontentloaded' });
-    const form = await hydratedForm(page, 'create-vaccination-form');
-    await selectById(form.locator('#studentId'), student.id);
-    await form.locator('#vaccineName').fill(vaccine);
-    await form.locator('#doseNumber').fill('1');
-    await form.locator('#dateAdministered').fill(today);
-    await form.locator('#administeredBy').fill(administeredBy);
-    await form.locator('#batchNumber').fill(batch);
-    await form.locator('#notes').fill(notes);
-    await page.getByRole('button', { name: 'Save vaccination' }).click();
+    try {
+      await openAs(page, ha);
+      await page.goto('/health/vaccinations/new', { waitUntil: 'domcontentloaded' });
+      const form = await hydratedForm(page, 'create-vaccination-form');
+      await selectById(form.locator('#studentId'), student.id);
+      await form.locator('#vaccineName').fill(vaccine);
+      await form.locator('#doseNumber').fill('1');
+      await form.locator('#dateAdministered').fill(today);
+      await form.locator('#administeredBy').fill(administeredBy);
+      await form.locator('#batchNumber').fill(batch);
+      await form.locator('#notes').fill(notes);
+      await page.getByRole('button', { name: 'Save vaccination' }).click();
 
-    await expect(page).toHaveURL(/\/health\/vaccinations$/, { timeout: 20_000 });
-    const href = `a[href="/health/${student.id}"]`;
-    const item = page.locator('main li').filter({ has: page.locator(href) });
-    await expect(item).toHaveCount(1, { timeout: 20_000 });
-    await expect(item.locator(href)).toContainText(student.label);
-    await expect(item).toContainText(`${vaccine} · dose 1 · ${today}`);
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(item).toHaveCount(1, { timeout: 20_000 });
-    await expect(item.locator(href)).toContainText(student.label);
-    await expect(item).toContainText(`${vaccine} · dose 1 · ${today}`);
+      await expect(page).toHaveURL(/\/health\/vaccinations$/, { timeout: 20_000 });
+      const href = `a[href="/health/${student.id}"]`;
+      const item = page.locator('main li').filter({ has: page.locator(href) });
+      await expect(item).toHaveCount(1, { timeout: 20_000 });
+      await expect(item.locator(href)).toContainText(student.label);
+      await expect(item).toContainText(`${vaccine} · dose 1 · ${today}`);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(item).toHaveCount(1, { timeout: 20_000 });
+      await expect(item.locator(href)).toContainText(student.label);
+      await expect(item).toContainText(`${vaccine} · dose 1 · ${today}`);
 
-    const doses = await getRows(request, ha, `/health/vaccinations/student/${student.id}`);
-    expect(
-      doses.map((v) => [
-        v.vaccineName,
-        v.doseNumber,
-        v.dateAdministered,
-        v.administeredBy,
-        v.batchNumber,
-        v.notes,
-      ]),
-    ).toEqual([[vaccine, 1, today, administeredBy, batch, notes]]);
+      const doses = await getRows(request, ha, `/health/vaccinations/student/${student.id}`);
+      expect(
+        doses.map((v) => [
+          v.vaccineName,
+          v.doseNumber,
+          v.dateAdministered,
+          v.administeredBy,
+          v.batchNumber,
+          v.notes,
+        ]),
+      ).toEqual([[vaccine, 1, today, administeredBy, batch, notes]]);
 
-    await page.goto(`/health/${student.id}`, { waitUntil: 'domcontentloaded' });
-    const doseRow = page.locator('main li', { hasText: vaccine });
-    await expect(doseRow).toHaveCount(1, { timeout: 20_000 });
-    await expect(doseRow).toContainText(`· dose 1 · ${today}`);
+      await page.goto(`/health/${student.id}`, { waitUntil: 'domcontentloaded' });
+      const doseRow = page.locator('main li', { hasText: vaccine });
+      await expect(doseRow).toHaveCount(1, { timeout: 20_000 });
+      await expect(doseRow).toContainText(`· dose 1 · ${today}`);
+    } finally {
+      // Keep today's register count flat across re-runs on one database.
+      await deleteStudentVaccinations(request, ha, student.id);
+    }
   });
 
   test('/health/incidents/new logs a visit for the chosen school under the session user', async ({

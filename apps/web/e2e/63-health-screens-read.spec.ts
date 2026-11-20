@@ -6,6 +6,7 @@ import {
   apiHeaders,
   createCounsellor,
   createStudent,
+  deleteStudentVaccinations,
   healthAdmin,
   newTag,
   openAs,
@@ -30,6 +31,12 @@ import {
  */
 
 type Row = Record<string, unknown>;
+
+/** Past date: keeps the record-screen dose out of the register's today-first 100 rows (O5). */
+const PAST_DOSE_DATE = '2024-01-15';
+
+/** The register reaches this many today-dated rows only when doses were left behind. */
+const REGISTER_TODAY_GUARD = 99;
 
 async function getJson(request: APIRequestContext, p: Persona, path: string): Promise<unknown> {
   const res = await request.get(`${GATEWAY_URL}/api/v1${path}`, { headers: apiHeaders(p) });
@@ -81,7 +88,6 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
   }) => {
     const tag = newTag();
     const ha = healthAdmin(`hl-admin-${tag}`);
-    const today = todayUtc();
     const student = await createStudent(request, ha, tag);
     const allergy = `HL allergy ${tag}`;
     const vaccine = `HL vaccine ${tag}`;
@@ -90,7 +96,7 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
       studentId: student.id,
       vaccineName: vaccine,
       doseNumber: 1,
-      dateAdministered: today,
+      dateAdministered: PAST_DOSE_DATE,
     });
 
     const record = (await getJson(request, ha, `/health/records/${student.id}`)) as Row;
@@ -98,7 +104,7 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
     expect(record.allergies).toEqual([allergy]);
     const doses = await getRows(request, ha, `/health/vaccinations/student/${student.id}`);
     expect(doses.map((v) => [v.vaccineName, v.doseNumber, v.dateAdministered])).toEqual([
-      [vaccine, 1, today],
+      [vaccine, 1, PAST_DOSE_DATE],
     ]);
 
     await openAs(page, ha);
@@ -107,7 +113,7 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
     await expect(main.locator('li', { hasText: allergy })).toHaveCount(1, { timeout: 20_000 });
     const doseRow = main.locator('li', { hasText: vaccine });
     await expect(doseRow).toHaveCount(1);
-    await expect(doseRow).toContainText(`· dose 1 · ${today}`);
+    await expect(doseRow).toContainText(`· dose 1 · ${PAST_DOSE_DATE}`);
     // D3 (defects.md): the heading does not name the student yet. The name assertion is in
     // d3-studentId-test.patch for the fix PR; here only the record route and heading exist.
     await expect(page).toHaveURL(new RegExp(`/health/${student.id}$`));
@@ -141,34 +147,44 @@ test.describe('Health screens — live read path (E2E_BACKEND_READY)', () => {
     const today = todayUtc();
     // The register renders the first 100 rows by date_administered DESC; future dates
     // are rejected, so this run's row is on screen only if at most 99 others are today's.
+    // Specs 63-65 delete or back-date their doses, so a high count means leftovers.
     const before = await getRows(request, ha, '/health/vaccinations');
     const othersToday = before.filter((v) => v.dateAdministered === today).length;
     expect(
       othersToday,
-      `${othersToday} vaccination rows dated ${today} already exist in tenant A; the register shows the first 100, so this test needs a fresh database`,
-    ).toBeLessThan(99);
+      `${othersToday} vaccination rows dated ${today} already exist in tenant A (left by aborted runs or other specs); the register shows only the first 100`,
+    ).toBeLessThan(REGISTER_TODAY_GUARD);
 
     const student = await createStudent(request, ha, tag);
     const vaccine = `HL vaccine ${tag}`;
-    await seedVaccination(request, ha, {
-      studentId: student.id,
-      vaccineName: vaccine,
-      doseNumber: 2,
-      dateAdministered: today,
-    });
+    try {
+      await seedVaccination(request, ha, {
+        studentId: student.id,
+        vaccineName: vaccine,
+        doseNumber: 2,
+        dateAdministered: today,
+      });
 
-    const rows = await getRows(request, ha, '/health/vaccinations');
-    const row = rows.find((v) => v.studentId === student.id);
-    expect(row, 'GET /health/vaccinations has the dose').toBeTruthy();
-    expect([row?.vaccineName, row?.doseNumber, row?.dateAdministered]).toEqual([vaccine, 2, today]);
+      const rows = await getRows(request, ha, '/health/vaccinations');
+      const row = rows.find((v) => v.studentId === student.id);
+      expect(row, 'GET /health/vaccinations has the dose').toBeTruthy();
+      expect([row?.vaccineName, row?.doseNumber, row?.dateAdministered]).toEqual([
+        vaccine,
+        2,
+        today,
+      ]);
 
-    await openAs(page, ha);
-    await page.goto('/health/vaccinations', { waitUntil: 'domcontentloaded' });
-    const href = `a[href="/health/${student.id}"]`;
-    const item = page.locator('main li').filter({ has: page.locator(href) });
-    await expect(item).toHaveCount(1, { timeout: 20_000 });
-    await expect(item.locator(href)).toContainText(student.label);
-    await expect(item).toContainText(`${vaccine} · dose 2 · ${today}`);
+      await openAs(page, ha);
+      await page.goto('/health/vaccinations', { waitUntil: 'domcontentloaded' });
+      const href = `a[href="/health/${student.id}"]`;
+      const item = page.locator('main li').filter({ has: page.locator(href) });
+      await expect(item).toHaveCount(1, { timeout: 20_000 });
+      await expect(item.locator(href)).toContainText(student.label);
+      await expect(item).toContainText(`${vaccine} · dose 2 · ${today}`);
+    } finally {
+      // Keep today's register count flat across re-runs on one database.
+      await deleteStudentVaccinations(request, ha, student.id);
+    }
   });
 
   test('/health/incidents lists the visit with the student and the reporting user', async ({

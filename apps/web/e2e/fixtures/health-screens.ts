@@ -298,3 +298,25 @@ export async function waitForReact(locator: Locator): Promise<void> {
     )
     .toBe(true);
 }
+
+/**
+ * Hard-delete every dose of `studentId` (a student this run created). The vaccination
+ * register shows the first 100 rows by date_administered DESC and rejects future dates,
+ * so a test that needs a today-dated dose removes it afterwards to keep today's count flat.
+ */
+export async function deleteStudentVaccinations(
+  request: APIRequestContext,
+  p: Persona,
+  studentId: string,
+): Promise<void> {
+  const path = `/health/vaccinations/student/${studentId}`;
+  const res = await request.get(`${GATEWAY_URL}/api/v1${path}`, { headers: apiHeaders(p) });
+  expect(res.status(), `GET ${path}: ${await res.text()}`).toBe(200);
+  const doses = ((await res.json()) as { data?: Array<{ id: string }> }).data ?? [];
+  for (const dose of doses) {
+    const del = await request.delete(`${GATEWAY_URL}/api/v1/health/vaccinations/${dose.id}`, {
+      headers: apiHeaders(p),
+    });
+    expect(del.status(), `DELETE /health/vaccinations/${dose.id}: ${await del.text()}`).toBe(204);
+  }
+}
