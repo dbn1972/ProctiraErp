@@ -601,5 +601,27 @@ describe('healthUiPlugin', () => {
         expect((res.json() as { data: unknown[] }).data).toEqual([]);
       }
     });
+    it('D1-D3 contract (PRC-M088): live rows carry no name; another tenant cannot read this student', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      const own = await buildLiveApp(repository);
+      // The web resolves the name from the caller's tenant-scoped directory, so the
+      // aggregates return '' — never an id fragment, never a name from elsewhere.
+      const detail = await own.inject({ method: 'GET', url: `/health/records/${STUDENT}` });
+      expect(detail.statusCode).toBe(200);
+      expect(detail.json()).toMatchObject({ studentId: STUDENT, studentName: '' });
+      const needs = (await own.inject({ method: 'GET', url: '/health/special-needs' })).json() as {
+        data: Array<{ studentId: string; studentName: string }>;
+      };
+      expect(needs.data).toEqual([
+        expect.objectContaining({ studentId: STUDENT, studentName: '' }),
+      ]);
+      // Cross-tenant negative: the other tenant gets 404 for this student's record.
+      const other = await buildLiveApp(repository, OTHER);
+      const foreign = await other.inject({ method: 'GET', url: `/health/records/${STUDENT}` });
+      expect(foreign.statusCode).toBe(404);
+      expect(foreign.body).not.toContain('Peanuts');
+      expect(foreign.body).not.toContain(STUDENT);
+    });
   });
 });
