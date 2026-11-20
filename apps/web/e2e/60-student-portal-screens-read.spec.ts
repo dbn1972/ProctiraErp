@@ -125,12 +125,19 @@ test.describe('Student portal screens — read path (E2E_BACKEND_READY)', () => 
     const grades = page.getByTestId('student-grades');
     await expect(grades.getByRole('listitem').filter({ hasText: code })).toHaveText(`${code} · 88`);
 
-    // Sign out clears the session; retry the click until the shell has hydrated.
+    // Sign out clears the session. A click before the shell hydrates does nothing, so click
+    // until the logout request is sent, then stop clicking: a second click while /login
+    // loads would restart that navigation.
     const signOut = page.getByTestId('student-shell-signout');
     await expect(async () => {
+      const logout = page.waitForResponse(
+        (res) => res.url().endsWith('/api/auth/logout') && res.request().method() === 'POST',
+        { timeout: 3_000 },
+      );
       await signOut.click();
-      await expect(page).toHaveURL(/\/login/, { timeout: 3_000 });
+      expect((await logout).status()).toBe(200);
     }).toPass({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/login/, { timeout: 60_000 });
     await page.goto('/student', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/login/);
   });
