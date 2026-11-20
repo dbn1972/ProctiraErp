@@ -1,12 +1,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listTransportVehicles } from '@/lib/api/transport';
 import { NewVehicleForm } from '../_components/new-vehicle-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransportVehiclesPage() {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const vehicles = await listTransportVehicles();
 
   return (

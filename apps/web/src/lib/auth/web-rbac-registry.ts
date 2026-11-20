@@ -24,12 +24,16 @@ const DOMAIN_GRANTS: Record<string, Permission[]> = {
     // PRC-M480: gateway CAMPUS_MANAGE subset behind dashboard write-route guards.
     { resource: 'lms', action: 'manage' },
     { resource: 'library', action: 'manage' },
+    // T-D1: gateway CAMPUS_MANAGE. The gateway's teacher/staff transport.read
+    // (STAFF_READS) is not mirrored: the transport package denies those roles.
+    { resource: 'transport', action: 'manage' },
   ],
   principal: [
     { resource: 'communication', action: 'manage' },
     { resource: 'report', action: 'manage' },
     { resource: 'lms', action: 'manage' },
     { resource: 'library', action: 'manage' },
+    { resource: 'transport', action: 'manage' },
   ],
   teacher: [
     { resource: 'communication', action: 'read' },

@@ -1,4 +1,5 @@
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listTransportVehicles } from '@/lib/api/transport';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { getLiveMap } from '@/lib/transport/api';
@@ -8,7 +9,10 @@ import { LiveMapRefresher, LiveMapSvg } from '../_components/live-map';
 export const dynamic = 'force-dynamic';
 
 export default async function TransportLivePage() {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const [live, vehicles] = await Promise.all([getLiveMap(), listTransportVehicles()]);
   const vehicleLabels = new Map(
     vehicles.flatMap((vehicle) => {
