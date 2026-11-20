@@ -177,6 +177,9 @@ env:
     e2e/63-health-screens-read.spec.ts
     e2e/64-health-screens-write.spec.ts
     e2e/65-health-privacy-phi.spec.ts
+    e2e/66-transport-screens-read.spec.ts
+    e2e/67-transport-screens-write.spec.ts
+    e2e/68-transport-privacy-tenancy.spec.ts
 
 permissions:
   contents: read
