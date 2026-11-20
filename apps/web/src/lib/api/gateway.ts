@@ -41,6 +41,8 @@ export interface GatewayResponse<T> {
   ok: boolean;
   data: T | null;
   error?: { code: string; message: string; details?: unknown };
+  /** Gateway `x-correlation-id` (or `x-request-id`) of a non-2xx response. */
+  correlationId?: string;
 }
 
 /** Reads the current session's tenant + access token from cookies / headers. */
@@ -164,6 +166,10 @@ export async function gatewayFetch<T>(
       ok: false,
       data: null,
       error: { code: error.code, message: error.message, details: payload },
+      correlationId:
+        response.headers.get('x-correlation-id') ??
+        response.headers.get('x-request-id') ??
+        undefined,
     };
   }
 
