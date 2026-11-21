@@ -14,7 +14,11 @@ vi.mock('./gateway', () => ({
   getSessionContext: vi.fn(),
 }));
 
-import { gatewayFetchAllPages, MAX_AUTO_PAGES } from './gateway-all-pages';
+import {
+  gatewayFetchAllPages,
+  gatewayFetchAllPagesWithTotal,
+  MAX_AUTO_PAGES,
+} from './gateway-all-pages';
 import { listStaffAssignments } from './staff';
 import { getStudentEnrollments } from './students';
 
@@ -71,6 +75,62 @@ describe('gatewayFetchAllPages', () => {
     });
     await gatewayFetchAllPages('/things');
     expect(gatewayFetchMock).toHaveBeenCalledTimes(MAX_AUTO_PAGES);
+  });
+});
+// T-D2: list screens need the gateway's total, and to know when they hold fewer rows.
+describe('gatewayFetchAllPagesWithTotal', () => {
+  beforeEach(() => {
+    gatewayFetchMock.mockReset();
+  });
+  it('returns every row with the gateway total', async () => {
+    gatewayFetchMock.mockImplementation(serve250);
+    const list = await gatewayFetchAllPagesWithTotal<{ id: string }>('/things');
+    expect(list.items).toHaveLength(TOTAL);
+    expect(list.totalItems).toBe(TOTAL);
+    expect(list.truncated).toBe(false);
+  });
+  it('marks a later-page failure as truncated and keeps the true total', async () => {
+    gatewayFetchMock.mockImplementation((path: string) =>
+      path.includes('page=3&') ? Promise.resolve({ ok: false, status: 503 }) : serve250(path),
+    );
+    const list = await gatewayFetchAllPagesWithTotal<{ id: string }>('/things');
+    expect(list.items).toHaveLength(200);
+    expect(list.totalItems).toBe(TOTAL);
+    expect(list.truncated).toBe(true);
+  });
+  it('marks the page cap as truncated', async () => {
+    gatewayFetchMock.mockImplementation((path: string) => {
+      const page = Number(new URLSearchParams(path.split('?')[1]).get('page'));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        data: {
+          data: [{ id: `p${page}` }],
+          meta: { totalItems: MAX_AUTO_PAGES + 5, totalPages: MAX_AUTO_PAGES + 5 },
+        },
+      });
+    });
+    const list = await gatewayFetchAllPagesWithTotal('/things');
+    expect(gatewayFetchMock).toHaveBeenCalledTimes(MAX_AUTO_PAGES);
+    expect(list.items).toHaveLength(MAX_AUTO_PAGES);
+    expect(list.totalItems).toBe(MAX_AUTO_PAGES + 5);
+    expect(list.truncated).toBe(true);
+  });
+  it('is empty and not truncated when the first page fails', async () => {
+    gatewayFetchMock.mockResolvedValue({ ok: false, status: 403, data: null });
+    expect(await gatewayFetchAllPagesWithTotal('/things')).toEqual({
+      items: [],
+      totalItems: 0,
+      truncated: false,
+    });
+  });
+  it('falls back to the rows read when the response carries no total', async () => {
+    gatewayFetchMock.mockResolvedValue({ ok: true, status: 200, data: { data: [{ id: 'a' }] } });
+    expect(await gatewayFetchAllPagesWithTotal('/things')).toEqual({
+      items: [{ id: 'a' }],
+      totalItems: 1,
+      truncated: false,
+    });
   });
 });
 

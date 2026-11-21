@@ -48,6 +48,11 @@ const transportApi = vi.hoisted(() => ({
   listTransportVehicles: vi.fn(),
   listDriverAssignments: vi.fn(),
   listStudentAssignments: vi.fn(),
+  // T-D2: the list screens read these to print the list's total.
+  listTransportRoutesWithTotal: vi.fn(),
+  listTransportVehiclesWithTotal: vi.fn(),
+  listDriverAssignmentsWithTotal: vi.fn(),
+  listStudentAssignmentsWithTotal: vi.fn(),
 }));
 vi.mock('@/lib/api/transport', () => transportApi);
 
@@ -84,6 +89,15 @@ function resetFetches() {
   transportApi.listTransportVehicles.mockResolvedValue([]);
   transportApi.listDriverAssignments.mockResolvedValue([]);
   transportApi.listStudentAssignments.mockResolvedValue([]);
+  const empty = { items: [], totalItems: 0, truncated: false };
+  transportApi.listTransportRoutesWithTotal.mockResolvedValue({
+    items: [ROUTE],
+    totalItems: 1,
+    truncated: false,
+  });
+  transportApi.listTransportVehiclesWithTotal.mockResolvedValue(empty);
+  transportApi.listDriverAssignmentsWithTotal.mockResolvedValue(empty);
+  transportApi.listStudentAssignmentsWithTotal.mockResolvedValue(empty);
   opsApi.listRouteStops.mockResolvedValue([]);
   opsApi.listAllStops.mockResolvedValue([]);
   opsApi.getLiveMap.mockResolvedValue({ vehicles: [], stops: [] });
@@ -200,7 +214,7 @@ describe('transport route guard (T-D1)', () => {
       auth.roles = [role];
       await renderRoute(ROUTES.find((r) => r.path === '/transport/vehicles')!);
       expect(screen.getByTestId('transport-vehicle-form')).toBeInTheDocument();
-      expect(transportApi.listTransportVehicles).toHaveBeenCalled();
+      expect(transportApi.listTransportVehiclesWithTotal).toHaveBeenCalled();
     },
   );
 
@@ -208,6 +222,6 @@ describe('transport route guard (T-D1)', () => {
     auth.roles = ['admin'];
     await renderRoute(ROUTES.find((r) => r.path === '/transport/vehicles')!);
     expect(screen.getByTestId('transport-vehicle-form')).toBeInTheDocument();
-    expect(transportApi.listTransportVehicles).toHaveBeenCalled();
+    expect(transportApi.listTransportVehiclesWithTotal).toHaveBeenCalled();
   });
 });
