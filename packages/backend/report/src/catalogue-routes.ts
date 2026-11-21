@@ -13,6 +13,10 @@ import {
 } from './catalogue-schemas.js';
 import type { CatalogueService } from './catalogue-service.js';
 import { formatApiLabel, resolveReportKey, type CatalogueReportKey } from './catalogue.js';
+import {
+  DenialAuditCoalescer,
+  type DenialAuditCoalescingOptions,
+} from './denial-audit-coalescer.js';
 import { canAccessReport, isReportManager, isReportStaff } from './report-access.js';
 import {
   NoopReportAuditPort,
@@ -33,6 +37,11 @@ export interface CatalogueRoutesOptions {
    * no-op sink so the catalogue keeps working when audit is not wired.
    */
   audit?: ReportAuditPort;
+  /**
+   * UAT-9d: coalescing of `report.download.denied` audit rows per (tenant, actor, artifact,
+   * reason); defaults to a 60 s window and 10 000 keys.
+   */
+  denialAudit?: DenialAuditCoalescingOptions;
   /**
    * PRC-L338 (topic 1): trusted public API base used to build ABSOLUTE report
    * download links (e.g. `https://app.example`). It comes from deployment
@@ -223,6 +232,8 @@ export function registerCatalogueRoutes(
   const trustedApiBase = resolveTrustedApiBase(options.publicApiBaseUrl);
   // PRC-L340: audit sink for generate/download/schedule. Default no-op.
   const audit = options.audit ?? new NoopReportAuditPort();
+  // UAT-9d: one denial row per key per window; repeats are counted, not written.
+  const denialCoalescer = new DenialAuditCoalescer(options.denialAudit);
 
   // PRC-L340: emit an audit event without ever failing the user operation.
   // Audit here is event emission (not the same-tx keyed chain, which is B07),
@@ -404,14 +415,39 @@ export function registerCatalogueRoutes(
       // tenant + actor, the requested artifact id and the reason. A presented
       // token that fails for any reason gets one generic body, so the
       // response does not reveal whether the id exists in any tenant.
+      // UAT-9d: the audit row names the specific reason; repeats of the same (tenant, actor,
+      // artifact, reason) inside the window are logged and counted instead of each writing a
+      // row. The HTTP body depends only on whether a token was presented.
       const denyDownload = async (reason: ReportDownloadDenialReason) => {
-        await emitAudit(request, {
-          tenantId,
-          actorId: resolveUserId(request),
-          action: 'report.download.denied',
-          artifactId: params.data.id,
-          reason,
-        });
+        const actorId = resolveUserId(request);
+        const artifactId = params.data.id;
+        const admission = denialCoalescer.admit(
+          JSON.stringify([tenantId, actorId, artifactId, reason]),
+        );
+        if (admission.record) {
+          await emitAudit(request, {
+            tenantId,
+            actorId,
+            action: 'report.download.denied',
+            artifactId,
+            reason,
+            ...(admission.suppressedCount > 0
+              ? { suppressedCount: admission.suppressedCount }
+              : {}),
+          });
+        } else {
+          request.log.warn(
+            {
+              event: 'report.download.denied',
+              tenantId,
+              actorId,
+              artifactId,
+              reason,
+              coalesced: true,
+            },
+            'report download denied (audit row coalesced)',
+          );
+        }
         return reply.status(403).send(downloadDenied(reason));
       };
       // PRC-C009: the signed download token is mandatory (was optional/decorative).
@@ -444,7 +480,7 @@ export function registerCatalogueRoutes(
           artifact.requestedBy,
           token,
         );
-        if (!check.ok) return denyDownload('token_invalid');
+        if (!check.ok) return denyDownload(check.code);
         if (!mayAccessArtifact(request, artifact)) {
           // 404 (not 403) so a non-owner cannot probe which artifact ids exist.
           return reply.status(404).send({

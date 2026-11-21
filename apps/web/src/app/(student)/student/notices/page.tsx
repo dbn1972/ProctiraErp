@@ -16,6 +16,7 @@ export default async function StudentNoticesPage() {
       testId="student-notices"
       status={studentStatus(result)}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="There are no school notices right now."
       hasRows={notices.length > 0}
     >

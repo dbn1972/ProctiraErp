@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **109**
+- Playwright specs: **110**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -217,7 +217,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/parent/offers` | a11y, dark, functional, touch | `22-parent-portal-smoke.spec.ts`<br>`41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/parent/pal` | smoke | `40-portals-academic-visibility-smoke.spec.ts` |
 | `/parent/report-cards` | smoke | `40-portals-academic-visibility-smoke.spec.ts` |
-| `/parent/scholarships` | functional | `56-parent-scholarship-documents.spec.ts` |
+| `/parent/scholarships` | functional, smoke | `56-parent-scholarship-documents.spec.ts`<br>`73-safe-error-responses.spec.ts` |
 | `/parent/timetable` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
 
 ## (public)

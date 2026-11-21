@@ -23,13 +23,13 @@ import {
   type DefineAssessmentItemsInput,
   type UpdateGradingSchemeInput,
 } from '@/lib/api/assessments';
-import { GatewayError } from '@/lib/api/gateway';
 import {
   assessmentItemsFormSchema,
   gradingSchemeFormSchema,
   type AssessmentItemsFormValues,
   type GradingSchemeFormValues,
 } from '@/lib/validation/assessment-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface ActionState<T = unknown> {
   status: 'idle' | 'success' | 'error';
@@ -49,13 +49,8 @@ function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<s
 }
 
 function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
-  if (error instanceof GatewayError) {
-    return { status: 'error', message: error.message || fallback };
-  }
-  if (error instanceof Error) {
-    return { status: 'error', message: error.message };
-  }
-  return { status: 'error', message: fallback };
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 function toCreateSchemeInput(values: GradingSchemeFormValues): CreateGradingSchemeInput {

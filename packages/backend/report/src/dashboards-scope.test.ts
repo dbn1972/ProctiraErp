@@ -8,6 +8,12 @@ type QueryFn = (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }
 const state: { pool: unknown; query: QueryFn } = { pool: null, query: async () => ({ rows: [] }) };
 vi.mock('@proctira/database', () => ({
   getSharedPgPool: () => state.pool,
+  // D1-F3 savepoint semantics are covered by dashboards-savepoint.test.ts.
+  withPgSavepoint: async (
+    client: { query: QueryFn },
+    _name: string,
+    fn: (c: { query: QueryFn }) => Promise<unknown>,
+  ) => fn(client),
   withPgTenant: async (
     _pool: unknown,
     _tenantId: string,

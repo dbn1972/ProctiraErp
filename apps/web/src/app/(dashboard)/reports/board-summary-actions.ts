@@ -5,6 +5,7 @@
  * Server Action calls the gateway with the session's credentials instead.
  */
 import { gatewayFetch } from '@/lib/api/gateway';
+import { genericResultErrorMessage } from '@/lib/api/action-error';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -39,6 +40,6 @@ export async function getBoardSummaryAction(boardId: string): Promise<BoardSumma
   if (result.status === 404) return { status: 'error', message: 'Board not found.' };
   return {
     status: 'error',
-    message: result.error?.message ?? `Board summary is unavailable (${result.status}).`,
+    message: genericResultErrorMessage(result, 'Board summary is unavailable.'),
   };
 }

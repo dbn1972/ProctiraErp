@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
 import { isSandboxPaymentEnabled } from '@/lib/fees/validation';
 import { generateIdempotencyKey } from '@/lib/sync/idempotencyKey';
 import {
@@ -13,6 +12,7 @@ import {
   replyToThread,
   type CreateThreadInput,
 } from '@/lib/api/parent-portal';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface ParentActionState {
   status: 'idle' | 'success' | 'error';
@@ -28,12 +28,7 @@ export async function createThreadAction(input: CreateThreadInput): Promise<Pare
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create thread',
+      message: genericActionErrorMessage(error, 'Failed to create thread'),
     };
   }
 }
@@ -50,12 +45,7 @@ export async function replyToThreadAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to send reply',
+      message: genericActionErrorMessage(error, 'Failed to send reply'),
     };
   }
 }
@@ -75,12 +65,7 @@ export async function decideConsentAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to decide consent',
+      message: genericActionErrorMessage(error, 'Failed to decide consent'),
     };
   }
 }
@@ -111,12 +96,7 @@ export async function payInvoiceAction(invoiceId: string): Promise<ParentActionS
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to pay invoice',
+      message: genericActionErrorMessage(error, 'Failed to pay invoice'),
     };
   }
 }
@@ -146,12 +126,7 @@ export async function acceptGuardianOfferAction(input: {
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to accept offer',
+      message: genericActionErrorMessage(error, 'Failed to accept offer'),
     };
   }
 }

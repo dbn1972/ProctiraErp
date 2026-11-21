@@ -10,7 +10,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   createAppraisal,
   getAppraisalTemplate,
@@ -32,6 +31,7 @@ import {
   type AssignmentFormValues,
   type StaffFormValues,
 } from '@/lib/validation/staff-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface ActionState<T = unknown> {
   status: 'idle' | 'success' | 'error';
@@ -51,13 +51,8 @@ function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<s
 }
 
 function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
-  if (error instanceof GatewayError) {
-    return { status: 'error', message: error.message || fallback };
-  }
-  if (error instanceof Error) {
-    return { status: 'error', message: error.message };
-  }
-  return { status: 'error', message: fallback };
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 function toCreateStaffInput(values: StaffFormValues): CreateStaffInput {

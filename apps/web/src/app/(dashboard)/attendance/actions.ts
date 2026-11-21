@@ -21,7 +21,6 @@ import {
   type BulkAttendanceResponse,
   type StudentAttendanceStatus,
 } from '@/lib/api/attendance';
-import { GatewayError } from '@/lib/api/gateway';
 import { withStudentLabels } from '@/lib/load-entity-labels';
 import { toAttendanceReportCsv } from '@/lib/attendance/report-csv';
 import {
@@ -30,6 +29,7 @@ import {
   type AttendanceMarkingFormValues,
   type AttendanceReportFiltersValues,
 } from '@/lib/validation/attendance-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface ActionState<T = unknown> {
   status: 'idle' | 'success' | 'error';
@@ -47,13 +47,8 @@ function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<s
 }
 
 function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
-  if (error instanceof GatewayError) {
-    return { status: 'error', message: error.message || fallback };
-  }
-  if (error instanceof Error) {
-    return { status: 'error', message: error.message };
-  }
-  return { status: 'error', message: fallback };
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 export async function markAttendanceAction(

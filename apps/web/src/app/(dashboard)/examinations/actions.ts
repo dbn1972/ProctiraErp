@@ -24,7 +24,6 @@ import {
   toCreateExaminationInput,
   type ExaminationDocumentType,
 } from '@/lib/api/examinations';
-import { GatewayError } from '@/lib/api/gateway';
 // PRC-L237: every action below is a gateway write; deny read-only roles
 // (teacher/staff/student hold examination.read only) before any request.
 import { requirePermission } from '@/lib/auth/require-permission';
@@ -32,6 +31,7 @@ import {
   createExaminationFormSchema,
   type CreateExaminationFormValues,
 } from '@/lib/validation/examination-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface ActionState<T = unknown> {
   status: 'idle' | 'success' | 'error';
@@ -49,13 +49,8 @@ function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<s
 }
 
 function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
-  if (error instanceof GatewayError) {
-    return { status: 'error', message: error.message || fallback };
-  }
-  if (error instanceof Error) {
-    return { status: 'error', message: error.message };
-  }
-  return { status: 'error', message: fallback };
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 export async function createExaminationAction(
