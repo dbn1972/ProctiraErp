@@ -32,6 +32,9 @@ const DOMAIN_GRANTS: Record<string, Permission[]> = {
     // H-D1: gateway CAMPUS_MANAGE. The gateway's teacher/staff/student
     // hostel.read is not mirrored: the hostel package denies those roles.
     { resource: 'hostel', action: 'manage' },
+    // F-D3: gateway CAMPUS_MANAGE. The gateway's teacher/staff/portal
+    // fees.read is not mirrored: the fees package denies them staff reads.
+    { resource: 'fees', action: 'manage' },
   ],
   principal: [
     { resource: 'communication', action: 'manage' },
@@ -40,6 +43,7 @@ const DOMAIN_GRANTS: Record<string, Permission[]> = {
     { resource: 'library', action: 'manage' },
     { resource: 'transport', action: 'manage' },
     { resource: 'hostel', action: 'manage' },
+    { resource: 'fees', action: 'manage' },
   ],
   teacher: [
     { resource: 'communication', action: 'read' },
