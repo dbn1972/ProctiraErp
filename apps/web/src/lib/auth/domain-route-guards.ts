@@ -6,7 +6,7 @@
  * without the domain's read permission are stopped at the layout instead of
  * seeing empty pages backed by gateway 403s.
  */
-import { hasPermission } from '@proctira/auth';
+import { CAMPUS_BASE_READ_ROLE_IDS, hasPermission } from '@proctira/auth';
 
 import type { ServerSession } from '@/lib/auth/server';
 import { sessionToAuthUser } from './examination-route-guards';
@@ -176,6 +176,20 @@ export function canAccessReportRoleDashboard(session: ServerSession): boolean {
   );
 }
 
+/**
+ * MR-1: roles holding the gateway's plain `hostel:read` / `transport:read`
+ * (gateway STAFF_READS and the student role). The packages deny them, so they
+ * get no web registry grant (the nav must not show these modules to them), but
+ * the gateway serves a session where one of them supplies the gateway grant
+ * and another role passes the package check (e.g. teacher + school_admin).
+ * Only counted for the domains below.
+ */
+const CAMPUS_BASE_READERS: ReadonlySet<string> = new Set<string>(CAMPUS_BASE_READ_ROLE_IDS);
+const BASE_READ_DOMAINS: ReadonlySet<DashboardDomain> = new Set<DashboardDomain>([
+  'hostel',
+  'transport',
+]);
+
 export function canAccessDashboardDomain(session: ServerSession, domain: DashboardDomain): boolean {
   if (!hasStaffRole(session)) return false;
   const routeRoles = DOMAIN_ROUTE_ROLE_IDS[domain];
@@ -188,6 +202,14 @@ export function canAccessDashboardDomain(session: ServerSession, domain: Dashboa
     !session.user.roles.some((role) => packageRoles.has(role.roleId.toLowerCase()))
   ) {
     return false;
+  }
+  // Same multi-role rule as the gateway: some role holds the gateway grant and
+  // some (possibly other) role is in the package set.
+  if (
+    BASE_READ_DOMAINS.has(domain) &&
+    session.user.roles.some((role) => CAMPUS_BASE_READERS.has(role.roleId.toLowerCase()))
+  ) {
+    return true;
   }
   return hasPermission(
     sessionToAuthUser(session),

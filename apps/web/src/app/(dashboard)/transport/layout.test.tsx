@@ -28,7 +28,7 @@ vi.mock('@/lib/auth/server', () => ({
 const child: ReactNode = <p data-testid="transport-child">transport screen</p>;
 
 describe('transport layout guard (T-D1)', () => {
-  it.each([['teacher'], ['staff'], ['student'], ['transport_officer'], []])(
+  it.each([['teacher'], ['staff'], ['student'], ['warden'], ['teacher', 'staff'], []])(
     'replaces every transport screen with access denied for roles %j',
     async (...roles) => {
       auth.roles = roles;
@@ -38,8 +38,16 @@ describe('transport layout guard (T-D1)', () => {
     },
   );
 
-  it.each([['principal'], ['admin']])('renders the transport screen for %s', async (role) => {
-    auth.roles = [role];
+  it.each([
+    ['principal'],
+    ['admin'],
+    ['transport_officer'],
+    ['fleet-manager'],
+    ['registrar'],
+    ['teacher', 'transport_officer'],
+    ['staff', 'school-admin'],
+  ])('renders the transport screen for roles %j', async (...roles) => {
+    auth.roles = roles;
     render(<>{await TransportLayout({ children: child })}</>);
     expect(screen.getByTestId('transport-child')).toBeInTheDocument();
     expect(screen.queryByTestId('route-access-denied')).toBeNull();
