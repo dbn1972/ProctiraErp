@@ -1763,10 +1763,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # pubspec environment.sdk: ^3.11.5 — Flutter stable ships a compatible Dart SDK.
+      # Pinned: Flutter 3.50.x deprecates package:flutter/material.dart and
+      # `flutter analyze` then fails on 73 infos in unchanged apps/mobile code.
+      # Unpin together with the material_ui migration.
       - name: Set up Flutter (stable)
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
+          flutter-version: 3.47.9
           cache: true
 
       - name: Flutter version
