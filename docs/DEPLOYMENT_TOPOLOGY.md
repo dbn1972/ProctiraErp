@@ -9,12 +9,12 @@ Clients → web / portals → api-gateway (in-process domains) → Postgres / Re
                          ↘ etl-worker
 ```
 
-| Layer | Deployable | Chart / compose |
-| --- | --- | --- |
-| API | `api-gateway` | `proctira-service` (deploy.yml) or platform umbrella |
-| UI | `web`, portals | same |
-| Worker | `etl-worker` | same |
-| Data | Postgres, Redis, object store | external / compose infra |
+| Layer  | Deployable                    | Chart / compose                                      |
+| ------ | ----------------------------- | ---------------------------------------------------- |
+| API    | `api-gateway`                 | `proctira-service` (deploy.yml) or platform umbrella |
+| UI     | `web`, portals                | same                                                 |
+| Worker | `etl-worker`                  | same                                                 |
+| Data   | Postgres, Redis, object store | external / compose infra                             |
 
 **Source of truth for mounts:** `docs/audits/GATEWAY_MOUNT_MATRIX.md`.
 
@@ -22,12 +22,12 @@ Clients → web / portals → api-gateway (in-process domains) → Postgres / Re
 
 Standalone domain services exist for experiments and future cutovers:
 
-| Artifact | Role |
-| --- | --- |
-| `infrastructure/docker/docker-compose.services.yml` | Lab compose — **not** production |
+| Artifact                                                                          | Role                                                   |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `infrastructure/docker/docker-compose.services.yml`                               | Lab compose — **not** production                       |
 | Helm `studentService`, `assessmentService`, `examinationService`, `reportService` | Rendered only when `*.enabled=true` (defaults **off**) |
-| `infrastructure/k8s/components/split-domain-services` | Opt-in kustomize component |
-| `Dockerfile.backend-service` | Builds lab images |
+| `infrastructure/k8s/components/split-domain-services`                             | Opt-in kustomize component                             |
+| `Dockerfile.backend-service`                                                      | Builds lab images                                      |
 
 Enable split Helm mode only with an explicit override (example):
 

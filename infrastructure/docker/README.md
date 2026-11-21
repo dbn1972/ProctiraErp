@@ -84,20 +84,20 @@ docker build \
 
 ## Service Port Assignments
 
-| Service              | Port |
-| -------------------- | ---- |
-| API Gateway          | 3000 |
-| Web App              | 3001 |
-| Registration Portal  | 3002 |
-| Public Website       | 3003 |
-| Admin Console        | 3004 |
-| Developer Portal     | 3005 |
-| ETL Worker           | 3010 |
-| Student Service      | 3021 |
-| Assessment Service   | 3023 |
-| Examination Service  | 3025 |
-| Report Service       | 3028 |
-| Install Wizard       | 3100 |
+| Service             | Port |
+| ------------------- | ---- |
+| API Gateway         | 3000 |
+| Web App             | 3001 |
+| Registration Portal | 3002 |
+| Public Website      | 3003 |
+| Admin Console       | 3004 |
+| Developer Portal    | 3005 |
+| ETL Worker          | 3010 |
+| Student Service     | 3021 |
+| Assessment Service  | 3023 |
+| Examination Service | 3025 |
+| Report Service      | 3028 |
+| Install Wizard      | 3100 |
 
 ## Environment Variables
 
@@ -145,9 +145,9 @@ This approach ensures:
 
 ### Production vs local runtime (W1-ARCH-09)
 
-| Mode | How it starts | Tooling |
-| --- | --- | --- |
+| Mode                                                    | How it starts                                                               | Tooling                                                                 |
+| ------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Production images (`Dockerfile.*`, `docker compose up`) | `node --import …/backend-runtime-resolve.mjs --enable-source-maps dist/...` | `tools/scripts/bundle-backend-runtime.mjs` (esbuild) during image build |
-| Local HMR (`docker-compose.dev.yml` / `pnpm dev`) | TypeScript source | `tsx watch` only |
+| Local HMR (`docker-compose.dev.yml` / `pnpm dev`)       | TypeScript source                                                           | `tsx watch` only                                                        |
 
 Do not invoke `tsx` (or `tsx/dist/cli.mjs`) from production `CMD`/`ENTRYPOINT` lines. The `--import` resolve helper only fixes pnpm transitive module resolution; it does not execute TypeScript.
