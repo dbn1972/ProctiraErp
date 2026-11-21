@@ -9,9 +9,9 @@ import { TrackingForm } from '@/components/tracking/tracking-form';
 import { checkApplicationStatus } from '@/lib/api';
 import { serverTransport } from '@/lib/gateway';
 import {
+  readTrackDobCookie,
   resolveTrackingPage,
   safeDecodeTrackingNumber,
-  TRACK_DOB_COOKIE,
 } from '@/lib/track-lookup';
 
 interface PageProps {
@@ -35,7 +35,7 @@ export default async function TrackingDetailPage({ params, searchParams }: PageP
     redirect(`/track/${encodeURIComponent(decoded)}`);
   }
   const cookieStore = await cookies();
-  const dob = cookieStore.get(TRACK_DOB_COOKIE)?.value ?? '';
+  const dob = readTrackDobCookie(cookieStore);
   // PRC-M055: outage / throttle / malformed URL are distinct from "not found".
   const state = await resolveTrackingPage(rawTrackingNumber, dob, (tn, d) =>
     checkApplicationStatus(tn, d, serverTransport),

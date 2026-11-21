@@ -25,8 +25,14 @@ import {
 } from '@proctira/ui/components';
 import { InstitutionForm } from '@/components/institutions/institution-form';
 import { loadInstitutionFormLookups } from '@/lib/institutions/lookups';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export default async function NewInstitutionPage() {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const lookups = await loadInstitutionFormLookups();
 
   return (

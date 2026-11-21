@@ -55,8 +55,9 @@ export function uniqueGradeOrder(): number {
  * overlaps existing year 'E2E Adm Year …' (2052-04-01..2053-03-31)`.
  */
 export function uniqueFarFutureYearWindow(): { startDate: string; endDate: string } {
-  // 2040..9998: 7959 candidate years, nowhere near the 2026 baseline/shared
-  // year or the 2030-2037 windows hardcoded by 38-academic-calendar-write-smoke.
+  // 2040..9998: 7959 candidate years, nowhere near the rolling baseline/shared
+  // year (today - 180 .. today + 184 days, SP-R2) or the 2030-2037 windows
+  // hardcoded by 38-academic-calendar-write-smoke.
   // 9998 is the last start year because the window ends the following March
   // and the gateway's `format: 'date'` accepts 4-digit years only.
   const year = 2040 + (randomBytes(2).readUInt16BE(0) % 7959);
@@ -92,6 +93,29 @@ export interface SeedConfig {
   gatewayUrl?: string;
   tenantSubdomain?: string;
   authToken?: string;
+}
+
+/**
+ * SP-R2: the shared year spans E2E_AY_DAYS_BEFORE days before today to
+ * E2E_AY_DAYS_AFTER days after (365 days). Must match the E2E-AY row in
+ * tools/e2e/seed-e2e-tenants.sql (CURRENT_DATE - 180 .. CURRENT_DATE + 184);
+ * tools/scripts/run-e2e-backend-ready.test.mjs checks both.
+ */
+const E2E_AY_DAYS_BEFORE = 180;
+const E2E_AY_DAYS_AFTER = 184;
+
+/** UTC `YYYY-MM-DD` window of the shared academic year for `now`. */
+export function rollingAcademicYearWindow(now: Date = new Date()): {
+  startDate: string;
+  endDate: string;
+} {
+  const day = 24 * 60 * 60 * 1000;
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  return {
+    startDate: iso(today - E2E_AY_DAYS_BEFORE * day),
+    endDate: iso(today + E2E_AY_DAYS_AFTER * day),
+  };
 }
 
 /**
@@ -154,8 +178,7 @@ export async function ensureSharedAcademicYear(
     data: {
       name: `E2E Shared Year ${suffix}`,
       code: `E2E-SHARED-AY-${suffix}`,
-      startDate: '2026-04-01',
-      endDate: '2027-03-31',
+      ...rollingAcademicYearWindow(),
       status: 'active',
     },
   });

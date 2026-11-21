@@ -1,4 +1,5 @@
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listTransportRoutes } from '@/lib/api/transport';
 import { listAllStops, listFeeLinks, listTransportFeeStructures } from '@/lib/transport/api';
 import { FeesPanel } from '../_components/fees-panel';
@@ -6,7 +7,10 @@ import { FeesPanel } from '../_components/fees-panel';
 export const dynamic = 'force-dynamic';
 
 export default async function TransportFeesPage() {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const [routes, stops, bands, links] = await Promise.all([
     listTransportRoutes(),
     listAllStops(),

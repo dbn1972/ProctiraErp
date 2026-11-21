@@ -1,0 +1,829 @@
+{
+  "schemaVersion": 1,
+  "waveId": "w3-3e961b23",
+  "commitSha": "3e961b2329ba5de71e7603a812af17ea2e3eaaa6",
+  "ciRuns": {
+    "ciYmlPush": "43811209169",
+    "e2ePush": "43811209105",
+    "e2eNightly": "43869358656"
+  },
+  "note": "Summary only (design part H): suite id, outcome, counts, commit SHA, CI run id, finding ids. No logs, no env values.",
+  "suites": [
+    {
+      "suiteId": "db.apply-scratch",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.apply-reapply",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.strict-tenant-fks-live",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.migration-lock-recovery",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.runtime-table-privileges",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.runtime-role-gate",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.prisma-sql-drift",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.runtime-ddl",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.migration-timeouts",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.migration-tenant-inserts",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.tenant-id-indexes",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.restore-drill",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.target-migration-test",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 9,
+        "passed": 9,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.contracts",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.unit-gateway-backend",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "SKIPPED",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 7833,
+        "passed": 7833,
+        "failed": 0,
+        "skipped": 1,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": "Q6 option A (owner, 3 Nov 2026): the one skipped test packages/backend/institution/src/infrastructure/pg-store.test.ts 'PgInfrastructureStore (no DATABASE_URL) is skipped without a database' (inverse no-DATABASE_URL case; turbo log: pg-store.test.ts 3 tests, 1 skipped; no other skip in 86 tasks)",
+      "findingIds": []
+    },
+    {
+      "suiteId": "db.pg-gate",
+      "lane": "db",
+      "attempt": 1,
+      "outcome": "SKIPPED",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 178,
+        "passed": 178,
+        "failed": 0,
+        "skipped": 1,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": "Q6 option A (owner, 3 Nov 2026): the one skipped test packages/backend/institution/src/infrastructure/pg-store.test.ts 'PgInfrastructureStore (no DATABASE_URL) is skipped without a database' (inverse no-DATABASE_URL case; gate allows 1)",
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.live-gate",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 389,
+        "passed": 389,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.tenant-isolation-unit",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 107,
+        "passed": 107,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.tenant-isolation-integration",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.tenant-isolation-queue",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.tenant-isolation-search",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.tenant-isolation-cache",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.tenant-isolation-report",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.tenant-isolation-e2e",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.registration-live",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.e2e-backend-ready-s1",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "SKIPPED",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 100,
+        "passed": 100,
+        "failed": 0,
+        "skipped": 1,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": "Q6 option A (owner, 3 Nov 2026): the one skipped test apps/web/e2e/16f-institutions-profile-write.spec.ts:184 'gateway down shows an error state instead of a green Active pill' needs the web server started with E2E_ALLOW_GATEWAY_SIMULATION=1",
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.e2e-backend-ready-s2",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 100,
+        "passed": 100,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.e2e-backend-ready-s3",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 100,
+        "passed": 100,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.e2e-backend-ready-s4",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "SKIPPED",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 99,
+        "passed": 99,
+        "failed": 0,
+        "skipped": 1,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": "Q6 option A (owner, 3 Nov 2026): the one skipped test apps/web/e2e/a11y-axe.spec.ts:341 'registration portal wizard - step 1 is WCAG 2.1 AA clean' needs a registration portal on E2E_REGISTRATION_BASE_URL (UAT-ENV-007 skip gate OK: allowlisted)",
+      "findingIds": []
+    },
+    {
+      "suiteId": "api.e2e-live-gate",
+      "lane": "api",
+      "attempt": 1,
+      "outcome": "PASS",
+      "effectiveOutcome": "PASS",
+      "counts": {
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "flaky": 0
+      },
+      "ownerAcceptedSkip": null,
+      "findingIds": []
+    }
+  ],
+  "ciJobs": [
+    {
+      "suiteId": "ci.main-migration-timeouts-w1-data-17",
+      "runId": "43811209169",
+      "jobName": "Migration Timeouts (W1-DATA-17)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-restore-drill-evidence-w3-ops-c6-w1-ops-20",
+      "runId": "43811209169",
+      "jobName": "Restore Drill Evidence (W3-OPS-C6 / W1-OPS-20)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-workflow-lint-prc-m428-reusable-setup-workflow-call-setup",
+      "runId": "43811209169",
+      "jobName": "Workflow Lint (PRC-M428) / Reusable Setup (workflow_call) / setup",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-runtime-table-privileges-w1-data-11",
+      "runId": "43811209169",
+      "jobName": "Runtime Table Privileges (W1-DATA-11)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-detect-affected-modules",
+      "runId": "43811209169",
+      "jobName": "Detect Affected Modules",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-runtime-role-gate-w1-data-01",
+      "runId": "43811209169",
+      "jobName": "Runtime Role Gate (W1-DATA-01)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-tenant-id-indexes-w1-data-16",
+      "runId": "43811209169",
+      "jobName": "Tenant ID Indexes (W1-DATA-16)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-security-scans-w1-ops-11-scanner-contract-fail-closed",
+      "runId": "43811209169",
+      "jobName": "Security Scans (W1-OPS-11) / Scanner contract (fail-closed)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-strict-tenant-fks-w1-data-06",
+      "runId": "43811209169",
+      "jobName": "Strict Tenant FKs (W1-DATA-06)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-reusable-ci-assets-w1-ops-24",
+      "runId": "43811209169",
+      "jobName": "Reusable CI Assets (W1-OPS-24)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-prisma-sql-drift-w1-data-04",
+      "runId": "43811209169",
+      "jobName": "Prisma SQL Drift (W1-DATA-04)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-codeowners-gate-w1-sec-13",
+      "runId": "43811209169",
+      "jobName": "Codeowners Gate (W1-SEC-13)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-workflow-lint-prc-m428-actionlint",
+      "runId": "43811209169",
+      "jobName": "Workflow Lint (PRC-M428) / actionlint",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-helm-template-prc-m428-helm-template-dry-run-p0-12",
+      "runId": "43811209169",
+      "jobName": "Helm Template (PRC-M428) / helm template dry-run (P0-12)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-lint",
+      "runId": "43811209169",
+      "jobName": "Lint",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-type-check",
+      "runId": "43811209169",
+      "jobName": "Type Check",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-mobile-flutter-w1-ops-07",
+      "runId": "43811209169",
+      "jobName": "Mobile Flutter (W1-OPS-07)",
+      "conclusion": "skipped",
+      "effectiveOutcome": "PATH_FILTERED",
+      "ownerAcceptedSkip": "D1 (owner): Mobile Flutter (W1-OPS-07) PATH_FILTERED accepted when the change set does not touch apps/mobile (3e961b23 changes only .github/workflows/e2e-backend-ready.yml and tools/scripts/run-e2e-backend-ready.test.mjs, no apps/); ci-aggregate-gate treats the path-filtered job as not applicable"
+    },
+    {
+      "suiteId": "ci.main-secondary-apps-playwright-w1-ops-12",
+      "runId": "43811209169",
+      "jobName": "Secondary Apps Playwright (W1-OPS-12)",
+      "conclusion": "skipped",
+      "effectiveOutcome": "PATH_FILTERED",
+      "ownerAcceptedSkip": "D6 rule (owner, D1 basis): Secondary Apps Playwright (W1-OPS-12) PATH_FILTERED accepted when the change set touches no apps/ (3e961b23 changes only .github/workflows/e2e-backend-ready.yml and tools/scripts/run-e2e-backend-ready.test.mjs, no apps/); ci-aggregate-gate treats the path-filtered job as not applicable"
+    },
+    {
+      "suiteId": "ci.main-security-scans-w1-ops-11-sast-semgrep-typescript-js",
+      "runId": "43811209169",
+      "jobName": "Security Scans (W1-OPS-11) / SAST (Semgrep TypeScript/JS)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-security-scans-w1-ops-11-container-fs-cve-trivy",
+      "runId": "43811209169",
+      "jobName": "Security Scans (W1-OPS-11) / Container FS CVE (Trivy)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-security-scans-w1-ops-11-iac-scan-trivy-config",
+      "runId": "43811209169",
+      "jobName": "Security Scans (W1-OPS-11) / IaC scan (Trivy config)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-security-scans-w1-ops-11-secret-scan-gitleaks",
+      "runId": "43811209169",
+      "jobName": "Security Scans (W1-OPS-11) / Secret scan (gitleaks)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-unit-tests",
+      "runId": "43811209169",
+      "jobName": "Unit Tests",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-security-scans-w1-ops-11-security-scans-gate",
+      "runId": "43811209169",
+      "jobName": "Security Scans (W1-OPS-11) / Security scans gate",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-build",
+      "runId": "43811209169",
+      "jobName": "Build",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-tenant-isolation-verification-release-gate",
+      "runId": "43811209169",
+      "jobName": "Tenant Isolation Verification (Release Gate)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-definition-of-done-charter-32",
+      "runId": "43811209169",
+      "jobName": "Definition of Done (Charter §32)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-lighthouse-gate-property-f-10",
+      "runId": "43811209169",
+      "jobName": "Lighthouse Gate (Property F-10)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-integration-tests",
+      "runId": "43811209169",
+      "jobName": "Integration Tests",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-bundle-budget-requirement-39-ac-1",
+      "runId": "43811209169",
+      "jobName": "Bundle Budget (Requirement 39 AC 1)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.main-ci-aggregate-required",
+      "runId": "43811209169",
+      "jobName": "CI Aggregate (Required)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.e2e-push-registration-portal-live-journey-uat-api-004-prc-m568",
+      "runId": "43811209105",
+      "jobName": "Registration portal live journey (UAT-API-004 / PRC-M568)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.e2e-backend-ready-e2e-backend-ready-shard-3-4",
+      "runId": "43869358656",
+      "jobName": "E2E backend-ready shard 3/4",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.e2e-backend-ready-registration-portal-live-journey-uat-api-004-prc-m568",
+      "runId": "43869358656",
+      "jobName": "Registration portal live journey (UAT-API-004 / PRC-M568)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.e2e-backend-ready-e2e-backend-ready-shard-2-4",
+      "runId": "43869358656",
+      "jobName": "E2E backend-ready shard 2/4",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.e2e-backend-ready-e2e-backend-ready-shard-1-4",
+      "runId": "43869358656",
+      "jobName": "E2E backend-ready shard 1/4",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.e2e-backend-ready-e2e-backend-ready-shard-4-4",
+      "runId": "43869358656",
+      "jobName": "E2E backend-ready shard 4/4",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    },
+    {
+      "suiteId": "ci.e2e-backend-ready-e2e-backend-ready-live-gate-g-401-g-706",
+      "runId": "43869358656",
+      "jobName": "E2E backend-ready live gate (G-401 / G-706)",
+      "conclusion": "success",
+      "effectiveOutcome": "PASS",
+      "ownerAcceptedSkip": null
+    }
+  ]
+}

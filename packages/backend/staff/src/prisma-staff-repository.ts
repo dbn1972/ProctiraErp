@@ -21,11 +21,14 @@ import type { Prisma, PrismaClient } from '@proctira/database';
 
 import { writeOffboardMeta, type StaffOffboardMeta } from './offboard-meta.js';
 import type {
+  StaffAuditDirective,
   StaffEntity,
   StaffFilter,
   StaffOffboardRecord,
   StaffRepository,
   StaffTransactionScope,
+  StaffTxnAuditEvent,
+  StaffTxnAuditPort,
 } from './staff-repository.js';
 import { matchesStaffType } from './staff-type.js';
 
@@ -166,7 +169,56 @@ const STAFF_TX_MAX_WAIT_MS = 10_000;
 const STAFF_TX_TIMEOUT_MS = 120_000;
 
 export class PrismaStaffRepository implements StaffRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly txnAudit?: StaffTxnAuditPort;
+
+  constructor(
+    private readonly prisma: PrismaClient,
+    txnAudit?: StaffTxnAuditPort,
+  ) {
+    this.txnAudit = txnAudit;
+  }
+
+  /** PRC-M013: only the Postgres repo wired with a port audits in-transaction. */
+  get supportsTransactionalAudit(): boolean {
+    return Boolean(this.txnAudit);
+  }
+
+  /**
+   * PRC-M013: append the staff mutation audit row on the mutation's own Prisma
+   * transaction (`tx`). A structural client adapter maps the port's
+   * `query(text, values)` onto `tx.$queryRawUnsafe` so the audit INSERT and the
+   * staff write share one transaction — a throwing port rolls the staff change
+   * back, so a durable staff mutation can never exist without its audit row.
+   * No-op when no port is wired or no directive is supplied (in-memory path).
+   */
+  private async appendAuditInTxn(
+    tx: StaffTx,
+    tenantId: string,
+    entityId: string,
+    audit: StaffAuditDirective | undefined,
+  ): Promise<void> {
+    if (!this.txnAudit || !audit) return;
+    const client = {
+      // The audit port passes static, parameterised DML only; routed through the
+      // same transaction so the no-runtime-DDL gate (PRC-L386) sees static SQL.
+      query: async (text: string, values: unknown[] = []) => ({
+        rows: await tx.$queryRawUnsafe<unknown[]>(text, ...values),
+      }),
+    };
+    const event: StaffTxnAuditEvent = {
+      tenantId,
+      entityType: 'staff',
+      entityId,
+      operation: audit.operation,
+      beforeValues: audit.beforeValues,
+      afterValues: audit.afterValues,
+      metadata: audit.metadata,
+      actorId: audit.actorId,
+      ipAddress: audit.ipAddress,
+      requestId: audit.requestId,
+    };
+    await this.txnAudit.appendAuditInTxn(client, event);
+  }
 
   async withTransaction<T>(
     tenantId: string,
@@ -207,6 +259,7 @@ export class PrismaStaffRepository implements StaffRepository {
     id: string,
     tenantId: string,
     data: Partial<StaffEntity>,
+    audit?: StaffAuditDirective,
   ): Promise<StaffEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const existing = (await tx.staff.findFirst({
@@ -235,6 +288,9 @@ export class PrismaStaffRepository implements StaffRepository {
           customData: buildCustomData(merged) as Prisma.InputJsonValue,
         },
       })) as StaffRow;
+      // PRC-M013: audit row on the same transaction — a forced failure rolls the
+      // staff update back, so no unaudited durable PII change can exist.
+      await this.appendAuditInTxn(tx, tenantId, id, audit);
       return toEntity(row);
     });
   }
@@ -248,6 +304,7 @@ export class PrismaStaffRepository implements StaffRepository {
     id: string,
     tenantId: string,
     meta: StaffOffboardMeta,
+    audit?: StaffAuditDirective,
   ): Promise<StaffEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const existing = (await tx.staff.findFirst({
@@ -272,6 +329,9 @@ export class PrismaStaffRepository implements StaffRepository {
         },
       });
       if (count === 0) return null;
+      // PRC-M013: offboarding is a PII state change — audit on the same
+      // transaction so a forced audit failure rolls the offboard write back.
+      await this.appendAuditInTxn(tx, tenantId, id, audit);
       const row = (await tx.staff.findFirst({ where: { id, tenantId } })) as StaffRow | null;
       return row ? toEntity(row) : null;
     });
@@ -458,13 +518,17 @@ export class PrismaStaffRepository implements StaffRepository {
     });
   }
 
-  async delete(id: string, tenantId: string): Promise<boolean> {
+  async delete(id: string, tenantId: string, audit?: StaffAuditDirective): Promise<boolean> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const result = await tx.staff.updateMany({
         where: { id, tenantId, deletedAt: null },
         data: { deletedAt: new Date() },
       });
-      return result.count > 0;
+      if (result.count === 0) return false;
+      // PRC-M013: deletion is a PII state change — audit on the same transaction
+      // so a forced audit failure rolls the soft-delete back.
+      await this.appendAuditInTxn(tx, tenantId, id, audit);
+      return true;
     });
   }
 }

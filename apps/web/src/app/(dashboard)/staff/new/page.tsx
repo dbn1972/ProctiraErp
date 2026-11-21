@@ -20,10 +20,16 @@ import {
 } from '@proctira/ui/components';
 
 import { StaffForm } from '../_components/staff-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
-export default function NewStaffPage() {
+export default async function NewStaffPage() {
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   return (
     <section aria-labelledby="new-staff-heading" className="space-y-6">
       {/* ── Page head ── */}

@@ -280,4 +280,56 @@ describe('TransportService ops (G-920)', () => {
     const acked = await service.acknowledgeAlert(TENANT, result.data[0]!.id, 'officer-1');
     expect(acked.acknowledgedBy).toBe('officer-1');
   });
+
+  // T-D4: a vehicle is on a route only while its driver assignment covers the trip date.
+  it.each([
+    ['starts after the trip date', { startDate: '2026-09-10' }],
+    ['ended before the trip date', { startDate: '2026-08-01', endDate: '2026-09-08' }],
+  ])(
+    'a driver assignment that %s does not put the vehicle on the route',
+    async (_label, window) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-09-09T08:01:00.000Z'));
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const { route, vehicle } = await seededRoute();
+      await service.createDriverAssignment(TENANT, {
+        vehicleId: vehicle.id,
+        driverId: uuidv4(),
+        routeId: route.id,
+        ...window,
+      });
+      const device = await service.registerVehicleDevice(TENANT, vehicle.id);
+      // Late and about 111 km from the only stop: both rules would fire if the
+      // vehicle were mapped to this route.
+      await service.ingestGpsBatch(TENANT, device.deviceKey, {
+        deviceId: device.deviceId,
+        pings: [
+          {
+            pingId: 'off-route-1',
+            latitude: 20.076,
+            longitude: 72.8777,
+            recordedAt: '2026-09-09T08:00:00.000Z',
+          },
+        ],
+      });
+      await service.createAlertRule(TENANT, {
+        kind: 'delay_minutes',
+        threshold: 10,
+        routeId: route.id,
+      });
+      await service.createAlertRule(TENANT, {
+        kind: 'geofence_exit',
+        threshold: 500,
+        routeId: route.id,
+      });
+      const result = await service.evaluateAlerts(
+        TENANT,
+        { tripDate: '2026-09-09', routeId: route.id },
+        new Date('2026-09-09T08:05:00.000Z'),
+      );
+      expect(result.data).toHaveLength(0);
+    },
+  );
 });

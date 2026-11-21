@@ -8,10 +8,16 @@ import Link from 'next/link';
 import { ArrowLeft, Upload, UserPlus, Users } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
-export default function StudentsEnrollHubPage() {
+export default async function StudentsEnrollHubPage() {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   return (
     <section
       aria-labelledby="enroll-hub-heading"

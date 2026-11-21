@@ -80,6 +80,8 @@ import {
   institutionLabel,
   type PlacementDirectories,
 } from '../_components/student-placement-label';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,6 +155,10 @@ interface PageProps {
 }
 
 export default async function StudentProfilePage(props: PageProps) {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   // Resolve the student first so unknown / offline IDs hit notFound() before
   // secondary fetches can surface a gateway error boundary.

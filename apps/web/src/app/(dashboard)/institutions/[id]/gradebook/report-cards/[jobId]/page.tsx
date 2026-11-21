@@ -11,10 +11,16 @@ import { notFound } from 'next/navigation';
 import { listReportCardJobs } from '@/lib/api/gradebook';
 import { personDisplayName } from '@/lib/entity-label';
 import { withStudentLabels } from '@/lib/load-entity-labels';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export default async function ReportCardJobPage(props: {
   params: Promise<{ id: string; jobId: string }>;
 }) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const { id, jobId } = await props.params;
   const jobs = await listReportCardJobs();
   const job = jobs.ok ? jobs.data.find((row) => row.id === jobId) : undefined;
@@ -37,7 +43,8 @@ export default async function ReportCardJobPage(props: {
       {job.status !== 'SUCCEEDED' ? (
         <p role="status">
           {studentName} · {term} is {job.status.toLowerCase()}.
-          {job.errorMessage ? ` ${job.errorMessage}` : ''}
+          {/* D1-T5: job.errorMessage holds the worker's raw error text; show fixed copy only. */}
+          {job.errorMessage ? ` The card could not be generated. Reference: ${job.id}` : ''}
         </p>
       ) : (
         <article className="space-y-2 rounded-lg border p-4">

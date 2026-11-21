@@ -64,6 +64,7 @@ export default async function ParentNoticesPage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="There are no school notices right now."
       hasRows={notices.length > 0}
     >

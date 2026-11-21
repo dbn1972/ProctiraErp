@@ -2232,6 +2232,9 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
     devDependencies:
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@proctira/testing':
         specifier: workspace:*
         version: link:../../shared/testing
@@ -2471,6 +2474,9 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
     devDependencies:
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@proctira/testing':
         specifier: workspace:*
         version: link:../../shared/testing
@@ -2550,6 +2556,9 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
     devDependencies:
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@proctira/testing':
         specifier: workspace:*
         version: link:../../shared/testing
@@ -2642,6 +2651,9 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
     devDependencies:
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41

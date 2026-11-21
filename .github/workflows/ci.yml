@@ -942,6 +942,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          # UAT-API-003: the gate also runs the REDIS_URL-gated suites.
+          REDIS_URL: redis://localhost:6379
           CI: true
           FORBID_TEST_SKIPS: '1'
           PG_TEST_MIN_EXECUTED: '25'
@@ -1030,6 +1032,9 @@ jobs:
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true
+          # PRC-M568: no gateway in this lane, so the registration live gate
+          # opts out on main (exact value; E2E_REQUIRE_LIVE=1 still enforces).
+          E2E_LIVE_LANE: none
 
       - name: Upload integration test results
         if: always()
@@ -1591,6 +1596,7 @@ jobs:
           tools/scripts/check-dod-evidence.test.mjs
           tools/scripts/check-i18n.test.mjs
           tools/scripts/check-icon-only-button.test.mjs
+          tools/scripts/check-gitleaks-allowlist.test.mjs
 
       - name: Unit-test runtime/deploy workflow contracts
         run: node --test tools/scripts/check-runtime-role-gate.test.mjs
@@ -1758,10 +1764,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # pubspec environment.sdk: ^3.11.5 — Flutter stable ships a compatible Dart SDK.
+      # Pinned: Flutter 3.50.x deprecates package:flutter/material.dart and
+      # `flutter analyze` then fails on 73 infos in unchanged apps/mobile code.
+      # Unpin together with the material_ui migration.
       - name: Set up Flutter (stable)
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
+          flutter-version: 3.47.9
           cache: true
 
       - name: Flutter version

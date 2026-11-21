@@ -32,6 +32,12 @@
 #   PLAYWRIGHT_SHARD Optional i/n (for example 2/4). Passed as --shard so CI
 #                    can split the same spec list. Every shard still receives
 #                    the full E2E_SPECS list; Playwright selects the slice.
+#   E2E_PLAYWRIGHT_JSON_REPORT  Playwright JSON report path (default
+#                    apps/web/test-results/e2e-backend-ready-report.json). After
+#                    Playwright, assert-playwright-skips.mjs fails the run on a
+#                    missing report or any skip not on
+#                    tools/scripts/e2e-backend-ready-skip-allowlist.json (UAT-ENV-007).
+#                    Shard mode with PLAYWRIGHT_SHARD, merged mode without.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -42,7 +48,7 @@ for arg in "$@"; do
   case "$arg" in
     --skip-stack) SKIP_STACK=1 ;;
     --help|-h)
-      sed -n '2,34p' "$0"
+      sed -n '2,40p' "$0"
       exit 0
       ;;
     *)
@@ -157,11 +163,27 @@ fi
 # Vihar directory (named classes, KPIs, schedule). apply-sql.sh does not load
 # db/seeds/*.sql — apply 006 here with the migrator URL when present so RLS
 # and owner privileges match CI's schema apply step.
-if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" != "1" ]]; then
+#
+# PRC-L461 / DR4-3: the demo seed is a privileged, destructive-ish fixture load
+# that must never run by accident. It is now guarded by the GUC
+# proctira.allow_demo_seed (the seed raises unless it is 'on') and this harness
+# resolves a strict precedence before invoking psql:
+#   1. E2E_SKIP_SUNRISE_SEED=1   -> skip the seed entirely (no psql).
+#   2. else ALLOW_SUNRISE_DEMO_SEED=1 -> run the seed with the GUC bound via
+#      PGOPTIONS so the seed's allow_demo_seed guard is satisfied.
+#   3. else                      -> fail closed, naming BOTH env vars, so a
+#      caller must consciously pick skip or opt-in. This stops an un-guarded
+#      demo seed from silently loading on a real environment.
+if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" == "1" ]]; then
+  echo "==> E2E_SKIP_SUNRISE_SEED=1 — skipping Sunrise demo seed"
+elif [[ "${ALLOW_SUNRISE_DEMO_SEED:-0}" == "1" ]]; then
   if command -v psql >/dev/null 2>&1; then
     SUNRISE_SEED_URL="${MIGRATOR_DATABASE_URL:-$DATABASE_URL}"
-    echo "==> Seeding Sunrise demo (db/seeds/006_sunrise_public_school_demo.sql)"
-    psql "$SUNRISE_SEED_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/db/seeds/006_sunrise_public_school_demo.sql"
+    echo "==> Seeding Sunrise demo (db/seeds/006_sunrise_public_school_demo.sql, proctira.allow_demo_seed=on)"
+    # PGOPTIONS binds the allow_demo_seed GUC for the whole psql connection so
+    # the seed's in-file guard passes; the GUC is never persisted server-side.
+    PGOPTIONS="-c proctira.allow_demo_seed=on" \
+      psql "$SUNRISE_SEED_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/db/seeds/006_sunrise_public_school_demo.sql"
   else
     echo "warn: psql not on PATH — skipping Sunrise demo seed (set E2E_SKIP_SUNRISE_SEED=1 to silence)" >&2
     if [[ "$LIVE_REQUIRED" == "1" ]]; then
@@ -169,6 +191,11 @@ if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" != "1" ]]; then
       exit 1
     fi
   fi
+else
+  echo "error: Sunrise demo seed requires an explicit decision (PRC-L461/DR4-3):" >&2
+  echo "       set E2E_SKIP_SUNRISE_SEED=1 to skip it, or" >&2
+  echo "       set ALLOW_SUNRISE_DEMO_SEED=1 to load it with proctira.allow_demo_seed=on." >&2
+  exit 1
 fi
 
 # A stale gateway on the port would make the health check pass against code
@@ -259,9 +286,23 @@ PW_SHARD_ARGS=()
 if [[ -n "$PW_SHARD" ]]; then
   PW_SHARD_ARGS=(--shard="$PW_SHARD")
 fi
+# UAT-ENV-007: playwright.config.ts adds the JSON reporter when this is set.
+# Remove a stale report first so a run that writes none fails the skip gate.
+PW_JSON_REPORT="${E2E_PLAYWRIGHT_JSON_REPORT:-$ROOT/apps/web/test-results/e2e-backend-ready-report.json}"
+rm -f "$PW_JSON_REPORT"
 # shellcheck disable=SC2086
-pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium --workers="${PW_WORKERS}" "${PW_SHARD_ARGS[@]}" "${PW_GREP_ARGS[@]}"
+PLAYWRIGHT_JSON_OUTPUT_FILE="$PW_JSON_REPORT" \
+  pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium --workers="${PW_WORKERS}" "${PW_SHARD_ARGS[@]}" "${PW_GREP_ARGS[@]}"
 PW_EXIT=$?
+# An unsharded run holds every selected test, so use merged mode: it also fails
+# when an allowlisted test is missing although its spec file ran (rename).
+SKIP_GATE_MODE=shard
+if [[ -z "$PW_SHARD" ]]; then
+  SKIP_GATE_MODE=merged
+fi
+echo "==> Skip gate (UAT-ENV-007, mode ${SKIP_GATE_MODE}): ${PW_JSON_REPORT}"
+node "$ROOT/tools/scripts/assert-playwright-skips.mjs" --mode "$SKIP_GATE_MODE" --report "$PW_JSON_REPORT"
+SKIP_GATE_EXIT=$?
 set -e
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
@@ -272,8 +313,16 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo "- Specs: \`${SPECS}\`"
     echo "- Shard: \`${PW_SHARD:-all}\`"
     echo "- Exit: \`${PW_EXIT}\`"
+    echo "- Skip gate (UAT-ENV-007) exit: \`${SKIP_GATE_EXIT}\`"
     echo "- E2E_BACKEND_READY=1"
   } >>"$GITHUB_STEP_SUMMARY"
 fi
 
-exit "$PW_EXIT"
+if [[ "$PW_EXIT" -ne 0 ]]; then
+  exit "$PW_EXIT"
+fi
+if [[ "$SKIP_GATE_EXIT" -ne 0 ]]; then
+  echo "error: skip gate failed (UAT-ENV-007); see the [UAT-ENV-007] lines above" >&2
+  exit 1
+fi
+exit 0

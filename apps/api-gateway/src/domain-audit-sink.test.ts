@@ -16,28 +16,12 @@ function fakeClient() {
   return {
     query: async (sql: string, values: unknown[] = []) => {
       recorded.push({ sql, values });
-      if (sql.includes('INSERT INTO audit_log_entries')) {
-        return {
-          rows: [
-            {
-              id: values[0],
-              tenant_id: values[1],
-              entity_type: values[2],
-              entity_id: values[3],
-              operation: values[4],
-              user_id: values[5],
-              user_name: values[6],
-              ip_address: values[7],
-              occurred_at: values[8],
-              before_values: null,
-              after_values: null,
-              metadata: null,
-              chain_seq: values[12],
-              prev_hash: values[13],
-              entry_hash: values[14],
-            },
-          ],
-        };
+      // PRC-M200: the row is appended through the SECURITY DEFINER keyed-chain functions.
+      if (sql.includes('FROM audit_chain_lock_head(')) {
+        return { rows: [{ head_seq: 0, head_hash: null }] };
+      }
+      if (sql.includes('FROM audit_chain_append(')) {
+        return { rows: [{ chain_seq: 1, prev_hash: null }] };
       }
       return { rows: [] };
     },
@@ -80,10 +64,11 @@ describe('domainAuditSink', () => {
       after: { score: 8 },
       metadata: { assignmentId: 'a-1' },
     });
-    const inserts = recorded.filter((q) => q.sql.includes('INSERT INTO audit_log_entries'));
+    // audit_chain_append(tenant, id, entity_type, entity_id, operation, user_id, user_name, …).
+    const inserts = recorded.filter((q) => q.sql.includes('FROM audit_chain_append('));
     expect(inserts).toHaveLength(1);
     const values = inserts[0]!.values;
-    expect(values.slice(1, 7)).toEqual([
+    expect([values[0], ...values.slice(2, 7)]).toEqual([
       TENANT,
       'lms_submission',
       'sub-1',

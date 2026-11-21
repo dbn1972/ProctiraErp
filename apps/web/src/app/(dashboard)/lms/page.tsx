@@ -38,6 +38,8 @@ import { KindPill, ScopePill, StatusPill } from './_components/badges';
 import { KpiCard } from './_components/kpi-card';
 import { LmsSubnav } from './_components/lms-subnav';
 import { EmptyState } from '@/components/page';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +84,10 @@ export default async function LmsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await searchParams;
   const kind = pick(typeof params.kind === 'string' ? params.kind : undefined, KINDS);
   const status = pick(typeof params.status === 'string' ? params.status : undefined, STATUSES);

@@ -608,4 +608,63 @@ describe('TransportService', () => {
       );
     });
   });
+
+  // T-D4: a trip roster holds only riders whose assignment covers the trip date.
+  describe('Trip attendance date window (T-D4)', () => {
+    const TRIP_DATE = '2026-09-09';
+
+    async function routeWithRiders(windows: Array<{ startDate: string; endDate?: string }>) {
+      const route = await service.createRoute(tenantId, {
+        name: 'Window Route',
+        startLocation: 'A',
+        endLocation: 'B',
+        operatingDays: ['wednesday'],
+      });
+      for (const window of windows) {
+        await service.createStudentAssignment(
+          tenantId,
+          { studentId: uuidv4(), routeId: route.id, ...window },
+          'test-actor',
+        );
+      }
+      return route;
+    }
+
+    it('does not count a rider whose assignment starts after the trip date', async () => {
+      const route = await routeWithRiders([{ startDate: '2026-09-10' }]);
+      const trip = await service.getTripAttendance(tenantId, {
+        routeId: route.id,
+        tripDate: TRIP_DATE,
+        direction: 'pickup',
+      });
+      expect(trip.assigned).toBe(0);
+      expect(trip.summary.unmarked).toBe(0);
+    });
+
+    it('does not count a rider whose assignment ended before the trip date', async () => {
+      const route = await routeWithRiders([{ startDate: '2026-09-01', endDate: '2026-09-08' }]);
+      const trip = await service.getTripAttendance(tenantId, {
+        routeId: route.id,
+        tripDate: TRIP_DATE,
+        direction: 'pickup',
+      });
+      expect(trip.assigned).toBe(0);
+    });
+
+    it('counts riders whose window covers the trip date, inclusive of both ends', async () => {
+      const route = await routeWithRiders([
+        { startDate: TRIP_DATE },
+        { startDate: '2026-09-01', endDate: TRIP_DATE },
+        { startDate: '2026-09-01' },
+        { startDate: '2026-09-10' },
+      ]);
+      const trip = await service.getTripAttendance(tenantId, {
+        routeId: route.id,
+        tripDate: TRIP_DATE,
+        direction: 'pickup',
+      });
+      expect(trip.assigned).toBe(3);
+      expect(trip.summary.unmarked).toBe(3);
+    });
+  });
 });

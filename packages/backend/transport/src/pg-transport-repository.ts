@@ -322,6 +322,11 @@ function mapFeeLinkRow(row: Record<string, unknown>): TransportFeeLinkEntity {
   };
 }
 
+/** T-D4: the assignment's [start_date, end_date] window covers the bound day ($n). */
+function activeOnCondition(n: number): string {
+  return `start_date <= $${n}::date AND (end_date IS NULL OR end_date >= $${n}::date)`;
+}
+
 function paginatedMeta(pagination: PaginationOptions, totalItems: number) {
   return {
     page: pagination.page,
@@ -843,6 +848,10 @@ export class PgTransportRepository implements TransportRepository {
       params.push(filter.isActive);
       conditions.push(`is_active = $${params.length}`);
     }
+    if (filter.activeOn) {
+      params.push(filter.activeOn);
+      conditions.push(activeOnCondition(params.length));
+    }
 
     const where = conditions.join(' AND ');
     const countResult = await this.query(
@@ -979,6 +988,10 @@ export class PgTransportRepository implements TransportRepository {
     if (filter.isActive !== undefined) {
       params.push(filter.isActive);
       conditions.push(`is_active = $${params.length}`);
+    }
+    if (filter.activeOn) {
+      params.push(filter.activeOn);
+      conditions.push(activeOnCondition(params.length));
     }
 
     const where = conditions.join(' AND ');

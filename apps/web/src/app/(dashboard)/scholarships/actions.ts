@@ -6,7 +6,6 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   approveScholarshipApplication,
   createScholarshipProgram,
@@ -18,6 +17,7 @@ import {
   type UpdateScholarshipProgramInput,
 } from '@/lib/api/scholarships';
 import { buildPaidUpdateBody } from '@/features/scholarships/disbursement-paid';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_COMMENT = 2000;
@@ -41,12 +41,7 @@ export async function createScholarshipProgramAction(
       programId: program.id,
     };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to create program';
+    const message = genericActionErrorMessage(error, 'Failed to create program');
     return { status: 'error', message };
   }
 }
@@ -61,12 +56,7 @@ export async function updateScholarshipProgramAction(
     revalidatePath('/scholarships');
     return { status: 'success', message: 'Program updated.' };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to update program';
+    const message = genericActionErrorMessage(error, 'Failed to update program');
     return { status: 'error', message };
   }
 }
@@ -110,12 +100,7 @@ export async function decideApplicationAction(input: {
           : 'Application rejected.',
     };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : `Failed to ${input.decision} application`;
+    const message = genericActionErrorMessage(error, `Failed to ${input.decision} application`);
     return { status: 'error', message };
   }
 }
@@ -156,7 +141,7 @@ export async function retryFailedDisbursementsAction(
   } catch (error) {
     return {
       status: 'error',
-      message: error instanceof Error ? error.message : 'Could not load disbursements.',
+      message: genericActionErrorMessage(error, 'Could not load disbursements.'),
     };
   }
   // PRC-M113: a failed list load is an error, never "every id not found".
@@ -185,7 +170,7 @@ export async function retryFailedDisbursementsAction(
       results.push({
         id,
         outcome: 'failed',
-        reason: error instanceof Error ? error.message : 'retry failed',
+        reason: genericActionErrorMessage(error, 'retry failed'),
       });
     }
   }
@@ -231,12 +216,7 @@ export async function markDisbursementPaidAction(
     revalidatePath('/scholarships/disbursements');
     return { status: 'success', message: 'Disbursement marked paid.' };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to mark disbursement paid';
+    const message = genericActionErrorMessage(error, 'Failed to mark disbursement paid');
     return { status: 'error', message };
   }
 }

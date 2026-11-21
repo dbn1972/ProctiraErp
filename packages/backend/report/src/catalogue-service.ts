@@ -155,7 +155,7 @@ export class CatalogueService {
       const bytes = await generateReportBytes(reportKey, format, table);
       const digest = sha256Hex(bytes);
       const objectKey = `${tenantId}/reports/${artifactId}.${format}`;
-      await this.blobs.put(objectKey, bytes);
+      await this.blobs.put(objectKey, bytes, contentTypeFor(format));
       const artifact = await this.store.insertArtifact({
         id: artifactId,
         tenantId,
@@ -175,7 +175,7 @@ export class CatalogueService {
         sizeBytes: bytes.length,
         completedAt: new Date(),
       });
-      const signed = createReportDownloadToken(tenantId, artifactId);
+      const signed = createReportDownloadToken(tenantId, artifactId, actorId);
       return {
         artifact,
         run: run!,

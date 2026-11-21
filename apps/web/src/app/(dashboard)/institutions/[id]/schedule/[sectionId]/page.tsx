@@ -20,6 +20,8 @@ import { getStaff, listStaff } from '@/lib/api/staff';
 import { listStudents } from '@/lib/api/students';
 import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
 import { LOOKUP_CONCURRENCY, mapWithConcurrency } from '@/lib/map-with-concurrency';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +39,10 @@ function initials(name: string): string {
 }
 
 export default async function SectionRosterPage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const institutionId = params.id;
   const sectionResult = await getSection(params.sectionId);
