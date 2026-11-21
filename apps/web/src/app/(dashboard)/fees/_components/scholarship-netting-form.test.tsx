@@ -77,4 +77,52 @@ describe('ScholarshipNettingForm (PRC-H020)', () => {
     });
     expect(sent).not.toHaveProperty('amount');
   });
+
+  it('F-D2: shows the remaining amount of a partly netted disbursement and after netting', async () => {
+    applyMock.mockResolvedValue({
+      success: true,
+      data: {
+        concession: { id: 'c-1', reason: 'scholarship_netting:disb-part' },
+        invoice: {
+          id: 'inv-1',
+          amountCents: 0,
+          currency: 'INR',
+          status: 'paid',
+        },
+        discountCents: 100_000,
+        appliedCents: 100_000,
+        amountCents: 150_000,
+        nettedCents: 100_000,
+        remainingCents: 50_000,
+        idempotent: false,
+      },
+    });
+    render(
+      <ScholarshipNettingForm
+        studentOptions={[{ id: STUDENT, label: 'STU-1 · Asha' }]}
+        disbursements={[
+          {
+            id: 'disb-part',
+            tenantId: 't',
+            studentId: STUDENT,
+            amountCents: 150_000,
+            paymentStatus: 'paid',
+            currency: 'INR',
+            nettedCents: 25_000,
+            remainingCents: 125_000,
+          },
+        ]}
+      />,
+    );
+    const select = screen.getByLabelText('Paid disbursement') as HTMLSelectElement;
+    expect(select.textContent).toContain(
+      `STU-1 · Asha · ${formatAmount(150_000, 'INR', 'en-IN')} · ${formatAmount(125_000, 'INR', 'en-IN')} remaining`,
+    );
+    fireEvent.change(select, { target: { value: 'disb-part' } });
+    fireEvent.submit(screen.getByTestId('scholarship-netting-form'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply credit' }));
+    const remaining = await screen.findByTestId('netting-remaining');
+    expect(remaining.textContent).toContain(formatAmount(50_000, 'INR', 'en-IN'));
+    expect(remaining.textContent).toMatch(/next open invoice/i);
+  });
 });
