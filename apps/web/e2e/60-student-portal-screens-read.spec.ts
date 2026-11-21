@@ -258,11 +258,13 @@ test.describe('Student portal screens — read path (E2E_BACKEND_READY)', () => 
     const homeworkId = await createHomework(request, { title, dueAt: homeworkDueAt() });
 
     const api = await getOk(request, '/student-portal/me/homework', studentHeaders(s.id));
-    expect(api.data[0], 'this run’s homework sorts first').toMatchObject({
-      id: homeworkId,
-      title,
-      kind: 'homework',
-    });
+    // SP-R6: the store returns the first 50 rows by due date. The row is dated
+    // before every published row, but another worker's homework can land first,
+    // so assert it is on that page rather than at index 0.
+    const index = api.data.findIndex((row) => row.id === homeworkId);
+    expect(index, 'this run’s homework is in the first 50 rows').toBeGreaterThanOrEqual(0);
+    expect(index).toBeLessThan(50);
+    expect(api.data[index]).toMatchObject({ id: homeworkId, title, kind: 'homework' });
 
     await openAsStudent(page, s);
     await page.goto('/student/homework', { waitUntil: 'domcontentloaded' });
