@@ -22,6 +22,7 @@ import type {
   PublishedMetadata,
 } from './publishing-schemas.js';
 import type { Indicator, Unit, Subgroup, Area, DataRecord } from './schemas.js';
+import { guardWarehouseRepository } from './tenant-guarded-repository.js';
 import type { TranslationRepository } from './translation-repository.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
@@ -39,13 +40,17 @@ export interface PublishingServiceConfig {
 export class PublishingService {
   private publishHistory: Map<string, PublishRecord> = new Map();
 
+  private readonly warehouseRepository: WarehouseRepository;
+
   constructor(
-    private readonly warehouseRepository: WarehouseRepository,
+    warehouseRepository: WarehouseRepository,
     private readonly gisRepository: GISRepository | null,
     private readonly translationRepository: TranslationRepository | null,
     private readonly config: PublishingServiceConfig,
     options: { auditSink?: DataWarehouseAuditSink | null } = {},
   ) {
+    // PRC-L552: same tenant re-check wrapper as DataWarehouseService.
+    this.warehouseRepository = guardWarehouseRepository(warehouseRepository);
     this.audit = new AuditEmitter(options.auditSink ?? null);
   }
 
