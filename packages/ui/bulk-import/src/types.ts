@@ -120,6 +120,8 @@ export interface BulkImportLabels {
   validatingFile: string;
   fileTooLarge: (size: string, max: string) => string;
   fileTypeNotAccepted: (ext: string, allowed: string) => string;
+  /** PRC-L200: the file's bytes do not match its extension. */
+  fileContentMismatch: (ext: string) => string;
   validateFailed: string;
   importFailed: string;
   duplicateMapping: (fields: string) => string;

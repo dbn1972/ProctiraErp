@@ -42,21 +42,11 @@ examDocumentWorker:
   enabled: true
 
 # W1-OPS-16 lab-only split domains: never from the CI platform release.
-institutionService:
-  enabled: false
 studentService:
-  enabled: false
-staffService:
   enabled: false
 assessmentService:
   enabled: false
-attendanceService:
-  enabled: false
 examinationService:
-  enabled: false
-workflowService:
-  enabled: false
-notificationService:
   enabled: false
 reportService:
   enabled: false
