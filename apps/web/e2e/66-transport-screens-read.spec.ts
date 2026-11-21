@@ -24,6 +24,7 @@ import { expect, test } from '@playwright/test';
 import {
   TENANT_A,
   ZERO_UUID,
+  addDaysIso,
   createDriverAssignment,
   createFeeBand,
   createGeofenceRule,
@@ -504,6 +505,85 @@ test.describe('Transport screens — read path (E2E_BACKEND_READY)', () => {
     );
     await expect(page.locator(`#fee-route option[value="${route.id}"]`)).toHaveCount(1);
     await expect(page.locator(`#fee-stop option[value="${stop.id}"]`)).toHaveCount(1);
+  });
+
+  // T-D4 regression: getTripAttendance counted every active student assignment on
+  // the route, without checking start_date <= tripDate.
+  test('T-D4 /transport/attendance counts only riders whose assignment has started', async ({
+    page,
+    request,
+  }) => {
+    test.slow();
+    const sub = randomUUID();
+    const P = principalHeaders(TENANT_A, sub);
+    const tag = newTag();
+    const route = await createRoute(request, P, tag);
+    const stop = await createStop(request, P, {
+      routeId: route.id,
+      name: `TR Stop ${tag} 1`,
+      stopOrder: 1,
+    });
+    const student = await createStudent(request, { tag, n: 1 });
+    const startDate = await nextStartDate(request, 'student-assignments', [{ headers: P }]);
+    await createStudentAssignment(request, P, {
+      studentId: student.id,
+      routeId: route.id,
+      stopId: stop.id,
+      startDate,
+    });
+    // The day before the only assignment starts: nobody is on this trip's roster.
+    const tripDate = addDaysIso(startDate, -1);
+    const query = `routeId=${route.id}&tripDate=${tripDate}&direction=pickup`;
+
+    await openAs(page, principalUser(sub));
+    await page.goto(`/transport/attendance?${query}`, { waitUntil: 'domcontentloaded' });
+    await expectScreen(page, 'Bus attendance');
+    await expect(page.getByText('0 boarded · 0 alighted · 0 absent · 0 unmarked')).toBeVisible();
+    const api = await getJson<{ assigned: number; summary: Record<string, number> }>(
+      request,
+      `/transport/attendance?${query}`,
+      P,
+    );
+    expect(api.assigned).toBe(0);
+    expect(api.summary.unmarked).toBe(0);
+  });
+
+  // T-D4 regression: evaluateAlerts mapped a vehicle to a route through every active
+  // driver assignment, without checking start_date <= tripDate.
+  test('T-D4 alert evaluation ignores a driver assignment that has not started', async ({
+    request,
+  }) => {
+    const P = principalHeaders(TENANT_A, randomUUID());
+    const tag = newTag();
+    const today = todayIso();
+    const route = await createRoute(request, P, tag);
+    await createStop(request, P, {
+      routeId: route.id,
+      name: `TR Stop ${tag} 1`,
+      stopOrder: 1,
+      latitude: 19.076,
+      longitude: 72.8777,
+    });
+    const vehicle = await createVehicle(request, P, tag);
+    await createDriverAssignment(request, P, {
+      vehicleId: vehicle.id,
+      driverId: randomUUID(),
+      routeId: route.id,
+      startDate: addDaysIso(today, 1),
+    });
+    const device = await registerDevice(request, P, vehicle.id);
+    await sendPing(request, P, device, {
+      pingId: `trping-${tag}`,
+      latitude: 20.076,
+      longitude: 72.8777,
+    });
+    const rule = await createGeofenceRule(request, P, {
+      routeId: route.id,
+      threshold: geofenceThreshold(tag),
+    });
+    // The bus is not on this route today: its driver assignment starts tomorrow.
+    const evaluated = await evaluateAlerts(request, P, route.id, today);
+    expect(evaluated.data.filter((a) => a.ruleId === rule.id)).toHaveLength(0);
   });
 
   // T-D2 regression: GET /transport/routes returns 20 rows by default and the screen
