@@ -7,7 +7,7 @@
 #     plugin in-process, so gateway metrics carry `route` labels for all
 #     /api/v1/* domains (fees, health, scholarship, hostel, …).
 #   - etl-worker  (docker-compose.yml)            :3010
-#   - 9 standalone backend services (NON-PROD lab, :3020–3028) live in
+#   - 4 standalone backend services (NON-PROD lab, :3021/3023/3025/3028) live in
 #     scrape-lab/lab-services.yml and load ONLY when the lab services compose
 #     runs (PRC-M313); the canonical stack must not carry permanently-down
 #     targets that keep ServiceDown firing.

@@ -2287,6 +2287,9 @@ importers:
       '@proctira/logging':
         specifier: workspace:*
         version: link:../../shared/logging
+      '@proctira/storage':
+        specifier: workspace:*
+        version: link:../../shared/storage
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
