@@ -128,7 +128,8 @@ test.describe('Health defect fixes — live (E2E_BACKEND_READY)', () => {
     await expect(select.locator(`option[value="${target.id}"]`)).toHaveCount(1, {
       timeout: 20_000,
     });
-    await expect(select.locator(`option[value="${target.id}"]`)).toHaveText(target.label);
+    // The label may carry the server-assigned admission number as a prefix (PRC-M156).
+    await expect(select.locator(`option[value="${target.id}"]`)).toContainText(target.label);
     expect(await select.locator('option:not([value=""])').count()).toBeGreaterThan(20);
   });
 
