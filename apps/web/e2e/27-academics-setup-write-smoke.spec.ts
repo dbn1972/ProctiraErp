@@ -44,8 +44,9 @@ function headers(tenantId = TENANT_A) {
 async function ensurePeriod(request: APIRequestContext): Promise<string> {
   // PRC-L122: academic years are overlap-checked per tenant, and
   // tools/e2e/seed-e2e-tenants.sql already seeds a baseline "E2E Academic
-  // Year" for TENANT_A with this exact 2026-04-01..2027-03-31 window, so a
-  // blind create here collides with it (and with every other spec sharing
+  // Year" for TENANT_A with a rolling window around today (CURRENT_DATE - 180
+  // .. CURRENT_DATE + 184, SP-R2), so a blind now-centred create here
+  // collides with it (and with every other spec sharing
   // TENANT_A). Reuse the shared year instead (see ensureSharedAcademicYear's
   // doc comment).
   const period = await ensureSharedAcademicYear(request, GATEWAY_URL, headers());
