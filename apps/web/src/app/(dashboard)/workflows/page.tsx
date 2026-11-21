@@ -20,10 +20,16 @@ import {
 import { listWorkflowDefinitionsResult, type WorkflowDefinition } from '@/lib/api/workflows';
 import { EmptyState } from '@/components/page';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkflowsPage() {
+  // A-batch: check before any workflow read.
+  if (!(await hasDashboardDomainRouteAccess('workflows', '/workflows'))) {
+    return <RouteAccessDenied />;
+  }
   const definitionsResult = await listWorkflowDefinitionsResult();
   if (!definitionsResult.ok) {
     return (

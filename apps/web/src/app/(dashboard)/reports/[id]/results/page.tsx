@@ -27,12 +27,18 @@ import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { cn } from '@/lib/utils';
 import { getReportTemplate, listReportRuns, type ReportRun } from '@/lib/api/reports';
 import { resolveEntityLabel } from '@/lib/entity-label';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function ReportResultsPage(props: PageProps) {
+  // A-batch: check before any report read.
+  if (!(await hasDashboardDomainRouteAccess('reports', '/reports'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const [templateResult, runsResult] = await Promise.all([
     getReportTemplate(params.id),

@@ -13,6 +13,8 @@ import { listBankQuestions, listSkills } from '@/lib/api/lms';
 
 import { NewAssignmentForm } from '../../_components/new-assignment-form';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +23,10 @@ export default async function NewAssignmentPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await searchParams;
   const kindParam = typeof params.kind === 'string' ? params.kind : undefined;
   const initialKind =

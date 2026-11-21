@@ -3,6 +3,8 @@ import { getMeritList, listApplications } from '@/lib/api/admissions';
 import { loadAdmissionsLookups, pickSelectedLookup } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
 import { MeritPanel } from '../_components/merit-panel';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +13,10 @@ interface PageProps {
 }
 
 export default async function AdmissionsMeritPage(props: PageProps) {
+  // A-batch: check before any admissions read.
+  if (!(await hasDashboardDomainRouteAccess('admissions', '/admissions'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = (await props.searchParams) ?? {};
   const [{ institutions, periods, grades, errors }, applications] = await Promise.all([
     loadAdmissionsLookups(),

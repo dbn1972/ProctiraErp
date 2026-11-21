@@ -21,6 +21,8 @@ import {
   listSections,
   listSubstitutions,
 } from '@/lib/api/timetable';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +41,10 @@ interface PageProps {
 }
 
 export default async function TimetableSubstitutionsPage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const searchParams = (await props.searchParams) ?? {};
   const institutionId = params.id;
