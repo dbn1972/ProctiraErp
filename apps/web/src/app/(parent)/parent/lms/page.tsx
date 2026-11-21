@@ -65,6 +65,7 @@ export default async function ParentLmsPage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No published LMS assignments yet."
       hasRows={items.length > 0}
     >

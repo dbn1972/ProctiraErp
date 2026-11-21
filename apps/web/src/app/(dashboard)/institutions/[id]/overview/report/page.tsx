@@ -6,12 +6,18 @@ import Link from 'next/link';
 
 import { getInstitution, getInstitutionOverview } from '@/lib/institutions/api';
 import { PrintReportButton } from '@/components/institutions/print-report-button';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface ReportPageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function InstitutionSchoolReportPage(props: ReportPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const institution = await getInstitution(params.id).catch(() => null);
   const snapshot = institution

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { decideTrackLookup, resolveRedirectBase, TRACK_DOB_COOKIE } from '@/lib/track-lookup';
+import { buildTrackDobCookie, decideTrackLookup, resolveRedirectBase } from '@/lib/track-lookup';
 
 /**
  * POST /track/lookup
@@ -14,7 +14,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     String(form.get('trackingNumber') ?? ''),
     String(form.get('dob') ?? ''),
   );
-  // PRC-L225: build the redirect from the public host, not the internal origin.
+  // PRC-L225: build the redirect from a trusted public base, never the request Host.
   const redirectBase = resolveRedirectBase(request.url, request.headers);
 
   if (!decision.ok) {
@@ -25,12 +25,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     new URL(`/track/${encodeURIComponent(decision.trackingNumber)}`, redirectBase),
     303,
   );
-  response.cookies.set(TRACK_DOB_COOKIE, decision.dob, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/track',
-    maxAge: 60 * 30,
-  });
+  // PRC-L225: a `__Host-` cookie needs HTTPS; use it whenever the resolved base
+  // (or the deployed runtime) is secure, else the unprefixed name for local dev.
+  const secure = redirectBase.protocol === 'https:' || process.env.NODE_ENV === 'production';
+  const cookie = buildTrackDobCookie(decision.dob, { secure });
+  response.cookies.set(cookie.name, cookie.value, cookie.options);
   return response;
 }

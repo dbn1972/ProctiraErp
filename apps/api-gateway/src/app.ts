@@ -19,6 +19,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import {
   auditPlugin,
+  configureAuditChainKey,
   createAuditRepository,
   createRetentionScheduler,
   DEFAULT_RETENTION_INTERVAL_MS,
@@ -76,13 +77,19 @@ import { observabilityPlugin, registerServiceSLO, SLO_CATALOG } from '@proctira/
 import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
+import { createGatewayAuditIngestDrain } from './audit-ingest-drain.js';
 import { registerAuthAudit } from './auth-audit.js';
 import {
   billingEntitlementsEnforced,
   evaluateBillingEntitlement,
   tenantIdFromRequest,
 } from './billing-entitlements.js';
-import { assertAuthBootPolicy, resolvePreviousJwtSecret, type GatewayConfig } from './config.js';
+import {
+  assertAuthBootPolicy,
+  resolveAuditChainKey,
+  resolvePreviousJwtSecret,
+  type GatewayConfig,
+} from './config.js';
 import {
   authenticateCredential,
   authorizeCredentialPrincipal,
@@ -139,6 +146,8 @@ import {
   createGatewayRbacRegistry,
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
+  AUDIT_READ_RESOURCE,
+  isAuditLogsReadPath,
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
@@ -1143,6 +1152,43 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
+  // 8d-key. PRC-M200 — install the audit-chain HMAC signing key BEFORE the drain
+  // (and before any synchronous same-txn audited mutation can run). In a deployed
+  // environment resolveAuditChainKey fails closed on a missing / dev / placeholder
+  // / short key, so the gateway refuses to boot rather than signing the keyed
+  // chain with an unsafe key (checked once at boot — no request-time 503). Not
+  // deployed: the fixed dev key (key_id "dev") is used, which a deployed verifier
+  // rejects.
+  configureAuditChainKey(
+    resolveAuditChainKey(process.env.NODE_ENV, process.env.AUDIT_CHAIN_HMAC_KEY),
+  );
+
+  // 8d''. PRC-M200 / DR4-4 — seal system-origin audit events (demo seed, jobs,
+  // async side-effects enqueued into audit_ingest_queue) into the keyed HMAC
+  // chain. Runs once at boot and then on an unref'd interval, single-flight per
+  // replica. Opt out with AUDIT_INGEST_DRAIN=0; interval via
+  // AUDIT_INGEST_DRAIN_INTERVAL_MS. Skipped under NODE_ENV=test (tests drive
+  // the drain's runOnce directly against a throwaway Postgres).
+  if (process.env.AUDIT_INGEST_DRAIN !== '0' && process.env.NODE_ENV !== 'test') {
+    const ingestDrain = createGatewayAuditIngestDrain({
+      logger: app.log,
+      intervalMs: Number(process.env.AUDIT_INGEST_DRAIN_INTERVAL_MS) || undefined,
+    });
+    if (ingestDrain) {
+      // Seal anything already queued before accepting traffic, then schedule.
+      await ingestDrain.runOnce().catch((error) => {
+        app.log.error(
+          { error: error instanceof Error ? error.message : String(error) },
+          'audit ingest drain boot run failed',
+        );
+      });
+      ingestDrain.start();
+      app.addHook('onClose', async () => {
+        ingestDrain.stop();
+      });
+    }
+  }
+
   // 8e. Mount billing + tenant lifecycle (G-106). Tenant routes use a non-clashing
   // prefix because platform-admin UI owns `/api/v1/tenants`.
   await app.register(billingPlugin, {
@@ -1370,8 +1416,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       resource = gate.guard.resource;
       action = gate.guard.action;
     } else {
-      resource = resourceForApiPath(url);
-      if (!resource) return;
+      // PRC-L280: a READ of the tenant audit-log API resolves to the dedicated
+      // `audit-read` resource (held by the tenant admin + platform admins),
+      // not the platform-admin-only `platform` resource, so a tenant admin can
+      // read its own audit trail. The audit route handler + RLS bind every row
+      // to the caller's tenant; audit WRITES keep the `platform` guard via the
+      // mutating-route overrides, so this does not widen audit writes.
+      if (isAuditLogsReadPath(method, url)) {
+        resource = AUDIT_READ_RESOURCE;
+      } else {
+        resource = resourceForApiPath(url);
+        if (!resource) return;
+      }
     }
 
     // Platform control plane: platform_admin / super-admin role only (G-104/G-702).

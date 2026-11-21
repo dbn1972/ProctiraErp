@@ -13,7 +13,6 @@ import {
 } from '@proctira/ui/components';
 import { getTranslations } from 'next-intl/server';
 
-import { requireSession } from '@/lib/auth/server';
 import { canWrite } from '@/lib/auth/route-write-guard';
 import { listLibraryItemsResult } from '@/lib/api/library';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
@@ -21,11 +20,16 @@ import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { LibraryClearanceForm } from './_components/clearance-form';
 import { IsbnImportForm } from './_components/isbn-import-form';
 import { NewLibraryItemForm } from './_components/new-item-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryCatalogPage() {
-  await requireSession();
+  // A-batch: check before any library read.
+  if (!(await hasDashboardDomainRouteAccess('library', '/library'))) {
+    return <RouteAccessDenied />;
+  }
   const [t, result, studentOptions, canManage] = await Promise.all([
     getTranslations('library'),
     listLibraryItemsResult(),

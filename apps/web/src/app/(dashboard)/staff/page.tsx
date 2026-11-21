@@ -35,6 +35,8 @@ import { StaffListFilters as Filters } from './_components/staff-list-filters';
 import { StaffListPagination } from './_components/staff-list-pagination';
 import { StaffTypeTabs } from './_components/staff-type-tabs';
 import { clampPageSize, MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -277,6 +279,10 @@ function StaffRow({ member }: { member: StaffMember }) {
 /* ──────────────────────────────────────────────── Page ── */
 
 export default async function StaffListPage(props: PageProps) {
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const search = readStr(searchParams, 'search');
   const institutionId = readStr(searchParams, 'institutionId');

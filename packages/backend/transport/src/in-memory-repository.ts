@@ -29,6 +29,11 @@ import type {
 } from './transport-repository.js';
 import { FEE_LINK_LEASE_PREFIX } from './transport-repository.js';
 
+/** T-D4: same window as the pg filter; YYYY-MM-DD strings compare in date order. */
+function coversDay(a: { startDate: string; endDate: string | null }, day: string): boolean {
+  return a.startDate.slice(0, 10) <= day && (a.endDate == null || a.endDate.slice(0, 10) >= day);
+}
+
 export class InMemoryTransportRepository implements TransportRepository {
   private routes: Map<string, TransportRouteEntity> = new Map();
   private stops: Map<string, RouteStopEntity> = new Map();
@@ -300,6 +305,10 @@ export class InMemoryTransportRepository implements TransportRepository {
     if (filter.isActive !== undefined) {
       items = items.filter((e) => e.isActive === filter.isActive);
     }
+    if (filter.activeOn) {
+      const day = filter.activeOn;
+      items = items.filter((e) => coversDay(e, day));
+    }
 
     const totalItems = items.length;
     const totalPages = Math.ceil(totalItems / pagination.pageSize);
@@ -380,6 +389,10 @@ export class InMemoryTransportRepository implements TransportRepository {
     }
     if (filter.isActive !== undefined) {
       items = items.filter((e) => e.isActive === filter.isActive);
+    }
+    if (filter.activeOn) {
+      const day = filter.activeOn;
+      items = items.filter((e) => coversDay(e, day));
     }
 
     const totalItems = items.length;

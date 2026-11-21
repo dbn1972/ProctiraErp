@@ -15,10 +15,16 @@ import {
 } from '@proctira/ui/components';
 
 import { GradingSchemeForm } from '../../_components/grading-scheme-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
-export default function NewGradingSchemePage() {
+export default async function NewGradingSchemePage() {
+  // A-batch: check before any assessment read.
+  if (!(await hasDashboardDomainRouteAccess('assessments', '/assessments'))) {
+    return <RouteAccessDenied />;
+  }
   return (
     <section aria-labelledby="new-scheme-heading" className="space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">

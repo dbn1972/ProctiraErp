@@ -22,7 +22,11 @@ export function SuccessCard() {
     if (typeof window === 'undefined') return;
     // PRC-M054: read the tracking number once, then clear it and any remaining
     // drafts so nothing about the applicant stays in this tab's storage.
-    setTrackingNumber(window.sessionStorage.getItem(LAST_TRACKING_NUMBER_KEY));
+    // UAT-9a: React StrictMode runs this effect twice in development; the
+    // second run reads null after the clear, so only a stored value may set
+    // state (otherwise it wipes the number the first run read).
+    const stored = window.sessionStorage.getItem(LAST_TRACKING_NUMBER_KEY);
+    if (stored !== null) setTrackingNumber(stored);
     window.sessionStorage.removeItem(LAST_TRACKING_NUMBER_KEY);
     clearRegistrationDrafts(window.sessionStorage);
   }, []);

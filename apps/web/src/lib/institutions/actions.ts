@@ -42,6 +42,8 @@ import {
   type InstitutionFormValues,
   type RolloverFormValues,
 } from './validation';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
+import { GatewayError } from '@/lib/api/gateway';
 
 export interface FieldError {
   field: string;
@@ -66,9 +68,18 @@ function flattenZodErrors(errors: Record<string, string[] | undefined>): FieldEr
 
 function toActionError(error: unknown): ActionResult<never> {
   if (error instanceof ApiClientError) {
+    // RAW-WEB: the envelope message is logged, not shown; fixed copy by status plus a reference.
     return {
       success: false,
-      error: error.message,
+      error: genericActionErrorMessage(
+        new GatewayError({
+          status: error.statusCode,
+          code: error.code,
+          message: error.code,
+          details: error,
+        }),
+        'The change could not be saved.',
+      ),
       fieldErrors: error.fieldErrors?.map((e) => ({ field: e.field, message: e.message })),
     };
   }

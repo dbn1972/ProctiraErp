@@ -18,6 +18,7 @@ export default async function StudentGradesPage() {
       testId="student-grades"
       status={studentStatus(result)}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No published grades yet."
       hasRows={grades.length + reportCards.length > 0}
     >

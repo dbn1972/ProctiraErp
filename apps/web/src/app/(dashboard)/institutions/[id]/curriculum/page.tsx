@@ -22,6 +22,8 @@ import {
 import type { AcademicPeriod, Grade } from '@/lib/institutions/types';
 import { pickActiveAcademicPeriod } from '@/lib/academic-defaults';
 import { getTenantToday } from '@/lib/tenant-today';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +33,10 @@ interface PageProps {
 }
 
 export default async function InstitutionCurriculumPage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const searchParams = await props.searchParams;
   const institutionId = params.id;

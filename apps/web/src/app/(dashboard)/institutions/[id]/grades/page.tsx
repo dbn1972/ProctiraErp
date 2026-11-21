@@ -25,12 +25,13 @@ import { cn } from '@/lib/utils';
 import { utilizationBand } from '@/lib/status-label';
 import { AddGradeDialog } from '@/components/institutions/academics-create-dialogs';
 import {
-  ApiClientError,
   getInstitutionOverview,
   listClassesByInstitution,
   listGrades,
 } from '@/lib/institutions/api';
 import type { ClassSection, Grade } from '@/lib/institutions/types';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface GradesPageProps {
   params: Promise<{ id: string }>;
@@ -70,6 +71,10 @@ function UtilizationBar({ pct }: { pct: number }) {
 }
 
 export default async function InstitutionGradesPage(props: GradesPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const data = await loadGrades(params.id);
   const overview = await getInstitutionOverview(params.id).catch(() => null);
@@ -215,13 +220,13 @@ async function loadGrades(institutionId: string): Promise<GradesData> {
     ]);
     return { grades, classes, error: null };
   } catch (error) {
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[institution-grades] load failed', error);
     return {
       grades: [],
       classes: [],
-      error:
-        error instanceof ApiClientError
-          ? error.message
-          : 'The grade catalog is currently unavailable.',
+      error: 'The grade catalog is currently unavailable.',
     };
   }
 }

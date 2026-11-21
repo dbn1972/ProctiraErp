@@ -42,6 +42,7 @@ import {
   TenantService,
   type BuiltInRoleSeed,
   type RolesAuditEvent,
+  type RolesTxnAuditPort,
   type TenantSettingsStore,
 } from '@proctira/backend-tenant';
 import {
@@ -135,6 +136,13 @@ export interface TenantAdminPluginOptions {
    * (fail closed); set `false` only where an outbox guarantees delivery.
    */
   failOnAuditError?: boolean;
+  /**
+   * PRC-L264: same-transaction audit port. When provided (Postgres mode), the
+   * roles repository appends the high-risk role/user audit row in the mutation
+   * transaction via `@proctira/backend-audit`, replacing the removed
+   * browser-emitted audit. The gateway builds it in `domain-plugins.ts`.
+   */
+  txnAuditPort?: RolesTxnAuditPort;
 }
 
 /** PRC-M466: surfaced (as 503) when a high-risk role/user audit write fails. */
@@ -179,7 +187,10 @@ export const tenantAdminPlugin = fp(
   async (fastify: FastifyInstance, options: TenantAdminPluginOptions) => {
     const prefix = options.prefix ?? '/tenant';
     const seed = builtInRoleSeed();
-    const { repository, persistence } = createRolesRepository(seed);
+    // PRC-L264: when the gateway supplies a same-transaction audit port, the
+    // Postgres roles repository writes the high-risk role/user audit row inside
+    // the mutation transaction (no post-hoc, client-trusted audit).
+    const { repository, persistence } = createRolesRepository(seed, options.txnAuditPort);
     // W1-SEC-12: settings store follows the same fail-closed policy as roles
     // (Pg when DATABASE_URL; never silent memory when Postgres is required).
     let settingsStore: TenantSettingsStore;
@@ -207,36 +218,49 @@ export const tenantAdminPlugin = fp(
       );
     });
 
-    const rolesService = new RolesService(repository, async (event) => {
-      if (!options.onAudit) return;
-      const actor = auditActorStore.getStore();
-      try {
-        await options.onAudit({
-          ...event,
+    const rolesService = new RolesService(
+      repository,
+      async (event) => {
+        if (!options.onAudit) return;
+        const actor = auditActorStore.getStore();
+        try {
+          await options.onAudit({
+            ...event,
+            actorId: actor?.actorId ?? null,
+            ipAddress: actor?.ipAddress ?? null,
+            requestId: actor?.requestId ?? null,
+          });
+        } catch (error) {
+          // PRC-M466: never silently drop a high-risk before/after record. Log for alerting and,
+          // by default, fail the request so the caller does not see an unaudited success.
+          fastify.log.error(
+            {
+              err: error,
+              requestId: actor?.requestId ?? null,
+              tenantId: event.tenantId,
+              entityType: event.entityType,
+              entityId: event.entityId,
+              operation: event.operation,
+              riskLevel: event.metadata.riskLevel,
+            },
+            'tenant admin audit write failed',
+          );
+          if (options.failOnAuditError !== false && event.metadata.riskLevel === 'high') {
+            throw new TenantAdminAuditError(error);
+          }
+        }
+      },
+      // PRC-L264: supply the request actor so the same-transaction audit row
+      // (written by the Postgres repository) carries the real caller.
+      () => {
+        const actor = auditActorStore.getStore();
+        return {
           actorId: actor?.actorId ?? null,
           ipAddress: actor?.ipAddress ?? null,
           requestId: actor?.requestId ?? null,
-        });
-      } catch (error) {
-        // PRC-M466: never silently drop a high-risk before/after record. Log for alerting and,
-        // by default, fail the request so the caller does not see an unaudited success.
-        fastify.log.error(
-          {
-            err: error,
-            requestId: actor?.requestId ?? null,
-            tenantId: event.tenantId,
-            entityType: event.entityType,
-            entityId: event.entityId,
-            operation: event.operation,
-            riskLevel: event.metadata.riskLevel,
-          },
-          'tenant admin audit write failed',
-        );
-        if (options.failOnAuditError !== false && event.metadata.riskLevel === 'high') {
-          throw new TenantAdminAuditError(error);
-        }
-      }
-    });
+        };
+      },
+    );
 
     await registerRolesRoutes(fastify, { rolesService, prefix });
     await registerTenantSettingsRoutes(fastify, {

@@ -875,6 +875,87 @@ describe('HealthService', () => {
       expect(rows.some((r) => r.vaccineName === 'Tdap')).toBe(true);
     });
 
+    // HL-O3: the tenant-wide registers returned PHI without a health_phi_access_log row,
+    // unlike the aggregate reads (health_record.list). One row per returned student.
+    it('HL-O3: the vaccination register writes one PHI read row per returned student', async () => {
+      for (const [studentId, doseNumber] of [
+        ['student-001', 1],
+        ['student-001', 2],
+        ['student-002', 1],
+      ] as const) {
+        await service.createVaccination(
+          tenantId,
+          { studentId, vaccineName: 'MMR', doseNumber, dateAdministered: '2024-06-01' },
+          healthOfficerContext,
+        );
+      }
+      await service.createVaccination(
+        'tenant-other',
+        {
+          studentId: 'student-other',
+          vaccineName: 'MMR',
+          doseNumber: 1,
+          dateAdministered: '2024-06-01',
+        },
+        healthOfficerContext,
+      );
+      await service.listAllVaccinations(tenantId, healthAdminContext);
+      const logged = (await repository.listPhiAccessLogs(tenantId)).filter(
+        (r) => r.resourceType === 'vaccination.list',
+      );
+      expect(logged.map((r) => r.studentId).sort()).toEqual(['student-001', 'student-002']);
+      for (const r of logged) {
+        expect([r.tenantId, r.actorUserId, r.action]).toEqual([
+          tenantId,
+          healthAdminContext.userId,
+          'READ',
+        ]);
+      }
+      expect(await repository.listPhiAccessLogs('tenant-other')).toEqual([]);
+    });
+
+    it('HL-O3: the incident register writes one PHI read row per returned student', async () => {
+      for (const studentId of ['student-001', 'student-001', 'student-003']) {
+        await service.createNurseIncident(
+          tenantId,
+          {
+            studentId,
+            incidentAt: '2024-09-01T10:00:00.000Z',
+            category: 'clinic_visit',
+            severity: 'low',
+            reportedBy: 'ignored',
+          },
+          healthOfficerContext,
+        );
+      }
+      await service.listNurseIncidents(tenantId, healthAdminContext);
+      const logged = (await repository.listPhiAccessLogs(tenantId)).filter(
+        (r) => r.resourceType === 'incident.list',
+      );
+      expect(logged.map((r) => r.studentId).sort()).toEqual(['student-001', 'student-003']);
+      expect(logged.every((r) => r.actorUserId === healthAdminContext.userId)).toBe(true);
+    });
+
+    it('HL-O3: a refused register read writes no PHI read row', async () => {
+      await service.createVaccination(
+        tenantId,
+        {
+          studentId: 'student-001',
+          vaccineName: 'MMR',
+          doseNumber: 1,
+          dateAdministered: '2024-06-01',
+        },
+        healthOfficerContext,
+      );
+      await expect(service.listAllVaccinations(tenantId, unauthorizedContext)).rejects.toThrow(
+        ForbiddenError,
+      );
+      await expect(service.listNurseIncidents(tenantId, unauthorizedContext)).rejects.toThrow(
+        ForbiddenError,
+      );
+      expect(await repository.listPhiAccessLogs(tenantId)).toEqual([]);
+    });
+
     it('denies PHI access log to nurse-only role', async () => {
       const nurseOnly: HealthAccessContext = {
         userId: 'user-nurse',

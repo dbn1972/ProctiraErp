@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEV_AUDIT_CHAIN_SECRET,
   DEV_JWT_SECRET,
   DEV_OVERLAY_JWT_SECRET,
   assertAuthBootPolicy,
@@ -8,11 +9,13 @@ import {
   loadConfig,
   parseTrustedProxyCidrs,
   resolveAccessTokenExpiresIn,
+  resolveAuditChainKey,
   resolveCorsOrigins,
   resolveJwtSecret,
   resolvePreviousJwtSecret,
   resolveTrustedProxyCidrs,
 } from './config.js';
+import { DEV_AUDIT_CHAIN_KEY_ID } from '@proctira/backend-audit';
 
 describe('resolveJwtSecret (G-703)', () => {
   const strong = 'a'.repeat(48);
@@ -44,6 +47,75 @@ describe('resolveJwtSecret (G-703)', () => {
 
   it('accepts a strong production secret', () => {
     expect(resolveJwtSecret('production', strong)).toBe(strong);
+  });
+});
+describe('resolveAuditChainKey (PRC-M200)', () => {
+  const strong = 'k'.repeat(48);
+
+  it('falls back to the fixed dev key (key_id "dev") outside a deployed environment', () => {
+    expect(resolveAuditChainKey('development', undefined, {})).toEqual({
+      keyId: DEV_AUDIT_CHAIN_KEY_ID,
+      secret: DEV_AUDIT_CHAIN_SECRET,
+    });
+    expect(resolveAuditChainKey('test', '', {})).toEqual({
+      keyId: DEV_AUDIT_CHAIN_KEY_ID,
+      secret: DEV_AUDIT_CHAIN_SECRET,
+    });
+  });
+
+  it('uses a provided key with a non-dev id outside a deployed environment', () => {
+    expect(resolveAuditChainKey('development', strong, {})).toEqual({
+      keyId: 'primary',
+      secret: strong,
+    });
+    expect(
+      resolveAuditChainKey('development', strong, { AUDIT_CHAIN_HMAC_KEY_ID: 'kms-2026' }),
+    ).toEqual({ keyId: 'kms-2026', secret: strong });
+  });
+
+  it('throws when deployed and the key is missing (boot matrix: deployed + no key)', () => {
+    expect(() => resolveAuditChainKey('production', undefined, {})).toThrow(
+      /AUDIT_CHAIN_HMAC_KEY is required/,
+    );
+    expect(() => resolveAuditChainKey('staging', '   ', {})).toThrow(
+      /AUDIT_CHAIN_HMAC_KEY is required/,
+    );
+    expect(() => resolveAuditChainKey(undefined, undefined, {})).toThrow(
+      /AUDIT_CHAIN_HMAC_KEY is required/,
+    );
+  });
+
+  it('throws when deployed and the dev key / placeholder is supplied (boot matrix: deployed + dev key)', () => {
+    expect(() => resolveAuditChainKey('production', DEV_AUDIT_CHAIN_SECRET, {})).toThrow(
+      /development key or a known placeholder/,
+    );
+    expect(() => resolveAuditChainKey('production', 'dev', {})).toThrow(
+      /development key or a known placeholder/,
+    );
+    expect(() => resolveAuditChainKey('production', 'changeme', {})).toThrow(
+      /development key or a known placeholder/,
+    );
+  });
+
+  it('throws when deployed and the key is too short', () => {
+    expect(() => resolveAuditChainKey('production', 'x'.repeat(16), {})).toThrow(/at least 32/);
+  });
+
+  it('throws when deployed and AUDIT_CHAIN_HMAC_KEY_ID is the reserved dev id', () => {
+    expect(() =>
+      resolveAuditChainKey('production', strong, { AUDIT_CHAIN_HMAC_KEY_ID: 'dev' }),
+    ).toThrow(/must not be the reserved development id/);
+  });
+
+  it('accepts a strong deployed key and records its id', () => {
+    expect(
+      resolveAuditChainKey('production', strong, { AUDIT_CHAIN_HMAC_KEY_ID: 'kms-1' }),
+    ).toEqual({ keyId: 'kms-1', secret: strong });
+    // Default id when none is supplied.
+    expect(resolveAuditChainKey('production', strong, {})).toEqual({
+      keyId: 'primary',
+      secret: strong,
+    });
   });
 });
 

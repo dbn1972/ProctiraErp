@@ -23,30 +23,12 @@ function fakeClient() {
   return {
     query: async (sql: string, values: unknown[] = []) => {
       recorded.push({ sql, values });
-      if (sql.includes('INSERT INTO audit_log_entries')) {
-        const [id, tenantId, entityType, entityId, operation, userId, userName, ipAddress, at] =
-          values;
-        return {
-          rows: [
-            {
-              id,
-              tenant_id: tenantId,
-              entity_type: entityType,
-              entity_id: entityId,
-              operation,
-              user_id: userId,
-              user_name: userName,
-              ip_address: ipAddress,
-              occurred_at: at,
-              before_values: null,
-              after_values: null,
-              metadata: values[11] == null ? null : JSON.parse(String(values[11])),
-              chain_seq: values[12],
-              prev_hash: values[13],
-              entry_hash: values[14],
-            },
-          ],
-        };
+      // PRC-M200: the row is appended through the SECURITY DEFINER keyed-chain functions.
+      if (sql.includes('FROM audit_chain_lock_head(')) {
+        return { rows: [{ head_seq: 0, head_hash: null }] };
+      }
+      if (sql.includes('FROM audit_chain_append(')) {
+        return { rows: [{ chain_seq: 1, prev_hash: null }] };
       }
       return { rows: [] };
     },
@@ -81,9 +63,10 @@ describe('PRC-L373 timetable durable audit (gateway wiring)', () => {
       { name: 'Main bell', institutionId: null } as never,
       'admin-user',
     );
-    const inserts = recorded.filter((q) => q.sql.includes('INSERT INTO audit_log_entries'));
+    // audit_chain_append(tenant, id, entity_type, entity_id, operation, user_id, …).
+    const inserts = recorded.filter((q) => q.sql.includes('FROM audit_chain_append('));
     expect(inserts).toHaveLength(1);
-    expect(inserts[0]!.values[1]).toBe(TENANT);
+    expect(inserts[0]!.values[0]).toBe(TENANT);
     expect(inserts[0]!.values[2]).toBe('bell_schedule');
     expect(inserts[0]!.values[3]).toBe(row.id);
     expect(inserts[0]!.values[5]).toBe('admin-user');
@@ -97,7 +80,7 @@ describe('PRC-L373 timetable durable audit (gateway wiring)', () => {
       { name: 'Second bell', institutionId: null } as never,
       'admin-user',
     );
-    expect(recorded.filter((q) => q.sql.includes('audit_log_entries'))).toHaveLength(0);
+    expect(recorded.filter((q) => /audit_log_entries|audit_chain_/.test(q.sql))).toHaveLength(0);
     expect(service.listAudits(TENANT).length).toBeGreaterThan(0);
   });
 });

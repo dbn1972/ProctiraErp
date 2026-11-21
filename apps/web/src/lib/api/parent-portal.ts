@@ -1,6 +1,7 @@
 /**
  * Parent portal service client.
  */
+import { SAFE_CORRELATION_ID } from './action-error';
 import { GatewayError, gatewayFetch } from './gateway';
 import { fetchList, type ListResult } from './list-result';
 
@@ -294,6 +295,8 @@ export interface AcademicFetchResult<T> {
   status: number;
   payload: T | null;
   message?: string;
+  /** Gateway correlation id of a failed read, shown to families as a support reference. */
+  correlationId?: string;
 }
 
 async function fetchAcademic<T>(path: string): Promise<AcademicFetchResult<T>> {
@@ -301,11 +304,17 @@ async function fetchAcademic<T>(path: string): Promise<AcademicFetchResult<T>> {
   if (result.ok && result.data) {
     return { ok: true, status: result.status, payload: result.data };
   }
+  // D1b: gateway error text is never forwarded to family screens; only a validated id is kept.
+  const correlationId =
+    result.correlationId && SAFE_CORRELATION_ID.test(result.correlationId)
+      ? result.correlationId
+      : undefined;
   return {
     ok: false,
     status: result.status,
     payload: null,
-    message: result.error?.message ?? 'Unable to load this page.',
+    message: 'Unable to load this page. Try again later.',
+    ...(correlationId ? { correlationId } : {}),
   };
 }
 

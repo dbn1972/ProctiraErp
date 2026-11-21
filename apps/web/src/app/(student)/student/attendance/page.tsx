@@ -17,6 +17,7 @@ export default async function StudentAttendancePage() {
       testId="student-attendance"
       status={studentStatus(result)}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No attendance has been recorded yet."
       hasRows={days.length > 0}
     >

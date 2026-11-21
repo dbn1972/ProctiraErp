@@ -12,7 +12,7 @@
 
 // Core service
 export { StudentService, type AssertDestructiveDeleteAllowed } from './student-service.js';
-export type { ReassignEnrollments } from './student-service.js';
+export type { ReassignEnrollments, StudentAuditActor } from './student-service.js';
 
 // Core repository types (main student repository interface)
 export type {
@@ -23,6 +23,10 @@ export type {
   StudentFilter,
   StudentRepository as CoreStudentRepository,
   StudentUpdateOptions,
+  StudentTxnAuditEvent,
+  StudentTxnAuditClient,
+  StudentTxnAuditPort,
+  StudentAuditDirective,
 } from './student-repository.js';
 export { StaleStudentUpdateError } from './student-repository.js';
 

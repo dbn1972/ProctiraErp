@@ -7,15 +7,21 @@ import type { PgClient, PgPoolWithConnect, PgQueryable } from '@proctira/databas
 
 import {
   appendAuditEntryOnClient,
+  configureAuditChainKey,
+  currentAuditChainKey,
   runRegulatedMutationInTxn,
   toCreateAuditLogInput,
 } from './txn-mutation-audit.js';
+import { computeKeyedEntryHash } from './audit-hash.js';
 
 type Row = Record<string, unknown>;
 
 /**
- * Minimal transactional pool: domain rows live in `domain`, audit in `audit`.
- * COMMIT only persists scratch → durable; ROLLBACK discards scratch.
+ * Minimal transactional pool exercising the PRC-M200 SECURITY DEFINER write
+ * path: the runtime role no longer touches audit_chain_heads directly, it calls
+ * audit_chain_lock_head(tenant) then audit_chain_append(...). This pool rejects
+ * any direct DML on audit_chain_heads exactly as migration 294 does, so a
+ * regression back to the direct-INSERT path fails here.
  */
 function createTxnPool() {
   const durable = {
@@ -67,23 +73,34 @@ function createTxnPool() {
       const row = store.domain.get(String(values[0]));
       return { rows: row ? [row] : [] };
     }
-    if (sql.startsWith('INSERT INTO audit_chain_heads')) {
-      const tenantId = String(values[0]);
-      if (!store.chain.has(tenantId)) {
-        store.chain.set(tenantId, { head_seq: 0, head_hash: null });
-      }
-      return { rows: [] };
+
+    // PRC-M200: the runtime role must NOT touch audit_chain_heads directly
+    // (migration 294 revokes INSERT/UPDATE/DELETE). Reject it like Postgres.
+    if (/\b(INSERT INTO|UPDATE|DELETE FROM)\s+audit_chain_heads\b/i.test(sql)) {
+      throw new Error(
+        `permission denied for table audit_chain_heads (PRC-M200: use audit_chain_append)`,
+      );
     }
-    if (sql.includes('FROM audit_chain_heads') && sql.includes('FOR UPDATE')) {
+
+    // audit_chain_lock_head(tenant) -> (head_seq, head_hash); creates head on first use.
+    if (sql.includes('FROM audit_chain_lock_head(')) {
+      const tenantId = String(values[0]);
+      if (!store.chain.has(tenantId)) store.chain.set(tenantId, { head_seq: 0, head_hash: null });
+      return { rows: [store.chain.get(tenantId)!] };
+    }
+
+    // audit_chain_append(...) -> (chain_seq, prev_hash); inserts row + advances head.
+    if (sql.includes('FROM audit_chain_append(')) {
       const tenantId = String(values[0]);
       const head = store.chain.get(tenantId) ?? { head_seq: 0, head_hash: null };
-      return { rows: [head] };
-    }
-    if (sql.startsWith('INSERT INTO audit_log_entries')) {
-      const id = String(values[0]);
-      const row: Row = {
+      const chainSeq = head.head_seq + 1;
+      const prevHash = head.head_hash;
+      const id = String(values[1]);
+      const entryHash = String(values[12]);
+      const keyId = String(values[13]);
+      store.audit.set(id, {
         id,
-        tenant_id: values[1],
+        tenant_id: tenantId,
         entity_type: values[2],
         entity_id: values[3],
         operation: values[4],
@@ -94,20 +111,15 @@ function createTxnPool() {
         before_values: values[9] == null ? null : JSON.parse(String(values[9])),
         after_values: values[10] == null ? null : JSON.parse(String(values[10])),
         metadata: values[11] == null ? null : JSON.parse(String(values[11])),
-        chain_seq: values[12],
-        prev_hash: values[13],
-        entry_hash: values[14],
-      };
-      store.audit.set(id, row);
-      return { rows: [row] };
-    }
-    if (sql.startsWith('UPDATE audit_chain_heads')) {
-      store.chain.set(String(values[0]), {
-        head_seq: Number(values[1]),
-        head_hash: values[2] == null ? null : String(values[2]),
+        chain_seq: chainSeq,
+        prev_hash: prevHash,
+        entry_hash: entryHash,
+        key_id: keyId,
       });
-      return { rows: [] };
+      store.chain.set(tenantId, { head_seq: chainSeq, head_hash: entryHash });
+      return { rows: [{ chain_seq: chainSeq, prev_hash: prevHash }] };
     }
+
     throw new Error(`unexpected SQL in test pool: ${sql}`);
   };
 
@@ -182,7 +194,7 @@ describe('W1-SEC-10 COMPLETE txn mutation audit', () => {
         return {
           release: client.release.bind(client),
           query: async (text: string, values?: unknown[]) => {
-            if (text.includes('INSERT INTO audit_log_entries')) {
+            if (text.includes('audit_chain_append(')) {
               throw new Error('forced audit failure');
             }
             return original(text, values);
@@ -257,49 +269,45 @@ describe('W1-SEC-10 COMPLETE txn mutation audit', () => {
     expect(getDurableAudit().size).toBe(0);
   });
 
-  it('appendAuditEntryOnClient writes chain-linked row on a bare client', async () => {
+  it('appendAuditEntryOnClient advances the chain via the definer functions (no direct head DML)', async () => {
+    configureAuditChainKey(null); // dev fallback key
+    const calls: string[] = [];
     const client: PgQueryable = {
-      query: vi
-        .fn()
-        .mockResolvedValueOnce({ rows: [] }) // chain head insert
-        .mockResolvedValueOnce({ rows: [{ head_seq: 0, head_hash: null }] })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              id: 'a1',
-              tenant_id: 't1',
-              entity_type: 'health_record',
-              entity_id: 'e1',
-              operation: 'CREATE',
-              user_id: 'u1',
-              user_name: 'u1',
-              ip_address: '127.0.0.1',
-              occurred_at: new Date(),
-              before_values: null,
-              after_values: { ok: 1 },
-              metadata: null,
-              chain_seq: 1,
-              prev_hash: null,
-              entry_hash: 'abc',
-            },
-          ],
-        })
-        .mockResolvedValueOnce({ rows: [] }), // chain head update
-    };
-    const entry = await appendAuditEntryOnClient(
-      client,
-      toCreateAuditLogInput({
-        tenantId: 't1',
-        entityType: 'health_record',
-        entityId: 'e1',
-        operation: 'CREATE',
-        userId: 'u1',
-        userName: 'u1',
-        ipAddress: '127.0.0.1',
-        afterValues: { ok: 1 },
+      query: vi.fn(async (text: string, _values?: unknown[]) => {
+        const sql = String(text).replace(/\s+/g, ' ').trim();
+        calls.push(sql);
+        if (sql.includes('audit_chain_lock_head(')) {
+          return { rows: [{ head_seq: 0, head_hash: null }] };
+        }
+        if (sql.includes('audit_chain_append(')) {
+          return { rows: [{ chain_seq: 1, prev_hash: null }] };
+        }
+        throw new Error(`unexpected SQL: ${sql}`);
       }),
-    );
-    expect(entry.id).toBe('a1');
+    };
+    const input = toCreateAuditLogInput({
+      tenantId: 't1',
+      entityType: 'health_record',
+      entityId: 'e1',
+      operation: 'CREATE',
+      userId: 'u1',
+      userName: 'u1',
+      ipAddress: '127.0.0.1',
+      afterValues: { ok: 1 },
+    });
+    const entry = await appendAuditEntryOnClient(client, input);
+
+    // Exactly the two definer calls — no direct audit_chain_heads DML.
+    expect(calls.some((s) => s.includes('audit_chain_lock_head('))).toBe(true);
+    expect(calls.some((s) => s.includes('audit_chain_append('))).toBe(true);
+    expect(
+      calls.some((s) => /\b(INSERT INTO|UPDATE|DELETE FROM)\s+audit_chain_heads\b/i.test(s)),
+    ).toBe(false);
+    // The row is keyed (HMAC under the configured key id), not the legacy sha256.
+    expect(entry.keyId).toBe(currentAuditChainKey().keyId);
     expect(entry.chainSeq).toBe(1);
+    expect(entry.prevHash).toBeNull();
+    const expectedHmac = computeKeyedEntryHash(input, null, currentAuditChainKey());
+    expect(entry.entryHash).toBe(expectedHmac);
   });
 });

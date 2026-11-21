@@ -1,5 +1,10 @@
 import { AppError, ErrorCode } from '@proctira/common';
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  getSharedPgPool,
+  withPgSavepoint,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 import { isReportDemoDataEnabled, ReportDataUnavailableError } from './providers.js';
 
@@ -211,9 +216,15 @@ export function resolveDashboardRole(
   return requested;
 }
 
+/**
+ * D1-F3: the probe runs under a savepoint so a failed `to_regclass` (e.g. statement timeout)
+ * reads as "missing table" without aborting the `withPgTenant` transaction for the counts after it.
+ */
 async function relationExists(client: PgQueryable, name: string): Promise<boolean> {
   try {
-    const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
+    const result = await withPgSavepoint(client, 'dashboard_relation_probe', (tx) =>
+      tx.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]),
+    );
     const row = result.rows[0] as { reg?: string | null } | undefined;
     return Boolean(row?.reg);
   } catch {

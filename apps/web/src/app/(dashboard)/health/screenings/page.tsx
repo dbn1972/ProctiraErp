@@ -24,9 +24,10 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import {
   canAccessHealthRecords,
-  listScreeningPrograms,
+  listScreeningProgramsResult,
   type ScreeningProgram,
 } from '@/lib/api/health';
 import { cn } from '@/lib/utils';
@@ -49,7 +50,22 @@ export default async function HealthScreeningsPage() {
     );
   }
 
-  const programs = await listScreeningPrograms();
+  const result = await listScreeningProgramsResult();
+  if (!result.ok) {
+    // HL-O1: a refused or failed read is not "No screening programs yet" with zero KPIs.
+    return (
+      <section aria-labelledby="screenings-heading" className="space-y-6">
+        <h1
+          id="screenings-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          Screenings
+        </h1>
+        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health/screenings" />
+      </section>
+    );
+  }
+  const programs = result.items;
 
   return (
     <section aria-labelledby="screenings-heading" className="space-y-6">

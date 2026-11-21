@@ -18,13 +18,19 @@ import { assertInMemoryFallbackAllowed, createPrismaClient } from '@proctira/dat
 import { CachedStudentRepository } from './cached-student-repository.js';
 import { InMemoryStudentRepository } from './in-memory-repository.js';
 import { PrismaStudentRepository } from './prisma-student-repository.js';
-import type { StudentRepository } from './student-repository.js';
+import type { StudentRepository, StudentTxnAuditPort } from './student-repository.js';
 
 export interface StudentRepositoryConfig {
   /** PostgreSQL connection string. Defaults to `process.env.DATABASE_URL`. */
   databaseUrl?: string;
   /** Redis connection string. Defaults to `process.env.REDIS_URL`. */
   redisUrl?: string;
+  /**
+   * PRC-M013: same-transaction audit port for student PII mutations. When set
+   * (Pg path only), student update/delete write the durable audit row inside the
+   * mutation transaction. Injected by the gateway (`domain-plugins.ts`).
+   */
+  txnAuditPort?: StudentTxnAuditPort;
 }
 
 /**
@@ -42,6 +48,7 @@ export function createStudentRepository(config: StudentRepositoryConfig = {}): S
 
   const base: StudentRepository = new PrismaStudentRepository(
     createPrismaClient({ datasourceUrl: databaseUrl }),
+    config.txnAuditPort,
   );
 
   // Optional Redis read-through cache in front of the Prisma repository.

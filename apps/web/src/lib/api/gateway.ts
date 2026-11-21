@@ -45,6 +45,8 @@ export interface GatewayResponse<T> {
   ok: boolean;
   data: T | null;
   error?: { code: string; message: string; details?: unknown };
+  /** Gateway `x-correlation-id` (or `x-request-id`) of a non-2xx response. */
+  correlationId?: string;
 }
 
 /**
@@ -182,12 +184,15 @@ export async function gatewayFetch<T>(
           code: 'GATEWAY_ERROR',
           message: response.statusText || 'Gateway request failed',
         };
+    const correlationId =
+      response.headers.get('x-correlation-id') ?? response.headers.get('x-request-id') ?? undefined;
     if (init.throwOnError !== false) {
       throw new GatewayError({
         status: response.status,
         code: error.code,
         message: error.message,
         details: payload,
+        ...(correlationId ? { correlationId } : {}),
       });
     }
     return {
@@ -195,6 +200,7 @@ export async function gatewayFetch<T>(
       ok: false,
       data: null,
       error: { code: error.code, message: error.message, details: payload },
+      correlationId,
     };
   }
 
@@ -221,6 +227,8 @@ export interface GatewayErrorInit {
   code: string;
   message: string;
   details?: unknown;
+  /** Gateway `x-correlation-id` (or `x-request-id`) of the failed response. */
+  correlationId?: string;
 }
 
 /** Error thrown by gatewayFetch when a non-2xx response is received. */
@@ -228,6 +236,7 @@ export class GatewayError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details?: unknown;
+  readonly correlationId?: string;
 
   constructor(init: GatewayErrorInit) {
     super(init.message);
@@ -235,5 +244,6 @@ export class GatewayError extends Error {
     this.status = init.status;
     this.code = init.code;
     if (init.details !== undefined) this.details = init.details;
+    if (init.correlationId !== undefined) this.correlationId = init.correlationId;
   }
 }

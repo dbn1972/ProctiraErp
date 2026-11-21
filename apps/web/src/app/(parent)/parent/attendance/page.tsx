@@ -66,6 +66,7 @@ export default async function ParentAttendancePage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="The school has not recorded attendance days yet."
       hasRows={days.length > 0}
     >

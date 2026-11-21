@@ -181,33 +181,41 @@ export interface StorageAdapter {
   /**
    * Download an object from storage.
    * The key should be the full namespaced key (as returned by upload).
-   * @param callerTenantId - When provided, the key must be owned by this tenant
-   *   (PRC-M634 ownership check); otherwise only the shape scope check applies.
+   * @param callerTenantId - The owning tenant of the caller. The key must be owned
+   *   by this tenant (PRC-M634 ownership check). Required: raw-key reads may never
+   *   run without a caller identity to assert ownership against.
    */
-  download(key: string, callerTenantId?: string): Promise<Readable>;
+  download(key: string, callerTenantId: string): Promise<Readable>;
 
   /**
    * Delete an object from storage.
    * The key should be the full namespaced key.
-   * @param callerTenantId - When provided, the key must be owned by this tenant (PRC-M634).
+   * @param callerTenantId - The owning tenant of the caller; the key must be owned
+   *   by this tenant (PRC-M634). Required.
    */
-  delete(key: string, callerTenantId?: string): Promise<void>;
+  delete(key: string, callerTenantId: string): Promise<void>;
 
   /**
    * Generate a pre-signed URL for temporary access to an object.
    * @param key - The full namespaced key
    * @param expiresIn - Expiration time in seconds
-   * @param callerTenantId - When provided, the key must be owned by this tenant (PRC-M634).
+   * @param callerTenantId - The owning tenant of the caller; the key must be owned
+   *   by this tenant (PRC-M634). Required.
    */
-  getSignedUrl(key: string, expiresIn: number, callerTenantId?: string): Promise<string>;
+  getSignedUrl(key: string, expiresIn: number, callerTenantId: string): Promise<string>;
 
   /**
    * List objects under a given prefix.
    * @param prefix - The prefix to list (should include tenant namespace)
    * @param options - Pagination and filtering options
-   * @param callerTenantId - When provided, the prefix must be owned by this tenant (PRC-M634).
+   * @param callerTenantId - The owning tenant of the caller; the prefix must be owned
+   *   by this tenant (PRC-M634). Required.
    */
-  listObjects(prefix: string, options?: ListOptions, callerTenantId?: string): Promise<ListResult>;
+  listObjects(
+    prefix: string,
+    options: ListOptions | undefined,
+    callerTenantId: string,
+  ): Promise<ListResult>;
 
   /**
    * Check the health of the storage backend.

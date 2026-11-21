@@ -10,6 +10,7 @@ import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/commo
 import { DeveloperPortalService, DEFAULT_CONFIG } from './developer-portal-service.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import type { DeveloperAccountEntity } from './developer-portal-repository.js';
+import { recordingSandboxProvisioner } from './sandbox-provisioner.test-support.js';
 import { createTestWebhookSigningSecrets } from './webhook-signing-secrets.test-support.js';
 
 const TEST_TENANT_ID = '11111111-1111-4111-8111-111111111111';
@@ -23,6 +24,7 @@ describe('DeveloperPortalService', () => {
     repository = new InMemoryDeveloperPortalRepository();
     service = new DeveloperPortalService(repository, DEFAULT_CONFIG, {
       signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+      sandboxProvisioner: recordingSandboxProvisioner(),
     });
 
     // Create a test account
@@ -105,6 +107,7 @@ describe('DeveloperPortalService', () => {
       const config = { ...DEFAULT_CONFIG, maxApiKeysPerAccount: 2 };
       const limitedService = new DeveloperPortalService(repository, config, {
         signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+        sandboxProvisioner: recordingSandboxProvisioner(),
       });
 
       await limitedService.createApiKey(testAccount.id, TEST_TENANT_ID, {
@@ -593,6 +596,7 @@ describe('DeveloperPortalService', () => {
       const config = { ...DEFAULT_CONFIG, maxSandboxesPerAccount: 1 };
       const limitedService = new DeveloperPortalService(repository, config, {
         signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+        sandboxProvisioner: recordingSandboxProvisioner(),
       });
 
       await limitedService.createSandbox(testAccount.id, { name: 'Sandbox 1' });
@@ -625,6 +629,7 @@ describe('plugin name ownership and publish atomicity (PRC-M219)', () => {
     const repository = new InMemoryDeveloperPortalRepository();
     const service = new DeveloperPortalService(repository, DEFAULT_CONFIG, {
       signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+      sandboxProvisioner: recordingSandboxProvisioner(),
     });
     const owner = await service.createAccount({ name: 'Owner', email: 'owner@example.com' });
     const other = await service.createAccount({ name: 'Other', email: 'other@example.com' });
@@ -699,6 +704,7 @@ describe('webhook delivery claim (PRC-L464)', () => {
         return { status: 200, ok: true };
       },
       signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+      sandboxProvisioner: recordingSandboxProvisioner(),
     });
     const account = await service.createAccount({ name: 'Claim', email: 'claim@example.com' });
     const webhook = await service.createWebhook(account.id, TEST_TENANT_ID, {
@@ -776,6 +782,7 @@ describe('limit and unique checks are race-safe (PRC-L299)', () => {
       },
       {
         signingSecretResolver: createTestWebhookSigningSecrets().secrets,
+        sandboxProvisioner: recordingSandboxProvisioner(),
         signingSecretWriter: { async storeSigningSecret() {} },
         validateWebhookUrl: async () => undefined,
       },

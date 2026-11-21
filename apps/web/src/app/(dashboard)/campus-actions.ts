@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 import { libraryDueAtError } from '@/lib/validation/library-due-date';
 import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
@@ -68,6 +68,14 @@ function invalid(error: ZodError): CampusActionState {
   return { status: 'error', message: firstIssue(error) };
 }
 
+/**
+ * H-D1 (T-D3 pattern): hostel forms never show server text (gateway RBAC or
+ * hostel package refusals, raw database errors); fixed copy plus a reference.
+ */
+function hostelFailure(error: unknown, fallback: string): CampusActionState {
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
+}
+
 export async function createHostelAction(input: CreateHostelInput): Promise<CampusActionState> {
   const v = createHostelSchema.safeParse(input);
   if (!v.success) return invalid(v.error);
@@ -76,15 +84,7 @@ export async function createHostelAction(input: CreateHostelInput): Promise<Camp
     revalidatePath('/hostel');
     return { status: 'success', message: 'Hostel created.', id: hostel.id };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create hostel',
-    };
+    return hostelFailure(error, 'Failed to create hostel');
   }
 }
 
@@ -101,12 +101,7 @@ export async function createLibraryItemAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create library item',
+      message: genericActionErrorMessage(error, 'Failed to create library item'),
     };
   }
 }
@@ -131,12 +126,7 @@ export async function checkLibraryClearanceAction(studentId: string): Promise<Ca
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to check library clearance',
+      message: genericActionErrorMessage(error, 'Failed to check library clearance'),
     };
   }
 }
@@ -171,12 +161,7 @@ export async function checkoutLibraryItemAction(input: {
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Checkout failed',
+      message: genericActionErrorMessage(error, 'Checkout failed'),
     };
   }
 }
@@ -194,12 +179,7 @@ export async function returnLibraryLoanAction(loanId: string): Promise<CampusAct
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Return failed',
+      message: genericActionErrorMessage(error, 'Return failed'),
     };
   }
 }
@@ -226,12 +206,7 @@ export async function renewLibraryLoanAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Renew failed',
+      message: genericActionErrorMessage(error, 'Renew failed'),
     };
   }
 }
@@ -258,15 +233,7 @@ export async function createHostelAssignmentAction(input: {
     revalidatePath('/hostel/assignments');
     return { status: 'success', message: 'Assignment created.', id: row.id };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create assignment',
-    };
+    return hostelFailure(error, 'Failed to create assignment');
   }
 }
 
@@ -291,15 +258,7 @@ export async function createHostelLeaveAction(input: {
     revalidatePath('/hostel/leaves');
     return { status: 'success', message: 'Leave recorded.', id: row.id };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create leave',
-    };
+    return hostelFailure(error, 'Failed to create leave');
   }
 }
 
@@ -320,15 +279,7 @@ export async function decideHostelLeaveAction(
       id: row.id,
     };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to decide leave',
-    };
+    return hostelFailure(error, 'Failed to decide leave');
   }
 }
 
@@ -350,15 +301,7 @@ export async function updateHostelVisitorStatusAction(
       id: row.id,
     };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to update visitor status',
-    };
+    return hostelFailure(error, 'Failed to update visitor status');
   }
 }
 
@@ -382,15 +325,7 @@ export async function createHostelVisitorAction(input: {
     revalidatePath('/hostel/visitors');
     return { status: 'success', message: 'Visitor recorded.', id: row.id };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create visitor',
-    };
+    return hostelFailure(error, 'Failed to create visitor');
   }
 }
 
@@ -408,15 +343,7 @@ export async function createHostelBlockAction(input: {
     revalidatePath('/hostel/structure');
     return { status: 'success', message: 'Block created.', id: row.id };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create block',
-    };
+    return hostelFailure(error, 'Failed to create block');
   }
 }
 
@@ -434,15 +361,7 @@ export async function createHostelRoomAction(input: {
     revalidatePath('/hostel/structure');
     return { status: 'success', message: 'Room created.', id: row.id };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create room',
-    };
+    return hostelFailure(error, 'Failed to create room');
   }
 }
 
@@ -461,14 +380,6 @@ export async function createHostelBedAction(input: {
     revalidatePath('/hostel/assignments');
     return { status: 'success', message: 'Bed created.', id: row.id };
   } catch (error) {
-    return {
-      status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create bed',
-    };
+    return hostelFailure(error, 'Failed to create bed');
   }
 }

@@ -34,6 +34,8 @@ import type { ClassSection } from '@/lib/institutions/types';
 import { AssignmentWorkspace } from './assignment-workspace';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 import { formatCodeNameLabel, resolveEntityLabel } from '@/lib/entity-label';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -162,6 +164,10 @@ function WorkloadUnavailableCard() {
 /* ──────────────────────────────────────────────── Page ── */
 
 export default async function NewAssignmentPage(props: PageProps) {
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const searchParams = await props.searchParams;
   const rawInstitutionId = searchParams?.institutionId;

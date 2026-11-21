@@ -1,5 +1,11 @@
 /** PRC-M094: report card page is preview-only, names the student, 404s foreign jobs. */
 import { describe, expect, it, vi } from 'vitest';
+
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const m = vi.hoisted(() => ({ listReportCardJobs: vi.fn(), notFound: vi.fn() }));
@@ -48,5 +54,22 @@ describe('ReportCardJobPage (PRC-M094)', () => {
     await expect(
       ReportCardJobPage({ params: Promise.resolve({ id: 'inst-1', jobId: 'nope' }) }),
     ).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+  it('a failed job shows fixed copy and the job reference, never the worker error (D1-T5)', async () => {
+    m.listReportCardJobs.mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          ...job,
+          status: 'FAILED',
+          errorMessage: 'relation "report_card_subject_lines" does not exist',
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      await ReportCardJobPage({ params: Promise.resolve({ id: 'inst-1', jobId: 'job-1' }) }),
+    );
+    expect(html).toContain('The card could not be generated. Reference: job-1');
+    expect(html).not.toContain('report_card_subject_lines');
   });
 });

@@ -16,6 +16,7 @@ export default async function StudentPalPage() {
       testId="student-pal"
       status={studentStatus(result)}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No practice plan yet. Skills appear here after quizzes and practice."
       hasRows={items.length > 0}
     >

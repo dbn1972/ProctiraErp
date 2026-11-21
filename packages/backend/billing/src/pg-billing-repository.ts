@@ -39,7 +39,7 @@ export class PgBillingRepository implements BillingRepository {
   async createPlan(data: Omit<PlanEntity, 'createdAt' | 'updatedAt'>): Promise<PlanEntity> {
     const now = new Date();
     const entity: PlanEntity = { ...data, createdAt: now, updatedAt: now };
-    return this.plans.put(entity.id, entity);
+    return this.plans.put(entity.id, entity, null);
   }
 
   async updatePlan(id: string, data: Partial<PlanEntity>): Promise<PlanEntity | null> {
@@ -61,7 +61,7 @@ export class PgBillingRepository implements BillingRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    return this.plans.put(id, updated);
+    return this.plans.put(id, updated, null);
   }
 
   findPlanById(id: string): Promise<PlanEntity | null> {
@@ -212,7 +212,7 @@ export class PgBillingRepository implements BillingRepository {
   }
 
   async deleteEntitlementsByTenant(tenantId: string): Promise<void> {
-    const rows = await this.entitlements.where({ tenantId } as Partial<EntitlementEntity>);
+    const rows = await this.entitlements.where({ tenantId } as Partial<EntitlementEntity>, null);
     for (const row of rows) {
       await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey), {
         tenantId: row.tenantId,
@@ -231,7 +231,10 @@ export class PgBillingRepository implements BillingRepository {
     }
   }
   async deleteEntitlementsBySubscription(subscriptionId: string): Promise<void> {
-    const rows = await this.entitlements.where({ subscriptionId } as Partial<EntitlementEntity>);
+    const rows = await this.entitlements.where(
+      { subscriptionId } as Partial<EntitlementEntity>,
+      null,
+    );
     for (const row of rows) {
       await this.entitlements.delete(this.entitlementKey(row.tenantId, row.featureKey), {
         tenantId: row.tenantId,

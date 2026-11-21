@@ -101,6 +101,20 @@ export interface DeveloperPortalServiceConfig {
   deliveryClaimLeaseMs?: number;
 }
 
+/**
+ * PRC-M218: provisions and tears down the isolated tenant behind a developer sandbox. The
+ * gateway adapts the tenant lifecycle service (`provisionSandboxTenant` /
+ * `teardownSandboxTenant`). Without one, sandbox creation fails closed.
+ */
+export interface SandboxTenantProvisioner {
+  provisionSandboxTenant(input: {
+    sandboxId: string;
+    accountId: string;
+    name: string;
+  }): Promise<{ tenantId: string }>;
+  teardownSandboxTenant(tenantId: string): Promise<void>;
+}
+
 /** PRC-L299: Postgres unique_violation (a check-then-insert race lost on a unique index). */
 function isUniqueViolation(err: unknown): boolean {
   return (err as { code?: unknown } | null)?.code === '23505';
@@ -169,6 +183,8 @@ export class DeveloperPortalService {
    * create/update time. Set in the constructor; defaults to the real DNS-resolving guard.
    */
   private readonly validateWebhookUrl: (url: string) => Promise<void>;
+  /** PRC-M218: sandbox tenant provisioner (absent -> sandbox creation fails closed). */
+  private readonly sandboxProvisioner?: SandboxTenantProvisioner;
 
   constructor(
     private readonly repository: DeveloperPortalExtendedRepository,
@@ -195,8 +211,11 @@ export class DeveloperPortalService {
        * Defaults to the real DNS-resolving guard; tests inject a deterministic classifier.
        */
       validateWebhookUrl?: (url: string) => Promise<void>;
+      /** PRC-M218: real sandbox tenant provisioning + teardown. */
+      sandboxProvisioner?: SandboxTenantProvisioner;
     },
   ) {
+    this.sandboxProvisioner = options?.sandboxProvisioner;
     this.signingSecretResolver = options?.signingSecretResolver;
     this.signingSecretWriter =
       options?.signingSecretWriter ??
@@ -914,10 +933,18 @@ export class DeveloperPortalService {
       );
     }
 
-    const tenantId = uuidv4();
+    // PRC-M218: a sandbox is backed by a real, isolated tenant — never a made-up id.
+    const provisioner = this.sandboxProvisioner;
+    if (!provisioner) {
+      throw new BusinessRuleError('Sandbox provisioning is not configured');
+    }
     const sandboxId = uuidv4();
+    const { tenantId } = await provisioner.provisionSandboxTenant({
+      sandboxId,
+      accountId,
+      name: input.name,
+    });
     const expiresAt = new Date(Date.now() + this.config.sandboxExpiryDays * 24 * 60 * 60 * 1000);
-
     const sandbox: SandboxEntity = {
       id: sandboxId,
       accountId,
@@ -931,11 +958,19 @@ export class DeveloperPortalService {
     };
 
     // PRC-L299: atomic re-count + insert (the pre-check above only fails fast).
-    const created = await this.repository.createSandboxWithinLimit(
-      sandbox,
-      this.config.maxSandboxesPerAccount,
-    );
+    let created: SandboxEntity | null;
+    try {
+      created = await this.repository.createSandboxWithinLimit(
+        sandbox,
+        this.config.maxSandboxesPerAccount,
+      );
+    } catch (error) {
+      await provisioner.teardownSandboxTenant(tenantId).catch(() => undefined);
+      throw error;
+    }
     if (!created) {
+      // PRC-M218: the limit race was lost — do not leave an orphan tenant behind.
+      await provisioner.teardownSandboxTenant(tenantId).catch(() => undefined);
       throw new BusinessRuleError(
         `Maximum of ${this.config.maxSandboxesPerAccount} active sandboxes per account`,
       );
@@ -964,6 +999,11 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('Sandbox is already destroyed');
     }
 
+    // PRC-M218: tear the tenant down first; a failed teardown leaves the sandbox as it was.
+    if (!this.sandboxProvisioner) {
+      throw new BusinessRuleError('Sandbox provisioning is not configured');
+    }
+    await this.sandboxProvisioner.teardownSandboxTenant(sandbox.tenantId);
     const updated = await this.repository.updateSandboxStatus(sandboxId, 'destroyed');
     return updated!;
   }

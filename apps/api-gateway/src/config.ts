@@ -4,6 +4,7 @@
  * Loads configuration from environment variables with sensible defaults.
  */
 
+import { DEV_AUDIT_CHAIN_KEY_ID, type AuditChainKey } from '@proctira/backend-audit';
 import { isDeployedEnvironment as isDeployedProcessEnvironment } from '@proctira/common/node-env';
 import { Type, type Static } from '@sinclair/typebox';
 
@@ -198,6 +199,86 @@ export function resolvePreviousJwtSecret(
     throw new Error('JWT_SECRET_PREVIOUS must differ from JWT_SECRET (PRC-M011)');
   }
   return previous;
+}
+
+/**
+ * PRC-M200: the fixed development/test audit-chain key. It carries the reserved
+ * {@link DEV_AUDIT_CHAIN_KEY_ID}; the deployed boot guard below refuses this id
+ * (and the literal secret) so a development key can never sign a chain a
+ * production verifier would accept. Mirrors {@link DEV_JWT_SECRET}.
+ */
+export const DEV_AUDIT_CHAIN_SECRET = 'proctira-dev-audit-chain-key-not-for-production';
+
+/** Minimum HMAC key length (chars) accepted for the audit chain in production. */
+export const MIN_PRODUCTION_AUDIT_CHAIN_KEY_LENGTH = 32;
+
+/**
+ * Known placeholder / development values refused for AUDIT_CHAIN_HMAC_KEY in a
+ * deployed environment. Compared case-insensitively (like the Keycloak set).
+ */
+const WEAK_AUDIT_CHAIN_SECRETS: ReadonlySet<string> = new Set([
+  DEV_AUDIT_CHAIN_SECRET.toLowerCase(),
+  DEV_AUDIT_CHAIN_KEY_ID,
+  'dev',
+  'change_me',
+  'changeme',
+  'secret',
+]);
+
+/**
+ * PRC-M200 / design topic 5: resolve the audit-chain HMAC signing key.
+ *
+ * The key material is supplied as `AUDIT_CHAIN_HMAC_KEY`, injected from the
+ * secret manager (`packages/shared/secrets` aws-kms adapter) in production
+ * exactly like `JWT_SECRET`. The check runs once at boot (not per request), so
+ * an audited mutation never fails at request time (matches the M332 "no
+ * request-time 503" rule).
+ *
+ * - Not deployed ({@link isDeployedEnvironment} false): fall back to the fixed
+ *   development key with `key_id` `dev`.
+ * - Deployed: refuse a missing key, the dev literal / `key_id` `dev`, a known
+ *   placeholder, or a short key — the gateway fails closed at boot rather than
+ *   signing (or refusing mutations) with an unsafe key.
+ *
+ * Rotation is a new `key_id`; this resolver only returns the currently active
+ * signing key. The id is derived from `AUDIT_CHAIN_HMAC_KEY_ID` (default
+ * `primary`) so the verifier's key map can be extended without code changes.
+ */
+export function resolveAuditChainKey(
+  env: string | undefined,
+  raw: string | undefined,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): AuditChainKey {
+  const secret = raw?.trim() ?? '';
+  if (!isDeployedEnvironment(env, processEnv)) {
+    if (secret.length === 0) {
+      return { keyId: DEV_AUDIT_CHAIN_KEY_ID, secret: DEV_AUDIT_CHAIN_SECRET };
+    }
+    const keyId = processEnv['AUDIT_CHAIN_HMAC_KEY_ID']?.trim() || 'primary';
+    return { keyId, secret };
+  }
+  if (secret.length === 0) {
+    throw new Error(
+      'AUDIT_CHAIN_HMAC_KEY is required when NODE_ENV=production or in any deployed environment (PRC-M200)',
+    );
+  }
+  if (WEAK_AUDIT_CHAIN_SECRETS.has(secret.toLowerCase())) {
+    throw new Error(
+      'AUDIT_CHAIN_HMAC_KEY uses the development key or a known placeholder; refusing to start in production or staging (PRC-M200)',
+    );
+  }
+  if (secret.length < MIN_PRODUCTION_AUDIT_CHAIN_KEY_LENGTH) {
+    throw new Error(
+      `AUDIT_CHAIN_HMAC_KEY must be at least ${MIN_PRODUCTION_AUDIT_CHAIN_KEY_LENGTH} characters in production or staging (PRC-M200)`,
+    );
+  }
+  const keyId = processEnv['AUDIT_CHAIN_HMAC_KEY_ID']?.trim() || 'primary';
+  if (keyId.toLowerCase() === DEV_AUDIT_CHAIN_KEY_ID) {
+    throw new Error(
+      'AUDIT_CHAIN_HMAC_KEY_ID must not be the reserved development id "dev" in a deployed environment (PRC-M200)',
+    );
+  }
+  return { keyId, secret };
 }
 
 /**
