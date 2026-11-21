@@ -82,10 +82,12 @@ describe('emergency blast two-person control', () => {
       }),
     );
     const result = await confirmEmergencyBlastAction(B1);
+    // RAW-WEB: fixed two-person-control copy, never the gateway text.
     expect(result).toEqual({
       status: 'error',
-      message: 'A different actor must provide the second confirmation',
+      message: expect.stringMatching(/^This blast cannot take your confirmation\..*\(ref /),
     });
+    expect(result.message).not.toContain('different actor');
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
@@ -99,7 +101,10 @@ describe('emergency blast two-person control', () => {
 
   it('maps dispatch failures to an error state', async () => {
     api.dispatchEmergencyBlast.mockRejectedValue(new Error('boom'));
-    expect(await dispatchEmergencyBlastAction(B1)).toEqual({ status: 'error', message: 'boom' });
+    expect(await dispatchEmergencyBlastAction(B1)).toEqual({
+      status: 'error',
+      message: expect.stringMatching(/^Failed to dispatch emergency blast \(ref /),
+    });
   });
 });
 
@@ -155,13 +160,13 @@ describe('circulars', () => {
     expect(res.status).toBe('success');
     expect(api.ackCircularOnBehalf).toHaveBeenCalledWith(C1, 'r1', 'Paper slip returned');
   });
-  it('ack maps a gateway 403 to its message', async () => {
+  it('ack maps a gateway 403 to fixed permission copy (RAW-WEB)', async () => {
     api.ackCircularOnBehalf.mockRejectedValue(
       new GatewayError({ status: 403, code: 'FORBIDDEN', message: 'Forbidden' }),
     );
     expect(await ackCircularAction(C1, 'r1', 'Paper slip')).toEqual({
       status: 'error',
-      message: 'Forbidden',
+      message: expect.stringMatching(/^You do not have permission to make this change\..*\(ref /),
     });
   });
 });

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
-import { safeActionErrorMessage } from '@/lib/api/action-error';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 import {
   createBellSchedule,
   createMeeting,
@@ -33,16 +33,18 @@ function clashList(details: unknown): MeetingClash[] | undefined {
 }
 
 function fail(error: unknown): TimetableActionResult {
+  // RAW-WEB: fixed copy plus a reference; code, status and the structured clash list stay.
+  const message = genericActionErrorMessage(error, 'The timetable change could not be saved.');
   if (error instanceof GatewayError) {
     return {
       ok: false,
-      error: error.message,
+      error: message,
       code: error.code,
       status: error.status,
       conflicts: clashList(error.details),
     };
   }
-  return { ok: false, error: safeActionErrorMessage(error, 'Unexpected error') };
+  return { ok: false, error: message };
 }
 
 export async function createBellScheduleAction(input: {
