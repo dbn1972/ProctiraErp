@@ -35,14 +35,16 @@ import {
  * data that reaches the browser but is hidden also fails the test.
  *
  * `/fees/**` has a web route guard (fees/layout.tsx plus a per-page check, #740): roles
- * outside admin / principal / super-admin get an access-denied screen. Behind it, the
+ * outside the fees staff roles (admin, principal, super-admin and, since #746, the finance
+ * roles) get an access-denied screen. Behind it, the
  * gateway refuses them: teachers hold the gateway fees grant but the fees package refuses
  * them (403); students and parents are self-scoped, so the two lists they may read
  * (`/fees/invoices`, `/fees/receipts`) answer 200 with their own linked children only, and
  * every other fees call is 403.
  *
- * Known open defect not asserted here (defects.md): the finance roles (finance_officer,
- * bursar, accountant, registrar) are refused although the fees package allows them (F-D3).
+ * Not asserted here: the finance roles (finance_officer, bursar, accountant, registrar).
+ * They were refused until #746 (F-D3, defects.md) granted them fees access; this spec does
+ * not cover them as a persona.
  */
 
 interface Probe {

@@ -14,9 +14,9 @@
  * and nettable disbursements they create, so the overdue feed and the netting picker do
  * not grow run over run.
  *
- * Screen persona: a tenant administrator (`roleId: 'admin'`). Gateway RBAC refuses the
- * finance roles (finance_officer, bursar, accountant, registrar) today (F-D3, defects.md),
- * so they are not used here.
+ * Screen persona: a tenant administrator (`roleId: 'admin'`). Gateway RBAC refused the
+ * finance roles (finance_officer, bursar, accountant, registrar) until #746 (F-D3,
+ * defects.md), so they are not used here.
  *
  * Money: amounts are integer paise in the API and `₹1,234.56` (locale `en`) on screen.
  * Specs assert literal strings for seeded rows. Tenant-wide aggregates (dues by status)
