@@ -38,7 +38,6 @@ export const FULL_BUNDLE_ALLOWLIST = new Set([
   'api-gateway',
   'institution-service',
   'student-service',
-  'staff-service',
   'assessment-service',
   'examination-service',
   'workflow-service',

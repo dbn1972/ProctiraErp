@@ -20,9 +20,6 @@ resources:
   - ../../base/student/deployment.yaml
   - ../../base/student/service.yaml
   - ../../base/student/hpa.yaml
-  - ../../base/staff/deployment.yaml
-  - ../../base/staff/service.yaml
-  - ../../base/staff/hpa.yaml
   - ../../base/assessment/deployment.yaml
   - ../../base/assessment/service.yaml
   - ../../base/assessment/hpa.yaml

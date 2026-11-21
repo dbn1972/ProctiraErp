@@ -68,8 +68,8 @@ for env in development staging production; do
 done
 
 mapfile -t K8S_BASE_DEPLOYMENTS < <(find ./infrastructure/k8s/base -mindepth 2 -maxdepth 2 -name deployment.yaml -print | sort)
-[[ "${#K8S_BASE_DEPLOYMENTS[@]}" -eq 16 ]] \
-  || die "expected 16 Kustomize base Deployments, got ${#K8S_BASE_DEPLOYMENTS[@]}"
+[[ "${#K8S_BASE_DEPLOYMENTS[@]}" -eq 15 ]] \
+  || die "expected 15 Kustomize base Deployments, got ${#K8S_BASE_DEPLOYMENTS[@]}"
 for deployment in "${K8S_BASE_DEPLOYMENTS[@]}"; do
   assert_deployment_hardening "$deployment" "$deployment" 1
 done
@@ -297,14 +297,13 @@ helm template proctira "${PLATFORM_CHART}" \
   --set topology.mode=split \
   --set institutionService.enabled=true \
   --set studentService.enabled=true \
-  --set staffService.enabled=true \
   --set assessmentService.enabled=true \
   --set examinationService.enabled=true \
   --set workflowService.enabled=true \
   --set notificationService.enabled=true \
   --set reportService.enabled=true \
   >"$split_out"
-assert_deployment_hardening "$split_out" "platform split lab" 16
+assert_deployment_hardening "$split_out" "platform split lab" 15
 rm -f "$split_out"
 
 # G-707 — DR CronJobs

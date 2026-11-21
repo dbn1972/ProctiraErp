@@ -136,19 +136,6 @@ studentService:
       cpu: 500m
       memory: 256Mi
 
-staffService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
 assessmentService:
   enabled: false
   replicaCount: 1

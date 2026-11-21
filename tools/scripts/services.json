@@ -90,7 +90,6 @@
     "ports": {
       "institution": "3020",
       "student": "3021",
-      "staff": "3022",
       "assessment": "3023",
       "examination": "3025",
       "workflow": "3026",

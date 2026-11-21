@@ -46,8 +46,6 @@ institutionService:
   enabled: false
 studentService:
   enabled: false
-staffService:
-  enabled: false
 assessmentService:
   enabled: false
 examinationService:

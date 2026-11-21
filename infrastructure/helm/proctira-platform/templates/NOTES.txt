@@ -50,7 +50,7 @@ Services deployed:
 {{- if .Values.developerPortal.enabled }}
   ✓ Developer Portal (replicas: {{ .Values.developerPortal.replicaCount }})
 {{- end }}
-{{- if or .Values.institutionService.enabled .Values.studentService.enabled .Values.staffService.enabled }}
+{{- if or .Values.institutionService.enabled .Values.studentService.enabled }}
   ⚠️  Split-domain services enabled (lab only)
 {{- end }}
 

@@ -99,7 +99,7 @@ test('#555 review #7: manual service input is validated before reaching GITHUB_O
 
 // Topic 16 Option A: retired standalone lab servers have no entry point, image
 // or deploy path left; the gateway is the only runtime for these domains.
-const RETIRED_LAB_SERVICES = ['attendance'];
+const RETIRED_LAB_SERVICES = ['attendance', 'staff'];
 const repoRoot = new URL('../../', import.meta.url).pathname;
 const DEPLOY_FILES = [
   'infrastructure/docker/docker-compose.services.yml',

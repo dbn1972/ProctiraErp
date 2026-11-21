@@ -14,12 +14,6 @@ scrape_configs:
       - targets: ['student-service:3021']
         labels: { service: student, team: engineering }
 
-  - job_name: staff
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['staff-service:3022']
-        labels: { service: staff, team: engineering }
-
   - job_name: assessment
     metrics_path: /metrics
     static_configs:

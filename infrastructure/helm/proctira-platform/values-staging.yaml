@@ -125,14 +125,6 @@ studentService:
     minReplicas: 2
     maxReplicas: 6
 
-staffService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 6
-
 assessmentService:
   enabled: false
   replicaCount: 2

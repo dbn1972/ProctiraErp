@@ -250,23 +250,6 @@ studentService:
       cpu: '2'
       memory: 1Gi
 
-staffService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-    targetMemoryUtilizationPercentage: 75
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
 assessmentService:
   enabled: false
   replicaCount: 2

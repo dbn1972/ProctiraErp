@@ -29,8 +29,6 @@ images:
     newTag: sha-pending
   - name: proctira/student-service
     newTag: sha-pending
-  - name: proctira/staff-service
-    newTag: sha-pending
   - name: proctira/assessment-service
     newTag: sha-pending
   - name: proctira/examination-service
