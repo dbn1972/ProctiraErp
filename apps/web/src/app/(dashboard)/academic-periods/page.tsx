@@ -12,7 +12,7 @@ import { Bell, Download, Info } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
 import { AcademicPeriodsManager } from '@/components/institutions/academic-periods-manager';
-import { ApiClientError, listAcademicPeriods } from '@/lib/institutions/api';
+import { listAcademicPeriods } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
@@ -104,12 +104,12 @@ async function loadAcademicPeriods(): Promise<{
       error: null,
     };
   } catch (error) {
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[academic-periods] load failed', error);
     return {
       periods: [],
-      error:
-        error instanceof ApiClientError
-          ? error.message
-          : 'The academic period service is currently unavailable.',
+      error: 'The academic period service is currently unavailable.',
     };
   }
 }

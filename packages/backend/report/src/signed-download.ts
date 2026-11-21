@@ -202,18 +202,27 @@ export function createReportDownloadToken(
   };
 }
 
+/**
+ * UAT-9d: why a presented token failed, for the denial audit row only. The HTTP response
+ * stays the same for every code so a caller cannot tell them apart.
+ */
+export type ReportTokenFailureCode =
+  'token_malformed' | 'token_expired' | 'token_signature_invalid' | 'signing_key_missing';
+
 export function verifyReportDownloadToken(
   tenantId: string,
   artifactId: string,
   actorId: string,
   token: string,
-): { ok: true } | { ok: false; reason: string } {
+): { ok: true } | { ok: false; reason: string; code: ReportTokenFailureCode } {
   const [expRaw, sig] = token.split('.');
-  if (!expRaw || !sig) return { ok: false, reason: 'Malformed token' };
+  if (!expRaw || !sig) return { ok: false, reason: 'Malformed token', code: 'token_malformed' };
   const expUnix = Number(expRaw);
-  if (!Number.isFinite(expUnix)) return { ok: false, reason: 'Invalid expiry' };
+  if (!Number.isFinite(expUnix)) {
+    return { ok: false, reason: 'Invalid expiry', code: 'token_malformed' };
+  }
   if (expUnix < Math.floor(Date.now() / 1000)) {
-    return { ok: false, reason: 'Token expired' };
+    return { ok: false, reason: 'Token expired', code: 'token_expired' };
   }
   let expected: string;
   try {
@@ -223,7 +232,11 @@ export function verifyReportDownloadToken(
   } catch (error: unknown) {
     // Fail closed: a missing dedicated secret must reject, not accept.
     if (isReportDownloadSigningKeyMissingError(error)) {
-      return { ok: false, reason: 'Report download signing key is not configured' };
+      return {
+        ok: false,
+        reason: 'Report download signing key is not configured',
+        code: 'signing_key_missing',
+      };
     }
     throw error;
   }
@@ -231,10 +244,10 @@ export function verifyReportDownloadToken(
     const a = Buffer.from(sig, 'hex');
     const b = Buffer.from(expected, 'hex');
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      return { ok: false, reason: 'Invalid signature' };
+      return { ok: false, reason: 'Invalid signature', code: 'token_signature_invalid' };
     }
   } catch {
-    return { ok: false, reason: 'Invalid signature' };
+    return { ok: false, reason: 'Invalid signature', code: 'token_signature_invalid' };
   }
   return { ok: true };
 }

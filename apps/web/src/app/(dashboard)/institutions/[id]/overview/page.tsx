@@ -30,7 +30,6 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { ApiClientError } from '@/lib/institutions/api';
 import {
   getCachedInstitution,
   getCachedInstitutionOverview,
@@ -261,13 +260,12 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
     loadTypeOptions(),
     getCachedInstitutionOverview(params.id).then(
       (snapshot) => ({ snapshot, error: null as string | null }),
-      (error: unknown) => ({
-        snapshot: null,
-        error:
-          error instanceof ApiClientError
-            ? error.message
-            : 'Institution details are currently unavailable.',
-      }),
+      (error: unknown) => {
+        // D1-T5: fixed copy on screen; the failure goes to the server log.
+        // eslint-disable-next-line no-console
+        console.error('[institution-overview] snapshot load failed', error);
+        return { snapshot: null, error: 'Institution details are currently unavailable.' };
+      },
     ),
   ]);
 

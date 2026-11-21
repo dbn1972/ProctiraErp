@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/admin.server';
 import { GatewayError } from '@/lib/api/gateway';
 import { settingsIssuesToFieldErrors } from '@/lib/admin/settings-field-errors';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface AdminActionState {
   status: 'idle' | 'success' | 'error';
@@ -38,9 +39,8 @@ function fail(error: unknown, fallback: string): AdminActionState {
     if (error.status === 403) {
       return { status: 'error', message: 'You need the tenant administrator role to do this.' };
     }
-    return { status: 'error', message: error.message || fallback };
   }
-  return { status: 'error', message: error instanceof Error ? error.message : fallback };
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 const permissionSchema = z.object({

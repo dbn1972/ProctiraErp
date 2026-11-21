@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createPipeline } from '@/lib/api/etl';
-import { GatewayError } from '@/lib/api/gateway';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 /** PRC-M109: inline CSV is capped well under the Server Action body limit. */
 const MAX_CSV_BYTES = 1024 * 1024;
@@ -82,12 +82,7 @@ export async function createPipelineAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create pipeline',
+      message: genericActionErrorMessage(error, 'Failed to create pipeline'),
     };
   }
 }

@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   acceptAdmissionOffer,
   addEnquiryFollowup,
@@ -31,6 +30,7 @@ import {
   seatMatrixFormSchema,
   updateEnquiryStageSchema,
 } from '@/lib/admissions/validation';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface AdmissionsActionState {
   status: 'idle' | 'success' | 'error';
@@ -67,12 +67,7 @@ function invalid(error: z.ZodError, fallback: string): AdmissionsActionState {
 function fail(error: unknown, fallback: string): AdmissionsActionState {
   return {
     status: 'error',
-    message:
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : fallback,
+    message: genericActionErrorMessage(error, fallback),
   };
 }
 

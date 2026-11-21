@@ -24,6 +24,7 @@ describe('loadInstitutionOverview', () => {
   it('returns null when the institution is outside the tenant', async () => {
     const client = db((sql, params) => {
       if (sql.includes('to_regclass')) return { rows: [{ reg: 'public.institutions' }] };
+      if (sql.includes('SAVEPOINT')) return { rows: [] };
       expect(params).toEqual([OTHER, SCHOOL]);
       return { rows: [] };
     });
@@ -101,6 +102,74 @@ describe('loadInstitutionOverview', () => {
   });
 });
 
+function pgError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+/**
+ * A `withPgTenant`-style transaction client: after a failed statement every statement fails
+ * with 25P02 until ROLLBACK / ROLLBACK TO SAVEPOINT, as Postgres does.
+ */
+function transactionalDb(fail: (sql: string, params?: unknown[]) => string | null) {
+  let aborted = false;
+  return {
+    async query(sql: string, params?: unknown[]) {
+      const head = sql.trim();
+      if (head === 'ROLLBACK' || head.startsWith('ROLLBACK TO SAVEPOINT')) {
+        aborted = false;
+        return { rows: [] };
+      }
+      if (aborted) {
+        throw pgError(
+          '25P02',
+          'current transaction is aborted, commands ignored until end of transaction block',
+        );
+      }
+      const code = fail(sql, params);
+      if (code) {
+        aborted = true;
+        throw pgError(code, `simulated ${code}`);
+      }
+      if (sql.includes('to_regclass')) return { rows: [{ reg: String(params?.[0] ?? '') }] };
+      if (sql.includes('FROM institutions')) return { rows: [{ custom_data: {} }] };
+      if (sql.includes('FROM staff_assignments')) return { rows: [{ value: 84 }] };
+      if (sql.includes('FROM student_attendance')) return { rows: [{ value: 94 }] };
+      if (sql.includes('FROM rooms')) return { rows: [{ value: 46 }] };
+      return { rows: [] };
+    },
+  };
+}
+describe('loadInstitutionOverview inside a transaction (D1-F1, D1-F3)', () => {
+  it('a failed block does not mark every later block unavailable (no 25P02 cascade)', async () => {
+    const client = transactionalDb((sql) =>
+      sql.includes('FROM enrollments') && sql.includes('COUNT(DISTINCT student_id)')
+        ? '42703'
+        : null,
+    );
+    const overview = await loadInstitutionOverview(TENANT, SCHOOL, client);
+    expect(overview?.studentsAvailable).toBe(false);
+    expect(overview).toMatchObject({
+      staff: 84,
+      staffAvailable: true,
+      attendancePercent: 94,
+      attendanceAvailable: true,
+      classrooms: 46,
+      classroomsAvailable: true,
+    });
+  });
+  it('a failed relation probe is treated as a missing table, not an aborted transaction', async () => {
+    const client = transactionalDb((sql, params) =>
+      sql.includes('to_regclass') && params?.[0] === 'public.staff_assignments' ? '57014' : null,
+    );
+    const overview = await loadInstitutionOverview(TENANT, SCHOOL, client);
+    expect(overview?.staffAvailable).toBe(false);
+    expect(overview).toMatchObject({
+      attendancePercent: 94,
+      attendanceAvailable: true,
+      classrooms: 46,
+      classroomsAvailable: true,
+    });
+  });
+});
 describe('GET /institutions/:id/overview', () => {
   it('404s a cross-tenant id and 403s a role that cannot read institutions', async () => {
     const registry = createGatewayRbacRegistry();

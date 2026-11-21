@@ -180,6 +180,7 @@ env:
     e2e/66-transport-screens-read.spec.ts
     e2e/67-transport-screens-write.spec.ts
     e2e/68-transport-privacy-tenancy.spec.ts
+    e2e/73-safe-error-responses.spec.ts
     e2e/74-health-defect-fixes.spec.ts
 
 permissions:

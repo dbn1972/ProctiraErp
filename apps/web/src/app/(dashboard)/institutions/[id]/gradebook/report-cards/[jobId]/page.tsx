@@ -43,7 +43,8 @@ export default async function ReportCardJobPage(props: {
       {job.status !== 'SUCCEEDED' ? (
         <p role="status">
           {studentName} · {term} is {job.status.toLowerCase()}.
-          {job.errorMessage ? ` ${job.errorMessage}` : ''}
+          {/* D1-T5: job.errorMessage holds the worker's raw error text; show fixed copy only. */}
+          {job.errorMessage ? ` The card could not be generated. Reference: ${job.id}` : ''}
         </p>
       ) : (
         <article className="space-y-2 rounded-lg border p-4">

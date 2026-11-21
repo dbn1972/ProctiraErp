@@ -70,9 +70,13 @@ describe('institution action id validation (PRC-L272)', () => {
     if (!res.success) expect(res.error).not.toContain('postgres');
   });
 
-  it('passes through a gateway ApiClientError message', async () => {
+  it('never shows a gateway ApiClientError message (RAW-WEB)', async () => {
     api.deactivateInstitution.mockRejectedValue(new api.ApiClientError('Not permitted'));
     const res = await deactivateInstitutionAction(VALID, 'reason');
-    expect(res).toMatchObject({ success: false, error: 'Not permitted' });
+    expect(res).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/^The change could not be saved\. \(ref /),
+    });
+    expect(JSON.stringify(res)).not.toContain('Not permitted');
   });
 });

@@ -15,7 +15,7 @@ import { LogRepairRequestForm } from '@/components/institutions/log-repair-reque
 
 import { Card, CardContent } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { ApiClientError, getInfrastructureHierarchy } from '@/lib/institutions/api';
+import { getInfrastructureHierarchy } from '@/lib/institutions/api';
 import type { InfrastructureHierarchy } from '@/lib/institutions/types';
 import {
   normCondition,
@@ -442,12 +442,12 @@ async function loadHierarchy(
     const hierarchy = await getInfrastructureHierarchy(institutionId);
     return { hierarchy, error: null };
   } catch (error) {
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[institution-infrastructure] load failed', error);
     return {
       hierarchy: { lands: [] },
-      error:
-        error instanceof ApiClientError
-          ? error.message
-          : 'Infrastructure data is currently unavailable.',
+      error: 'Infrastructure data is currently unavailable.',
     };
   }
 }

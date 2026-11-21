@@ -5,7 +5,7 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import { safeActionErrorMessage } from '@/lib/api/action-error';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 import {
   workflowDecisionSchema,
   workflowDefinitionInputSchema,
@@ -41,7 +41,7 @@ export async function createWorkflowDefinitionAction(
   } catch (error) {
     return {
       status: 'error',
-      message: safeActionErrorMessage(error, 'Failed to create definition'),
+      message: genericActionErrorMessage(error, 'Failed to create definition'),
     };
   }
 }
@@ -64,7 +64,7 @@ export async function decideWorkflowApprovalAction(
   } catch (error) {
     return {
       status: 'error',
-      message: safeActionErrorMessage(error, `Failed to ${decision} approval`),
+      message: genericActionErrorMessage(error, `Failed to ${decision} approval`),
     };
   }
 }

@@ -307,9 +307,10 @@ describe('hostel denied-save copy (H-D1, T-D3 pattern)', () => {
     expect(String(consoleError.mock.calls[0]?.[0])).toContain(CORRELATION_ID);
   });
 
-  it('leaves library actions in the same file unchanged (out of scope)', async () => {
+  it('library actions in the same file also hide server text (RAW-WEB)', async () => {
     libraryApi.createLibraryItem.mockRejectedValue(gatewayError(400, 'title is required'));
     const result = await createLibraryItemAction({ title: 'Atlas' } as never);
-    expect(result.message).toBe('title is required');
+    expect(result.message).toMatch(/^Failed to create library item \(ref /);
+    expect(result.message).not.toContain('title is required');
   });
 });
