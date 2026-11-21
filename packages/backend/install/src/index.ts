@@ -20,6 +20,7 @@
 // Core service
 export { InstallServiceImpl } from './install-service';
 export type { InstallServiceDependencies, ConnectivityTester } from './install-service';
+export { DEFAULT_CONNECTIVITY_TIMEOUT_MS } from './install-service';
 
 // Fastify plugin
 export { installPlugin } from './install-plugin';
@@ -28,12 +29,23 @@ export type { InstallPluginOptions } from './install-plugin';
 // Security helpers
 export {
   INSTALL_TOKEN_HEADER,
+  MIN_INSTALL_TOKEN_LENGTH,
+  createInstallTokenFailureLimiter,
   enforceInstallToken,
+  installTokenMatches,
+  requireInstallToken,
   resolveInstallToken,
   statusForInstallResult,
 } from './install-security';
-export type { InstallTokenGateOptions } from './install-security';
+export type { InstallTokenFailureLimiter, InstallTokenGateOptions } from './install-security';
 
+// PRC-L568: SSRF endpoint policy
+export {
+  createEndpointPolicy,
+  isAlwaysBlockedAddress,
+  parseAllowedEndpointHosts,
+} from './endpoint-policy';
+export type { EndpointPolicy, EndpointPolicyOptions, ResolveHost } from './endpoint-policy';
 // Store
 export { InMemoryBootstrapStore, DatabaseBootstrapStore } from './bootstrap-store';
 export type { BootstrapStore } from './bootstrap-store';
