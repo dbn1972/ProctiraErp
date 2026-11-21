@@ -146,6 +146,19 @@ test('transport screen specs run nightly and are not in PR_SPECS', () => {
   }
 });
 
+// Campus staff roles (H-D2, T-O1, MR-1, T-D3): warden / transport officer / registrar
+// allowed paths and teacher / parent / student denials, live. Nightly only: the PR
+// shard time budget is used up. Moving it into PR_SPECS is a visible change here.
+test('campus staff roles spec 72 runs nightly and is not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  const file = '72-campus-staff-roles.spec.ts';
+  assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+  assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+  assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+});
+
 // UAT-ENV-015: upload-artifact skips hidden files by default, so a step that lists a
 // dotfile (gateway / portal logs) must set include-hidden-files or the log is dropped.
 test('upload steps that list a dotfile set include-hidden-files (UAT-ENV-015)', () => {
