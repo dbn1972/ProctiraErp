@@ -421,7 +421,9 @@ test.describe('Students privacy and tenancy — live (E2E_BACKEND_READY)', () =>
         await page.goto(route, { waitUntil: 'load' });
         await expect
           .soft(page.getByRole('heading', { name: /page not found/i }), `tenant B ${route}`)
-          .toBeVisible();
+          // On a loaded runner the not-found view has taken over 20 s to appear after `load`
+          // (counted run final-run2 at ae503782); same budget as waitForReact.
+          .toBeVisible({ timeout: 45_000 });
         await expectNotInPage(
           page,
           `tenant B ${route}`,
