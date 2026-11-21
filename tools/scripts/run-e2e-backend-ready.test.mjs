@@ -758,3 +758,18 @@ test('fees screen specs 90-92 exist and run nightly', () => {
     FEES_SPECS_IN_PR,
   );
 });
+
+// Admissions defect fixes (AD-T1 cross-tenant period/grade/institution refs, M2-TR-4).
+// Nightly only: the PR shard time budget is used up. Moving it into PR_SPECS is a
+// visible change here.
+const ADMISSIONS_DEFECT_SPECS = ['107-admissions-defect-fixes.spec.ts'];
+test('admissions defect-fix spec 107 runs nightly and is not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of ADMISSIONS_DEFECT_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+});

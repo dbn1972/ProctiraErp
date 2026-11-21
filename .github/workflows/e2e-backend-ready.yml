@@ -189,6 +189,7 @@ env:
     e2e/90-fees-screens-read.spec.ts
     e2e/91-fees-screens-write.spec.ts
     e2e/92-fees-privacy-tenancy.spec.ts
+    e2e/107-admissions-defect-fixes.spec.ts
 
 permissions:
   contents: read

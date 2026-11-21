@@ -58,6 +58,7 @@ import {
   type CreateInterviewSlotInput,
   type BookInterviewInput,
 } from './schemas.js';
+import { ReferenceNotFoundError, referenceNotFoundBody } from './tenant-references.js';
 
 /**
  * Options for registering registration routes.
@@ -1058,6 +1059,10 @@ export async function registerRegistrationRoutes(
           status: slot.status,
         });
       } catch (error: unknown) {
+        if (error instanceof ReferenceNotFoundError) {
+          // AD-T1: #739 safe form (fixed copy + correlation id).
+          return reply.status(error.statusCode).send(referenceNotFoundBody(error, request));
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
