@@ -20,6 +20,12 @@
 #
 # Adding an entry here requires the same evidence. If a value appears in
 # non-test code, fix the code — do not allowlist it.
+#
+# UAT-9c: gitleaks matches allowlist regexes against the finding's secret with
+# an unanchored search, so an unanchored entry also allowlists any real secret
+# that contains it. Every regex is `^<exact value>$` (escape `.` and other
+# metacharacters) and every path starts with `^`.
+# tools/scripts/check-gitleaks-allowlist.test.mjs enforces this.
 
 [extend]
 useDefault = true
@@ -31,39 +37,39 @@ regexes = [
   # packages/backend/health/src/phi-crypto-scoped.test.ts
   # Symmetric passphrase for an enc:v1 encrypt/decrypt round-trip assertion.
   # Any string satisfies the test; the value carries no meaning.
-  '''legacy-global-key-for-v1-test''',
+  '''^legacy-global-key-for-v1-test$''',
 
   # packages/backend/developer-portal/src/crypto-keys.test.ts
   # Input to hashApiKey(); the test asserts only determinism and the
   # /^sha256:[0-9a-f]{64}$/ output shape. Sibling fixtures oem_aaaa… and
   # oem_bbbb… are not flagged because they are lower entropy — same role.
-  '''oem_0123456789abcdef0123456789abcdef''',
+  '''^oem_0123456789abcdef0123456789abcdef$''',
 
   # apps/api-gateway/src/audit-mount.test.ts (historical)
   # A JWT signing secret long enough to satisfy the production length guard so
   # the gateway boots under test. Already absent from current source; retained
   # here only because history is scanned.
-  '''test-jwt-secret-at-least-32-characters-long''',
+  '''^test-jwt-secret-at-least-32-characters-long$''',
   # packages/backend/student/src/standalone-app.test.ts (PRC-L502, commit 16df8166)
   # HS256 signing key the test uses to mint and verify its own tokens against
   # the standalone student app. Referenced by zero non-test files; no deployment
   # manifest or .env template uses it. Retained because PR range history is scanned.
-  '''standalone-test-secret-0123456789abcdef''',
+  '''^standalone-test-secret-0123456789abcdef$''',
 
   # apps/web/src/lib/api/fees.idempotency.test.ts (branch history, PRC-H058, commit 8fbef06c)
   # Fixed UUID sent as the Idempotency-Key header in a refund/concession test; the
   # test asserts the header is forwarded unchanged. Referenced by zero non-test files.
-  '''7a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d''',
+  '''^7a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d$''',
 
   # apps/web/src/lib/fees/actions.idempotency.test.ts (branch history, PRC-H058, commit 8c84f873)
   # Fixed UUID idempotency key for the money Server Action tests. Referenced by
   # zero non-test files.
-  '''3f1c2b4a-5d6e-4f70-8a9b-0c1d2e3f4a5b''',
+  '''^3f1c2b4a-5d6e-4f70-8a9b-0c1d2e3f4a5b$''',
 
   # apps/api-gateway/src/tenant-suspension-lifecycle.test.ts (branch history, PRC-H008, commit e278cec5)
   # Placeholder admin password in an in-memory tenant-provisioning fixture
   # (email a@b.example); never sent to a real IdP. Referenced by zero non-test files.
-  '''pw-123456789''',
+  '''^pw-123456789$''',
 
   # packages/backend/health/src/pg-institution-scope.test.ts (branch history, PRC-L563, commit aef5c4d4)
   # PHI_ENCRYPTION_KEY test fixture for the stub KMS round-trip in the
@@ -72,18 +78,18 @@ regexes = [
   # commit in PR_BASE_SHA..PR_HEAD_SHA, not just the final diff, so the
   # original value still surfaces. Referenced by zero non-test files; not a
   # credential for any real system.
-  '''l563-institution-scope-test-key''',
+  '''^l563-institution-scope-test-key$''',
 
   # packages/backend/tenant/src/custom-domain-verification.test.ts (branch history, PRC-L169, commit 9a563c7d)
   # Fixed domain-verification challenge token served by a local HTTP server in
   # the HTTPS well-known proof test; the test asserts an exact trimmed match.
   # Referenced by zero non-test files; not a credential for any real system.
-  '''tok_ABCdef123-_xyz''',
+  '''^tok_ABCdef123-_xyz$''',
   # packages/backend/auth/src/mfa-routes.test.ts (branch history, PRC-M497, commit ecf14d59)
   # HMAC key for an in-test createPreMfaTicketCodec that mints and verifies its
   # own pre-MFA tickets. Referenced by zero non-test files; not in any manifest,
   # Helm values file or .env template; not a credential for any real system.
-  '''pre-mfa-test-secret-0123456789abcdef''',
+  '''^pre-mfa-test-secret-0123456789abcdef$''',
   # packages/backend/audit/src/audit-keyed-chain.test.ts (branch history, PRC-M200, commit 8ff16842)
   # packages/backend/audit/src/audit-ingest-drain.test.ts (branch history, PRC-M200, commit 7494939b)
   # In-memory HMAC chain keys (keyId k1 / rotated k2) passed to a test-local
@@ -92,12 +98,12 @@ regexes = [
   # PR_BASE_SHA..PR_HEAD_SHA, so the values in those commits surface regardless
   # of head. Referenced by zero non-test files; not in any manifest, Helm values
   # file or .env template; not a credential for any real system.
-  '''test-key-k1-0123456789abcdef''',
-  '''rotated-key-k2-fedcba9876543210''',
+  '''^test-key-k1-0123456789abcdef$''',
+  '''^rotated-key-k2-fedcba9876543210$''',
 ]
 
 paths = [
   # Next.js build output. Not tracked in git (.gitignore), but a developer with a
   # local build present would otherwise see findings from generated manifests.
-  '''apps/web/\.next/''',
+  '''^apps/web/\.next/''',
 ]

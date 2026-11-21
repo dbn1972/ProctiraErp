@@ -130,6 +130,30 @@ test('harness runs Playwright without retries and writes the uploaded html repor
   assert.match(upload.with.path, /^apps\/registration-portal\/playwright-report\/$/m);
 });
 
+test('harness gateway requires the bot challenge with a per-run secret (UAT-9b)', () => {
+  const text = readFileSync(script, 'utf8');
+  const gatewayStart = text.match(
+    /\nREGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1 \\\n[\s\S]*?setsid pnpm --filter @proctira\/api-gateway start/,
+  )?.[0];
+  assert.ok(gatewayStart, 'the gateway starts with REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1');
+  assert.match(gatewayStart, /REGISTRATION_CHALLENGE_SECRET="\$REGISTRATION_CHALLENGE_SECRET" \\/);
+  // Generated per run (not a fixed value in the repo), and never echoed or exported.
+  assert.match(text, /REGISTRATION_CHALLENGE_SECRET="\$\(node -e "[^"]*randomBytes\(32\)/);
+  assert.doesNotMatch(text, /echo[^\n]*\$\{?REGISTRATION_CHALLENGE_SECRET/);
+  assert.doesNotMatch(text, /export REGISTRATION_CHALLENGE_SECRET/);
+  // The portal never receives it.
+  const portalStart = text.match(/env -u DATABASE_URL[\s\S]*?next start/)?.[0];
+  assert.ok(portalStart, 'portal start command');
+  assert.doesNotMatch(portalStart, /REGISTRATION_CHALLENGE_SECRET/);
+  // The journey asserts the challenge path and the header-less refusal.
+  const spec = readFileSync(
+    resolve(here, '../../apps/registration-portal/e2e/03-registration-live-journey.spec.ts'),
+    'utf8',
+  );
+  assert.match(spec, /'\/api\/registrations\/challenge'/);
+  assert.match(spec, /x-registration-challenge/);
+  assert.match(spec, /code: 'CHALLENGE_REQUIRED'/);
+});
 test('fixture seed is test data only (no grant, RLS or schema change)', () => {
   const sql = readFileSync(seedPath, 'utf8').replace(/--.*$/gm, '');
   // CREATE/ALTER also cover role attributes and policies.
