@@ -127,6 +127,25 @@ test('student portal screen specs are in the nightly set (and the measured PR su
   }
 });
 
+// Transport screen -> API -> DB coverage (66 read, 67 form saves, 68 privacy/tenancy).
+// Nightly only: the PR shard time budget is used by the parent and student portal
+// screen specs. Moving one into PR_SPECS is a visible change here.
+const TRANSPORT_SCREEN_SPECS = [
+  '66-transport-screens-read.spec.ts',
+  '67-transport-screens-write.spec.ts',
+  '68-transport-privacy-tenancy.spec.ts',
+];
+test('transport screen specs run nightly and are not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of TRANSPORT_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+});
+
 // UAT-ENV-015: upload-artifact skips hidden files by default, so a step that lists a
 // dotfile (gateway / portal logs) must set include-hidden-files or the log is dropped.
 test('upload steps that list a dotfile set include-hidden-files (UAT-ENV-015)', () => {
