@@ -141,9 +141,9 @@ beforeEach(() => {
 });
 
 /**
- * Denied: portal roles, teacher/staff (the hostel package denies them), and
- * warden / hostel_* / registrar, which the hostel package allows but the
- * gateway RBAC registry does not grant `hostel` (H-D2, 403 today).
+ * Denied: portal roles, teacher/staff (the hostel package denies them),
+ * transport staff (no hostel grant anywhere) and a reader pair without a
+ * hostel package role.
  */
 const DENIED_ROLE_SETS = [
   ['teacher'],
@@ -151,12 +151,26 @@ const DENIED_ROLE_SETS = [
   ['student'],
   ['parent'],
   ['guardian'],
-  ['warden'],
-  ['hostel_warden'],
-  ['registrar'],
+  ['transport_officer'],
+  ['teacher', 'staff'],
   [],
 ];
-const ALLOWED_ROLE_SETS = [['admin'], ['principal'], ['super-admin']];
+/**
+ * Allowed: admin roles, the hostel package staff roles and the read-only
+ * registrar (H-D2), and multi-role sessions the gateway serves (MR-1).
+ */
+const ALLOWED_ROLE_SETS = [
+  ['admin'],
+  ['principal'],
+  ['super-admin'],
+  ['warden'],
+  ['hostel_warden'],
+  ['hostel-manager'],
+  ['hostel_clerk'],
+  ['registrar'],
+  ['student', 'warden'],
+  ['teacher', 'registrar'],
+];
 
 describe('hostel route guard (H-D1)', () => {
   describe.each(ROUTES)('$path', (route) => {
@@ -193,6 +207,16 @@ describe('hostel route guard (H-D1)', () => {
     expect(document.querySelector('form')).not.toBeNull();
     expect(hostelApi.listHostels).toHaveBeenCalled();
   });
+
+  it.each([['warden'], ['registrar']])(
+    'keeps the hostel form and hostel reads for %s on /hostel',
+    async (role) => {
+      auth.roles = [role];
+      await renderRoute(ROUTES.find((r) => r.path === '/hostel')!);
+      expect(document.querySelector('form')).not.toBeNull();
+      expect(hostelApi.listHostels).toHaveBeenCalled();
+    },
+  );
 
   it('keeps the student directory for a principal on /hostel/assignments', async () => {
     auth.roles = ['principal'];

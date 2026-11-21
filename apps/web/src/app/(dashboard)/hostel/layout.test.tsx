@@ -33,8 +33,8 @@ describe('hostel layout guard (H-D1)', () => {
     ['student'],
     ['parent'],
     ['guardian'],
-    ['warden'],
-    ['registrar'],
+    ['transport_officer'],
+    ['teacher', 'staff'],
     [],
   ])('replaces every hostel screen with access denied for roles %j', async (...roles) => {
     auth.roles = roles;
@@ -43,10 +43,18 @@ describe('hostel layout guard (H-D1)', () => {
     expect(screen.queryByTestId('hostel-child')).toBeNull();
   });
 
-  it.each([['admin'], ['principal'], ['super-admin']])(
-    'renders the hostel screen for %s',
-    async (role) => {
-      auth.roles = [role];
+  it.each([
+    ['admin'],
+    ['principal'],
+    ['super-admin'],
+    ['warden'],
+    ['hostel_manager'],
+    ['registrar'],
+    ['student', 'warden'],
+  ])(
+    'renders the hostel screen for roles %j',
+    async (...roles) => {
+      auth.roles = roles;
       render(<>{await HostelLayout({ children: child })}</>);
       expect(screen.getByTestId('hostel-child')).toBeInTheDocument();
       expect(screen.queryByTestId('route-access-denied')).toBeNull();

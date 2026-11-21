@@ -136,9 +136,18 @@ beforeEach(() => {
   resetFetches();
 });
 
-/** Teacher / staff: no transport access (package guard denies; T-O1 roles are denied at the gateway). */
-const DENIED_ROLE_SETS = [['teacher'], ['staff'], ['student'], ['transport_officer'], []];
-const ALLOWED_ROLE_SETS = [['principal'], ['admin']];
+/** Teacher / staff: no transport access (the package guard denies them); hostel staff have no transport grant. */
+const DENIED_ROLE_SETS = [['teacher'], ['staff'], ['student'], ['warden'], ['teacher', 'staff'], []];
+/** Admin roles, the transport package staff roles and the read-only registrar (T-O1), multi-role (MR-1). */
+const ALLOWED_ROLE_SETS = [
+  ['principal'],
+  ['admin'],
+  ['transport_officer'],
+  ['fleet_manager'],
+  ['transport-admin'],
+  ['registrar'],
+  ['teacher', 'transport_officer'],
+];
 
 describe('transport route guard (T-D1)', () => {
   describe.each(ROUTES)('$path', (route) => {
@@ -176,6 +185,16 @@ describe('transport route guard (T-D1)', () => {
     expect(directory.loadStudentOptions).toHaveBeenCalled();
     expect(screen.getByTestId('transport-student-assignment-form')).toBeInTheDocument();
   });
+
+  it.each([['transport_officer'], ['registrar']])(
+    'keeps the vehicle form and vehicle list for %s on /transport/vehicles',
+    async (role) => {
+      auth.roles = [role];
+      await renderRoute(ROUTES.find((r) => r.path === '/transport/vehicles')!);
+      expect(screen.getByTestId('transport-vehicle-form')).toBeInTheDocument();
+      expect(transportApi.listTransportVehicles).toHaveBeenCalled();
+    },
+  );
 
   it('keeps the vehicle form for a tenant admin on /transport/vehicles', async () => {
     auth.roles = ['admin'];
