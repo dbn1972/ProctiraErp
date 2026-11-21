@@ -184,6 +184,13 @@ describe('parent scholarship routes', () => {
     });
     expect(other.statusCode).toBe(403);
     expect(other.json().code).not.toBe('ENROLMENT_REQUIRED');
+    // A request that names an institution keeps the pre-P-O1 path (validated, then the service).
+    const named = await app.inject({
+      method: 'POST',
+      url: '/parent-portal/scholarships/applications',
+      payload: { ...body, applicantId: CHILD, institutionId: INSTITUTION },
+    });
+    expect(named.json().code).not.toBe('ENROLMENT_REQUIRED');
   });
 
   it('PRC-L346: link lookup failure returns 503 and v7 UUID child sees own applications', async () => {

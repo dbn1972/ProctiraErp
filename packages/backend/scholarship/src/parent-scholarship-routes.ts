@@ -221,10 +221,11 @@ export async function registerParentScholarshipRoutes(
       } catch (error) {
         return sendAppError(reply, error);
       }
-      if (!recorded) {
-        // P-O1: no enrolment of record, so there is no institution to apply under. Only a
-        // parent linked to the child learns this (the link check runs first), and the copy
-        // tells them what to do instead of a bare "Validation failed".
+      if (!recorded && typeof raw.institutionId !== 'string') {
+        // P-O1: no enrolment of record and no institution in the request, which used to end
+        // as a bare 400 "Validation failed". Only a parent linked to the child learns this
+        // (the link check runs first), and the copy tells them what to do. A request that
+        // names an institution keeps today's behaviour (see the PR residuals).
         if (
           !(await authorizeApplicationCreate(
             request,
@@ -241,14 +242,16 @@ export async function registerParentScholarshipRoutes(
           statusCode: 422,
         });
       }
-      if (typeof raw.institutionId === 'string' && raw.institutionId !== recorded) {
-        return reply.status(422).send({
-          code: 'INSTITUTION_MISMATCH',
-          message: "institutionId does not match the student's current enrolment",
-          statusCode: 422,
-        });
+      if (recorded) {
+        if (typeof raw.institutionId === 'string' && raw.institutionId !== recorded) {
+          return reply.status(422).send({
+            code: 'INSTITUTION_MISMATCH',
+            message: "institutionId does not match the student's current enrolment",
+            statusCode: 422,
+          });
+        }
+        raw.institutionId = recorded;
       }
-      raw.institutionId = recorded;
     }
     const parsed = validate(CreateApplicationSchema, { ...raw, asDraft: true });
     if (!parsed.success) {
