@@ -16,7 +16,7 @@
 import type { ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import { redirect } from 'next/navigation';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const auth = vi.hoisted(() => {
   const state = { roles: [] as string[] };
@@ -417,6 +417,12 @@ async function renderRoute(route: RouteCase) {
   const element = await Page((route.props ?? {}) as never);
   render(element ?? <></>);
 }
+
+// Load every page module once up front: the first cold import of a page and
+// its dependency graph can exceed the per-test timeout on a busy runner.
+beforeAll(async () => {
+  await Promise.all(Object.values(PAGES).map((load) => load()));
+}, 60_000);
 
 beforeEach(() => {
   resetFetches();
