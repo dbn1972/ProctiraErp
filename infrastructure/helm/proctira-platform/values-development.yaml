@@ -162,19 +162,6 @@ assessmentService:
       cpu: 500m
       memory: 256Mi
 
-attendanceService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
 examinationService:
   enabled: false
   replicaCount: 1

@@ -283,22 +283,6 @@ assessmentService:
       cpu: '2'
       memory: 1Gi
 
-attendanceService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
 examinationService:
   enabled: false
   replicaCount: 2

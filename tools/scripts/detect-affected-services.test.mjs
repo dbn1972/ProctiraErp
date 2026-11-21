@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -95,6 +95,45 @@ test('#555 review #7: manual service input is validated before reaching GITHUB_O
     assert.throws(() => validateManualServices(manifest, 'deploy', bad), /comma-separated/, bad);
   }
   assert.throws(() => validateManualServices(manifest, 'deploy', 'not-a-service'), /Unknown/);
+});
+
+// Topic 16 Option A: retired standalone lab servers have no entry point, image
+// or deploy path left; the gateway is the only runtime for these domains.
+const RETIRED_LAB_SERVICES = ['attendance'];
+const repoRoot = new URL('../../', import.meta.url).pathname;
+const DEPLOY_FILES = [
+  'infrastructure/docker/docker-compose.services.yml',
+  'infrastructure/helm/proctira-platform/values.yaml',
+  'infrastructure/helm/proctira-platform/values-development.yaml',
+  'infrastructure/helm/proctira-platform/values-staging.yaml',
+  'infrastructure/helm/proctira-platform/values-production.yaml',
+  'infrastructure/helm/proctira-platform/values-workers-only.yaml',
+  'infrastructure/helm/proctira-platform/templates/NOTES.txt',
+  'infrastructure/k8s/components/split-domain-services/kustomization.yaml',
+  'infrastructure/k8s/components/image-tag/kustomization.yaml',
+  'infra/observability/scrape-lab/lab-services.yml',
+  'tools/scripts/check-worker-secret-scope.mjs',
+  'tools/scripts/check-topology-canonical.sh',
+  'tools/scripts/helm-template-check.sh',
+];
+
+test('retired standalone lab servers are gone from every build and deploy path', () => {
+  for (const svc of RETIRED_LAB_SERVICES) {
+    assert.ok(!(svc in manifest.labServices.ports), `${svc} still in services.json labServices`);
+    assert.throws(() => validateManualServices(manifest, 'release', svc), /Unknown/, svc);
+    for (const rel of [
+      `packages/backend/${svc}/src/standalone-server.ts`,
+      `infrastructure/helm/proctira-platform/templates/${svc}`,
+      `infrastructure/k8s/base/${svc}`,
+    ]) {
+      assert.ok(!existsSync(join(repoRoot, rel)), `${rel} still exists`);
+    }
+    for (const rel of DEPLOY_FILES) {
+      const text = readFileSync(join(repoRoot, rel), 'utf8');
+      assert.ok(!text.includes(`${svc}-service`), `${rel} still references ${svc}-service`);
+      assert.ok(!text.includes(`${svc}Service`), `${rel} still references ${svc}Service`);
+    }
+  }
 });
 
 test('validate CLI prints the list or exits 1 without stdout', () => {

@@ -161,36 +161,6 @@ services:
     networks:
       - proctira
 
-  attendance-service:
-    build:
-      context: ../../
-      dockerfile: infrastructure/docker/Dockerfile.backend-service
-      args:
-        SERVICE_NAME: attendance
-        SERVICE_PORT: 3024
-    restart: unless-stopped
-    environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      PORT: 3024
-      HOST: 0.0.0.0
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
-      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env (see .env.example)}
-      KAFKA_BROKERS: ${KAFKA_BROKERS}
-      RABBITMQ_URL: ${RABBITMQ_URL}
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
-      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
-    ports:
-      - '${BIND_ADDRESS:-127.0.0.1}:3024:3024'
-    healthcheck:
-      test: ['CMD', 'curl', '--fail', 'http://127.0.0.1:3024/health']
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
-    networks:
-      - proctira
-
   examination-service:
     build:
       context: ../../

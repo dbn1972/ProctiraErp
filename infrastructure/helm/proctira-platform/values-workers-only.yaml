@@ -50,8 +50,6 @@ staffService:
   enabled: false
 assessmentService:
   enabled: false
-attendanceService:
-  enabled: false
 examinationService:
   enabled: false
 workflowService:

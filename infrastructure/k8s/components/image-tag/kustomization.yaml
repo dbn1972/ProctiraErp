@@ -33,8 +33,6 @@ images:
     newTag: sha-pending
   - name: proctira/assessment-service
     newTag: sha-pending
-  - name: proctira/attendance-service
-    newTag: sha-pending
   - name: proctira/examination-service
     newTag: sha-pending
   - name: proctira/workflow-service

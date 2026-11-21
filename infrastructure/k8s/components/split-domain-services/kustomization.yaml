@@ -26,9 +26,6 @@ resources:
   - ../../base/assessment/deployment.yaml
   - ../../base/assessment/service.yaml
   - ../../base/assessment/hpa.yaml
-  - ../../base/attendance/deployment.yaml
-  - ../../base/attendance/service.yaml
-  - ../../base/attendance/hpa.yaml
   - ../../base/examination/deployment.yaml
   - ../../base/examination/service.yaml
   - ../../base/examination/hpa.yaml

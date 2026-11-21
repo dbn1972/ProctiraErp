@@ -141,14 +141,6 @@ assessmentService:
     minReplicas: 2
     maxReplicas: 4
 
-attendanceService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 6
-
 examinationService:
   enabled: false
   replicaCount: 2
