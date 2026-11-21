@@ -67,6 +67,9 @@ export interface PublicThrottleConfig {
   /** Failed (no-match) lookups per tracking number before lockout. */
   statusFailuresPerTracking: number;
   statusWindowMs: number;
+  /** PRC-M132: public branding reads per client per window. */
+  brandingPerClient: number;
+  brandingWindowMs: number;
   /** PRC-M332: bot-challenge issuances per tenant per window. */
   challengePerTenant: number;
   challengeWindowMs: number;
@@ -76,6 +79,8 @@ export const DEFAULT_PUBLIC_THROTTLE: PublicThrottleConfig = {
   statusPerTracking: 10,
   statusFailuresPerTracking: 5,
   statusWindowMs: 15 * 60_000,
+  brandingPerClient: 60,
+  brandingWindowMs: 60_000,
   challengePerTenant: 600,
   challengeWindowMs: 60_000,
 };
@@ -83,11 +88,14 @@ export const DEFAULT_PUBLIC_THROTTLE: PublicThrottleConfig = {
 export class PublicRegistrationThrottle {
   readonly statusTracking: SlidingWindowLimiter;
   readonly statusFailures: SlidingWindowLimiter;
+  /** PRC-M132: anonymous branding reads. */
+  readonly brandingPerClient: SlidingWindowLimiter;
   /** PRC-M332: caps challenge minting per tenant (outer limit: gateway rate limiter). */
   readonly challengeIssuance: SlidingWindowLimiter;
 
   constructor(config: Partial<PublicThrottleConfig> = {}, now?: () => number) {
     const c = { ...DEFAULT_PUBLIC_THROTTLE, ...config };
+    this.brandingPerClient = new SlidingWindowLimiter(c.brandingPerClient, c.brandingWindowMs, now);
     this.statusTracking = new SlidingWindowLimiter(c.statusPerTracking, c.statusWindowMs, now);
     this.statusFailures = new SlidingWindowLimiter(
       c.statusFailuresPerTracking,
