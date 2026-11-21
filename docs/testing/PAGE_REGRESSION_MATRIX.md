@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **105**
+- Playwright specs: **106**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -87,17 +87,17 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/fees/scholarship-netting` | a11y, functional | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/fees/structures` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`41-admissions-crm-write-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/health/[studentId]` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/health/[studentId]` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/allergies` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/allergies/new` | functional | `17-health-inventory-smoke.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts` |
 | `/health/counselling` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/counselling/new` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/health/incidents` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/health/incidents/new` | functional | `17-health-inventory-smoke.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts` |
-| `/health/phi-access` | a11y, functional | `17-health-inventory-smoke.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/health/screenings` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/health/incidents` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/health/incidents/new` | functional | `17-health-inventory-smoke.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts` |
+| `/health/phi-access` | a11y, functional | `17-health-inventory-smoke.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/health/screenings` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/special-needs` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/health/vaccinations` | a11y, functional | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/health/vaccinations` | a11y, functional | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/health/vaccinations/new` | functional | `17-health-inventory-smoke.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts` |
 | `/help` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
