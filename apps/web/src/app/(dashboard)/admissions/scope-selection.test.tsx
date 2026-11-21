@@ -4,6 +4,12 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
+
 const getMeritList = vi.fn();
 const listSeatMatrix = vi.fn();
 

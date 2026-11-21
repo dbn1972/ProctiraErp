@@ -2,7 +2,6 @@
  * Staff receipts (Server Component).
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { FEE_LIST_PAGE_SIZE, listInvoicesResult, listReceiptsPageResult } from '@/lib/api/fees';
 import {
   buildHref,
@@ -16,6 +15,8 @@ import { resolveEntityLabel } from '@/lib/entity-label';
 import { getLocale } from 'next-intl/server';
 
 import { formatAmount } from '../_components/format-amount';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,10 @@ export default async function FeesReceiptsPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const locale = await getLocale();
   const page = readPage((await searchParams) ?? {});
   // PRC-M477: one server-side page of receipts instead of the whole history.

@@ -14,6 +14,8 @@ import { Button } from '@proctira/ui/components';
 import { AcademicPeriodsManager } from '@/components/institutions/academic-periods-manager';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 function formatRange(start: string, end: string): string {
   const fmt = (d: string) => {
@@ -26,6 +28,10 @@ function formatRange(start: string, end: string): string {
 }
 
 export default async function AcademicPeriodsPage() {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('academic-periods', '/academic-periods'))) {
+    return <RouteAccessDenied />;
+  }
   const result = await loadAcademicPeriods();
   const active = result.periods.find((p) => p.status === 'active');
 

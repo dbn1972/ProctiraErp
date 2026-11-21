@@ -6,6 +6,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { describe, expect, it, vi } from 'vitest';
+
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
 import { render, screen, within } from '@testing-library/react';
 
 vi.mock('../_components/bulk-import-panel', () => ({ BulkImportPanel: () => null }));
@@ -60,8 +66,8 @@ describe('student import template (PRC-L061)', () => {
     expect(rowValues(example, 2)[0]).toBe('Asha');
   });
 
-  it('page column list equals template headers', () => {
-    render(<StudentBulkImportPage />);
+  it('page column list equals template headers', async () => {
+    render(await StudentBulkImportPage());
     const list = screen.getByTestId('import-template-columns');
     const keys = within(list)
       .getAllByRole('listitem')

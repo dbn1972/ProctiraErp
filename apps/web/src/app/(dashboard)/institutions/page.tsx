@@ -53,6 +53,8 @@ import type {
   InstitutionListFilters,
   PaginatedResponse,
 } from '@/lib/institutions/types';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface InstitutionsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -370,6 +372,10 @@ function InstitutionRow({
 /* ──────────────────────────────────────── Page ── */
 
 export default async function InstitutionsListPage(props: InstitutionsPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const search = singleParam(searchParams.search) ?? '';
   const areaId = singleParam(searchParams.areaId) || undefined;

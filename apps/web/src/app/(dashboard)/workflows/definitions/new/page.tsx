@@ -9,8 +9,14 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 
 import { NewDefinitionForm } from '../../_components/new-definition-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
-export default function NewWorkflowDefinitionPage() {
+export default async function NewWorkflowDefinitionPage() {
+  // A-batch: check before any workflow read.
+  if (!(await hasDashboardDomainRouteAccess('workflows', '/workflows'))) {
+    return <RouteAccessDenied />;
+  }
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">

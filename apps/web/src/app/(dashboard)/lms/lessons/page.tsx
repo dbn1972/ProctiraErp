@@ -10,10 +10,16 @@ import { EmptyState } from '@/components/page';
 import { LmsSubnav } from '../_components/lms-subnav';
 import { LessonForm } from '../_components/lesson-form';
 import { ResourceLink } from '../_components/resource-link';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LmsLessonsPage() {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const [items, schools] = await Promise.all([listLessons(), loadInstitutionOptions()]);
   return (
     <section className="space-y-6" aria-labelledby="lms-lessons-heading">
