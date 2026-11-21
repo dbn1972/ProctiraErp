@@ -227,41 +227,7 @@ developerPortal:
     minAvailable: 1
 
 # -- Backend domain services (W1-OPS-16: disabled in production; lab-only templates)
-institutionService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-    targetMemoryUtilizationPercentage: 75
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
 studentService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-    targetMemoryUtilizationPercentage: 75
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
-staffService:
   enabled: false
   replicaCount: 3
   autoscaling:
@@ -294,22 +260,6 @@ assessmentService:
       cpu: '2'
       memory: 1Gi
 
-attendanceService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
 examinationService:
   enabled: false
   replicaCount: 2
@@ -325,38 +275,6 @@ examinationService:
     limits:
       cpu: '2'
       memory: 1Gi
-
-workflowService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '1'
-      memory: 1Gi
-
-notificationService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-  resources:
-    requests:
-      cpu: 200m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
 
 reportService:
   enabled: false
