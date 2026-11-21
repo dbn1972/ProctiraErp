@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isProductionLike, isProductionNodeEnv, normalizeNodeEnv } from './node-env.js';
+import {
+  isDeployedEnvironment,
+  isProductionLike,
+  isProductionNodeEnv,
+  normalizeNodeEnv,
+} from './node-env.js';
 
 describe('node-env helpers (PRC-L579)', () => {
   it('normalises case and whitespace', () => {
@@ -34,4 +39,19 @@ describe('node-env helpers (PRC-L579)', () => {
       expect(isProductionLike(v)).toBe(false);
     },
   );
+});
+
+describe('isDeployedEnvironment (PRC-L566)', () => {
+  it.each([
+    ['production', { APP_ENV: 'staging' }, true],
+    ['development', { APP_ENV: 'staging' }, true],
+    ['test', {}, false],
+    [undefined, {}, true],
+    ['staging', {}, true],
+    ['development', {}, false],
+    ['development', { DEPLOY_ENV: 'Prod' }, true],
+    ['test', { APP_ENV: 'qa' }, false],
+  ] as const)('NODE_ENV=%j env=%j -> %j', (nodeEnv, env, expected) => {
+    expect(isDeployedEnvironment(nodeEnv, env)).toBe(expected);
+  });
 });

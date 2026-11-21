@@ -1,4 +1,5 @@
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listStudentAssignments, listTransportRoutes } from '@/lib/api/transport';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { toLabelMap } from '@/lib/entity-label';
@@ -12,7 +13,10 @@ interface PageProps {
 }
 
 export default async function TransportAttendancePage(props: PageProps) {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const query = await props.searchParams;
   const [routes, assignments, students] = await Promise.all([
     listTransportRoutes(),

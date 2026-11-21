@@ -105,6 +105,27 @@ describe('PRC-M156 student picker labels', () => {
     const labels = await loadStudentLabelsForIds(['s-7']);
     expect(labels.get('s-7')).toBe('ADM-7 · Kid 7');
   });
+  // HN-F2: the per-id fallback for ids missing from the directory pages put the national
+  // ID into the label (formatPersonLabel(first, last, nationalId)).
+  it('HN-F2: per-id student fallback labels use the display code, never nationalId', async () => {
+    api.listStudents.mockResolvedValue({ data: [], meta: { totalItems: 0, totalPages: 0 } });
+    api.getStudent.mockImplementation(async (id: string) =>
+      id === 's-7' ? student(7) : { ...student(8), customData: {} },
+    );
+    const labels = await loadStudentLabelMap(['s-7', 's-8']);
+    expect(labels.get('s-7')).toBe('ADM-7 · Kid 7');
+    expect(labels.get('s-8')).toBe('Kid 8');
+    expect([...labels.values()].join(' ')).not.toContain('NID-SECRET');
+  });
+  it('HN-F2: person fallback labels for a student never carry nationalId', async () => {
+    api.getStudent.mockImplementation(async (id: string) =>
+      id === 's-7' ? student(7) : { ...student(8), customData: {} },
+    );
+    const labels = await withPersonLabels(new Map(), ['s-7', 's-8']);
+    expect(labels.get('s-7')).toBe('ADM-7 · Kid 7');
+    expect(labels.get('s-8')).toBe('Kid 8');
+    expect([...labels.values()].join(' ')).not.toContain('NID-SECRET');
+  });
   it('loadStudentDirectory omits nationalId from label and searchText', async () => {
     api.listStudents.mockImplementation(
       async ({ page = 1, pageSize }: { page?: number; pageSize: number }) => {

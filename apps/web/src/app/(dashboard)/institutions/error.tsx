@@ -18,9 +18,13 @@ export default function InstitutionsError({
       className="rounded-xl border bg-card p-8 text-center"
     >
       <h1 className="text-xl font-semibold text-foreground">Unable to load institutions</h1>
+      {/* D1-T5: fixed copy; the error text can carry server detail in development. */}
       <p className="mt-2 text-sm text-muted-foreground">
-        {error.message || 'The institution service is currently unavailable.'}
+        The institution service is currently unavailable.
       </p>
+      {error.digest ? (
+        <p className="mt-1 text-xs text-muted-foreground">Reference: {error.digest}</p>
+      ) : null}
       <button
         type="button"
         onClick={reset}

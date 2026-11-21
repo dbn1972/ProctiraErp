@@ -149,7 +149,8 @@ export function withStudentLabels(
 ): Promise<Map<string, string>> {
   return fillMissing(base, ids, async (id) => {
     const s = await getStudent(id);
-    return s ? formatPersonLabel(s.firstName, s.lastName, s.nationalId) : null;
+    // HN-F2 / PRC-M156: the display code, never the national ID.
+    return s ? formatPersonLabel(s.firstName, s.lastName, studentDisplayCode(s)) : null;
   });
 }
 
@@ -183,7 +184,9 @@ export function withPersonLabels(
 ): Promise<Map<string, string>> {
   return fillMissing(base, ids, async (id) => {
     const student = await getStudent(id).catch(() => null);
-    if (student) return formatPersonLabel(student.firstName, student.lastName, student.nationalId);
+    // HN-F2 / PRC-M156: the display code, never the national ID.
+    if (student)
+      return formatPersonLabel(student.firstName, student.lastName, studentDisplayCode(student));
     const staff = await getStaff(id).catch(() => null);
     return staff ? formatPersonLabel(staff.firstName, staff.lastName, staff.position) : null;
   });

@@ -17,6 +17,7 @@ export default async function StudentTimetablePage() {
       testId="student-timetable"
       status={studentStatus(result)}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No published class meetings yet."
       hasRows={slots.length > 0}
     >

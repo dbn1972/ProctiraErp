@@ -49,4 +49,21 @@ describe('ReportCardJobPage (PRC-M094)', () => {
       ReportCardJobPage({ params: Promise.resolve({ id: 'inst-1', jobId: 'nope' }) }),
     ).rejects.toThrow('NEXT_NOT_FOUND');
   });
+  it('a failed job shows fixed copy and the job reference, never the worker error (D1-T5)', async () => {
+    m.listReportCardJobs.mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          ...job,
+          status: 'FAILED',
+          errorMessage: 'relation "report_card_subject_lines" does not exist',
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      await ReportCardJobPage({ params: Promise.resolve({ id: 'inst-1', jobId: 'job-1' }) }),
+    );
+    expect(html).toContain('The card could not be generated. Reference: job-1');
+    expect(html).not.toContain('report_card_subject_lines');
+  });
 });

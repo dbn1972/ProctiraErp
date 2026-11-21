@@ -6,6 +6,7 @@
  * deny-matrix behaviour without importing the api-gateway package.
  */
 import {
+  applyCampusDomainRoleGrants,
   DEFAULT_ROLES,
   RbacPermissionRegistry,
   type Permission,
@@ -24,12 +25,20 @@ const DOMAIN_GRANTS: Record<string, Permission[]> = {
     // PRC-M480: gateway CAMPUS_MANAGE subset behind dashboard write-route guards.
     { resource: 'lms', action: 'manage' },
     { resource: 'library', action: 'manage' },
+    // T-D1: gateway CAMPUS_MANAGE. The gateway's teacher/staff transport.read
+    // (STAFF_READS) is not mirrored: the transport package denies those roles.
+    { resource: 'transport', action: 'manage' },
+    // H-D1: gateway CAMPUS_MANAGE. The gateway's teacher/staff/student
+    // hostel.read is not mirrored: the hostel package denies those roles.
+    { resource: 'hostel', action: 'manage' },
   ],
   principal: [
     { resource: 'communication', action: 'manage' },
     { resource: 'report', action: 'manage' },
     { resource: 'lms', action: 'manage' },
     { resource: 'library', action: 'manage' },
+    { resource: 'transport', action: 'manage' },
+    { resource: 'hostel', action: 'manage' },
   ],
   teacher: [
     { resource: 'communication', action: 'read' },
@@ -81,6 +90,9 @@ export function createWebRbacRegistry(): RbacPermissionRegistry {
     const role = roles.find((entry) => entry.roleId === roleId);
     if (role) role.permissions.push(...extras);
   }
+  // H-D2 / T-O1 / H-D1-R5: the same hostel/transport staff matrix the gateway
+  // registry applies (one source in @proctira/auth, so the two cannot drift).
+  applyCampusDomainRoleGrants(roles);
   // PRC-L234: mirror the gateway's platform_admin role (platform + '*' manage)
   // so platform surfaces are only advertised to callers the gateway serves.
   if (!roles.some((role) => role.roleId === 'platform_admin')) {

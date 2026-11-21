@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { InstitutionRowActions } from '@/components/institutions/institution-row-actions';
 import { InstitutionsFilters } from '@/components/institutions/institutions-filters';
 import { PaginationControls } from '@/components/institutions/pagination-controls';
-import { ApiClientError, listInstitutions } from '@/lib/institutions/api';
+import { listInstitutions } from '@/lib/institutions/api';
 import { loadInstitutionDirectory } from '@/lib/institutions/directory';
 import {
   INSTITUTION_LIST_ERROR,
@@ -632,10 +632,10 @@ async function fetchInstitutions(filters: InstitutionListFilters): Promise<ListR
     const data = await listInstitutions(filters);
     return { data, error: null };
   } catch (error) {
-    const message =
-      error instanceof ApiClientError
-        ? error.message
-        : 'The institution service is currently unavailable.';
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[institutions] load failed', error);
+    const message = 'The institution service is currently unavailable.';
     return {
       data: {
         data: [],

@@ -28,6 +28,22 @@ export {
   computeSubmissionPayloadHash,
 } from './registration-service.js';
 
+// PRC-M332 — self-hosted proof-of-work bot control for anonymous submit
+export {
+  DEFAULT_CHALLENGE_DIFFICULTY,
+  formatChallengeToken,
+  issueRegistrationChallenge,
+  leadingZeroBits,
+  solveRegistrationChallenge,
+  verifyRegistrationChallenge,
+} from './bot-challenge.js';
+export type { IssuedRegistrationChallenge } from './bot-challenge.js';
+export {
+  createChallengeNonceStore,
+  InMemoryChallengeNonceStore,
+  RedisChallengeNonceStore,
+} from './bot-challenge-nonce-store.js';
+export type { ChallengeNonceStore } from './bot-challenge-nonce-store.js';
 // NEW-g4_apps_auth-006 — document content validation + storage port
 export { sniffDocumentContent, matchesDeclaredType } from './document-content-validation.js';
 export type { SniffResult } from './document-content-validation.js';

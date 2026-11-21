@@ -69,6 +69,10 @@ async function actorFor(
   return actor;
 }
 
+/** P-O1: fixed copy for a child with no enrolment of record (the web form shows the same). */
+const ENROLMENT_REQUIRED_MESSAGE =
+  'This child is not enrolled yet. Contact the school to complete enrolment before applying.';
+
 // PRC-L346: any RFC 9562 UUID (v1-v8), not only v4.
 const APPLICANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function sendAppError(reply: FastifyReply, error: unknown) {
@@ -216,6 +220,27 @@ export async function registerParentScholarshipRoutes(
         recorded = await resolveStudentInstitutionId(tenantId, raw.applicantId);
       } catch (error) {
         return sendAppError(reply, error);
+      }
+      if (!recorded && typeof raw.institutionId !== 'string') {
+        // P-O1: no enrolment of record and no institution in the request, which used to end
+        // as a bare 400 "Validation failed". Only a parent linked to the child learns this
+        // (the link check runs first), and the copy tells them what to do. A request that
+        // names an institution keeps today's behaviour (see the PR residuals).
+        if (
+          !(await authorizeApplicationCreate(
+            request,
+            reply,
+            raw.applicantId,
+            resolveLinkedStudentIds,
+          ))
+        ) {
+          return;
+        }
+        return reply.status(422).send({
+          code: 'ENROLMENT_REQUIRED',
+          message: ENROLMENT_REQUIRED_MESSAGE,
+          statusCode: 422,
+        });
       }
       if (recorded) {
         if (typeof raw.institutionId === 'string' && raw.institutionId !== recorded) {

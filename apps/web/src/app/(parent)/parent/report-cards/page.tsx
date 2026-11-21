@@ -65,6 +65,7 @@ export default async function ParentReportCardsPage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No completed report cards yet."
       hasRows={cards.length > 0}
     >

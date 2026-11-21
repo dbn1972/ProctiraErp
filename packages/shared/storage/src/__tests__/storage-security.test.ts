@@ -98,7 +98,7 @@ describe('MinIOAdapter security (PRC-M542)', () => {
 
   it('clamps an over-long signed URL lifetime', async () => {
     const adapter = minio();
-    await adapter.getSignedUrl('tenants/t1/f.pdf', 999_999_999);
+    await adapter.getSignedUrl('tenants/t1/f.pdf', 999_999_999, 't1');
     expect(signOptions[0]!.expiresIn).toBe(MAX_SIGNED_URL_EXPIRY_SECONDS);
   });
 });

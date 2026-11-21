@@ -15,7 +15,7 @@ export interface SchemaReadinessQueryable {
 /** Latest non-seed domain migration required by this application build. */
 // tools/scripts/required-migrations-lib.sh parses this declaration as a single line.
 // prettier-ignore
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '290_parent_consent_withdrawal_reason.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '296_audit_chain_linkage_trigger.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [

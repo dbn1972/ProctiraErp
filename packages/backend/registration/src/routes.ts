@@ -14,10 +14,21 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { AppError } from '@proctira/common';
-import { isProductionNodeEnv } from '@proctira/common/node-env';
+import { isDeployedEnvironment, isProductionNodeEnv } from '@proctira/common/node-env';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import {
+  createChallengeNonceStore,
+  type ChallengeNonceStore,
+} from './bot-challenge-nonce-store.js';
+import {
+  DEFAULT_CHALLENGE_TTL_SECONDS,
+  issueRegistrationChallenge,
+  MIN_CHALLENGE_SECRET_LENGTH,
+  normaliseChallengeDifficulty,
+  verifyRegistrationChallenge,
+} from './bot-challenge.js';
 import { parseListPage, toPageResult } from './pagination.js';
 import { PublicRegistrationThrottle } from './public-throttle.js';
 import { isPublicRegistrationPath } from './registration-access.js';
@@ -60,13 +71,29 @@ export interface RegistrationRoutesOptions {
   /** PRC-M331/M332: per-identifier throttles for anonymous endpoints. */
   publicThrottle?: PublicRegistrationThrottle;
   /**
-   * PRC-M332: bot challenge on anonymous submit. When required (option or
-   * `REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1`), the `x-registration-challenge`
-   * header is mandatory; a missing verifier fails closed (503).
+   * PRC-M332: bot challenge on anonymous submit. Required by default in a
+   * deployed environment (and when `REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1`):
+   * the `x-registration-challenge` header must carry a solved, unexpired,
+   * single-use proof-of-work issued by `GET /registrations/challenge`.
+   *
+   * The default verifier is the self-hosted HMAC proof-of-work in
+   * `bot-challenge.ts` keyed by `secret` (default
+   * `REGISTRATION_CHALLENGE_SECRET`; a per-process random key outside deployed
+   * environments) with nonces claimed in a replica-shared store (Redis via
+   * REDIS_URL). A deployed process that requires the challenge but has no
+   * secret or no shared store refuses to register the routes.
    */
   submitChallenge?: {
     required?: boolean;
     verify?: (input: { token: string; ip: string; tenantId: string }) => Promise<boolean>;
+    /** HMAC key for issued challenges (default REGISTRATION_CHALLENGE_SECRET). */
+    secret?: string;
+    /** Single-use nonce store (default: Redis via REDIS_URL; memory outside deployed envs). */
+    nonceStore?: ChallengeNonceStore;
+    /** Leading zero bits required (default REGISTRATION_CHALLENGE_DIFFICULTY or 16). */
+    difficulty?: number;
+    /** Challenge lifetime in seconds (default 300). */
+    ttlSeconds?: number;
   };
   /**
    * W1-SEC-05: shared session store (Redis/DB in multi-replica). Defaults to
@@ -213,6 +240,75 @@ async function resolveOrMintSessionId(
   return { sessionId: mintRegistrationSessionId(), existing: null };
 }
 
+type ResolvedSubmitChallenge = {
+  required: boolean;
+  verify?: (input: { token: string; ip: string; tenantId: string }) => Promise<boolean>;
+  issuer?: { issue(tenantId: string): ReturnType<typeof issueRegistrationChallenge> };
+};
+
+/**
+ * PRC-M332: resolve the submit bot control. Deployed environments require it
+ * by default and refuse to boot without a usable secret and shared nonce store.
+ */
+function resolveSubmitChallenge(
+  options: RegistrationRoutesOptions['submitChallenge'],
+): ResolvedSubmitChallenge {
+  const deployed = isDeployedEnvironment(process.env.NODE_ENV, process.env);
+  const required =
+    options?.required ?? (deployed || process.env.REGISTRATION_SUBMIT_CHALLENGE_REQUIRED === '1');
+  if (options?.verify) return { required, verify: options.verify };
+
+  const configured = (options?.secret ?? process.env.REGISTRATION_CHALLENGE_SECRET ?? '').trim();
+  if (configured && deployed) {
+    if (configured.length < MIN_CHALLENGE_SECRET_LENGTH) {
+      throw new AppError(
+        `REGISTRATION_CHALLENGE_SECRET must be at least ${MIN_CHALLENGE_SECRET_LENGTH} characters in a deployed environment (PRC-M332)`,
+        'REGISTRATION_CONFIGURATION_ERROR',
+        500,
+      );
+    }
+    if (configured === process.env.JWT_SECRET?.trim()) {
+      throw new AppError(
+        'REGISTRATION_CHALLENGE_SECRET must not reuse JWT_SECRET (one secret per purpose, PRC-M332)',
+        'REGISTRATION_CONFIGURATION_ERROR',
+        500,
+      );
+    }
+  }
+  if (!configured && deployed) {
+    if (required) {
+      throw new AppError(
+        'Registration submit requires a bot challenge in a deployed environment: set REGISTRATION_CHALLENGE_SECRET (and REDIS_URL) (PRC-M332)',
+        'REGISTRATION_CONFIGURATION_ERROR',
+        500,
+      );
+    }
+    return { required };
+  }
+  // Outside deployed environments a per-process key keeps local stacks working.
+  const secret = configured || randomBytes(32).toString('base64url');
+  const nonceStore = options?.nonceStore ?? createChallengeNonceStore();
+  const difficulty = normaliseChallengeDifficulty(
+    options?.difficulty ?? process.env.REGISTRATION_CHALLENGE_DIFFICULTY ?? undefined,
+  );
+  const ttlSeconds = options?.ttlSeconds ?? DEFAULT_CHALLENGE_TTL_SECONDS;
+  return {
+    required,
+    issuer: {
+      issue: (tenantId) => issueRegistrationChallenge({ secret, tenantId, difficulty, ttlSeconds }),
+    },
+    verify: async ({ token, tenantId }) =>
+      (
+        await verifyRegistrationChallenge(token, {
+          secret,
+          tenantId,
+          nonceStore,
+          minDifficulty: difficulty,
+        })
+      ).ok,
+  };
+}
+
 /**
  * Register public registration routes on a Fastify instance.
  */
@@ -228,12 +324,6 @@ export async function registerRegistrationRoutes(
   } = options;
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const throttle = options.publicThrottle ?? new PublicRegistrationThrottle();
-  const submitChallenge = {
-    required:
-      options.submitChallenge?.required ??
-      process.env.REGISTRATION_SUBMIT_CHALLENGE_REQUIRED === '1',
-    verify: options.submitChallenge?.verify,
-  };
   if (isProductionNodeEnv(process.env.NODE_ENV) && defaultTenantId) {
     throw new AppError(
       'Production public registration cannot use defaultTenantId; inject publicTenantResolver',
@@ -256,6 +346,8 @@ export async function registerRegistrationRoutes(
     );
   }
   const sessionStore = options.sessionStore ?? new InMemorySessionStore();
+  // PRC-M332: resolved after the tenant/session production guards above.
+  const submitChallenge = resolveSubmitChallenge(options.submitChallenge);
 
   /**
    * POST /registrations
@@ -298,6 +390,27 @@ export async function registerRegistrationRoutes(
     }
   });
 
+  /**
+   * GET /registrations/challenge (PRC-M332)
+   * Issue a tenant-bound proof-of-work challenge for the next submit.
+   */
+  fastify.get(`${prefix}/challenge`, async function challengeHandler(request, reply) {
+    const tenantId = publicTenantId(request);
+    if (!submitChallenge.issuer) {
+      return reply.status(404).send({
+        code: 'CHALLENGE_DISABLED',
+        message: 'No bot challenge is configured for this portal',
+        statusCode: 404,
+      });
+    }
+    const limit = throttle.challengeIssuance.hit(tenantId);
+    if (!limit.allowed) return tooManyRequests(reply, limit.retryAfterSeconds);
+    return reply
+      .status(200)
+      .header('cache-control', 'no-store')
+      .send(submitChallenge.issuer.issue(tenantId));
+  });
+
   fastify.post(
     prefix,
     async function submitHandler(
@@ -316,7 +429,8 @@ export async function registerRegistrationRoutes(
       }
 
       const tenantId = publicTenantId(request);
-      // PRC-M332: optional bot challenge (CAPTCHA / proof-of-work) on submit.
+      // PRC-M332: bot challenge (self-hosted proof-of-work) on submit; mandatory
+      // by default in deployed environments.
       if (submitChallenge.required) {
         const token = request.headers['x-registration-challenge'];
         if (typeof token !== 'string' || token.length === 0 || token.length > 4096) {

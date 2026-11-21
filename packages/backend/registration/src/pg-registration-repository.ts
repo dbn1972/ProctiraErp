@@ -155,6 +155,15 @@ function mapInstitution(row: Record<string, unknown>): RegistrationInstitution {
   };
 }
 
+const FORM_CONFIGURATION_FKEY = 'admission_applications_form_configuration_fkey';
+const PG_FOREIGN_KEY_VIOLATION = '23503';
+
+function isFormConfigurationFkViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, constraint } = error as { code?: unknown; constraint?: unknown };
+  return code === PG_FOREIGN_KEY_VIOLATION && constraint === FORM_CONFIGURATION_FKEY;
+}
+
 export class PgRegistrationRepository implements RegistrationRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -207,6 +216,20 @@ export class PgRegistrationRepository implements RegistrationRepository {
     entity: NewRegistrationEntity,
   ): Promise<IdempotentRegistrationCreateResult> {
     await this.ensureSchema();
+    try {
+      return await this.createIdempotentInTenant(entity);
+    } catch (error) {
+      // PRC-M568: the config row vanished between the context read and the INSERT (only
+      // possible if an owner bypasses the append-only trigger). The transaction has rolled
+      // back; report it exactly like a missing context, as the old row lock would have.
+      if (isFormConfigurationFkViolation(error)) return { outcome: 'context_unavailable' };
+      throw error;
+    }
+  }
+
+  private createIdempotentInTenant(
+    entity: NewRegistrationEntity,
+  ): Promise<IdempotentRegistrationCreateResult> {
     return this.withTenant(entity.tenantId, async (client) => {
       const prior = await client.query(
         `SELECT *
@@ -222,6 +245,14 @@ export class PgRegistrationRepository implements RegistrationRepository {
           : { outcome: 'payload_conflict' };
       }
 
+      // PRC-M568: lock only the institution row. `admission_form_configurations` is
+      // append_only for proctira_app (SELECT, INSERT; db/runtime-table-privileges.json), and a
+      // row-lock clause naming it needs UPDATE, which made every submit fail with 42501. The
+      // config row needs no lock here: the 097 append-only trigger rejects UPDATE/DELETE for
+      // every role, and the validated composite FK
+      // (admission_applications_form_configuration_fkey) key-share locks that exact
+      // tenant/config/institution/version row during the INSERT until commit. Idempotency rests
+      // on the (tenant_id, submission_key) unique index + ON CONFLICT below, not on this lock.
       const context = await client.query(
         `SELECT i.name AS institution_name, c.*
            FROM institutions i
@@ -235,7 +266,7 @@ export class PgRegistrationRepository implements RegistrationRepository {
             AND c.id = $3::uuid
             AND c.version = $4
           LIMIT 1
-          FOR KEY SHARE OF i, c`,
+          FOR KEY SHARE OF i`,
         [
           entity.tenantId,
           entity.institutionId,

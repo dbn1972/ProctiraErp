@@ -14,7 +14,10 @@ import {
   type StaffActiveAssignmentCheck,
 } from './gradebook-service.js';
 import { registerGradebookRoutes } from './routes.js';
-import { prepareTranscriptSigningAtStartup } from './signed-download.js';
+import {
+  prepareBoardExportSigningAtStartup,
+  prepareTranscriptSigningAtStartup,
+} from './signed-download.js';
 
 /**
  * PRC-C006: resolves the student ids a portal caller (parent/guardian/student) may read.
@@ -52,6 +55,14 @@ declare module 'fastify' {
 export const gradebookPlugin = fp(
   async function gradebookPluginImpl(fastify: FastifyInstance, options: GradebookPluginOptions) {
     prepareTranscriptSigningAtStartup(process.env, {
+      warn: (obj, msg) => {
+        fastify.log.warn(obj, msg);
+      },
+      error: (obj, msg) => {
+        fastify.log.error(obj, msg);
+      },
+    });
+    prepareBoardExportSigningAtStartup(process.env, {
       warn: (obj, msg) => {
         fastify.log.warn(obj, msg);
       },
