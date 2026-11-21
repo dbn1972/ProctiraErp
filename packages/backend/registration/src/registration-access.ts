@@ -99,6 +99,8 @@ export function isPublicRegistrationPath(path: string): boolean {
   if (under === '/language') return true;
   // PRC-M132: public, Host-resolved, allow-listed branding for SSR first paint.
   if (under === '/branding') return true;
+  // PRC-M332: bot-challenge issuance for anonymous submit.
+  if (under === '/challenge') return true;
   return false;
 }
 

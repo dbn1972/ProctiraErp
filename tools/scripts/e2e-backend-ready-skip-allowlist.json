@@ -1,0 +1,25 @@
+{
+  "$comment": "UAT-ENV-007: the only Playwright skips the E2E backend-ready shards and live gate accept (assert-playwright-skips.mjs). Keyed by spec file (relative to apps/web/e2e) plus the full title path (describe titles, then the test title); `line` is informational. An entry that runs and does not skip fails the gate, so remove it when the test starts running. Adding an entry needs owner approval on the PR.",
+  "entries": [
+    {
+      "file": "16f-institutions-profile-write.spec.ts",
+      "title": [
+        "Institution gateway down",
+        "gateway down shows an error state instead of a green Active pill"
+      ],
+      "line": 184,
+      "reason": "Structural skip: the test needs the web server started with E2E_ALLOW_GATEWAY_SIMULATION=1, which the backend-ready harness does not set.",
+      "decision": "Owner Q6 A (3 Nov 2026), skip allowlist approved under Q9 A; finding UAT-ENV-007"
+    },
+    {
+      "file": "a11y-axe.spec.ts",
+      "title": [
+        "a11y — authenticated surfaces (E2E_BACKEND_READY=1)",
+        "registration portal wizard — step 1 is WCAG 2.1 AA clean"
+      ],
+      "line": 341,
+      "reason": "Structural skip: the registration portal (E2E_REGISTRATION_BASE_URL, default :3002) is not started by the backend-ready harness.",
+      "decision": "Owner Q6 A (3 Nov 2026), skip allowlist approved under Q9 A; finding UAT-ENV-007"
+    }
+  ]
+}

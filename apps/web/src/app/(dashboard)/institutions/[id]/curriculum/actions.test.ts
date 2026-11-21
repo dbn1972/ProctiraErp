@@ -54,12 +54,15 @@ describe('curriculum actions (PRC-L411)', () => {
     expect(api.unmarkUnitTaught).toHaveBeenCalledWith(UNIT);
   });
 
-  it('markUnitTaughtAction maps a GatewayError to its message', async () => {
+  it('markUnitTaughtAction maps a GatewayError to fixed copy, never its message (RAW-WEB)', async () => {
     api.markUnitTaught.mockRejectedValue(
       new GatewayError({ status: 409, code: 'CONFLICT', message: 'already taught' }),
     );
     const res = await markUnitTaughtAction(INST, { unitId: UNIT });
-    expect(res).toEqual({ ok: false, error: 'already taught' });
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringMatching(/^This conflicts with an existing record\..*\(ref /),
+    });
   });
 
   it('markUnitTaughtAction returns the row id and taughtAt extra on success', async () => {

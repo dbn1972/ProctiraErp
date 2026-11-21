@@ -6,6 +6,9 @@
  * `'none'`) and the degraded read is observably logged via `recordDegradedRead`. A 42703
  * (undefined_column) means the query assumed a schema shape this database does not have —
  * that is never swallowed as empty; it throws `AcademicColumnMissingError` instead.
+ *
+ * D1: inside the `withPgTenant` transaction every statement runs under its own savepoint, so a
+ * tolerated 42P01 is rolled back to that savepoint and cannot abort the reads after it (25P02).
  */
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import type pg from 'pg';
@@ -122,6 +125,32 @@ async function queryRows(
   }
 }
 
+const READ_SAVEPOINT = 'pp_academic_read';
+
+/**
+ * D1: wraps a transaction client so each statement runs under a savepoint. On error the
+ * savepoint is rolled back (keeping the transaction usable) and the original error is rethrown.
+ */
+function savepointGuarded(client: PgQueryable): PgQueryable {
+  return {
+    query: async (text, values) => {
+      await client.query(`SAVEPOINT ${READ_SAVEPOINT}`);
+      try {
+        const result = await client.query(text, values);
+        await client.query(`RELEASE SAVEPOINT ${READ_SAVEPOINT}`);
+        return result;
+      } catch (error) {
+        try {
+          await client.query(`ROLLBACK TO SAVEPOINT ${READ_SAVEPOINT}`);
+        } catch {
+          // keep the original error; withPgTenant rolls the whole transaction back
+        }
+        throw error;
+      }
+    },
+  };
+}
+
 function publishedWorkflow(metadata: unknown): string | null {
   if (metadata && typeof metadata === 'object') {
     const status = (metadata as { workflowStatus?: unknown }).workflowStatus;
@@ -149,7 +178,11 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
   }
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
-    return withPgTenant(this.pool as never, tenantId, fn);
+    // Only a pool with `connect` gets a real transaction from withPgTenant (D1).
+    const transactional = typeof this.pool.connect === 'function';
+    return withPgTenant(this.pool as never, tenantId, (client) =>
+      fn(transactional ? savepointGuarded(client) : client),
+    );
   }
 
   /**
@@ -544,33 +577,19 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       );
       const data: ReportCardDetail[] = [];
       for (const row of cards) {
-        const subjects = await queryRows(
-          client,
-          `SELECT subject, numeric_score, letter_grade, remarks
-             FROM report_card_subject_lines
-            WHERE tenant_id = $1::uuid AND report_card_job_id = $2::uuid
-            ORDER BY position ASC NULLS LAST, subject ASC`,
-          [tenantId, str(row.id)],
-          'report_card_subject_lines',
-          this.recordDegradedRead,
-          flag,
-        );
-        // Fallback: published gradebook rows for the period when subject lines table is absent/empty
-        let subjectLines = subjects.map((s) => ({
-          subject: str(s.subject),
-          numericScore: numOrNull(s.numeric_score),
-          letterGrade: strOrNull(s.letter_grade),
-          remarks: strOrNull(s.remarks),
-        }));
-        if (subjectLines.length === 0 && row.academic_period_id) {
+        // Subject lines are the card period's published grades; a grade's period comes from
+        // `sections.academic_period_id`, as on the gradebook report card (PRC-M265). See D1.
+        let subjectLines: ReportCardDetail['subjects'] = [];
+        if (row.academic_period_id) {
           const grades = await queryRows(
             client,
-            `SELECT COALESCE(ge.subject, ge.assessment_code, 'Subject') AS subject,
-                    ge.numeric_score, ge.letter_grade, ge.comment AS remarks
+            `SELECT COALESCE(ge.assessment_code, s.name, 'Subject') AS subject,
+                    ge.numeric_score, ge.letter_grade
                FROM grade_entries ge
+               LEFT JOIN sections s ON s.id = ge.section_id AND s.tenant_id = ge.tenant_id
               WHERE ge.tenant_id = $1::uuid AND ge.student_id = $2::uuid
                 AND (
-                  ge.academic_period_id = $3::uuid
+                  s.academic_period_id = $3::uuid
                   OR ge.metadata->>'academicPeriodId' = $3::text
                 )
                 AND (
@@ -588,7 +607,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
             subject: str(g.subject),
             numericScore: numOrNull(g.numeric_score),
             letterGrade: strOrNull(g.letter_grade),
-            remarks: strOrNull(g.remarks),
+            remarks: null,
           }));
         }
         data.push({

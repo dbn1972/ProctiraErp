@@ -14,12 +14,16 @@ import {
 } from '@proctira/ui/components';
 import { getTranslations } from 'next-intl/server';
 
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransportOverviewPage() {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const t = await getTranslations('transport');
 
   return (

@@ -24,6 +24,21 @@ const API = '/api/parent-portal/scholarships';
 const GPA_MAX = 4.0;
 const GPA_ERROR = `Enter a GPA between 0 and ${GPA_MAX.toFixed(1)} (4.0 scale).`;
 
+/** P-O1: same copy as the gateway's 422 ENROLMENT_REQUIRED (parent-scholarship-routes.ts). */
+const ENROLMENT_REQUIRED_COPY =
+  'This child is not enrolled yet. Contact the school to complete enrolment before applying.';
+
+/**
+ * P-O1 / RAW-WEB: fixed copy only. Gateway text can name internal fields or records, so the
+ * form maps known codes to its own copy and shows the fallback for everything else.
+ */
+function safeFormError(err: unknown, fallback: string): string {
+  if (err instanceof BrowserGatewayError && err.code === 'ENROLMENT_REQUIRED') {
+    return ENROLMENT_REQUIRED_COPY;
+  }
+  return fallback;
+}
+
 interface OpenProgram {
   id: string;
   name: string;
@@ -66,12 +81,12 @@ export function ParentScholarshipApply({
         setProgramId(result.data[0]?.id ?? '');
       })
       .catch((err: unknown) => {
-        setError(err instanceof BrowserGatewayError ? err.message : 'Could not load programs');
+        setError(safeFormError(err, 'Could not load programs'));
       });
     void scholarshipBrowserFetch<{ data: OwnApplication[] }>('/applications', { apiRoot: API })
       .then((result) => setApplications(result.data))
       .catch((err: unknown) => {
-        setError(err instanceof BrowserGatewayError ? err.message : 'Could not load applications');
+        setError(safeFormError(err, 'Could not load applications'));
       });
   }, []);
 
@@ -123,9 +138,7 @@ export function ParentScholarshipApply({
       setDraftId(created.id);
       setUploaded([]);
     } catch (err) {
-      setError(
-        err instanceof BrowserGatewayError ? err.message : 'Could not start the application',
-      );
+      setError(safeFormError(err, 'Could not start the application'));
     } finally {
       setPending(false);
     }
@@ -153,7 +166,7 @@ export function ParentScholarshipApply({
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof BrowserGatewayError ? err.message : 'Could not submit');
+      setError(safeFormError(err, 'Could not submit'));
     } finally {
       setPending(false);
     }

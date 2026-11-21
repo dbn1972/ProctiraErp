@@ -942,6 +942,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          # UAT-API-003: the gate also runs the REDIS_URL-gated suites.
+          REDIS_URL: redis://localhost:6379
           CI: true
           FORBID_TEST_SKIPS: '1'
           PG_TEST_MIN_EXECUTED: '25'
@@ -1029,6 +1031,9 @@ jobs:
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true
+          # PRC-M568: no gateway in this lane, so the registration live gate
+          # opts out on main (exact value; E2E_REQUIRE_LIVE=1 still enforces).
+          E2E_LIVE_LANE: none
 
       - name: Upload integration test results
         if: always()

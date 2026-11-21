@@ -16,13 +16,24 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { Type } from '@sinclair/typebox';
 
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
+
+// UAT-API-006: this file tests the in-memory composition. vi.hoisted runs before
+// the imports above and removes a runner-exported DATABASE_URL / REDIS_URL, so
+// module-scope factories in app.ts / domain-plugins.ts and the per-app rate-limit
+// store (process-local, isolated per buildApp) do not pick them up. A local
+// packages/shared/database/.env can still set DATABASE_URL during import via the
+// Prisma autoload described below, as before.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+  delete process.env['REDIS_URL'];
+});
 
 // The generated Prisma client auto-loads packages/shared/database/.env as an
 // import side effect, which sets DATABASE_URL and would flip the in-process

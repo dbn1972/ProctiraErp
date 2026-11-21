@@ -148,7 +148,7 @@ export class S3Adapter implements StorageAdapter {
     };
   }
 
-  async download(key: string, callerTenantId?: string): Promise<Readable> {
+  async download(key: string, callerTenantId: string): Promise<Readable> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.download' });
     assertTenantOwnedObjectKey(key, callerTenantId, 'storage.download');
     const command = new GetObjectCommand({
@@ -166,7 +166,7 @@ export class S3Adapter implements StorageAdapter {
     return response.Body as unknown as Readable;
   }
 
-  async delete(key: string, callerTenantId?: string): Promise<void> {
+  async delete(key: string, callerTenantId: string): Promise<void> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.delete' });
     assertTenantOwnedObjectKey(key, callerTenantId, 'storage.delete');
     const command = new DeleteObjectCommand({
@@ -177,7 +177,7 @@ export class S3Adapter implements StorageAdapter {
     await this.client.send(command);
   }
 
-  async getSignedUrl(key: string, expiresIn?: number, callerTenantId?: string): Promise<string> {
+  async getSignedUrl(key: string, expiresIn: number, callerTenantId: string): Promise<string> {
     assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.getSignedUrl' });
     assertTenantOwnedObjectKey(key, callerTenantId, 'storage.getSignedUrl');
     const command = new GetObjectCommand({
@@ -192,8 +192,8 @@ export class S3Adapter implements StorageAdapter {
 
   async listObjects(
     prefix: string,
-    options?: ListOptions,
-    callerTenantId?: string,
+    options: ListOptions | undefined,
+    callerTenantId: string,
   ): Promise<ListResult> {
     assertTenantScopedObjectKeyIfRequired(prefix, { surface: 'storage.listObjects' });
     assertTenantOwnedObjectKey(prefix, callerTenantId, 'storage.listObjects');

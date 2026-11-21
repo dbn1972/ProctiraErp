@@ -61,27 +61,46 @@ function webPlaywrightCallSites(): { file: string; buildsWeb: boolean }[] {
 describe('e2e web server: next start only where a build exists', () => {
   it('chooses next start only when CI has produced a build', () => {
     const port = '3001';
-    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: true, port })).toContain(
+    const host = '127.0.0.1';
+    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: true, host, port })).toContain(
       'next start',
     );
     // The case that broke two gates: CI is set, nothing built.
-    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: false, port })).toContain(
+    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: false, host, port })).toContain(
       'next dev',
     );
     // Locally `next dev` regardless, because `next start` would serve a stale `.next`
     // and `next dev` always compiles current source.
-    expect(resolveWebServerCommand({ ci: false, hasProductionBuild: true, port })).toContain(
+    expect(resolveWebServerCommand({ ci: false, hasProductionBuild: true, host, port })).toContain(
       'next dev',
     );
-    expect(resolveWebServerCommand({ ci: false, hasProductionBuild: false, port })).toContain(
+    expect(resolveWebServerCommand({ ci: false, hasProductionBuild: false, host, port })).toContain(
       'next dev',
     );
   });
 
-  it('carries the port through unchanged', () => {
-    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: true, port: '4123' })).toBe(
-      'pnpm --filter @proctira/web exec next start --port 4123',
-    );
+  it('carries the host and port through unchanged', () => {
+    expect(
+      resolveWebServerCommand({ ci: true, hasProductionBuild: true, host: '::1', port: '4123' }),
+    ).toBe('pnpm --filter @proctira/web exec next start --hostname ::1 --port 4123');
+  });
+
+  it('binds next dev and next start to the given host (UAT-ENV-010)', () => {
+    // Without --hostname Next listens on 0.0.0.0, so the e2e server was reachable from
+    // the network (`ss -ltn` showed `*:<port>`).
+    for (const ci of [true, false]) {
+      for (const hasProductionBuild of [true, false]) {
+        expect(
+          resolveWebServerCommand({ ci, hasProductionBuild, host: '127.0.0.1', port: '3001' }),
+        ).toMatch(/ next (dev|start) --hostname 127\.0\.0\.1 --port 3001$/);
+      }
+    }
+  });
+
+  it('the Playwright config passes a loopback host by default (UAT-ENV-010)', () => {
+    const config = readFileSync(join(REPO_ROOT, 'apps/web/playwright.config.ts'), 'utf8');
+    expect(config).toContain("const HOST = process.env.PLAYWRIGHT_WEB_HOST ?? '127.0.0.1';");
+    expect(config).toMatch(/\bhost: HOST,/);
   });
 
   it('at least one CI caller does not build web, so the dev fallback is load-bearing', () => {

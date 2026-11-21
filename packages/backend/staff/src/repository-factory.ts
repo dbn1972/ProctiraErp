@@ -11,10 +11,12 @@ import { InMemoryAssignmentRepository } from './in-memory-assignment-repository.
 import { InMemoryStaffRepository } from './in-memory-repository.js';
 import { PrismaAssignmentRepository } from './prisma-assignment-repository.js';
 import { PrismaStaffRepository } from './prisma-staff-repository.js';
-import type { StaffRepository } from './staff-repository.js';
+import type { StaffRepository, StaffTxnAuditPort } from './staff-repository.js';
 
 export interface StaffRepositoryConfig {
   databaseUrl?: string;
+  /** PRC-M013: same-transaction audit port (gateway-supplied). */
+  txnAuditPort?: StaffTxnAuditPort;
 }
 
 export function createStaffRepository(config: StaffRepositoryConfig = {}): StaffRepository {
@@ -23,7 +25,10 @@ export function createStaffRepository(config: StaffRepositoryConfig = {}): Staff
     assertInMemoryFallbackAllowed('staff');
     return new InMemoryStaffRepository();
   }
-  return new PrismaStaffRepository(createPrismaClient({ datasourceUrl: databaseUrl }));
+  return new PrismaStaffRepository(
+    createPrismaClient({ datasourceUrl: databaseUrl }),
+    config.txnAuditPort,
+  );
 }
 
 export function createAssignmentRepository(

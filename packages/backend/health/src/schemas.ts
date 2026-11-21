@@ -214,7 +214,11 @@ export const CreateNurseIncidentSchema = Type.Object({
   category: Type.String({ minLength: 1, maxLength: 100 }),
   severity: Type.String({ enum: ['low', 'medium', 'high', 'critical'] }),
   notes: Type.Optional(Type.String({ maxLength: 2000 })),
-  reportedBy: Type.String({ minLength: 1, maxLength: 200 }),
+  /**
+   * HL-O2 / PRC-M520: ignored. The server records the signed-in user as the reporter;
+   * kept optional so older clients that still send it are accepted.
+   */
+  reportedBy: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
 });
 export type CreateNurseIncidentInput = Static<typeof CreateNurseIncidentSchema>;
 

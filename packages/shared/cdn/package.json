@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudfront": "3.1146.0",
     "@sinclair/typebox": "^0.34.52"
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listTransportRoutes } from '@/lib/api/transport';
 import { listAlertRules, listAlerts } from '@/lib/transport/api';
 import { AlertsPanel } from '../_components/alerts-panel';
@@ -6,7 +7,10 @@ import { AlertsPanel } from '../_components/alerts-panel';
 export const dynamic = 'force-dynamic';
 
 export default async function TransportAlertsPage() {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const [routes, rules, alerts] = await Promise.all([
     listTransportRoutes(),
     listAlertRules(),
