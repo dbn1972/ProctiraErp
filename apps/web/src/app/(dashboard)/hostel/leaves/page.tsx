@@ -11,7 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listHostelLeaves, listHostels } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -21,7 +22,10 @@ import { NewLeaveForm } from '../_components/new-leave-form';
 export const dynamic = 'force-dynamic';
 
 export default async function HostelLeavesPage() {
-  await requireSession();
+  // H-D1: check before any hostel or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('hostel', '/hostel'))) {
+    return <RouteAccessDenied />;
+  }
   const [leaves, hostels, studentOptions] = await Promise.all([
     listHostelLeaves(),
     listHostels(),
