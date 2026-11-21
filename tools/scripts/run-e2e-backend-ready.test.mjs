@@ -627,12 +627,14 @@ test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=o
     assert.ok(bound, `${s.file} step "${s.name}" applies 006 without proctira.allow_demo_seed=on`);
   }
 });
-test('health screen specs 63-65 exist and run nightly', () => {
+test('health screen specs 63-65 and 74 exist and run nightly', () => {
   const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
   const HEALTH_SPECS = [
     '63-health-screens-read.spec.ts',
     '64-health-screens-write.spec.ts',
     '65-health-privacy-phi.spec.ts',
+    // FEAT-003 / PR-3 (HL-O1, HL-O3, HL-O4): new specs 72-79 are nightly-only.
+    '74-health-defect-fixes.spec.ts',
   ];
   // Nightly only: the worst PR shard job already takes 17.17 min (CI run 44258213737,
   // shard 3/4), above the 16-min budget, so any of 63-65 would push it further over.
