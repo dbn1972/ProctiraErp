@@ -33,7 +33,9 @@ import {
   type SpecialNeedRecord,
 } from '@/lib/api/health';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getTranslations } from 'next-intl/server';
 import { personDisplayName } from '@/lib/entity-label';
+import { createUnknownStudentLabeler } from '../_components/unknown-student-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { cn } from '@/lib/utils';
 
@@ -106,14 +108,18 @@ export default async function SpecialNeedsPage() {
   // caller's student directory, as /health does, so the row and its "View"
   // link always name the student.
   const studentLabels = await loadStudentLabelMap(result.items.map((r) => r.studentId));
-  const records = result.items.map((r) => ({
-    ...r,
-    studentName: personDisplayName(
+  const t = await getTranslations('health');
+  const unknownStudent = t('unknownStudent');
+  // HN-R5: unresolved rows get a unique "View" name; HN-R6: localized fallback.
+  const unknownLink = createUnknownStudentLabeler(unknownStudent);
+  const records = result.items.map((r) => {
+    const studentName = personDisplayName(
       studentLabels.get(r.studentId),
       r.studentName,
-      'Unknown student',
-    ),
-  }));
+      unknownStudent,
+    );
+    return { ...r, studentName, viewName: unknownLink(studentName, r.category) ?? studentName };
+  });
   const total = records.length;
 
   return (
@@ -198,7 +204,7 @@ export default async function SpecialNeedsPage() {
                 </TableHeader>
                 <TableBody>
                   {records.map((r) => (
-                    <SpecialNeedRow key={r.id} record={r} />
+                    <SpecialNeedRow key={r.id} record={r} viewName={r.viewName} />
                   ))}
                 </TableBody>
               </Table>
@@ -212,7 +218,7 @@ export default async function SpecialNeedsPage() {
 
 /* --------------------------------------------------------------- row */
 
-function SpecialNeedRow({ record }: { record: SpecialNeedRecord }) {
+function SpecialNeedRow({ record, viewName }: { record: SpecialNeedRecord; viewName: string }) {
   const palette = avatarPalette(record.studentName);
 
   return (
@@ -277,7 +283,7 @@ function SpecialNeedRow({ record }: { record: SpecialNeedRecord }) {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            aria-label={`View ${record.studentName}`}
+            aria-label={`View ${viewName}`}
           >
             <Link href={`/students/${record.studentId}`}>
               <Eye className="h-4 w-4" aria-hidden="true" />

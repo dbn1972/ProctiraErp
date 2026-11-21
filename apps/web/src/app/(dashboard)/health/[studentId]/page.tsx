@@ -12,6 +12,7 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { ArrowLeft, Heart, Plus, ShieldAlert, TriangleAlert } from 'lucide-react';
 
 import {
@@ -104,10 +105,12 @@ export default async function HealthRecordPage(props: PageProps) {
   if (!record && !student) notFound();
   const hasRecord = record !== null;
 
+  // HN-R6: the fallback heading comes from the health messages.
+  const t = await getTranslations('health');
   const displayName = personDisplayName(
     `${student?.firstName ?? ''} ${student?.lastName ?? ''}`,
     record?.studentName,
-    'Unknown student',
+    t('unknownStudent'),
   );
   const profile = record
     ? { ...record, studentName: displayName }

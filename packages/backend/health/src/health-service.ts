@@ -488,6 +488,33 @@ export class HealthService {
     });
   }
 
+  /**
+   * HL-O3: tenant-wide registers return PHI for many students, so they write one
+   * read-audit row per returned student, as the gateway aggregates do for
+   * `health_record.list`. Same writer and fail-closed rule as {@link auditPhiRead}.
+   */
+  private async auditRegisterRead(
+    accessContext: HealthAccessContext,
+    tenantId: string,
+    rows: ReadonlyArray<{ studentId: string }>,
+    resourceType: string,
+  ): Promise<void> {
+    const studentIds = [...new Set(rows.map((row) => row.studentId))];
+    const CONCURRENCY = 8;
+    for (let i = 0; i < studentIds.length; i += CONCURRENCY) {
+      await Promise.all(
+        studentIds.slice(i, i + CONCURRENCY).map((studentId) =>
+          this.auditPhiRead(accessContext, {
+            tenantId,
+            studentId,
+            resourceType,
+            resourceId: null,
+          }),
+        ),
+      );
+    }
+  }
+
   private async resolveCaseNotesGrant(
     tenantId: string,
     accessContext: HealthAccessContext,
@@ -881,7 +908,9 @@ export class HealthService {
     }
     const list = this.repository.listAllVaccinations?.bind(this.repository);
     if (!list) return [];
-    return list(tenantId);
+    const rows = await list(tenantId);
+    await this.auditRegisterRead(accessContext, tenantId, rows, 'vaccination.list');
+    return rows;
   }
 
   // ─── Insurance ──────────────────────────────────────────────────────────
@@ -1697,7 +1726,8 @@ export class HealthService {
       category: string;
       severity: 'low' | 'medium' | 'high' | 'critical';
       notes?: string;
-      reportedBy: string;
+      /** Ignored (PRC-M520): the reporter is always `access.userId`. */
+      reportedBy?: string;
     },
     access: HealthAccessContext,
     options?: {
@@ -1774,6 +1804,9 @@ export class HealthService {
       throw new ForbiddenError('Access denied: not authorized to access health records');
     }
     const list = this.repository.listNurseIncidents?.bind(this.repository);
-    return list ? list(tenantId) : [];
+    if (!list) return [];
+    const rows = await list(tenantId);
+    await this.auditRegisterRead(access, tenantId, rows, 'incident.list');
+    return rows;
   }
 }
