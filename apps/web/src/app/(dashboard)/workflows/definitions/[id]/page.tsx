@@ -10,12 +10,18 @@ import { ArrowLeft, Pencil } from 'lucide-react';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { getWorkflowDefinition, type WorkflowDefinition } from '@/lib/api/workflows';
 import { cn } from '@/lib/utils';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function WorkflowDefinitionPage(props: PageProps) {
+  // A-batch: check before any workflow read.
+  if (!(await hasDashboardDomainRouteAccess('workflows', '/workflows'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const definition = await getWorkflowDefinition(params.id);
   if (!definition) notFound();

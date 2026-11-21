@@ -13,10 +13,16 @@ import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { ApprovalDecisionButtons } from '../_components/approval-decision-buttons';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ApprovalsPage() {
+  // A-batch: check before any workflow read.
+  if (!(await hasDashboardDomainRouteAccess('workflows', '/workflows'))) {
+    return <RouteAccessDenied />;
+  }
   const session = await requireSession('/workflows/approvals');
   const approvalsResult = await listPendingApprovalsResult();
   if (!approvalsResult.ok) {

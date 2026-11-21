@@ -9,17 +9,21 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
 import { listLibraryFines } from '@/lib/api/library';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { formatMoney } from '@/lib/format-money';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { MarkPaidButton } from '../_components/mark-paid-button';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryFinesPage() {
-  await requireSession();
+  // A-batch: check before any library read.
+  if (!(await hasDashboardDomainRouteAccess('library', '/library'))) {
+    return <RouteAccessDenied />;
+  }
   const [fines, studentLabels] = await Promise.all([listLibraryFines(), loadStudentLabelMap()]);
 
   return (

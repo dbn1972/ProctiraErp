@@ -7,6 +7,8 @@ import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
 import { OfferPanel } from '../_components/offer-panel';
 import { PlacementPanel } from '../_components/placement-panel';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +17,10 @@ export default async function AdmissionApplicationPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // A-batch: check before any admissions read.
+  if (!(await hasDashboardDomainRouteAccess('admissions', '/admissions'))) {
+    return <RouteAccessDenied />;
+  }
   const { id } = await params;
   const [bundle, lookups] = await Promise.all([getApplicationBundle(id), loadAdmissionsLookups()]);
   if (!bundle) {
