@@ -238,7 +238,9 @@ describe('errorHandlerPlugin', () => {
       expect(response.statusCode).toBe(409);
       const body = response.json();
       expect(body.code).toBe(ErrorCode.CONFLICT);
-      expect(body.message).toContain('email');
+      // H-D4a: the unique index target is logged, never echoed to the client.
+      expect(body.message).toBe('A record with these details already exists.');
+      expect(body.message).not.toContain('email');
       expect(body.statusCode).toBe(409);
     });
 
@@ -294,7 +296,9 @@ describe('errorHandlerPlugin', () => {
       expect(response.statusCode).toBe(400);
       const body = response.json();
       expect(body.code).toBe(ErrorCode.VALIDATION_ERROR);
-      expect(body.message).toContain('institution_id');
+      // H-D4a: the FK field/constraint name is logged, never echoed to the client.
+      expect(body.message).toBe('A related record does not exist or is still in use.');
+      expect(body.message).not.toContain('institution_id');
     });
 
     it('should map unknown Prisma errors to 500', async () => {

@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 
 import { genericActionErrorMessage } from '@/lib/api/action-error';
-import { GatewayError } from '@/lib/api/gateway';
 import { libraryDueAtError } from '@/lib/validation/library-due-date';
 import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
@@ -102,12 +101,7 @@ export async function createLibraryItemAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create library item',
+      message: genericActionErrorMessage(error, 'Failed to create library item'),
     };
   }
 }
@@ -132,12 +126,7 @@ export async function checkLibraryClearanceAction(studentId: string): Promise<Ca
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to check library clearance',
+      message: genericActionErrorMessage(error, 'Failed to check library clearance'),
     };
   }
 }
@@ -172,12 +161,7 @@ export async function checkoutLibraryItemAction(input: {
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Checkout failed',
+      message: genericActionErrorMessage(error, 'Checkout failed'),
     };
   }
 }
@@ -195,12 +179,7 @@ export async function returnLibraryLoanAction(loanId: string): Promise<CampusAct
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Return failed',
+      message: genericActionErrorMessage(error, 'Return failed'),
     };
   }
 }
@@ -227,12 +206,7 @@ export async function renewLibraryLoanAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Renew failed',
+      message: genericActionErrorMessage(error, 'Renew failed'),
     };
   }
 }

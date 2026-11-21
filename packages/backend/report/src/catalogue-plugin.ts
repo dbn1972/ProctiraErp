@@ -5,6 +5,7 @@ import { createReportBlobStore, type ReportBlobStore } from './blob-store.js';
 import { registerCatalogueRoutes } from './catalogue-routes.js';
 import { CatalogueService } from './catalogue-service.js';
 import { createReportStore } from './create-report-store.js';
+import type { DenialAuditCoalescingOptions } from './denial-audit-coalescer.js';
 import type { ReportAuditPort } from './report-audit.js';
 import type { ReportStore } from './report-store.js';
 import { createReportScheduler, type ReportScheduler } from './scheduler.js';
@@ -30,6 +31,8 @@ export interface ReportCataloguePluginOptions {
    * keyed hash chain (B07).
    */
   audit?: ReportAuditPort;
+  /** UAT-9d: denial audit coalescing (window, key bound, clock for tests). */
+  denialAudit?: DenialAuditCoalescingOptions;
 }
 
 declare module 'fastify' {
@@ -65,6 +68,7 @@ export const reportCataloguePlugin = fp(
       prefix: options.prefix ?? '/reports',
       publicApiBaseUrl: options.publicApiBaseUrl,
       audit: options.audit,
+      denialAudit: options.denialAudit,
     });
 
     if (!options.disableScheduler) {

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
 import { createStaffLeave, decideStaffLeave, type CreateStaffLeaveInput } from '@/lib/api/staff';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface StaffActionState {
   status: 'idle' | 'success' | 'error';
@@ -21,12 +21,7 @@ export async function createStaffLeaveAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create leave',
+      message: genericActionErrorMessage(error, 'Failed to create leave'),
     };
   }
 }
@@ -46,12 +41,7 @@ export async function decideStaffLeaveAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to decide leave',
+      message: genericActionErrorMessage(error, 'Failed to decide leave'),
     };
   }
 }

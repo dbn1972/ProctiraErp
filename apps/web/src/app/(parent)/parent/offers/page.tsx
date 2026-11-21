@@ -4,6 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listGuardianOffers, type ParentAdmissionOffer } from '@/lib/api/parent-portal';
+import { SAFE_CORRELATION_ID } from '@/lib/api/action-error';
 import { GatewayError } from '@/lib/api/gateway';
 import { AcceptOfferForm, OfferFeeLine } from './_components/accept-offer-form';
 
@@ -14,15 +15,16 @@ export default async function ParentOffersPage() {
 
   let offers: ParentAdmissionOffer[] = [];
   let loadError: string | null = null;
+  let loadReference: string | null = null;
   try {
     offers = await listGuardianOffers();
   } catch (error) {
-    loadError =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to load offers';
+    // D1-T2: fixed copy plus the gateway reference; server text stays in the server log.
+    // eslint-disable-next-line no-console -- server-side log for the failed read
+    console.error('[parent-offers] offers read failed', error);
+    loadError = 'Unable to load your offers. Try again later.';
+    const id = error instanceof GatewayError ? error.correlationId : undefined;
+    loadReference = id && SAFE_CORRELATION_ID.test(id) ? id : null;
   }
 
   const openOffers = offers.filter((row) => row.status === 'sent');
@@ -50,9 +52,12 @@ export default async function ParentOffersPage() {
       </div>
 
       {loadError ? (
-        <p className="text-sm text-destructive" role="alert" data-testid="parent-offers-load-error">
-          {loadError}
-        </p>
+        <div role="alert" data-testid="parent-offers-load-error">
+          <p className="text-sm text-destructive">{loadError}</p>
+          {loadReference ? (
+            <p className="mt-1 text-xs text-muted-foreground">Reference: {loadReference}</p>
+          ) : null}
+        </div>
       ) : null}
 
       <Card>

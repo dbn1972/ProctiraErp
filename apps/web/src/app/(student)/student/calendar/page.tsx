@@ -16,6 +16,7 @@ export default async function StudentCalendarPage() {
       testId="student-calendar"
       status={studentStatus(result)}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No holidays or events have been published yet."
       hasRows={events.length > 0}
     >

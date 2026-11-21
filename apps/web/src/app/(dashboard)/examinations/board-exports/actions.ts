@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth/server';
 import { FORBIDDEN_MESSAGE } from '@/lib/auth/require-permission';
 import { canModerateGrades } from '@/lib/gradebook-roles';
 import { createBoardExportJobActionSchema } from '@/lib/validation/gradebook-workflow-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export type BoardExportActionResult =
   | { ok: true; id: string; status: string; artifactUri: string | null; checksum?: string }
@@ -47,17 +48,11 @@ export async function createBoardExportJobAction(input: {
         typeof job.metadata?.checksumSha256 === 'string' ? job.metadata.checksumSha256 : undefined,
     };
   } catch (error) {
+    // RAW-WEB: fixed copy plus a reference; code/status stay for callers that branch on them.
+    const message = genericActionErrorMessage(error, 'The board export could not be created.');
     if (error instanceof GatewayError) {
-      return {
-        ok: false,
-        error: error.message,
-        code: error.code,
-        status: error.status,
-      };
+      return { ok: false, error: message, code: error.code, status: error.status };
     }
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Unexpected error',
-    };
+    return { ok: false, error: message };
   }
 }

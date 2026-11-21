@@ -2,13 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   createFeePlan,
   createInvoice,
   type CreateFeePlanInput,
   type CreateInvoiceInput,
 } from '@/lib/api/fees';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface FeesActionState {
   status: 'idle' | 'success' | 'error';
@@ -25,12 +25,7 @@ export async function createFeePlanAction(input: CreateFeePlanInput): Promise<Fe
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create fee plan',
+      message: genericActionErrorMessage(error, 'Failed to create fee plan'),
     };
   }
 }
@@ -45,12 +40,7 @@ export async function createInvoiceAction(input: CreateInvoiceInput): Promise<Fe
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create invoice',
+      message: genericActionErrorMessage(error, 'Failed to create invoice'),
     };
   }
 }

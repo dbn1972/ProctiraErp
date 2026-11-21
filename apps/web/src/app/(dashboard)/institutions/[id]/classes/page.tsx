@@ -30,12 +30,7 @@ import {
 } from '@/components/institutions/class-section-controls';
 import { listStaff } from '@/lib/api/staff';
 import { formatPersonLabel } from '@/lib/entity-label';
-import {
-  ApiClientError,
-  listAcademicPeriods,
-  listClassesByInstitution,
-  listGrades,
-} from '@/lib/institutions/api';
+import { listAcademicPeriods, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
 import type { AcademicPeriod, ClassSection, Grade } from '@/lib/institutions/types';
 
 interface ClassesPageProps {
@@ -272,15 +267,15 @@ async function loadClasses(institutionId: string): Promise<ClassesData> {
     ]);
     return { classes, grades, periods, error: null, gradesError };
   } catch (error) {
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[institution-classes] load failed', error);
     return {
       classes: [],
       grades: [],
       periods: [],
       gradesError: false,
-      error:
-        error instanceof ApiClientError
-          ? error.message
-          : 'The class catalog is currently unavailable.',
+      error: 'The class catalog is currently unavailable.',
     };
   }
 }
