@@ -51,13 +51,11 @@ describe('hostel layout guard (H-D1)', () => {
     ['hostel_manager'],
     ['registrar'],
     ['student', 'warden'],
-  ])(
-    'renders the hostel screen for roles %j',
-    async (...roles) => {
-      auth.roles = roles;
-      render(<>{await HostelLayout({ children: child })}</>);
-      expect(screen.getByTestId('hostel-child')).toBeInTheDocument();
-      expect(screen.queryByTestId('route-access-denied')).toBeNull();
-    },
-  );
+    ['teacher', 'school_admin'],
+  ])('renders the hostel screen for roles %j', async (...roles) => {
+    auth.roles = roles;
+    render(<>{await HostelLayout({ children: child })}</>);
+    expect(screen.getByTestId('hostel-child')).toBeInTheDocument();
+    expect(screen.queryByTestId('route-access-denied')).toBeNull();
+  });
 });

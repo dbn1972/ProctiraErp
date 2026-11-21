@@ -45,6 +45,7 @@ describe('transport layout guard (T-D1)', () => {
     ['fleet-manager'],
     ['registrar'],
     ['teacher', 'transport_officer'],
+    ['staff', 'school-admin'],
   ])('renders the transport screen for roles %j', async (...roles) => {
     auth.roles = roles;
     render(<>{await TransportLayout({ children: child })}</>);

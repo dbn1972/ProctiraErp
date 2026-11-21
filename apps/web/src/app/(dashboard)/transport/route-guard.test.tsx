@@ -137,7 +137,14 @@ beforeEach(() => {
 });
 
 /** Teacher / staff: no transport access (the package guard denies them); hostel staff have no transport grant. */
-const DENIED_ROLE_SETS = [['teacher'], ['staff'], ['student'], ['warden'], ['teacher', 'staff'], []];
+const DENIED_ROLE_SETS = [
+  ['teacher'],
+  ['staff'],
+  ['student'],
+  ['warden'],
+  ['teacher', 'staff'],
+  [],
+];
 /** Admin roles, the transport package staff roles and the read-only registrar (T-O1), multi-role (MR-1). */
 const ALLOWED_ROLE_SETS = [
   ['principal'],
@@ -147,6 +154,7 @@ const ALLOWED_ROLE_SETS = [
   ['transport-admin'],
   ['registrar'],
   ['teacher', 'transport_officer'],
+  ['teacher', 'school_admin'],
 ];
 
 describe('transport route guard (T-D1)', () => {

@@ -160,6 +160,58 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     expect(canAccessDashboardDomain(session(['teacher', 'principal']), 'hostel')).toBe(true);
   });
 
+  it('MR-1: a multi-role session gets the gateway answer (one role grants, another passes the package)', () => {
+    // Each pair is served by the gateway (apps/api-gateway rbac-campus-roles.test.ts).
+    const served: Array<[string[], 'hostel' | 'transport']> = [
+      [['teacher', 'transport_officer'], 'transport'],
+      [['teacher', 'registrar'], 'transport'],
+      [['teacher', 'registrar'], 'hostel'],
+      [['staff', 'hostel_manager'], 'hostel'],
+      [['student', 'warden'], 'hostel'],
+      // The grant comes only from teacher/staff (gateway STAFF_READS): the
+      // package role has no web or gateway registry entry.
+      [['teacher', 'school_admin'], 'hostel'],
+      [['staff', 'school-admin'], 'transport'],
+      [['teacher', 'system_admin'], 'transport'],
+    ];
+    for (const [roles, domain] of served) {
+      expect(canAccessDashboardDomain(session(roles), domain), `${roles.join('+')} ${domain}`).toBe(
+        true,
+      );
+    }
+    const denied: Array<[string[], 'hostel' | 'transport']> = [
+      // Package role without any gateway grant on the domain.
+      [['school_admin'], 'hostel'],
+      [['system-admin'], 'transport'],
+      [['guardian', 'school_admin'], 'hostel'],
+      [['parent', 'school_admin'], 'transport'],
+      // Gateway readers without a package role.
+      [['teacher', 'staff'], 'hostel'],
+      [['teacher', 'guardian'], 'transport'],
+      // A role for the other domain does not open this one.
+      [['teacher', 'warden'], 'transport'],
+      [['staff', 'transport_officer'], 'hostel'],
+      [['guardian'], 'hostel'],
+      [['guardian'], 'transport'],
+    ];
+    for (const [roles, domain] of denied) {
+      expect(canAccessDashboardDomain(session(roles), domain), `${roles.join('+')} ${domain}`).toBe(
+        false,
+      );
+    }
+  });
+
+  it('MR-1: the base-reader rule does not leak into other domains', () => {
+    // school_admin is in neither registry; teacher holds no web `platform` grant.
+    expect(canAccessDashboardDomain(session(['teacher', 'school_admin']), 'billing')).toBe(false);
+    expect(canAccessDashboardDomain(session(['teacher', 'school_admin']), 'audit-logs')).toBe(
+      false,
+    );
+    expect(canAccessDashboardDomain(session(['staff', 'school_admin']), 'data-warehouse')).toBe(
+      canAccessDashboardDomain(session(['staff']), 'data-warehouse'),
+    );
+  });
+
   it('H-D1: mirrors the hostel package hostel.read roles exactly', () => {
     const src = readFileSync(
       resolve(__dirname, '../../../../../packages/backend/hostel/src/hostel-access.ts'),

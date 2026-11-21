@@ -170,6 +170,7 @@ const ALLOWED_ROLE_SETS = [
   ['registrar'],
   ['student', 'warden'],
   ['teacher', 'registrar'],
+  ['teacher', 'school_admin'],
 ];
 
 describe('hostel route guard (H-D1)', () => {
