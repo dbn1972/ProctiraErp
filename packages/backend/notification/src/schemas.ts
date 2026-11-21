@@ -291,3 +291,67 @@ export const NotificationRuleResponseSchema = Type.Object({
 });
 
 export type NotificationRuleResponse = Static<typeof NotificationRuleResponseSchema>;
+
+// ─── Preferences & devices (PRC-L332) ───────────────────────────────────────
+
+const HhMmPattern = '^([01][0-9]|2[0-3]):[0-5][0-9]$';
+
+export const NotificationCategorySchema = Type.Union([
+  Type.Literal('academic'),
+  Type.Literal('attendance'),
+  Type.Literal('examination'),
+  Type.Literal('workflow'),
+  Type.Literal('system'),
+]);
+
+/** Every channel toggle is required, matching the stored `Record<channel, boolean>`. */
+export const ChannelTogglesSchema = Type.Object(
+  {
+    email: Type.Boolean(),
+    in_app: Type.Boolean(),
+    push: Type.Boolean(),
+    webhook: Type.Boolean(),
+    sms: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
+export const CategoryPreferenceSchema = Type.Object(
+  { category: NotificationCategorySchema, channels: ChannelTogglesSchema },
+  { additionalProperties: false },
+);
+
+export const QuietHoursSchema = Type.Object(
+  {
+    enabled: Type.Boolean(),
+    startTime: Type.String({ pattern: HhMmPattern }),
+    endTime: Type.String({ pattern: HhMmPattern }),
+    days: Type.Array(Type.Integer({ minimum: 0, maximum: 6 }), { maxItems: 7, uniqueItems: true }),
+  },
+  { additionalProperties: false },
+);
+
+/** PATCH /notifications/preferences body: partial, but every present field is typed. */
+export const UpdateNotificationPreferencesSchema = Type.Object(
+  {
+    categories: Type.Optional(Type.Array(CategoryPreferenceSchema, { maxItems: 20 })),
+    digestFrequency: Type.Optional(
+      Type.Union([Type.Literal('immediate'), Type.Literal('daily'), Type.Literal('weekly')]),
+    ),
+    quietHours: Type.Optional(QuietHoursSchema),
+  },
+  { additionalProperties: false },
+);
+
+export type UpdateNotificationPreferencesInput = Static<typeof UpdateNotificationPreferencesSchema>;
+
+/** POST /notifications/devices body. The owner is always the caller (never a body field). */
+export const RegisterDeviceSchema = Type.Object(
+  {
+    platform: Type.Union([Type.Literal('ios'), Type.Literal('android'), Type.Literal('web')]),
+    pushToken: Type.String({ minLength: 1, maxLength: 4096 }),
+  },
+  { additionalProperties: false },
+);
+
+export type RegisterDeviceInput = Static<typeof RegisterDeviceSchema>;

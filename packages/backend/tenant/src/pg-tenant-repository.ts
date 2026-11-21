@@ -144,7 +144,7 @@ export class PgTenantRepository implements TenantRepository {
     }
     let stored: TenantEntity;
     try {
-      stored = await this.tenants.put(entity.id, entity);
+      stored = await this.tenants.put(entity.id, entity, null);
     } catch (err) {
       if (insertedRow) {
         await this.discardProvisioningTenant(entity.id).catch(() => undefined);
@@ -233,7 +233,7 @@ export class PgTenantRepository implements TenantRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const stored = await this.tenants.put(id, updated);
+    const stored = await this.tenants.put(id, updated, null);
     await this.mirrorToTenantRow(stored);
     return stored;
   }
@@ -600,7 +600,7 @@ export class PgTenantRepository implements TenantRepository {
     const removedRow = await this.softDeleteTenantRow(id);
     const removedDocument = await this.tenants.delete(id, { platform: true });
     if (!removedDocument && !removedRow) return false;
-    const domains = await this.domains.where({ tenantId: id } as Partial<DomainEntity>);
+    const domains = await this.domains.where({ tenantId: id } as Partial<DomainEntity>, null);
     for (const d of domains) await this.domains.delete(d.id, { platform: true });
     await this.usage.delete(id, { tenantId: id });
     return true;
@@ -626,7 +626,7 @@ export class PgTenantRepository implements TenantRepository {
   // ─── Domain Management ───────────────────────────────────────────────────
 
   addDomain(data: DomainEntity): Promise<DomainEntity> {
-    return this.domains.put(data.id, data);
+    return this.domains.put(data.id, data, null);
   }
 
   async removeDomain(tenantId: string, domainId: string): Promise<boolean> {
@@ -636,7 +636,7 @@ export class PgTenantRepository implements TenantRepository {
   }
 
   findDomainsByTenant(tenantId: string): Promise<DomainEntity[]> {
-    return this.domains.where({ tenantId } as Partial<DomainEntity>);
+    return this.domains.where({ tenantId } as Partial<DomainEntity>, null);
   }
 
   async findDomainByName(domain: string): Promise<DomainEntity | null> {

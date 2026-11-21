@@ -33,7 +33,11 @@ async function buildApp(opts: { withUser?: boolean } = {}) {
   app.addHook('onRequest', async (request) => {
     (request as unknown as { tenantId: string }).tenantId = TENANT;
     if (opts.withUser !== false) {
-      (request as unknown as { user: { sub: string } }).user = { sub: 'dpo-1' };
+      // PRC-L336: the erasure requester is a different actor than the approver/executor.
+      const sub = request.headers['x-test-sub'];
+      (request as unknown as { user: { sub: string } }).user = {
+        sub: typeof sub === 'string' ? sub : 'dpo-1',
+      };
     }
   });
   await registerPrivacyRoutes(app, { privacyService: service });
@@ -48,7 +52,7 @@ describe('privacy HTTP audit attribution (PRC-M323)', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/privacy/erasure-requests',
-      headers,
+      headers: { ...headers, 'x-test-sub': 'requester-1' },
       payload: { subjectType: 'student', subjectId: 'stu-1' },
     });
     expect(created.statusCode).toBe(201);
@@ -115,14 +119,17 @@ describe('privacy HTTP audit attribution (PRC-M323)', () => {
       'applied',
     ]);
     // Request-driven events carry the real actor and caller ip.
-    for (const e of [
-      ...correctionEvents,
-      ...erasureEvents.filter((x) => x.operation === 'CREATE'),
-    ]) {
+    for (const e of correctionEvents) {
       expect(e.userId).toBe('dpo-1');
       expect(e.ipAddress).toBe(IP);
     }
-    for (const e of erasureEvents.filter((x) => x.afterValues?.status !== 'completed')) {
+    for (const e of erasureEvents.filter((x) => x.operation === 'CREATE')) {
+      expect(e.userId).toBe('requester-1');
+      expect(e.ipAddress).toBe(IP);
+    }
+    for (const e of erasureEvents.filter(
+      (x) => x.operation !== 'CREATE' && x.afterValues?.status !== 'completed',
+    )) {
       expect(e.userId).toBe('dpo-1');
       expect(e.ipAddress).toBe(IP);
     }

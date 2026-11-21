@@ -19,10 +19,13 @@ async function buildApp(
     if (typeof tenant === 'string') {
       (request as typeof request & { tenantId?: string }).tenantId = tenant;
     }
+    // PRC-M617: routes require a verified principal whose tenant claim matches.
     const actor = request.headers['x-actor-id'];
-    if (typeof actor === 'string') {
-      (request as typeof request & { user?: { sub: string } }).user = { sub: actor };
-    }
+    (request as typeof request & { user?: unknown }).user = {
+      sub: typeof actor === 'string' ? actor : 'test-admin',
+      tenantId: typeof tenant === 'string' ? tenant : undefined,
+      roles: ['admin'],
+    };
   });
   await app.register(dataWarehousePlugin, {
     repository,
@@ -146,9 +149,9 @@ describe('data-warehouse routes', () => {
   });
 
   describe('tenancy and validation (PRC-L459)', () => {
-    it('requires tenant context (400)', async () => {
+    it('requires tenant context (PRC-M617: no token tenant claim -> 403)', async () => {
       const res = await app.inject({ method: 'GET', url: '/warehouses' });
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(403);
       expect((res.json() as { code: string }).code).toBe('TENANT_REQUIRED');
     });
 

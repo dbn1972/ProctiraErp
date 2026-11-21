@@ -14,7 +14,7 @@
     "proctira"
   ],
   "scripts": {
-    "test": "node src/rules/no-physical-margin-padding.test.js && node src/rules/error-envelope.test.js && node src/rules/no-hardcoded-i18n-message.test.js && node test/rules/icon-only-button-requires-aria-label.test.js && node test/rules/no-hardcoded-brand-strings.test.js && node src/rules/img-requires-dimensions.test.js"
+    "test": "node src/rules/no-physical-margin-padding.test.js && node src/rules/error-envelope.test.js && node src/rules/no-hardcoded-i18n-message.test.js && node test/rules/icon-only-button-requires-aria-label.test.js && node test/rules/no-hardcoded-brand-strings.test.js && node src/rules/img-requires-dimensions.test.js && node src/rules/no-unscoped-document-collection.test.js"
   },
   "devDependencies": {
     "eslint": "^8.57.0"
