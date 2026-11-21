@@ -36,6 +36,8 @@ import {
   getCachedInstitutionOverview,
 } from '@/lib/institutions/request-cache';
 import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface OverviewPageProps {
   params: Promise<{ id: string }>;
@@ -248,6 +250,10 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 /* ──────────────────────────────── Page ── */
 
 export default async function InstitutionOverviewPage(props: OverviewPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const [institutionResult, areas, types, snapshotResult] = await Promise.all([
     getCachedInstitution(params.id).catch(() => null),

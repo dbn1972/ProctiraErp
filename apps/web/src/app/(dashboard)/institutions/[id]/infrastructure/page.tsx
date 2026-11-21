@@ -22,6 +22,8 @@ import {
   repairRequestTargets,
   repairTargets,
 } from '@/lib/institutions/facility-condition';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface InfrastructurePageProps {
   params: Promise<{ id: string }>;
@@ -165,6 +167,10 @@ function countRepairs(hierarchy: InfrastructureHierarchy): number {
 /* ──────────────────────────────── page ── */
 
 export default async function InstitutionInfrastructurePage(props: InfrastructurePageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const result = await loadHierarchy(params.id);
   const repairsList = await fetchList<{

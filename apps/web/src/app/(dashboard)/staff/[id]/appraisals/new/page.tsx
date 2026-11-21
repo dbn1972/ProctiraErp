@@ -22,6 +22,8 @@ import {
 import { getStaff, listAppraisalTemplates } from '@/lib/api/staff';
 
 import { AppraisalForm } from '../../../_components/appraisal-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +32,10 @@ interface PageProps {
 }
 
 export default async function NewAppraisalPage(props: PageProps) {
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const [staff, templates] = await Promise.all([getStaff(params.id), listAppraisalTemplates()]);
 

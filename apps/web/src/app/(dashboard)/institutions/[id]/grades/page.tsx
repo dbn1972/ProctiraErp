@@ -31,6 +31,8 @@ import {
   listGrades,
 } from '@/lib/institutions/api';
 import type { ClassSection, Grade } from '@/lib/institutions/types';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface GradesPageProps {
   params: Promise<{ id: string }>;
@@ -70,6 +72,10 @@ function UtilizationBar({ pct }: { pct: number }) {
 }
 
 export default async function InstitutionGradesPage(props: GradesPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const data = await loadGrades(params.id);
   const overview = await getInstitutionOverview(params.id).catch(() => null);

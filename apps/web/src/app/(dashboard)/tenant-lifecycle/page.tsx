@@ -29,6 +29,8 @@ import {
 } from '@/components/platform/PlatformSurfaceState';
 import { listTenants, type TenantSummary } from '@/lib/api/platform.server';
 import { EmptyState } from '@/components/page';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +56,10 @@ function formatDate(iso: string | null): string {
 }
 
 export default async function TenantLifecyclePage(props: { searchParams?: Promise<SearchParams> }) {
+  // A-batch: check before any platform read.
+  if (!(await hasDashboardDomainRouteAccess('tenant-lifecycle', '/tenant-lifecycle'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const status = readParam(searchParams, 'status');
   const region = readParam(searchParams, 'region');

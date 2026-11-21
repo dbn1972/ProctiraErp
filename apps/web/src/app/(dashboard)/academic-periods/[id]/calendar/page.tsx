@@ -19,6 +19,8 @@ import {
 import { listInstitutions } from '@/lib/api/institutions';
 import { ApiClientError, listAcademicPeriods, listCalendarEvents } from '@/lib/institutions/api';
 import type { AcademicPeriod, CalendarEvent } from '@/lib/institutions/types';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +45,10 @@ const KIND_LABELS: Record<AcademicPeriod['kind'], string> = {
 };
 
 export default async function AcademicCalendarPage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('academic-periods', '/academic-periods'))) {
+    return <RouteAccessDenied />;
+  }
   const { id } = await props.params;
   if (!UUID_RE.test(id)) notFound();
 
