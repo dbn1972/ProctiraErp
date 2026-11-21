@@ -62,6 +62,23 @@ function rowsOf(r: Probe): Row[] {
   return (JSON.parse(r.body) as { data?: Row[] }).data ?? [];
 }
 
+/**
+ * A date of birth (`YYYY-MM-DD`) in the forms the web app displays dates: ISO, the student
+ * profile's en-GB `23 Nov 2014`, and the numeric en-IN / en-US locale strings.
+ */
+function dobForms(iso: string): string[] {
+  const date = new Date(`${iso}T00:00:00Z`);
+  const fmt = (locale: string, options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat(locale, { ...options, timeZone: 'UTC' }).format(date);
+  return [
+    iso,
+    fmt('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    fmt('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    fmt('en-IN', {}),
+    fmt('en-US', {}),
+  ];
+}
+
 test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires live gateway (E2E_BACKEND_READY)');
 
@@ -464,8 +481,8 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
   }) => {
     await openFresh(page, a.admin);
     const dobAndPhone = [
-      a.l1.dateOfBirth,
-      a.l2.dateOfBirth,
+      ...dobForms(a.l1.dateOfBirth),
+      ...dobForms(a.l2.dateOfBirth),
       a.l1.guardianPhone!,
       a.l2.guardianPhone!,
     ];

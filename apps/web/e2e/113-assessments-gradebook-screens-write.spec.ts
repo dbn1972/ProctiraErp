@@ -348,8 +348,9 @@ test.describe('Assessments + gradebook screens — write path (E2E_BACKEND_READY
 
     // One student has entries in the section: 91 → A (10 grade points, 1 credit).
     await serverAction(page, () => clickDom(page.getByTestId('compute-class-rank')));
+    // The count is exact; the plural is not pinned ("1 students" is a copy defect).
     await expect(page.getByTestId('gradebook-workflow-message')).toHaveText(
-      'Class rank computed for 1 students.',
+      /^Class rank computed for 1 students?\.$/,
     );
     await expect(page.getByTestId(`rank-${l1.id}`)).toHaveText('1');
     await expect(page.getByTestId(`cgpa-${l1.id}`)).toHaveText('10');
