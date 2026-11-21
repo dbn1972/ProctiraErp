@@ -9,9 +9,155 @@ import type { ServerSession } from '@/lib/auth/server';
 import {
   canAccessDashboardDomain,
   DASHBOARD_DOMAIN_RESOURCES,
+  DOMAIN_ROUTE_ROLE_IDS,
   HOSTEL_PACKAGE_ROLE_IDS,
   TRANSPORT_PACKAGE_ROLE_IDS,
+  type DashboardDomain,
 } from './domain-route-guards';
+
+/**
+ * Gateway role catalogue (`createGatewayRbacRegistry` in
+ * apps/api-gateway/src/rbac-registry.ts: DEFAULT_ROLES plus platform_admin).
+ * A role outside it gets 403 from the gateway whatever the package allows.
+ */
+const GATEWAY_ROLE_IDS: ReadonlySet<string> = new Set([
+  'super-admin',
+  'admin',
+  'principal',
+  'teacher',
+  'staff',
+  'guardian',
+  'hr_officer',
+  'staff_admin',
+  'registrar',
+  'admissions_officer',
+  'counsellor',
+  'discipline_officer',
+  'nurse',
+  'parent',
+  'student',
+  'platform_admin',
+]);
+
+interface DomainCase {
+  domain: DashboardDomain;
+  allowed: string[];
+  denied: string[];
+  /** Backend package read check; absent when the gateway grant is the only check. */
+  packageFile?: string;
+}
+
+/** A-batch role table (plan.md PR A): gateway read grant ∩ backend package read roles. */
+const A_BATCH_REGISTRY_DOMAINS: DomainCase[] = [
+  {
+    domain: 'academic-periods',
+    allowed: ['admin', 'principal', 'teacher', 'staff', 'super-admin', 'platform_admin'],
+    denied: ['student', 'guardian', 'parent', 'nurse', 'hr_officer', 'registrar'],
+  },
+  {
+    domain: 'institutions',
+    allowed: ['admin', 'principal', 'teacher', 'staff', 'super-admin', 'platform_admin'],
+    denied: ['student', 'guardian', 'parent', 'nurse', 'hr_officer', 'registrar'],
+  },
+  {
+    domain: 'tenant-lifecycle',
+    allowed: ['platform_admin', 'super-admin'],
+    denied: ['admin', 'principal', 'teacher', 'staff', 'student'],
+  },
+];
+
+const A_BATCH_SET_DOMAINS: DomainCase[] = [
+  {
+    domain: 'admissions',
+    allowed: ['admin', 'principal', 'super-admin'],
+    denied: [
+      'teacher',
+      'staff',
+      'registrar',
+      'admissions_officer',
+      'platform_admin',
+      'student',
+      'guardian',
+      'parent',
+    ],
+    packageFile: 'registration/src/registration-access.ts',
+  },
+  {
+    domain: 'assessments',
+    allowed: ['admin', 'principal', 'teacher', 'super-admin'],
+    denied: ['staff', 'registrar', 'platform_admin', 'student', 'guardian', 'parent'],
+    packageFile: 'assessment/src/assessment-access.ts',
+  },
+  {
+    domain: 'fees',
+    allowed: ['admin', 'principal', 'super-admin'],
+    denied: ['teacher', 'staff', 'registrar', 'platform_admin', 'student', 'guardian', 'parent'],
+    packageFile: 'fees/src/fees-access.ts',
+  },
+  {
+    domain: 'library',
+    allowed: ['admin', 'principal', 'super-admin'],
+    denied: ['teacher', 'staff', 'registrar', 'platform_admin', 'student', 'guardian', 'parent'],
+    packageFile: 'library/src/library-access.ts',
+  },
+  {
+    domain: 'lms',
+    allowed: ['admin', 'principal', 'teacher', 'super-admin'],
+    denied: ['staff', 'registrar', 'platform_admin', 'student', 'parent'],
+    packageFile: 'lms/src/lms-access.ts',
+  },
+  {
+    domain: 'pipelines',
+    allowed: ['admin', 'principal', 'super-admin'],
+    denied: ['teacher', 'staff', 'platform_admin', 'student', 'guardian'],
+    packageFile: 'etl/src/etl-access.ts',
+  },
+  {
+    domain: 'reports',
+    allowed: ['admin', 'principal', 'teacher', 'super-admin'],
+    denied: [
+      'staff',
+      'registrar',
+      'admissions_officer',
+      'staff_admin',
+      'platform_admin',
+      'guardian',
+      'parent',
+    ],
+    packageFile: 'report/src/report-access.ts',
+  },
+  {
+    domain: 'scholarships',
+    allowed: ['admin', 'principal', 'super-admin'],
+    denied: ['teacher', 'staff', 'registrar', 'admissions_officer', 'platform_admin', 'student'],
+    packageFile: 'scholarship/src/scholarship-access.ts',
+  },
+  {
+    domain: 'staff',
+    allowed: [
+      'admin',
+      'principal',
+      'super-admin',
+      'hr_officer',
+      'staff_admin',
+      'registrar',
+      'admissions_officer',
+    ],
+    denied: ['teacher', 'staff', 'nurse', 'platform_admin', 'student', 'guardian'],
+    packageFile: 'staff/src/staff-access.ts',
+  },
+  {
+    domain: 'students',
+    allowed: ['admin', 'principal', 'teacher', 'staff', 'nurse', 'super-admin'],
+    denied: ['registrar', 'hr_officer', 'platform_admin', 'student', 'guardian', 'parent'],
+    packageFile: 'student/src/student-access.ts',
+  },
+  {
+    domain: 'workflows',
+    allowed: ['admin', 'principal', 'teacher', 'staff', 'super-admin', 'platform_admin'],
+    denied: ['registrar', 'hr_officer', 'nurse', 'student', 'guardian', 'parent'],
+  },
+];
 
 function session(roleIds: string[]): ServerSession {
   return {
@@ -152,6 +298,52 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     const packageRoles = new Set([...block('HOSTEL_STAFF_ROLES'), ...block('ADMIN_ROLES')]);
     expect([...HOSTEL_PACKAGE_ROLE_IDS].sort()).toEqual([...packageRoles].sort());
   });
+
+  for (const { domain, allowed, denied } of [...A_BATCH_REGISTRY_DOMAINS, ...A_BATCH_SET_DOMAINS]) {
+    it(`A-batch: ${domain} allows ${allowed.join(', ')} and denies the rest`, () => {
+      expect(DASHBOARD_DOMAIN_RESOURCES).toHaveProperty(domain);
+      for (const roleId of allowed) {
+        expect(canAccessDashboardDomain(session([roleId]), domain), roleId).toBe(true);
+      }
+      expect(canAccessDashboardDomain(session([allowed[0]!.toUpperCase()]), domain)).toBe(true);
+      for (const roleId of denied) {
+        expect(canAccessDashboardDomain(session([roleId]), domain), roleId).toBe(false);
+      }
+      expect(canAccessDashboardDomain(session([]), domain)).toBe(false);
+    });
+  }
+
+  it('A-batch: fees is served when any single role is in the set, fail-closed otherwise', () => {
+    expect(canAccessDashboardDomain(session(['teacher', 'principal']), 'fees')).toBe(true);
+    // The gateway serves this pair (teacher grant + bursar package role); the
+    // web guard needs one role in the intersection and stays closed.
+    expect(canAccessDashboardDomain(session(['teacher', 'bursar']), 'fees')).toBe(false);
+  });
+
+  it('A-batch: registry domains keep the web RBAC registry check (no explicit set)', () => {
+    for (const { domain } of A_BATCH_REGISTRY_DOMAINS) {
+      expect(DOMAIN_ROUTE_ROLE_IDS[domain], domain).toBeUndefined();
+    }
+  });
+
+  for (const { domain, allowed, packageFile } of A_BATCH_SET_DOMAINS) {
+    it(`A-batch: ${domain} role set holds gateway roles${packageFile ? ' the package reads' : ''}`, () => {
+      const set = DOMAIN_ROUTE_ROLE_IDS[domain];
+      expect(set, domain).toBeDefined();
+      expect([...set!].sort()).toEqual([...allowed].sort());
+      for (const roleId of set!) {
+        expect(GATEWAY_ROLE_IDS.has(roleId), `${roleId} in gateway catalogue`).toBe(true);
+      }
+      if (!packageFile) return;
+      const src = readFileSync(
+        resolve(__dirname, `../../../../../packages/backend/${packageFile}`),
+        'utf8',
+      );
+      for (const roleId of set!) {
+        expect(src, `${roleId} in ${packageFile}`).toContain(`'${roleId}'`);
+      }
+    });
+  }
 
   it('wires every domain layout to the guard', () => {
     for (const domain of Object.keys(DASHBOARD_DOMAIN_RESOURCES)) {
