@@ -51,6 +51,10 @@ on:
       - 'tools/scripts/check-dependabot-coverage.test.mjs'
       - 'tools/scripts/check-ci-download-integrity.mjs'
       - 'tools/scripts/check-ci-download-integrity.test.mjs'
+      - 'tools/scripts/check-prisma-openssl-images.test.mjs'
+      - 'infrastructure/docker/Dockerfile.api-gateway'
+      - 'infrastructure/docker/Dockerfile.etl-worker'
+      - 'workers/exam-document/Dockerfile'
   push:
     branches: [main, develop]
     paths:
@@ -83,6 +87,10 @@ on:
       - 'tools/scripts/check-dependabot-coverage.test.mjs'
       - 'tools/scripts/check-ci-download-integrity.mjs'
       - 'tools/scripts/check-ci-download-integrity.test.mjs'
+      - 'tools/scripts/check-prisma-openssl-images.test.mjs'
+      - 'infrastructure/docker/Dockerfile.api-gateway'
+      - 'infrastructure/docker/Dockerfile.etl-worker'
+      - 'workers/exam-document/Dockerfile'
 
 permissions:
   contents: read
@@ -146,6 +154,9 @@ jobs:
         run: node --test tools/scripts/check-ci-download-integrity.test.mjs
       - name: Fail on unverified CI downloads (PRC-L308)
         run: node tools/scripts/check-ci-download-integrity.mjs
+      # UATENV-D01: Release backend images must carry Prisma's OpenSSL 3 engine.
+      - name: Unit-test Prisma OpenSSL 3 image contract
+        run: node --test tools/scripts/check-prisma-openssl-images.test.mjs
 
   # Prefer actually calling the reusable workflow (W1-OPS-24).
   reusable-setup:
