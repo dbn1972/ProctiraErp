@@ -347,8 +347,14 @@ export class PgDocumentCollection<T extends object> {
     });
   }
 
-  /** Find documents where `data @> $criteria` (JSONB containment). */
-  async where(criteria: Partial<T>, tenantId?: string): Promise<T[]> {
+  /**
+   * Find documents where `data @> $criteria` (JSONB containment).
+   *
+   * PRC-L581: pass the caller tenant, or an explicit `null` for a platform
+   * read (no tenant predicate, platform-admin bind) — the
+   * `proctira/no-unscoped-document-collection` lint rule rejects omission.
+   */
+  async where(criteria: Partial<T>, tenantId?: string | null): Promise<T[]> {
     const owner = canonicalizeDocumentTenantId(tenantId);
     return this.run(owner, async (client) => {
       const params: unknown[] = [this.collection, JSON.stringify(criteria)];
@@ -363,7 +369,7 @@ export class PgDocumentCollection<T extends object> {
     });
   }
 
-  async first(criteria: Partial<T>, tenantId?: string): Promise<T | null> {
+  async first(criteria: Partial<T>, tenantId?: string | null): Promise<T | null> {
     const rows = await this.where(criteria, tenantId);
     return rows[0] ?? null;
   }
