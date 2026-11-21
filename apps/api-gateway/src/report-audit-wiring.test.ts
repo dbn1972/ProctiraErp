@@ -178,7 +178,7 @@ describe('UAT-SEC-001 report catalogue durable audit (gateway mount)', () => {
   });
 
   it.each([
-    ['a forged token', '?token=9999999999.forged', 'token_invalid'],
+    ['a forged token', '?token=9999999999.forged', 'token_signature_invalid'],
     ['no token', '', 'token_missing'],
   ])(
     'a download with %s is denied and appends one report.download.denied row',

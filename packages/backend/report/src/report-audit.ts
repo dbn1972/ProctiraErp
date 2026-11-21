@@ -20,9 +20,16 @@ export type ReportAuditAction =
 /**
  * UAT-SEC-001: why an artifact download was refused. Recorded on the
  * `report.download.denied` event only; the HTTP response stays generic so a
- * caller cannot tell these cases apart.
+ * caller cannot tell these cases apart. UAT-9d split the former `token_invalid`
+ * into the token failure codes from `verifyReportDownloadToken`.
  */
-export type ReportDownloadDenialReason = 'token_missing' | 'artifact_not_found' | 'token_invalid';
+export type ReportDownloadDenialReason =
+  | 'token_missing'
+  | 'artifact_not_found'
+  | 'token_malformed'
+  | 'token_expired'
+  | 'token_signature_invalid'
+  | 'signing_key_missing';
 
 export interface ReportAuditEvent {
   /** Tenant taken from the verified principal (never a client header). */
@@ -43,6 +50,11 @@ export interface ReportAuditEvent {
   runId?: string;
   /** Denial reason, set only on `report.download.denied`. */
   reason?: ReportDownloadDenialReason;
+  /**
+   * UAT-9d: denials for the same (tenant, actor, artifact, reason) inside the coalescing
+   * window that wrote no row of their own; set on the next row for that key when > 0.
+   */
+  suppressedCount?: number;
 }
 
 export interface ReportAuditPort {

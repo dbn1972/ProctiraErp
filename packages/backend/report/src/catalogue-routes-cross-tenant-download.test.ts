@@ -196,7 +196,7 @@ describe('UAT-SEC-001 cross-tenant report artifact download is denied with 403 a
     expect(missing.statusCode).toBe(403);
     expect(existing.body).toBe(missing.body);
     expect(auditA.events.map((e) => [e.action, e.reason])).toEqual([
-      [DENIED_ACTION, 'token_invalid'],
+      [DENIED_ACTION, 'token_signature_invalid'],
       [DENIED_ACTION, 'artifact_not_found'],
     ]);
   });
@@ -223,7 +223,7 @@ describe('UAT-SEC-001 cross-tenant report artifact download is denied with 403 a
     expect(missing.statusCode).toBe(403);
     expect(existing.body).toBe(missing.body);
     expect(auditA.events.map((e) => [e.action, e.reason])).toEqual([
-      [DENIED_ACTION, 'token_invalid'],
+      [DENIED_ACTION, 'token_signature_invalid'],
       [DENIED_ACTION, 'artifact_not_found'],
     ]);
   });
