@@ -193,6 +193,38 @@ test.describe('Transport screens — form saves (E2E_BACKEND_READY)', () => {
     });
   });
 
+  // T-D3: a save the gateway refuses with 409 (duplicate registration) shows
+  // fixed conflict copy plus a reference, never the server text.
+  test('T-D3 a refused vehicle save shows safe copy and a reference', async ({ page, request }) => {
+    test.slow();
+    const sub = randomUUID();
+    const P = principalHeaders(TENANT_A, sub);
+    const tag = newTag();
+    const existing = await createVehicle(request, P, tag);
+    const direct = await attempt(
+      request,
+      'POST',
+      '/transport/vehicles',
+      { registrationNumber: existing.registrationNumber, capacity: 40 },
+      P,
+    );
+    expect(direct.status).toBe(409);
+    const serverMessage = (JSON.parse(direct.body) as { message?: string }).message ?? '';
+    expect(serverMessage.length).toBeGreaterThan(0);
+    await openAs(page, principalUser(sub));
+    await page.goto('/transport/vehicles', { waitUntil: 'domcontentloaded' });
+    await expectScreen(page, 'Vehicles');
+    await hydrated(page, 'transport-vehicle-form');
+    await page.locator('#vehicle-reg').fill(existing.registrationNumber);
+    await page.getByRole('button', { name: 'Add vehicle' }).click();
+    const alert = page.locator('[data-testid="transport-vehicle-form"] [role="alert"]');
+    await expect(alert).toBeVisible({ timeout: 20_000 });
+    await expect(alert).toHaveText(
+      /^This conflicts with an existing record\. Check the details and try again\. \(ref [A-Za-z0-9-]{8,64}\)$/,
+    );
+    await expect(alert).not.toContainText(serverMessage);
+  });
+
   test('/transport/assignments assigns a driver and a student through its forms', async ({
     page,
     request,

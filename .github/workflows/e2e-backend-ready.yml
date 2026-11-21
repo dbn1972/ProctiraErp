@@ -183,6 +183,7 @@ env:
     e2e/69-hostel-screens-read.spec.ts
     e2e/70-hostel-screens-write.spec.ts
     e2e/71-hostel-privacy-tenancy.spec.ts
+    e2e/72-campus-staff-roles.spec.ts
     e2e/73-safe-error-responses.spec.ts
     e2e/74-health-defect-fixes.spec.ts
 

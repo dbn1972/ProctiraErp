@@ -36,6 +36,7 @@ import {
   evaluateAlerts,
   geofenceThreshold,
   getJson,
+  hydrated,
   markTrip,
   newTag,
   nextStartDate,
@@ -55,6 +56,7 @@ import {
   type FeeLinkRow,
   type Headers,
   type RouteRow,
+  type SessionUser,
   type StopRow,
   type StudentAssignmentRow,
   type VehicleRow,
@@ -662,5 +664,38 @@ test.describe('Transport screens — privacy and tenancy (E2E_BACKEND_READY)', (
     expect(riders.data.map((a) => a.id)).toEqual([b.studentAssignment.id]);
     const trip = await getJson<Trip>(request, `/transport/attendance?${b.tripQuery}`, b.PB);
     expect(trip.summary).toEqual({ boarded: 1, alighted: 0, absent: 0, unmarked: 0 });
+  });
+
+  // T-D3: a save the gateway refuses (403) shows fixed copy, never the RBAC
+  // reason. The registrar can open the transport screens (read) but holds no
+  // transport write at the gateway, so this is the live denied-save path.
+  test('T-D3 a denied vehicle save shows safe copy, not the gateway reason', async ({
+    page,
+    request,
+  }) => {
+    test.slow();
+    const P = principalHeaders(TENANT_A, randomUUID());
+    const registration = `${rank()}-TF${newTag()}`;
+    const registrar: SessionUser = {
+      sub: randomUUID(),
+      tenantId: TENANT_A,
+      roles: [{ roleId: 'registrar', roleName: 'Registrar', areaId: null }],
+      displayName: 'TR Registrar',
+    };
+    await openAs(page, registrar);
+    await page.goto('/transport/vehicles', { waitUntil: 'load' });
+    await hydrated(page, 'transport-vehicle-form');
+    await page.locator('#vehicle-reg').fill(registration);
+    await page.getByRole('button', { name: 'Add vehicle' }).click();
+    const alert = page.locator('[data-testid="transport-vehicle-form"] [role="alert"]');
+    await expect(alert).toBeVisible({ timeout: 20_000 });
+    const after = await getJson<List<VehicleRow>>(request, '/transport/vehicles', P);
+    expect(after.data.some((v) => v.registrationNumber === registration)).toBe(false);
+    await expect(alert).not.toContainText(
+      /No role assignment grants|Forbidden:|within the requested area scope/,
+    );
+    await expect(alert).toHaveText(
+      /^You do not have permission to make this change\. Contact your administrator if you need access\. \(ref [A-Za-z0-9-]{8,64}\)$/,
+    );
   });
 });

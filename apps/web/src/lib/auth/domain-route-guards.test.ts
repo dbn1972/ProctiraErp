@@ -60,7 +60,23 @@ describe('dashboard domain route guards (PRC-L034)', () => {
 
   it('T-D1: grants transport only where the gateway and the transport package both allow it', () => {
     // Gateway grant (rbac-registry.ts) AND package guard (transport-access.ts).
-    for (const roles of [['admin'], ['principal'], ['super-admin'], ['PRINCIPAL']]) {
+    for (const roles of [
+      ['admin'],
+      ['principal'],
+      ['super-admin'],
+      ['PRINCIPAL'],
+      // T-O1: the gateway now grants the transport package staff roles.
+      ['transport_officer'],
+      ['transport-officer'],
+      ['transport_manager'],
+      ['transport-manager'],
+      ['fleet_manager'],
+      ['fleet-manager'],
+      ['transport_admin'],
+      ['transport-admin'],
+      // Read-only at the gateway (writes are 403 there).
+      ['registrar'],
+    ]) {
       expect(canAccessDashboardDomain(session(roles), 'transport'), roles.join()).toBe(true);
     }
     for (const roles of [
@@ -69,13 +85,11 @@ describe('dashboard domain route guards (PRC-L034)', () => {
       ['staff'],
       // Gateway grants '*', the package guard has no platform role.
       ['platform_admin'],
-      // T-O1: package allows, the gateway registry has no such role (403).
-      ['transport_officer'],
-      ['transport-manager'],
-      ['fleet_manager'],
-      ['transport_admin'],
-      ['registrar'],
+      // Hostel staff hold no transport grant at the gateway or in the package.
+      ['warden'],
+      ['hostel_manager'],
       ['student'],
+      ['parent'],
       ['guardian'],
       [],
     ]) {
@@ -104,7 +118,23 @@ describe('dashboard domain route guards (PRC-L034)', () => {
 
   it('H-D1: grants hostel only where the gateway and the hostel package both allow it', () => {
     // Gateway grant (rbac-registry.ts) AND package guard (hostel-access.ts).
-    for (const roles of [['admin'], ['principal'], ['super-admin'], ['ADMIN']]) {
+    for (const roles of [
+      ['admin'],
+      ['principal'],
+      ['super-admin'],
+      ['ADMIN'],
+      // H-D2: the gateway now grants the hostel package staff roles.
+      ['warden'],
+      ['hostel_warden'],
+      ['hostel-warden'],
+      ['hostel_manager'],
+      ['hostel-manager'],
+      ['hostel_admin'],
+      ['hostel-admin'],
+      ['hostel_clerk'],
+      // Read-only at the gateway (writes are 403 there).
+      ['registrar'],
+    ]) {
       expect(canAccessDashboardDomain(session(roles), 'hostel'), roles.join()).toBe(true);
     }
     for (const roles of [
@@ -113,14 +143,10 @@ describe('dashboard domain route guards (PRC-L034)', () => {
       ['staff'],
       // Gateway grants '*', the package guard has no platform role.
       ['platform_admin'],
-      // H-D2: package allows, the gateway registry grants them no `hostel` (403).
-      ['warden'],
-      ['hostel_warden'],
-      ['hostel-manager'],
-      ['hostel_admin'],
-      ['hostel_clerk'],
-      ['registrar'],
-      // Fee roles: no gateway `hostel` grant either.
+      // Transport staff hold no hostel grant at the gateway or in the package.
+      ['transport_officer'],
+      ['fleet_manager'],
+      // Fee roles: no gateway `hostel` grant (residual, not in this change).
       ['bursar'],
       ['accountant'],
       // Portal roles (the gateway grants student hostel.read, the package denies).
@@ -132,6 +158,58 @@ describe('dashboard domain route guards (PRC-L034)', () => {
       expect(canAccessDashboardDomain(session(roles), 'hostel'), roles.join()).toBe(false);
     }
     expect(canAccessDashboardDomain(session(['teacher', 'principal']), 'hostel')).toBe(true);
+  });
+
+  it('MR-1: a multi-role session gets the gateway answer (one role grants, another passes the package)', () => {
+    // Each pair is served by the gateway (apps/api-gateway rbac-campus-roles.test.ts).
+    const served: Array<[string[], 'hostel' | 'transport']> = [
+      [['teacher', 'transport_officer'], 'transport'],
+      [['teacher', 'registrar'], 'transport'],
+      [['teacher', 'registrar'], 'hostel'],
+      [['staff', 'hostel_manager'], 'hostel'],
+      [['student', 'warden'], 'hostel'],
+      // The grant comes only from teacher/staff (gateway STAFF_READS): the
+      // package role has no web or gateway registry entry.
+      [['teacher', 'school_admin'], 'hostel'],
+      [['staff', 'school-admin'], 'transport'],
+      [['teacher', 'system_admin'], 'transport'],
+    ];
+    for (const [roles, domain] of served) {
+      expect(canAccessDashboardDomain(session(roles), domain), `${roles.join('+')} ${domain}`).toBe(
+        true,
+      );
+    }
+    const denied: Array<[string[], 'hostel' | 'transport']> = [
+      // Package role without any gateway grant on the domain.
+      [['school_admin'], 'hostel'],
+      [['system-admin'], 'transport'],
+      [['guardian', 'school_admin'], 'hostel'],
+      [['parent', 'school_admin'], 'transport'],
+      // Gateway readers without a package role.
+      [['teacher', 'staff'], 'hostel'],
+      [['teacher', 'guardian'], 'transport'],
+      // A role for the other domain does not open this one.
+      [['teacher', 'warden'], 'transport'],
+      [['staff', 'transport_officer'], 'hostel'],
+      [['guardian'], 'hostel'],
+      [['guardian'], 'transport'],
+    ];
+    for (const [roles, domain] of denied) {
+      expect(canAccessDashboardDomain(session(roles), domain), `${roles.join('+')} ${domain}`).toBe(
+        false,
+      );
+    }
+  });
+
+  it('MR-1: the base-reader rule does not leak into other domains', () => {
+    // school_admin is in neither registry; teacher holds no web `platform` grant.
+    expect(canAccessDashboardDomain(session(['teacher', 'school_admin']), 'billing')).toBe(false);
+    expect(canAccessDashboardDomain(session(['teacher', 'school_admin']), 'audit-logs')).toBe(
+      false,
+    );
+    expect(canAccessDashboardDomain(session(['staff', 'school_admin']), 'data-warehouse')).toBe(
+      canAccessDashboardDomain(session(['staff']), 'data-warehouse'),
+    );
   });
 
   it('H-D1: mirrors the hostel package hostel.read roles exactly', () => {
