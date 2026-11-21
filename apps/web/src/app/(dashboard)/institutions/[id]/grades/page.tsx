@@ -25,7 +25,6 @@ import { cn } from '@/lib/utils';
 import { utilizationBand } from '@/lib/status-label';
 import { AddGradeDialog } from '@/components/institutions/academics-create-dialogs';
 import {
-  ApiClientError,
   getInstitutionOverview,
   listClassesByInstitution,
   listGrades,
@@ -215,13 +214,13 @@ async function loadGrades(institutionId: string): Promise<GradesData> {
     ]);
     return { grades, classes, error: null };
   } catch (error) {
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[institution-grades] load failed', error);
     return {
       grades: [],
       classes: [],
-      error:
-        error instanceof ApiClientError
-          ? error.message
-          : 'The grade catalog is currently unavailable.',
+      error: 'The grade catalog is currently unavailable.',
     };
   }
 }
