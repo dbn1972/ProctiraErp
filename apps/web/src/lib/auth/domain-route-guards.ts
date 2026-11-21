@@ -21,6 +21,20 @@ export const DASHBOARD_DOMAIN_RESOURCES = {
   'data-warehouse': 'report',
   transport: 'transport',
   hostel: 'hostel',
+  'academic-periods': 'institution',
+  admissions: 'registration',
+  assessments: 'assessment',
+  fees: 'fees',
+  institutions: 'institution',
+  library: 'library',
+  lms: 'lms',
+  pipelines: 'report',
+  reports: 'report',
+  scholarships: 'scholarship',
+  staff: 'staff',
+  students: 'student',
+  'tenant-lifecycle': 'platform',
+  workflows: 'workflow',
 } as const;
 
 export type DashboardDomain = keyof typeof DASHBOARD_DOMAIN_RESOURCES;
@@ -88,12 +102,62 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
   hostel: HOSTEL_PACKAGE_ROLE_IDS,
 };
 
+/**
+ * A-batch: explicit role sets for domains where the web RBAC registry does not
+ * mirror the gateway. Each set holds the gateway role catalogue roles that have
+ * the gateway read grant (apps/api-gateway/src/rbac-registry.ts) AND are in the
+ * backend package read set:
+ * - admissions: registration-access.ts REGISTRATION_STAFF_ROLES
+ * - assessments: assessment-access.ts ASSESSMENT_STAFF_ROLES
+ * - fees: fees-access.ts `fees.read` (FINANCE_ROLES)
+ * - library: library-access.ts LIBRARY_STAFF_ROLES
+ * - lms: lms-access.ts LMS_STAFF_ROLES
+ * - pipelines: etl-access.ts ETL_STAFF_ROLES
+ * - reports: report-access.ts staff union (admin, finance, academic, exam, registrar)
+ * - scholarships: scholarship-access.ts SCHOLARSHIP_OFFICER_ROLES
+ * - staff: staff-access.ts `staff.read`
+ * - students: student-access.ts READ_ROLES
+ * - workflows: gateway grant only (the workflow package has no role check)
+ *
+ * Fail-closed for multi-role principals: access needs one role that is in the
+ * set. A principal holding `teacher` + `bursar` is served `/fees` by the
+ * gateway (teacher grant + bursar package role) but is denied here; the set is
+ * deliberately not widened. Sets are used instead of web registry grants
+ * because that registry also drives navigation and write guards.
+ * Kept in sync by domain-route-guards.test.ts.
+ */
+export const DOMAIN_ROUTE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<string>>> = {
+  admissions: new Set(['admin', 'principal', 'super-admin']),
+  assessments: new Set(['admin', 'principal', 'teacher', 'super-admin']),
+  fees: new Set(['admin', 'principal', 'super-admin']),
+  library: new Set(['admin', 'principal', 'super-admin']),
+  lms: new Set(['admin', 'principal', 'teacher', 'super-admin']),
+  pipelines: new Set(['admin', 'principal', 'super-admin']),
+  reports: new Set(['admin', 'principal', 'teacher', 'super-admin']),
+  scholarships: new Set(['admin', 'principal', 'super-admin']),
+  staff: new Set([
+    'admin',
+    'principal',
+    'super-admin',
+    'hr_officer',
+    'staff_admin',
+    'registrar',
+    'admissions_officer',
+  ]),
+  students: new Set(['admin', 'principal', 'teacher', 'staff', 'nurse', 'super-admin']),
+  workflows: new Set(['admin', 'principal', 'teacher', 'staff', 'super-admin', 'platform_admin']),
+};
+
 function hasStaffRole(session: ServerSession): boolean {
   return session.user.roles.some((role) => !PORTAL_ONLY_ROLE_IDS.has(role.roleId.toLowerCase()));
 }
 
 export function canAccessDashboardDomain(session: ServerSession, domain: DashboardDomain): boolean {
   if (!hasStaffRole(session)) return false;
+  const routeRoles = DOMAIN_ROUTE_ROLE_IDS[domain];
+  if (routeRoles) {
+    return session.user.roles.some((role) => routeRoles.has(role.roleId.toLowerCase()));
+  }
   const packageRoles = DOMAIN_PACKAGE_ROLE_IDS[domain];
   if (
     packageRoles &&
