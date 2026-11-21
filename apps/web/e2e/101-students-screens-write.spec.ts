@@ -36,7 +36,8 @@ import {
  * send If-Match (I1), an "Update existing" import that carries institution_code or
  * guardian columns drops the admission number or the guardians (I2, I3), enrollment
  * accepts a class from another institution (I4), the profile status pill after
- * graduation (P7) and the transfer copy that promises an approval step (P2).
+ * graduation (P7), the transfer copy that promises an approval step (P2) and the import
+ * duplicate table that names the existing student by raw id (P8).
  */
 
 /** Value of one import result tile (`Total rows`, `Imported`, `Errors`, `Duplicates`). */
@@ -355,12 +356,11 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
       await expect(stat(page, 'Duplicates')).toHaveText('1', { timeout: 60_000 });
       await expect(stat(page, 'Total rows')).toHaveText('1');
       await expect(stat(page, 'Errors')).toHaveText('0');
+      // The third cell (existing student) shows a raw id today (M1-P8, defects.md).
       const dupes = page.getByRole('table', { name: 'Duplicate matches' });
-      await expect(dupes.getByRole('row').nth(1).getByRole('cell')).toHaveText([
-        '2',
-        'national_id',
-        s.id,
-      ]);
+      const dupe = dupes.getByRole('row').nth(1).getByRole('cell');
+      await expect(dupe.nth(0)).toHaveText('2');
+      await expect(dupe.nth(1)).toHaveText('national_id');
 
       await page.goto(`/students/${s.id}`, { waitUntil: 'load' });
       await expect(page.getByTestId('student-profile-heading')).toHaveText(
