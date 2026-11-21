@@ -1,0 +1,11 @@
+# Rendered by tools/scripts/uatenv/uatenv-install-timer.sh into ~/.config/systemd/user/.
+[Unit]
+Description=ProctiraERP UAT nightly backup timer
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
