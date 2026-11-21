@@ -103,7 +103,7 @@ function mapSqlState(
 
 /** Text that reads like a database error even when it reaches us as a plain Error. */
 const DATABASE_TEXT =
-  /violates (?:foreign key|unique|not-null|check) constraint|duplicate key value|current transaction is aborted|relation "[^"]*"|column "[^"]*"|syntax error at or near|invalid input syntax for/i;
+  /violates (?:foreign key|unique|not-null|check) constraint|duplicate key value|current transaction is aborted|relation "[^"]*"|column "[^"]*"|syntax error at or near|invalid input syntax for|\bSQLSTATE\b/i;
 
 function correlationIdOf(request: FastifyRequest): string {
   const value = (request as unknown as { correlationId?: unknown }).correlationId;
@@ -130,6 +130,8 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
   options: ErrorHandlerOptions = {},
 ) => {
   const { includeStackTrace = false } = options;
+  /** Replies whose body this handler built (already safe; keeps the development debug text). */
+  const handlerReplies = new WeakSet<FastifyReply>();
 
   fastify.setErrorHandler(function globalErrorHandler(
     error: Error & { statusCode?: number; code?: string; validation?: unknown[] },
@@ -158,6 +160,7 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
       'Request error',
     );
     const correlationId = correlationIdOf(request);
+    handlerReplies.add(reply);
 
     // Handle Fastify validation errors (from schema validation)
     if (error.validation && Array.isArray(error.validation)) {
@@ -343,6 +346,49 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
     };
 
     return reply.status(500).send(response);
+  });
+
+  // D1-T7: package routes that send `error.toJSON()` themselves bypass the handler above. A
+  // JSON 5xx body from such a route whose text reads like a database error keeps its code and
+  // status but gets the generic message (and loses `errors`/`details`), plus the correlation
+  // id; the original goes to the log. Authored 5xx text (e.g. "Service 'auth' is
+  // unreachable.") is left alone.
+  fastify.addHook('onSend', async (request, reply, payload) => {
+    if (reply.statusCode < 500 || handlerReplies.has(reply) || typeof payload !== 'string') {
+      return payload;
+    }
+    if (!String(reply.getHeader('content-type') ?? '').includes('application/json')) return payload;
+    let body: unknown;
+    try {
+      body = JSON.parse(payload);
+    } catch {
+      return payload;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return payload;
+    const record = body as Record<string, unknown>;
+    // The payload is serialized JSON, so quotes inside strings arrive as \".
+    if (!DATABASE_TEXT.test(payload.replace(/\\"/g, '"'))) return payload;
+    const log =
+      (request as unknown as { requestLog?: { error: (...args: unknown[]) => void } }).requestLog ??
+      request.log;
+    log.error(
+      {
+        url: request.url,
+        statusCode: reply.statusCode,
+        code: record.code,
+        body: payload,
+      },
+      'Route-local 5xx body sanitised',
+    );
+    const { errors: _errors, details: _details, ...rest } = record;
+    void _errors;
+    void _details;
+    return JSON.stringify({
+      ...rest,
+      message: INTERNAL_MESSAGE,
+      correlationId:
+        typeof record.correlationId === 'string' ? record.correlationId : correlationIdOf(request),
+    });
   });
 
   // Handle 404 for unmatched routes

@@ -299,3 +299,77 @@ describe('server-side detail and correlation id', () => {
     expect((body.correlationId as string).length).toBeGreaterThan(0);
   });
 });
+
+describe('route-local 5xx bodies (D1-T7)', () => {
+  async function routeApp(includeStackTrace: boolean): Promise<FastifyInstance> {
+    const app = Fastify();
+    app.decorateRequest('correlationId', '');
+    app.addHook('onRequest', async (request) => {
+      (request as unknown as { correlationId: string }).correlationId = CORRELATION_ID;
+    });
+    await app.register(errorHandlerPlugin, { includeStackTrace });
+    // Same shape as the ~400 package handlers that send `error.toJSON()` themselves.
+    app.get('/route-local-503', async (_request, reply) =>
+      reply
+        .status(503)
+        .send(
+          new AppError(
+            'Dashboard query failed: relation "parent_fee_invoices" does not exist',
+            'REPORT_DATA_UNAVAILABLE',
+            503,
+          ).toJSON(),
+        ),
+    );
+    app.get('/route-local-502', async (_request, reply) =>
+      reply
+        .status(502)
+        .send({ code: 'BAD_GATEWAY', message: "Service 'auth' is unreachable.", statusCode: 502 }),
+    );
+    app.get('/route-local-409', async (_request, reply) =>
+      reply.status(409).send({ code: 'CONFLICT', message: 'Name taken', statusCode: 409 }),
+    );
+    app.get('/plain-error', async () => {
+      throw new Error('Detailed error message');
+    });
+    await app.ready();
+    return app;
+  }
+  it.each([true, false])(
+    'replaces the message of a JSON 5xx sent by a route (includeStackTrace=%s)',
+    async (includeStackTrace) => {
+      const app = await routeApp(includeStackTrace);
+      open = app;
+      const res = await app.inject({ method: 'GET', url: '/route-local-503' });
+      expect(res.statusCode).toBe(503);
+      expect(res.body).not.toMatch(LEAK);
+      expect(res.json()).toMatchObject({
+        code: 'REPORT_DATA_UNAVAILABLE',
+        message: 'Internal server error',
+        statusCode: 503,
+        correlationId: CORRELATION_ID,
+      });
+    },
+  );
+  it('leaves authored 5xx text without database wording unchanged', async () => {
+    const app = await routeApp(true);
+    open = app;
+    const res = await app.inject({ method: 'GET', url: '/route-local-502' });
+    expect(res.json()).toEqual({
+      code: 'BAD_GATEWAY',
+      message: "Service 'auth' is unreachable.",
+      statusCode: 502,
+    });
+  });
+  it('leaves 4xx route bodies unchanged', async () => {
+    const app = await routeApp(true);
+    open = app;
+    const res = await app.inject({ method: 'GET', url: '/route-local-409' });
+    expect(res.json()).toEqual({ code: 'CONFLICT', message: 'Name taken', statusCode: 409 });
+  });
+  it('keeps the development debug message of a plain error the handler produced', async () => {
+    const app = await routeApp(true);
+    open = app;
+    const res = await app.inject({ method: 'GET', url: '/plain-error' });
+    expect(res.json()).toMatchObject({ message: 'Detailed error message', statusCode: 500 });
+  });
+});
