@@ -9,17 +9,21 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
 import { listLibraryItemsResult, listLibraryOverduesResult } from '@/lib/api/library';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { AssessFineButton } from '../_components/assess-fine-button';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryOverduesPage() {
-  await requireSession();
+  // A-batch: check before any library read.
+  if (!(await hasDashboardDomainRouteAccess('library', '/library'))) {
+    return <RouteAccessDenied />;
+  }
   const [result, itemsResult, studentLabels] = await Promise.all([
     listLibraryOverduesResult(),
     listLibraryItemsResult(),

@@ -1,5 +1,11 @@
 /** PRC-M094: report card page is preview-only, names the student, 404s foreign jobs. */
 import { describe, expect, it, vi } from 'vitest';
+
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const m = vi.hoisted(() => ({ listReportCardJobs: vi.fn(), notFound: vi.fn() }));

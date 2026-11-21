@@ -31,6 +31,8 @@ import { cn } from '@/lib/utils';
 import { ApplicationDocumentsPanel } from '@/features/scholarships/components/application-documents-panel';
 
 import { ApplicationDecisionForm } from '../../_components/application-decision-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +103,10 @@ function formatMoney(amount: number, currency: string): string {
 }
 
 export default async function ScholarshipApplicationPage(props: PageProps) {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const application = await getScholarshipApplication(params.id);
   if (!application) notFound();

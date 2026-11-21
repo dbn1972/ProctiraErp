@@ -52,6 +52,8 @@ import {
   type PlacementDirectories,
 } from './_components/student-placement-label';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,6 +134,10 @@ interface PageProps {
 }
 
 export default async function StudentListPage(props: PageProps) {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const page = readNumberParam(searchParams, 'page', 1);
   const search = readStringParam(searchParams, 'search');

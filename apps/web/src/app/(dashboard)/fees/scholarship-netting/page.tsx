@@ -3,15 +3,19 @@
  */
 import Link from 'next/link';
 
-import { requireSession } from '@/lib/auth/server';
 import { listInvoicesResult, listNettableScholarshipDisbursementsResult } from '@/lib/api/fees';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { ScholarshipNettingForm } from '../_components/scholarship-netting-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesScholarshipNettingPage() {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const [studentOptions, invoicesResult, disbursementsResult] = await Promise.all([
     loadStudentOptions(),
     listInvoicesResult('staff'),

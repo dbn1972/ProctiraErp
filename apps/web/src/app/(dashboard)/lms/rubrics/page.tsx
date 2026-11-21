@@ -11,10 +11,16 @@ import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 
 import { LmsSubnav } from '../_components/lms-subnav';
 import { RubricForm } from '../_components/rubric-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LmsRubricsPage() {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const [rubrics, schools, t] = await Promise.all([
     listRubricsResult(),
     loadInstitutionOptions(),

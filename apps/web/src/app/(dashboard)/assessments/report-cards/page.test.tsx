@@ -1,6 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
+
 const ARTIFACT_URI = 's3://tenant-a-reports/students/stu-123/report-card.pdf?X-Amz-Signature=abc';
 
 const listGradebookSections = vi.fn(async (..._args: unknown[]) => ({ ok: true, data: [] }));

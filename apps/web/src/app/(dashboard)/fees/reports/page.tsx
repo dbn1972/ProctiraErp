@@ -1,16 +1,20 @@
 /**
  * Staff fee reports (Server Component).
  */
-import { requireSession } from '@/lib/auth/server';
 import { fetchDuesReportResult } from '@/lib/api/fees';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { FeesReportsPanel } from '../_components/fees-reports-panel';
 import { loadFeeClassLabels } from '../_components/load-fee-class-labels';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesReportsPage() {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const reportResult = await fetchDuesReportResult();
   // PRC-M477: resolve only the classes that appear in this report.
   const classLabels = await loadFeeClassLabels(
