@@ -57,6 +57,8 @@ export type { TenantTransactionClient, TenantTransactionOptions } from './tenant
 
 // Export node-pg tenant binder for raw-SQL RLS (db/sql/015_rls_policies.sql)
 export { withPgTenant } from './pg-tenant';
+// D1-F1: savepoint around a tolerated block inside a withPgTenant transaction
+export { withPgSavepoint } from './pg-savepoint';
 export type { PgQueryable, PgPoolWithConnect, PgClient } from './pg-tenant';
 
 // W1-DATA-12: canonical tenant GUC binder (app.tenant_id + legacy alias sync)

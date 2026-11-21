@@ -89,12 +89,15 @@ describe('bulkGraduateStudentsAction', () => {
     expect(result).toMatchObject({ status: 'error', message: 'Graduated 0; 1 failed.' });
   });
 
-  it('maps GatewayError to its message', async () => {
+  it('maps GatewayError to fixed copy, never its message (RAW-WEB)', async () => {
     students.getStudentEnrollmentsResult.mockRejectedValue(
       gwError(403, 'FORBIDDEN', 'Not allowed'),
     );
     const result = await bulkGraduateStudentsAction([S1]);
-    expect(result).toEqual({ status: 'error', message: 'Not allowed' });
+    expect(result).toEqual({
+      status: 'error',
+      message: expect.stringMatching(/^You do not have permission to make this change\..*\(ref /),
+    });
     expect(students.bulkUpdateEnrollmentStatus).not.toHaveBeenCalled();
   });
 });
@@ -122,11 +125,11 @@ describe('submitBulkImportAction', () => {
     expect(students.submitBulkImport).not.toHaveBeenCalled();
   });
 
-  it('maps GatewayError', async () => {
+  it('maps GatewayError to fixed copy (RAW-WEB)', async () => {
     students.submitBulkImport.mockRejectedValue(gwError(413, 'PAYLOAD_TOO_LARGE', 'File too big'));
     expect(await submitBulkImportAction(input)).toEqual({
       status: 'error',
-      message: 'File too big',
+      message: expect.stringMatching(/^The file is larger than this form accepts\..*\(ref /),
     });
   });
 });
@@ -145,7 +148,7 @@ describe('decideWorkflowApprovalAction', () => {
     workflows.decideWorkflowApproval.mockRejectedValue(gwError(409, 'CONFLICT', 'Already decided'));
     expect(await decideWorkflowApprovalAction(APPROVAL, 'reject')).toEqual({
       status: 'error',
-      message: 'Already decided',
+      message: expect.stringMatching(/^This conflicts with an existing record\..*\(ref /),
     });
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -205,7 +208,7 @@ describe('timetable actions', () => {
     );
     expect(await createMeetingAction(meeting)).toEqual({
       ok: false,
-      error: 'Clash',
+      error: expect.stringMatching(/^This conflicts with an existing record\..*\(ref /),
       code: 'MEETING_CONFLICT',
       status: 409,
       conflicts,

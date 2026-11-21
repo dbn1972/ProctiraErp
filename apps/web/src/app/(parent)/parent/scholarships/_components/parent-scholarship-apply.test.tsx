@@ -15,6 +15,7 @@ vi.mock('@/features/scholarships/scholarship-browser', async () => {
   return { ...actual, scholarshipBrowserFetch: (...args: unknown[]) => browserFetch(...args) };
 });
 
+import { BrowserGatewayError } from '@/lib/api/browser-gateway';
 import { ParentScholarshipApply } from './parent-scholarship-apply';
 
 const CHILDREN = [{ studentId: 'stu-1', label: 'Asha' }];
@@ -114,5 +115,75 @@ describe('ParentScholarshipApply (PRC-M131)', () => {
       );
       expect(posts).toHaveLength(1);
     });
+  });
+  it('P-O1: a child without an enrolment gets the actionable enrolment copy only', async () => {
+    browserFetch.mockImplementation((path: string, init?: { method?: string }) => {
+      if (!init?.method || init.method === 'GET') {
+        if (path === '/programs') {
+          return Promise.resolve({
+            data: [{ id: 'prog-1', name: 'Merit', eligibility: { requiredDocuments: [] } }],
+          });
+        }
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.reject(
+        new BrowserGatewayError({
+          status: 422,
+          code: 'ENROLMENT_REQUIRED',
+          message: 'server text that must not be shown',
+        }),
+      );
+    });
+    render(<ParentScholarshipApply childrenLinks={CHILDREN} />);
+    await screen.findByRole('button', { name: 'Start application' });
+    fillField('Current school or institution', 'North High');
+    fillField('GPA', '3.6');
+    fillField('Declared annual family income', '240000');
+    fireEvent.click(screen.getByRole('button', { name: 'Start application' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'This child is not enrolled yet. Contact the school to complete enrolment before applying.',
+    );
+    expect(alert).not.toHaveTextContent('server text');
+  });
+  it('never shows raw server text for other failures', async () => {
+    const raw = 'duplicate key value violates unique constraint "scholarship_applications_key"';
+    browserFetch.mockImplementation((path: string, init?: { method?: string }) => {
+      if (!init?.method || init.method === 'GET') {
+        if (path === '/programs') {
+          return Promise.resolve({
+            data: [{ id: 'prog-1', name: 'Merit', eligibility: { requiredDocuments: [] } }],
+          });
+        }
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.reject(
+        new BrowserGatewayError({ status: 400, code: 'VALIDATION_ERROR', message: raw }),
+      );
+    });
+    render(<ParentScholarshipApply childrenLinks={CHILDREN} />);
+    await screen.findByRole('button', { name: 'Start application' });
+    fillField('Current school or institution', 'North High');
+    fillField('GPA', '3.6');
+    fillField('Declared annual family income', '240000');
+    fireEvent.click(screen.getByRole('button', { name: 'Start application' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not start the application');
+    expect(alert).not.toHaveTextContent(/constraint|duplicate key/);
+  });
+  it('never shows raw server text when the lists fail to load', async () => {
+    browserFetch.mockImplementation(() =>
+      Promise.reject(
+        new BrowserGatewayError({
+          status: 500,
+          code: 'INTERNAL_ERROR',
+          message: 'relation "scholarship_programs" does not exist',
+        }),
+      ),
+    );
+    render(<ParentScholarshipApply childrenLinks={CHILDREN} />);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/Could not load (programs|applications)/);
+    expect(alert).not.toHaveTextContent('relation');
   });
 });

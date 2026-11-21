@@ -58,7 +58,8 @@ describe('report catalogue audit port (live Postgres)', () => {
         actorId: 'live-report-admin',
         action: 'report.download.denied',
         artifactId,
-        reason: 'token_invalid',
+        reason: 'token_signature_invalid',
+        suppressedCount: 2,
       });
 
       const rows = await withPgTenant(pool, caller, async (client) => {
@@ -87,7 +88,8 @@ describe('report catalogue audit port (live Postgres)', () => {
         expect(row.chain_seq).not.toBeNull();
       }
       expect(rows[1]!.metadata).toEqual({
-        reason: 'token_invalid',
+        reason: 'token_signature_invalid',
+        suppressedCount: 2,
         read: true,
         regulated: 'report.download.denied',
         action: 'download.denied',

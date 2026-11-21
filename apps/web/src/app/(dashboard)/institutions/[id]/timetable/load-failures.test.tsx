@@ -120,9 +120,10 @@ describe('timetable page (PRC-M100)', () => {
     listAcademicPeriods.mockRejectedValue(new Error('Academic periods unavailable'));
     const { default: Page } = await import('./page');
     render(await Page({ params }));
-    expect(screen.getByTestId('timetable-load-errors').textContent).toContain(
-      'Academic periods: Academic periods unavailable',
-    );
+    // D1-T5: fixed copy; the thrown text stays in the server log.
+    const errors = screen.getByTestId('timetable-load-errors').textContent ?? '';
+    expect(errors).toContain('Academic periods: Could not be loaded.');
+    expect(errors).not.toContain('Academic periods unavailable');
     expect(screen.queryByText(/Create an academic period/)).toBeNull();
   });
 

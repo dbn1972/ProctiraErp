@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { genericActionErrorMessage } from '@/lib/api/action-error';
-import { GatewayError } from '@/lib/api/gateway';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { parseMajorUnits } from '@/lib/format-money';
@@ -44,12 +43,7 @@ const UUID = z.string().uuid();
 function fail(error: unknown, fallback: string): OpsActionState {
   return {
     status: 'error',
-    message:
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : fallback,
+    message: genericActionErrorMessage(error, fallback),
   };
 }
 

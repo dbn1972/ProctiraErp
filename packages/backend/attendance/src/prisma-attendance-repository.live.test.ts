@@ -10,6 +10,7 @@
  * Skipped without DATABASE_URL (no live Postgres reachable in this sandbox).
  */
 import { randomUUID } from 'node:crypto';
+import { AttendanceStatus } from '@proctira/common';
 
 import { createPrismaClient, getSharedPgPool, withPgTenant } from '@proctira/database';
 import type { PrismaClient } from '@proctira/database';
@@ -264,4 +265,60 @@ describe('PrismaAttendanceRepository config (live) — PRC-M169', () => {
     expect(await repo.getInstitutionAttendanceConfig(tenantA, institutionId)).not.toBeNull();
     expect(await repo.getInstitutionAttendanceConfig(tenantB, institutionId)).toBeNull();
   });
+});
+
+describe('PrismaAttendanceRepository.createStudentAttendance race (live) — D1-F2 / PRC-H040', () => {
+  it.skipIf(!live)(
+    'returns the row a concurrent writer created instead of failing on the aborted transaction',
+    async () => {
+      const fx = await seedRosterFixture();
+      const studentId = randomUUID();
+      await seedEnrollment(fx, studentId, '2026-04-01', null);
+      const existingId = randomUUID();
+      // The "concurrent writer": same identity (tenant, student, class, date, no subject/period).
+      await withPgTenant(pool!, fx.tenantId, async (client) => {
+        await client.query(
+          `INSERT INTO student_attendance
+             (id, tenant_id, student_id, institution_id, class_id, academic_period_id,
+              date, status, recorded_by, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, '2026-06-15'::date, 'PRESENT', $7, now(), now())`,
+          [
+            existingId,
+            fx.tenantId,
+            studentId,
+            fx.institutionId,
+            fx.classId,
+            fx.academicPeriodId,
+            randomUUID(),
+          ],
+        );
+      });
+      const repo = new PrismaAttendanceRepository(sharedPrisma());
+      // Failing-first: before the savepoint the duplicate insert aborted the transaction and
+      // the follow-up findFirst failed with 25P02, so this call threw (gateway 500).
+      const created = await repo.createStudentAttendance({
+        id: randomUUID(),
+        tenantId: fx.tenantId,
+        studentId,
+        institutionId: fx.institutionId,
+        classId: fx.classId,
+        academicPeriodId: fx.academicPeriodId,
+        date: '2026-06-15',
+        subjectId: null,
+        periodId: null,
+        status: AttendanceStatus.ABSENT,
+        comment: null,
+        recordedBy: randomUUID(),
+      });
+      expect(created.id).toBe(existingId);
+      expect(created.status).toBe('PRESENT');
+      const rows = await withPgTenant(pool!, fx.tenantId, (client) =>
+        client.query(`SELECT id FROM student_attendance WHERE tenant_id = $1 AND student_id = $2`, [
+          fx.tenantId,
+          studentId,
+        ]),
+      );
+      expect(rows.rows).toHaveLength(1);
+    },
+  );
 });
