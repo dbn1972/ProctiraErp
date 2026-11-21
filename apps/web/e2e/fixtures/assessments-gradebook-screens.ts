@@ -428,13 +428,14 @@ export interface SeededItem {
   maxScore: number;
 }
 
-/** Midterm (weight 40, 0–50) and Final (weight 60, 0–100) for `subjectId` in PERIOD_A. */
+/** Midterm (weight 40, 0–50) and Final (weight 60, 0–100) for `subjectId` in the period. */
 export async function defineItems(
   request: APIRequestContext,
   admin: Persona,
   tag: string,
   subjectId: string,
   gradingSchemeId: string,
+  academicPeriodId: string = PERIOD_A,
 ): Promise<{ midterm: SeededItem; final: SeededItem }> {
   const want = [
     { name: `AS ${tag} Midterm`, weight: 40, minScore: 0, maxScore: 50 },
@@ -445,7 +446,7 @@ export async function defineItems(
     admin,
     'POST',
     '/assessment-items',
-    { subjectId, academicPeriodId: PERIOD_A, gradingSchemeId, items: want },
+    { subjectId, academicPeriodId, gradingSchemeId, items: want },
     201,
   );
   const items = res.items as Array<SeededItem>;

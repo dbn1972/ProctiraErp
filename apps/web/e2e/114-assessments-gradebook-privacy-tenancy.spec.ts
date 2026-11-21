@@ -1,7 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { ensureSharedAcademicYear } from './fixtures/test-data';
 import {
   BACKEND_READY,
+  GATEWAY_URL,
+  apiHeaders,
   BOARD_A,
   PERIOD_A,
   PERMISSION_DENIED_COPY,
@@ -72,6 +75,7 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
   let b: {
     scheme: { id: string; name: string };
     subject: { id: string; code: string; name: string };
+    periodId: string;
     item: string;
   };
 
@@ -80,10 +84,12 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
     a = await seedReadSet(request, tag, true);
     await linkParent(request, parent.sub, a.l1.id);
     student = asStudent(a.l1.id);
+    // Tenant B's own academic year: tenant A's period id is never used for tenant B rows.
+    const periodB = await ensureSharedAcademicYear(request, GATEWAY_URL, apiHeaders(adminB));
     const subjectB = await createSubject(request, adminB, `AS${tagB}B`, `AS ${tagB} B Maths`);
     const schemeB = await createScheme(request, adminB, `${rank()} AS ${tagB} B Scheme`);
-    const itemsB = await defineItems(request, adminB, tagB, subjectB.id, schemeB.id);
-    b = { scheme: schemeB, subject: subjectB, item: itemsB.midterm.id };
+    const itemsB = await defineItems(request, adminB, tagB, subjectB.id, schemeB.id, periodB.id);
+    b = { scheme: schemeB, subject: subjectB, periodId: periodB.id, item: itemsB.midterm.id };
   });
 
   async function openFresh(page: Page, p: Persona) {
@@ -376,7 +382,7 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
     // A results write with A's student id against B's own item is a row error, not a save.
     const bulk = await probe(request, adminB, 'POST', '/results/bulk', {
       subjectId: b.subject.id,
-      academicPeriodId: PERIOD_A,
+      academicPeriodId: b.periodId,
       results: [{ studentId: a.l1.id, assessmentItemId: b.item, score: 10 }],
     });
     expect(bulk.status, bulk.body).toBe(200);
@@ -404,7 +410,7 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
       request,
       adminB,
       'GET',
-      `/results/grades?subjectId=${b.subject.id}&academicPeriodId=${PERIOD_A}`,
+      `/results/grades?subjectId=${b.subject.id}&academicPeriodId=${b.periodId}`,
     );
     expect(bResults.status).toBe(200);
     expect(rowsOf(bResults), 'tenant B recorded no result').toEqual([]);
