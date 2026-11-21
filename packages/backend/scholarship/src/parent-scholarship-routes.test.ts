@@ -134,6 +134,58 @@ describe('parent scholarship routes', () => {
     expect(ids).not.toContain(OTHER);
   });
 
+  it('P-O1: a linked child without an enrolment gets 422 ENROLMENT_REQUIRED, an unlinked child 403', async () => {
+    app = Fastify({ logger: false });
+    app.decorateRequest('tenantId', '');
+    app.addHook('onRequest', async (request) => {
+      (request as { tenantId?: string }).tenantId = TENANT;
+      (request as { user?: { sub: string; roles: unknown; linkedStudentIds: string[] } }).user = {
+        sub: 'parent-1',
+        roles: [{ roleId: 'parent', roleName: 'Parent' }],
+        linkedStudentIds: [CHILD],
+      };
+    });
+    await app.register(parentScholarshipPlugin, {
+      repository: new InMemoryScholarshipRepository(),
+      prefix: '/parent-portal/scholarships',
+      documentStore: new InMemoryScholarshipDocumentStore(),
+      documentBlobs: new InMemoryScholarshipDocumentBlobStore(),
+      resolveLinkedStudentIds: async () => [CHILD],
+      // Neither child has an enrolment of record.
+      resolveStudentInstitutionId: async () => null,
+      resolveApplicantAttributes: async () => ({ areaId: AREA, gender: 'female' }),
+    });
+    await app.ready();
+    // Same body the parent web form sends: no institutionId (it comes from the enrolment).
+    const body = {
+      programId: '00000000-0000-4000-8000-0000000000f1',
+      academicRecords: [{ institutionName: 'School', educationLevel: 'secondary', gpa: 3.2 }],
+      financialInfo: { familyIncome: 120000 },
+      documents: [],
+      asDraft: true,
+    };
+    const own = await app.inject({
+      method: 'POST',
+      url: '/parent-portal/scholarships/applications',
+      payload: { ...body, applicantId: CHILD },
+    });
+    expect(own.statusCode).toBe(422);
+    expect(own.json()).toEqual({
+      code: 'ENROLMENT_REQUIRED',
+      message:
+        'This child is not enrolled yet. Contact the school to complete enrolment before applying.',
+      statusCode: 422,
+    });
+    // The enrolment state of a child the parent is not linked to is not revealed.
+    const other = await app.inject({
+      method: 'POST',
+      url: '/parent-portal/scholarships/applications',
+      payload: { ...body, applicantId: OTHER },
+    });
+    expect(other.statusCode).toBe(403);
+    expect(other.json().code).not.toBe('ENROLMENT_REQUIRED');
+  });
+
   it('PRC-L346: link lookup failure returns 503 and v7 UUID child sees own applications', async () => {
     const repository = new InMemoryScholarshipRepository();
     const V7_CHILD = '01890a5d-ac96-774b-bcce-b302099a8057';
