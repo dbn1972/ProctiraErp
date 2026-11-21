@@ -2,15 +2,21 @@
  * Health vaccinations register (Wave 10 Option B).
  */
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { ArrowLeft, Plus } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, listVaccinations } from '@/lib/api/health';
-import { resolveEntityLabel } from '@/lib/entity-label';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { canAccessHealthRecords, listVaccinationsResult } from '@/lib/api/health';
+import { personDisplayName } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { createUnknownStudentLabeler } from '../_components/unknown-student-label';
 
 export const dynamic = 'force-dynamic';
+
+/** Rows rendered; the register says when more exist (HL-O5). */
+const REGISTER_ROW_LIMIT = 100;
 
 export default async function HealthVaccinationsPage() {
   const session = await requireSession('/health/vaccinations');
@@ -21,7 +27,41 @@ export default async function HealthVaccinationsPage() {
       </p>
     );
   }
-  const [rows, studentLabels] = await Promise.all([listVaccinations(), loadStudentLabelMap()]);
+  const result = await listVaccinationsResult();
+  if (!result.ok) {
+    // HL-O1: a refused or failed read is not "No vaccinations recorded yet", and the
+    // create button is not offered to a caller the register refused.
+    return (
+      <div className="space-y-6 p-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Vaccinations</h1>
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/health/vaccinations"
+        />
+      </div>
+    );
+  }
+  const rows = result.items;
+  const t = await getTranslations('health');
+  const unknownStudent = t('unknownStudent');
+  // HN-F1 / PRC-M088: resolve every shown row's student by id; an unresolved one gets the
+  // localized fallback (HN-R6), never an id fragment, and a unique link name (HN-R5).
+  const studentLabels = await loadStudentLabelMap(
+    rows.slice(0, REGISTER_ROW_LIMIT).map((r) => r.studentId),
+  );
+  const unknownLink = createUnknownStudentLabeler(unknownStudent);
+  const shown = rows.slice(0, REGISTER_ROW_LIMIT).map((r) => {
+    const studentName = personDisplayName(studentLabels.get(r.studentId), '', unknownStudent);
+    const detail = [
+      r.vaccineName,
+      r.doseNumber != null ? `dose ${r.doseNumber}` : '',
+      r.dateAdministered,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return { ...r, studentName, linkLabel: unknownLink(studentName, detail) };
+  });
 
   return (
     <div className="space-y-6 p-6">
@@ -53,11 +93,15 @@ export default async function HealthVaccinationsPage() {
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
-              {rows.slice(0, 100).map((r) => (
+              {shown.map((r) => (
                 <li key={r.id} className="flex flex-wrap justify-between gap-2 py-3">
                   <div>
-                    <Link href={`/health/${r.studentId}`} className="font-medium hover:underline">
-                      {resolveEntityLabel(r.studentId, studentLabels, 'Student')}
+                    <Link
+                      href={`/health/${r.studentId}`}
+                      className="font-medium hover:underline"
+                      aria-label={r.linkLabel}
+                    >
+                      {r.studentName}
                     </Link>
                     <p className="text-xs text-muted-foreground">
                       {r.vaccineName}
@@ -69,6 +113,12 @@ export default async function HealthVaccinationsPage() {
               ))}
             </ul>
           )}
+          {rows.length > shown.length ? (
+            // HL-O5: the register used to cut at 100 rows without saying so.
+            <p className="mt-4 text-xs text-muted-foreground" role="status">
+              Showing {shown.length} of {rows.length} vaccinations.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

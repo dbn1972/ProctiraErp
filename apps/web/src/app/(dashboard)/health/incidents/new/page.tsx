@@ -33,6 +33,7 @@ export default async function NewIncidentPage() {
       <CreateNurseIncidentForm
         studentOptionsJson={JSON.stringify(studentOptions)}
         institutionOptionsJson={JSON.stringify(institutionOptions)}
+        recorderLabel={session.user.displayName || session.user.email || session.user.sub}
       />
     </div>
   );

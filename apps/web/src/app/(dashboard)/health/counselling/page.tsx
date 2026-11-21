@@ -34,6 +34,7 @@ import {
   type CounsellingSession,
 } from '@/lib/api/health';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getTranslations } from 'next-intl/server';
 import { personDisplayName } from '@/lib/entity-label';
 import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { cn } from '@/lib/utils';
@@ -110,12 +111,14 @@ export default async function CounsellingPage() {
     loadStudentLabelMap(result.items.map((s) => s.studentId)),
     loadStaffLabelMap(result.items.map((s) => s.counsellorId)),
   ]);
+  // HN-R6: the unknown-student fallback comes from the health messages.
+  const t = await getTranslations('health');
   const sessions = result.items.map((s) => ({
     ...s,
     studentName: personDisplayName(
       studentLabels.get(s.studentId),
       s.studentName,
-      'Unknown student',
+      t('unknownStudent'),
     ),
     counsellorName: personDisplayName(
       s.counsellorId ? staffLabels.get(s.counsellorId) : undefined,

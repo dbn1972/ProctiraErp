@@ -24,9 +24,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 export function CreateNurseIncidentForm({
   studentOptionsJson = '[]',
   institutionOptionsJson = '[]',
+  recorderLabel = '',
 }: {
   studentOptionsJson?: string;
   institutionOptionsJson?: string;
+  /** HL-O2: the signed-in user, who the server records as the reporter (PRC-M520). */
+  recorderLabel?: string;
 }) {
   const studentOptions: EntityLabelOption[] = JSON.parse(studentOptionsJson) as EntityLabelOption[];
   const institutionOptions: EntityLabelOption[] = JSON.parse(
@@ -45,7 +48,6 @@ export function CreateNurseIncidentForm({
     const category = String(fd.get('category') ?? '').trim();
     const severity = String(fd.get('severity') ?? 'low').trim();
     const notes = String(fd.get('notes') ?? '').trim();
-    const reportedBy = String(fd.get('reportedBy') ?? '').trim();
 
     if (!UUID_RE.test(studentId)) {
       setError(
@@ -63,8 +65,8 @@ export function CreateNurseIncidentForm({
       setError(institutionError);
       return;
     }
-    if (!incidentAt || !category || !reportedBy) {
-      setError('Incident time, category, and reporter are required.');
+    if (!incidentAt || !category) {
+      setError('Incident time and category are required.');
       return;
     }
 
@@ -77,7 +79,6 @@ export function CreateNurseIncidentForm({
         category,
         severity: severity as (typeof SEVERITIES)[number],
         notes: notes || undefined,
-        reportedBy,
       });
       if (result.status === 'error') {
         setError(result.message ?? 'Failed');
@@ -129,8 +130,14 @@ export function CreateNurseIncidentForm({
               ))}
             </select>
           </FormField>
-          <FormField label="Reported by" htmlFor="reportedBy">
-            <Input id="reportedBy" name="reportedBy" required className="min-h-11" />
+          {/* HL-O2: the server always records the signed-in user (PRC-M520), so the
+              recorder is shown read-only and not submitted. */}
+          <FormField
+            label="Reported by"
+            htmlFor="reportedBy"
+            hint="Recorded as the signed-in user."
+          >
+            <Input id="reportedBy" value={recorderLabel} readOnly className="min-h-11" />
           </FormField>
           <FormField label="Notes" htmlFor="notes">
             <Input id="notes" name="notes" className="min-h-11" />
