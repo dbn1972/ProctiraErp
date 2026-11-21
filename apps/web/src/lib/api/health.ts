@@ -245,12 +245,9 @@ export async function createCounsellingSession(
   return result.data;
 }
 
-export async function listScreeningPrograms(): Promise<ScreeningProgram[]> {
-  const result = await gatewayFetch<{ data: ScreeningProgram[] }>('/health/screenings', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+/** HL-O1: keeps why the register is empty (denied / unavailable vs none). */
+export async function listScreeningProgramsResult(): Promise<ListResult<ScreeningProgram>> {
+  return fetchList<ScreeningProgram>('/health/screenings', { next: { revalidate: 0 } });
 }
 
 export interface AllergyRecord {
@@ -369,13 +366,12 @@ export async function listStudentVaccinations(studentId: string): Promise<Vaccin
   return result.data?.data ?? [];
 }
 
-/** Tenant-wide immunisation register (Wave 10 Option B). */
-export async function listVaccinations(): Promise<VaccinationRecord[]> {
-  const result = await gatewayFetch<{ data: VaccinationRecord[] }>('/health/vaccinations', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+/**
+ * Tenant-wide immunisation register (Wave 10 Option B). HL-O1: keeps why the register
+ * is empty, so a 403 or 5xx is not shown as "No vaccinations recorded yet".
+ */
+export async function listVaccinationsResult(): Promise<ListResult<VaccinationRecord>> {
+  return fetchList<VaccinationRecord>('/health/vaccinations', { next: { revalidate: 0 } });
 }
 
 export async function createVaccination(input: CreateVaccinationInput): Promise<VaccinationRecord> {
@@ -393,27 +389,20 @@ export async function createVaccination(input: CreateVaccinationInput): Promise<
   return result.data;
 }
 
-export async function listPhiAccessLogs(studentId?: string): Promise<{
-  rows: PhiAccessLogRow[];
-  accessDenied: boolean;
-}> {
+/**
+ * PHI access log. HL-O1: a 5xx or network failure used to come back as "no rows"; the
+ * result now keeps the failure kind (401/403/422 stay distinguishable as before).
+ */
+export async function listPhiAccessLogsResult(
+  studentId?: string,
+): Promise<ListResult<PhiAccessLogRow>> {
   const qs = studentId ? `?studentId=${encodeURIComponent(studentId)}` : '';
-  const result = await gatewayFetch<{ data: PhiAccessLogRow[] }>(`/health/phi-access${qs}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  if (result.status === 401 || result.status === 403 || result.status === 422) {
-    return { rows: [], accessDenied: true };
-  }
-  return { rows: result.data?.data ?? [], accessDenied: false };
+  return fetchList<PhiAccessLogRow>(`/health/phi-access${qs}`, { next: { revalidate: 0 } });
 }
 
-export async function listNurseIncidents(): Promise<NurseIncidentRecord[]> {
-  const result = await gatewayFetch<{ data: NurseIncidentRecord[] }>('/health/incidents', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+/** HL-O1: keeps why the incident register is empty (denied / unavailable vs none). */
+export async function listNurseIncidentsResult(): Promise<ListResult<NurseIncidentRecord>> {
+  return fetchList<NurseIncidentRecord>('/health/incidents', { next: { revalidate: 0 } });
 }
 
 export async function createNurseIncident(

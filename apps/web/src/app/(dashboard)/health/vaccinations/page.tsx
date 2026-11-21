@@ -6,7 +6,8 @@ import { ArrowLeft, Plus } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, listVaccinations } from '@/lib/api/health';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { canAccessHealthRecords, listVaccinationsResult } from '@/lib/api/health';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
@@ -21,7 +22,23 @@ export default async function HealthVaccinationsPage() {
       </p>
     );
   }
-  const [rows, studentLabels] = await Promise.all([listVaccinations(), loadStudentLabelMap()]);
+  const result = await listVaccinationsResult();
+  if (!result.ok) {
+    // HL-O1: a refused or failed read is not "No vaccinations recorded yet", and the
+    // create button is not offered to a caller the register refused.
+    return (
+      <div className="space-y-6 p-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Vaccinations</h1>
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/health/vaccinations"
+        />
+      </div>
+    );
+  }
+  const rows = result.items;
+  const studentLabels = await loadStudentLabelMap();
 
   return (
     <div className="space-y-6 p-6">

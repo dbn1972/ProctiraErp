@@ -3,7 +3,8 @@ import { ArrowLeft, Plus } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, listNurseIncidents } from '@/lib/api/health';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { canAccessHealthRecords, listNurseIncidentsResult } from '@/lib/api/health';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
@@ -14,7 +15,19 @@ export default async function HealthIncidentsPage() {
   if (!canAccessHealthRecords(session.user.roles ?? [])) {
     return <p className="p-6 text-sm">You need a health role.</p>;
   }
-  const [rows, studentLabels] = await Promise.all([listNurseIncidents(), loadStudentLabelMap()]);
+  const result = await listNurseIncidentsResult();
+  if (!result.ok) {
+    // HL-O1: a refused or failed read is not "No incidents yet", and "Log visit" is not
+    // offered to a caller the register refused.
+    return (
+      <div className="space-y-6 p-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Nurse incidents</h1>
+        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health/incidents" />
+      </div>
+    );
+  }
+  const rows = result.items;
+  const studentLabels = await loadStudentLabelMap();
 
   return (
     <div className="space-y-6 p-6">
