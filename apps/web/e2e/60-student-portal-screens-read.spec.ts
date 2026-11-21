@@ -306,10 +306,15 @@ test.describe('Student portal screens — read path (E2E_BACKEND_READY)', () => 
     expect(search.data.map((row) => row.title).sort()).toEqual([titleA, titleB]);
 
     await openAsStudent(page, s);
-    await page.goto(`/student/library?q=${encodeURIComponent(query)}`, {
-      waitUntil: 'domcontentloaded',
-    });
+    // SP-R8: search through the "Search titles" GET form, as a student would.
+    await page.goto('/student/library', { waitUntil: 'domcontentloaded' });
     const screen = page.getByTestId('student-library');
+    await expectNoErrorFrame(screen);
+    await screen.getByLabel('Search titles').fill(query);
+    await screen.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page).toHaveURL(
+      (url) => url.pathname === '/student/library' && url.searchParams.get('q') === query,
+    );
     await expectNoErrorFrame(screen);
     await expect(screen.getByLabel('Search titles')).toHaveValue(query);
     for (const row of search.data) {
