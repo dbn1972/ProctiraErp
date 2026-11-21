@@ -77,15 +77,15 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/examinations/[id]/results` | functional, smoke | `19-examinations-inventory-smoke.spec.ts`<br>`34-examinations-write-smoke.spec.ts` |
 | `/examinations/board-exports` | a11y, smoke | `09-route-permission-coupling.spec.ts`<br>`19-examinations-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/examinations/new` | a11y, smoke | `19-examinations-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/fees` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/dunning` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/invoices` | a11y | `a11y-axe.spec.ts` |
-| `/fees/plans` | a11y | `a11y-axe.spec.ts` |
-| `/fees/receipts` | a11y | `a11y-axe.spec.ts` |
-| `/fees/reconciliation` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/reports` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/scholarship-netting` | a11y, functional | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/fees/structures` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/dunning` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/invoices` | a11y, functional, smoke | `90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/plans` | a11y, functional, smoke | `90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/receipts` | a11y, functional, smoke | `90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/reconciliation` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/reports` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/scholarship-netting` | a11y, functional, smoke | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/structures` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`41-admissions-crm-write-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/[studentId]` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/allergies` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
