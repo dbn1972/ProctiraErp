@@ -54,6 +54,7 @@ import {
   studentHeaders,
   type Json,
 } from './fixtures/student-portal-self';
+import { PARENT_PORTAL_STUDENT_ID, parentPortalJwtHeaders } from './fixtures/parent-portal-auth';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
@@ -245,6 +246,19 @@ test.describe('Student portal — privacy and tenancy negatives (E2E_BACKEND_REA
       const res = await call(request, `/student-portal/me/${view}`, studentHeaders(s1.id));
       expect(res.status, `me/${view}: ${res.text}`).toBe(200);
       expect(leaks(res.text), `me/${view} leaked S2: ${res.text}`).toBe(false);
+    }
+
+    // SP-R7 positive control: the child-view routes exist and answer 200 for a
+    // linked guardian (seed-e2e-tenants.sql links parent-jwt-seeded to student
+    // …0099), so the 404s below come from the student principal, not a missing route.
+    const guardian = parentPortalJwtHeaders('parent-jwt-seeded');
+    for (const view of SELF_VIEWS) {
+      const res = await call(
+        request,
+        `/parent-portal/children/${PARENT_PORTAL_STUDENT_ID}/${view}`,
+        guardian,
+      );
+      expect(res.status, `children/<linked child>/${view} as guardian: ${res.text}`).toBe(200);
     }
 
     // The parent child-view routes do not open S2 to a student principal.
