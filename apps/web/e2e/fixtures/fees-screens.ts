@@ -626,7 +626,7 @@ export async function ready(locator: Locator): Promise<Locator> {
   await expect(async () => {
     await expect(locator).toHaveCount(1, { timeout: 2_000 });
     await expect(locator).toBeEnabled({ timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
+  }).toPass({ timeout: 45_000 });
   return locator;
 }
 
@@ -636,7 +636,7 @@ export async function hydrated(page: Page, testId: string): Promise<Locator> {
   await expect(async () => {
     await expect(el).toHaveCount(1, { timeout: 2_000 });
     await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
+  }).toPass({ timeout: 45_000 });
   return el;
 }
 

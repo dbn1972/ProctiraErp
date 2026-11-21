@@ -39,6 +39,13 @@ import {
  * a structure invoice and a smaller scholarship, which works today.
  */
 
+/**
+ * Row buttons hydrate after the server page streams in. Under host load (nightly shards,
+ * parallel module runs) that has taken longer than the 20 s CI expect timeout, so the
+ * waits that only gate on hydration get 45 s.
+ */
+const SLOW_UI = { timeout: 45_000 };
+
 function listItem(page: Page, testId: string, text: string): Locator {
   return page.getByTestId(testId).filter({ hasText: text });
 }
@@ -88,7 +95,7 @@ async function openInvoiceRow(
   const { page: n } = await pageOf(request, p, '/fees/invoices', invoice.id);
   await page.goto(`/fees/invoices?page=${n}`, { waitUntil: 'domcontentloaded' });
   const row = listItem(page, 'fee-invoice-row', invoice.invoiceNumber);
-  await expect(row).toHaveCount(1);
+  await expect(row).toHaveCount(1, SLOW_UI);
   return row;
 }
 
@@ -99,7 +106,7 @@ async function recordPayment(
   input: { method: 'cash' | 'upi'; amount: string; reference: string },
 ): Promise<Locator> {
   const open = row.getByTestId('staff-pay-invoice');
-  await expect(open).toHaveAttribute('data-hydrated', 'true');
+  await expect(open).toHaveAttribute('data-hydrated', 'true', SLOW_UI);
   await open.click();
   const dialog = page.getByTestId('staff-pay-confirm');
   await expect(dialog).toBeVisible();
@@ -114,7 +121,7 @@ async function recordPayment(
 async function submitRefund(page: Page, row: Locator, amount: string, reason: string) {
   const open = row.getByTestId('open-refund');
   if ((await page.getByTestId('refund-form').count()) === 0) {
-    await expect(open).toHaveAttribute('data-hydrated', 'true');
+    await expect(open).toHaveAttribute('data-hydrated', 'true', SLOW_UI);
     await open.click();
   }
   const form = await hydrated(page, 'refund-form');
@@ -271,7 +278,7 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
 
     // Refunds: the form starts at the invoice amount; a refund above what is left is refused.
     row = await openInvoiceRow(page, request, admin, adhoc);
-    await expect(row.getByTestId('open-refund')).toHaveAttribute('data-hydrated', 'true');
+    await expect(row.getByTestId('open-refund')).toHaveAttribute('data-hydrated', 'true', SLOW_UI);
     await row.getByTestId('open-refund').click();
     await expect((await hydrated(page, 'refund-form')).locator('#refund-amount')).toHaveValue(
       '1050.05',
@@ -312,7 +319,11 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
     await openAs(page, admin);
     let row = await openInvoiceRow(page, request, admin, invoice);
     await expect(row).toContainText(`₹999.99 · ${student.label} · Open`);
-    await expect(row.getByTestId('open-concession')).toHaveAttribute('data-hydrated', 'true');
+    await expect(row.getByTestId('open-concession')).toHaveAttribute(
+      'data-hydrated',
+      'true',
+      SLOW_UI,
+    );
     await row.getByTestId('open-concession').click();
     let form = await hydrated(page, 'concession-form');
     await form.locator('#concession-percent').fill('15');
