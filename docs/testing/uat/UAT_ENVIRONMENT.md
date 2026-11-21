@@ -134,6 +134,7 @@ Keycloak admin console: `http://auth.proctira-uat.localhost:29080/admin/` with `
 - Tenant A: Sunrise Public School demo, `db/seeds/006_sunrise_public_school_demo.sql`, applied with `PGOPTIONS='-c proctira.allow_demo_seed=on'` (5 institutions, 3,619 students, 249 staff).
 - Tenant B and the other E2E tenants: `tools/e2e/seed-e2e-tenants.sql` (`e2e-tenant-a` has 1 institution and 6 students).
 - Registration fixture: `tools/e2e/seed-e2e-registration.sql` (tenant `e2e-registration`, one institution with a published admission form).
+- Portal links: `uatenv-link-portal-users.sh` (run by the deploy `apps` stage and by `uatenv-reset-data.sh`) signs `uat-parent` and `uat-student` in once through the gateway password route so the gateway creates their local user ids, then links `uat-parent` to Sunrise student `00000000-0000-4000-8000-00000000a5b1` (`parent_child_links`, active) and binds `uat-student` to the same student (`students.custom_data.user_id`, the PRC-H075 self-binding). Without it both portals show "no linked children" / "not available for your account".
 
 ## Database roles
 
@@ -188,7 +189,7 @@ bash $UATENV/uatenv-teardown.sh [--volumes]
 
 `uatenv-redeploy.sh` extracts the commit with `git archive` from the shared object store, builds the images one at a time, takes a pre-migration backup, runs the production migrations, recreates the services and waits for health. If the new services do not become healthy it brings the previous release back up. Schema changes are forward-only, so a rollback relies on the previous images tolerating the newer schema. It keeps the current and previous releases and images and prunes older ones. `--with-secondary` adds public-website, admin-console, developer-portal and install-wizard (after PR #735 is on `main`).
 
-`uatenv-reset-data.sh` stops the apps, drops database `proctira`, re-runs roles, migrations and seeds, flushes Redis, empties the MinIO bucket and starts the apps. Keycloak and the role users are kept.
+`uatenv-reset-data.sh` stops the apps, drops database `proctira`, re-runs roles, migrations and seeds, flushes Redis, empties the MinIO bucket, starts the apps and re-links the portal users. Keycloak and the role users are kept.
 
 First install (already done on this host): `uatenv-deploy.sh --sha <sha> [--stage prepare|build|data|keycloak|apps|ops]`.
 

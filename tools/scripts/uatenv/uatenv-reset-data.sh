@@ -41,5 +41,6 @@ uatenv_log "starting app services"
 # shellcheck disable=SC2046
 uatenv_compose $(uatenv_profile_args) up -d "${APPS[@]}" proxy
 wait_healthy "${APPS[@]}" proxy
+bash "$UATENV_RT/tooling/tools/scripts/uatenv/uatenv-link-portal-users.sh"
 bash "$UATENV_RT/tooling/tools/scripts/uatenv/uatenv-health.sh"
 uatenv_log "reset complete"

@@ -10,7 +10,8 @@
 #   data      datastores up; roles (bootstrap-db-roles.sh); production migrations
 #             (run-target-database-migrations.sh + runtime gates); seeds; bucket
 #   keycloak  Keycloak up; realm deltas; UAT role users; direct-grant check
-#   apps      gateway, workers, web, portals and proxy up; health; state file
+#   apps      gateway, workers, web, portals and proxy up; portal users linked
+#             to Sunrise records (uatenv-link-portal-users.sh); health; state file
 #   ops       backup gpg key + nightly systemd user timer
 # Later deploys of a new commit use uatenv-redeploy.sh.
 set -euo pipefail
@@ -82,6 +83,7 @@ if run_stage apps; then
   # shellcheck disable=SC2046
   uatenv_compose $(uatenv_profile_args) up -d "${APPS[@]}" proxy
   wait_healthy "${APPS[@]}" proxy
+  bash "$TOOLS/uatenv-link-portal-users.sh"
   ln -sfn "releases/$SHA" "$UATENV_RT/current"
   uatenv_write_state "$SHA" "proxy ${UATENV_DATASTORES[*]} keycloak ${APPS[*]}"
   bash "$TOOLS/uatenv-health.sh" --json "$UATENV_EVIDENCE/services-$(date -u +%Y%m%dT%H%M%SZ).json"
