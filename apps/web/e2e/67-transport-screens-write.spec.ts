@@ -283,7 +283,6 @@ test.describe('Transport screens — form saves (E2E_BACKEND_READY)', () => {
     const sub = randomUUID();
     const P = principalHeaders(TENANT_A, sub);
     const tag = newTag();
-    const today = todayIso();
     const route = await createRoute(request, P, tag);
     const stop = await createStop(request, P, {
       routeId: route.id,
@@ -292,17 +291,21 @@ test.describe('Transport screens — form saves (E2E_BACKEND_READY)', () => {
     });
     const st1 = await createStudent(request, { tag, n: 1 });
     const st2 = await createStudent(request, { tag, n: 2 });
+    let tripDate = '';
     for (const student of [st1, st2]) {
+      const startDate = await nextStartDate(request, 'student-assignments', [{ headers: P }]);
       await createStudentAssignment(request, P, {
         studentId: student.id,
         routeId: route.id,
         stopId: stop.id,
-        startDate: await nextStartDate(request, 'student-assignments', [{ headers: P }]),
+        startDate,
       });
+      // The trip is on the latest start date, so both riders have started (T-D4).
+      tripDate = startDate;
     }
-    const trip = { routeId: route.id, tripDate: today, direction: 'pickup' as const };
+    const trip = { routeId: route.id, tripDate, direction: 'pickup' as const };
     await markTrip(request, P, { ...trip, studentId: st1.id, status: 'boarded' });
-    const query = `routeId=${route.id}&tripDate=${today}&direction=pickup`;
+    const query = `routeId=${route.id}&tripDate=${tripDate}&direction=pickup`;
 
     await openAs(page, principalUser(sub));
     await page.goto(`/transport/attendance?${query}`, { waitUntil: 'domcontentloaded' });
@@ -310,7 +313,7 @@ test.describe('Transport screens — form saves (E2E_BACKEND_READY)', () => {
     await expect(page.getByText('1 boarded · 0 alighted · 0 absent · 1 unmarked')).toBeVisible();
     await hydrated(page, 'transport-attendance-form');
     await page.locator('#att-route').selectOption(route.id);
-    await page.locator('#att-date').fill(today);
+    await page.locator('#att-date').fill(tripDate);
     await page.locator('#att-dir').selectOption('pickup');
     await page.locator('#att-student').selectOption(st2.id);
     await page.locator('#att-status').selectOption('alighted');
@@ -411,11 +414,12 @@ test.describe('Transport screens — form saves (E2E_BACKEND_READY)', () => {
       longitude: 72.8777,
     });
     const vehicle = await createVehicle(request, P, tag);
+    // "Evaluate now" always evaluates today (UTC), so the driver row starts today (T-D4).
     await createDriverAssignment(request, P, {
       vehicleId: vehicle.id,
       driverId: randomUUID(),
       routeId: route.id,
-      startDate: await nextStartDate(request, 'driver-assignments', [{ headers: P }]),
+      startDate: todayIso(),
     });
     const device = await registerDevice(request, P, vehicle.id);
     // One degree north of the only stop: far outside the geofence.

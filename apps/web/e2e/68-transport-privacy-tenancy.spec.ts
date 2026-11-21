@@ -105,7 +105,6 @@ async function seedOtherTenant(request: Parameters<typeof createRoute>[0], tag: 
   const PB = principalHeaders(OTHER_TENANT, randomUUID());
   const PA = principalHeaders(TENANT_A, randomUUID());
   const both = [{ headers: PA }, { headers: PB }];
-  const today = todayIso();
   // Per-run coordinates: leftover rows in tenant A can never carry this pair.
   const n = 1000 + (parseInt(tag.slice(0, 4), 16) % 9000);
   const m = 1000 + (parseInt(tag.slice(4, 8), 16) % 9000);
@@ -122,11 +121,12 @@ async function seedOtherTenant(request: Parameters<typeof createRoute>[0], tag: 
   const vehicle = await createVehicle(request, PB, tag);
   const device = await registerDevice(request, PB, vehicle.id);
   await sendPing(request, PB, device, { pingId: `trbping-${tag}`, ...ping });
+  const driverStart = await nextStartDate(request, 'driver-assignments', both);
   const driverAssignment = await createDriverAssignment(request, PB, {
     vehicleId: vehicle.id,
     driverId: randomUUID(),
     routeId: route.id,
-    startDate: await nextStartDate(request, 'driver-assignments', both),
+    startDate: driverStart,
   });
   const student = await createStudent(request, { tag, n: 1, tenantId: OTHER_TENANT });
   const band = await createFeeBand(request, PB, {
@@ -135,23 +135,27 @@ async function seedOtherTenant(request: Parameters<typeof createRoute>[0], tag: 
     stopId: stop.id,
     amountCents: 150_000,
   });
+  const studentStart = await nextStartDate(request, 'student-assignments', both);
   const studentAssignment = await createStudentAssignment(request, PB, {
     studentId: student.id,
     routeId: route.id,
     stopId: stop.id,
-    startDate: await nextStartDate(request, 'student-assignments', both),
+    startDate: studentStart,
   });
-  const trip = { routeId: route.id, tripDate: today, direction: 'pickup' as const };
+  // Both rows start in the future; the trip is on the later start date, so the
+  // rider and the driver have both started (T-D4).
+  const tripDate = driverStart > studentStart ? driverStart : studentStart;
+  const trip = { routeId: route.id, tripDate, direction: 'pickup' as const };
   await markTrip(request, PB, { ...trip, studentId: student.id, status: 'boarded' });
   // The ping is about 150 km from the stop; the per-run threshold makes the message unique.
   const rule = await createGeofenceRule(request, PB, {
     routeId: route.id,
     threshold: geofenceThreshold(tag),
   });
-  const evaluated = await evaluateAlerts(request, PB, route.id);
+  const evaluated = await evaluateAlerts(request, PB, route.id, tripDate);
   const alert = evaluated.data.find((a) => a.ruleId === rule.id);
   expect(alert, 'the other tenant has a geofence alert').toBeTruthy();
-  const tripQuery = `routeId=${route.id}&tripDate=${today}&direction=pickup`;
+  const tripQuery = `routeId=${route.id}&tripDate=${tripDate}&direction=pickup`;
 
   // Positive control: the other tenant's principal sees every row.
   const routes = await getJson<List<RouteRow>>(request, '/transport/routes', PB);
@@ -190,6 +194,7 @@ async function seedOtherTenant(request: Parameters<typeof createRoute>[0], tag: 
     rule,
     driverAssignment,
     studentAssignment,
+    tripDate,
     tripQuery,
     ping,
     pingText,
@@ -223,19 +228,22 @@ test.describe('Transport screens — privacy and tenancy (E2E_BACKEND_READY)', (
       stopId: stop.id,
       startDate: await nextStartDate(request, 'student-assignments', [{ headers: P }]),
     });
-    const tripQuery = `routeId=${route.id}&tripDate=${today}&direction=pickup`;
+    // The trip is on the rider's start date (today or later), so the rider has started (T-D4).
+    const tripDate = assignment.startDate.slice(0, 10);
+    const tripQuery = `routeId=${route.id}&tripDate=${tripDate}&direction=pickup`;
     await markTrip(request, P, {
       routeId: route.id,
-      tripDate: today,
+      tripDate,
       direction: 'pickup',
       studentId: student.id,
       status: 'boarded',
     });
+    // Started today, so it has started on the trip date (T-D4).
     await createDriverAssignment(request, P, {
       vehicleId: vehicle.id,
       driverId: randomUUID(),
       routeId: route.id,
-      startDate: await nextStartDate(request, 'driver-assignments', [{ headers: P }]),
+      startDate: today,
     });
     const device = await registerDevice(request, P, vehicle.id);
     await sendPing(request, P, device, {
@@ -247,7 +255,7 @@ test.describe('Transport screens — privacy and tenancy (E2E_BACKEND_READY)', (
       routeId: route.id,
       threshold: geofenceThreshold(tag),
     });
-    const alert = (await evaluateAlerts(request, P, route.id)).data.find(
+    const alert = (await evaluateAlerts(request, P, route.id, tripDate)).data.find(
       (a) => a.ruleId === rule.id,
     );
     expect(alert).toBeTruthy();
@@ -337,7 +345,7 @@ test.describe('Transport screens — privacy and tenancy (E2E_BACKEND_READY)', (
         '/transport/attendance',
         {
           routeId: route.id,
-          tripDate: today,
+          tripDate,
           direction: 'pickup',
           studentId: student.id,
           status: 'absent',
@@ -605,7 +613,7 @@ test.describe('Transport screens — privacy and tenancy (E2E_BACKEND_READY)', (
         '/transport/attendance',
         {
           routeId: b.route.id,
-          tripDate: today,
+          tripDate: b.tripDate,
           direction: 'pickup',
           studentId: b.student.id,
           status: 'absent',

@@ -14,6 +14,11 @@
  * - Driver and student assignments return the first 20 by `start_date DESC`.
  *   `nextStartDate()` returns a date after the newest stored start date, so the
  *   new row is the newest. Dates are derived from the run, never fixed.
+ * - `nextStartDate()` can be after today, so a trip date is never "today" by
+ *   default: attendance tests use the latest rider start date, and alert tests
+ *   evaluate on a trip date on or after the driver assignment's start date.
+ *   The tests then hold whether or not the roster and the alert evaluator
+ *   check `start_date` (defect T-D4).
  *
  * Helpers are copied, not imported, from the other screen-coverage branches.
  * Device keys are returned to the caller and never logged.
@@ -504,19 +509,14 @@ export interface AlertRow {
   acknowledgedBy: string | null;
 }
 
+/** `tripDate` must be on or after the start date of the route's driver assignment. */
 export async function evaluateAlerts(
   request: APIRequestContext,
   headers: Headers,
   routeId: string,
+  tripDate: string,
 ): Promise<{ data: AlertRow[]; evaluated: number }> {
-  return send(
-    request,
-    'POST',
-    '/transport/alerts/evaluate',
-    { routeId, tripDate: todayIso() },
-    200,
-    headers,
-  );
+  return send(request, 'POST', '/transport/alerts/evaluate', { routeId, tripDate }, 200, headers);
 }
 
 /** A per-tag geofence threshold in metres (1000–50999). */

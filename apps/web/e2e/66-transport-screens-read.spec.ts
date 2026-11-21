@@ -288,7 +288,6 @@ test.describe('Transport screens — read path (E2E_BACKEND_READY)', () => {
     const sub = randomUUID();
     const P = principalHeaders(TENANT_A, sub);
     const tag = newTag();
-    const today = todayIso();
     const route = await createRoute(request, P, tag);
     const stop = await createStop(request, P, {
       routeId: route.id,
@@ -296,21 +295,25 @@ test.describe('Transport screens — read path (E2E_BACKEND_READY)', () => {
       stopOrder: 1,
     });
     const riders = [];
+    let tripDate = '';
     for (const n of [1, 2, 3]) {
       const student = await createStudent(request, { tag, n });
+      const startDate = await nextStartDate(request, 'student-assignments', [{ headers: P }]);
       await createStudentAssignment(request, P, {
         studentId: student.id,
         routeId: route.id,
         stopId: stop.id,
-        startDate: await nextStartDate(request, 'student-assignments', [{ headers: P }]),
+        startDate,
       });
       riders.push(student);
+      // The trip is on the latest start date, so every rider has started (T-D4).
+      tripDate = startDate;
     }
     const [st1, st2] = riders as [(typeof riders)[number], (typeof riders)[number]];
-    const trip = { routeId: route.id, tripDate: today, direction: 'pickup' as const };
+    const trip = { routeId: route.id, tripDate, direction: 'pickup' as const };
     await markTrip(request, P, { ...trip, studentId: st1.id, status: 'boarded' });
     await markTrip(request, P, { ...trip, studentId: st2.id, status: 'absent' });
-    const query = `routeId=${route.id}&tripDate=${today}&direction=pickup`;
+    const query = `routeId=${route.id}&tripDate=${tripDate}&direction=pickup`;
     const api = await getJson<{
       data: Array<{ studentId: string; status: string }>;
       assigned: number;
@@ -406,11 +409,13 @@ test.describe('Transport screens — read path (E2E_BACKEND_READY)', () => {
       longitude: 72.8777,
     });
     const vehicle = await createVehicle(request, P, tag);
+    // Started today: the driver row is not read from a capped list here (T-D4).
+    const today = todayIso();
     await createDriverAssignment(request, P, {
       vehicleId: vehicle.id,
       driverId: randomUUID(),
       routeId: route.id,
-      startDate: await nextStartDate(request, 'driver-assignments', [{ headers: P }]),
+      startDate: today,
     });
     const device = await registerDevice(request, P, vehicle.id);
     // One degree north of the only stop: far outside the geofence.
@@ -420,7 +425,7 @@ test.describe('Transport screens — read path (E2E_BACKEND_READY)', () => {
       longitude: 72.8777,
     });
     const rule = await createGeofenceRule(request, P, { routeId: route.id, threshold });
-    const evaluated = await evaluateAlerts(request, P, route.id);
+    const evaluated = await evaluateAlerts(request, P, route.id, today);
     const created = evaluated.data.filter((a) => a.ruleId === rule.id);
     expect(created).toHaveLength(1);
     expect(created[0]!.message).toContain(`(geofence ${threshold} m)`);
