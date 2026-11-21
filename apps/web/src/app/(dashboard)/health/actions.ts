@@ -5,7 +5,7 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 import {
   createAllergy,
   createCounsellingSession,
@@ -36,13 +36,11 @@ export async function createCounsellingSessionAction(
       sessionId: session.id,
     };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to create counselling session';
-    return { status: 'error', message };
+    // RAW-WEB: fixed copy plus a reference, never gateway or server text.
+    return {
+      status: 'error',
+      message: genericActionErrorMessage(error, 'Failed to create counselling session'),
+    };
   }
 }
 
@@ -54,13 +52,11 @@ export async function createAllergyAction(input: CreateAllergyInput): Promise<He
     revalidatePath(`/health/${input.studentId}`);
     return { status: 'success', message: 'Allergy recorded.', sessionId: row.id };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to create allergy';
-    return { status: 'error', message };
+    // RAW-WEB: fixed copy plus a reference, never gateway or server text.
+    return {
+      status: 'error',
+      message: genericActionErrorMessage(error, 'Failed to create allergy'),
+    };
   }
 }
 
@@ -74,13 +70,11 @@ export async function createVaccinationAction(
     revalidatePath(`/health/${input.studentId}`);
     return { status: 'success', message: 'Vaccination recorded.', sessionId: row.id };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to create vaccination';
-    return { status: 'error', message };
+    // RAW-WEB: fixed copy plus a reference, never gateway or server text.
+    return {
+      status: 'error',
+      message: genericActionErrorMessage(error, 'Failed to create vaccination'),
+    };
   }
 }
 
@@ -92,12 +86,10 @@ export async function createNurseIncidentAction(
     revalidatePath('/health/incidents');
     return { status: 'success', message: 'Incident recorded.', sessionId: row.id };
   } catch (error) {
-    const message =
-      error instanceof GatewayError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Failed to create incident';
-    return { status: 'error', message };
+    // RAW-WEB: fixed copy plus a reference, never gateway or server text.
+    return {
+      status: 'error',
+      message: genericActionErrorMessage(error, 'Failed to create incident'),
+    };
   }
 }
