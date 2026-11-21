@@ -145,6 +145,24 @@ test('transport screen specs run nightly and are not in PR_SPECS', () => {
     assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
   }
 });
+// Students screen -> API -> DB coverage (100 read, 101 form saves, 102 privacy/tenancy).
+// Nightly only: the PR shard time budget is used by the parent and student portal
+// screen specs. Moving one into PR_SPECS is a visible change here.
+const STUDENTS_SCREEN_SPECS = [
+  '100-students-screens-read.spec.ts',
+  '101-students-screens-write.spec.ts',
+  '102-students-privacy-tenancy.spec.ts',
+];
+test('students screen specs run nightly and are not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of STUDENTS_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+});
 
 // Campus staff roles (H-D2, T-O1, MR-1, T-D3): warden / transport officer / registrar
 // allowed paths and teacher / parent / student denials, live. Nightly only: the PR

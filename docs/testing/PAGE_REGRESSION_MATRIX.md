@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **111**
+- Playwright specs: **114**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -172,15 +172,15 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/staff/new` | a11y, functional, smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`15b-staff-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/staff/payroll` | a11y, dark, functional, touch | `52-staff-hr-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/staff/substitutions` | a11y, smoke | `22-timetable-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/students` | a11y, dark, functional, rtl, smoke, touch | `04-transfer-and-workflow.spec.ts`<br>`05-bulk-import.spec.ts`<br>`06-language-and-rtl.spec.ts`<br>`07-tenant-isolation.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`34-examinations-write-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`45-exam-ops-write-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/students/[id]` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`05-bulk-import.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/students/[id]/edit` | smoke | `15-overview-people-inventory-smoke.spec.ts` |
-| `/students/[id]/enroll` | smoke | `55-enrol-progression-smoke.spec.ts` |
-| `/students/[id]/transfer` | smoke | `15-overview-people-inventory-smoke.spec.ts` |
-| `/students/enroll` | smoke | `55-enrol-progression-smoke.spec.ts` |
-| `/students/import` | a11y, functional, smoke | `05-bulk-import.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/students/new` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/students/records` | smoke | `09-route-permission-coupling.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts` |
+| `/students` | a11y, dark, functional, rtl, smoke, touch | `04-transfer-and-workflow.spec.ts`<br>`05-bulk-import.spec.ts`<br>`06-language-and-rtl.spec.ts`<br>`07-tenant-isolation.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`100-students-screens-read.spec.ts`<br>`101-students-screens-write.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`34-examinations-write-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`45-exam-ops-write-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/students/[id]` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`05-bulk-import.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`100-students-screens-read.spec.ts`<br>`101-students-screens-write.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/students/[id]/edit` | functional, smoke | `100-students-screens-read.spec.ts`<br>`101-students-screens-write.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts` |
+| `/students/[id]/enroll` | smoke | `100-students-screens-read.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`55-enrol-progression-smoke.spec.ts` |
+| `/students/[id]/transfer` | functional, smoke | `100-students-screens-read.spec.ts`<br>`101-students-screens-write.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts` |
+| `/students/enroll` | smoke | `100-students-screens-read.spec.ts`<br>`55-enrol-progression-smoke.spec.ts` |
+| `/students/import` | a11y, functional, smoke | `05-bulk-import.spec.ts`<br>`100-students-screens-read.spec.ts`<br>`101-students-screens-write.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/students/new` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`100-students-screens-read.spec.ts`<br>`101-students-screens-write.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/students/records` | functional, smoke | `09-route-permission-coupling.spec.ts`<br>`100-students-screens-read.spec.ts`<br>`101-students-screens-write.spec.ts`<br>`102-students-privacy-tenancy.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts` |
 | `/tenant-lifecycle` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport/alerts` | a11y, dark, functional, smoke, touch | `54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
