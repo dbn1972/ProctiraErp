@@ -9,14 +9,18 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listHostelMessPlans, listHostels } from '@/lib/api/hostel';
 import { MessOpsForms } from '../_components/mess-ops-forms';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HostelMessPage() {
-  await requireSession();
+  // H-D1: check before any hostel read (and before the mess form loads students).
+  if (!(await hasDashboardDomainRouteAccess('hostel', '/hostel'))) {
+    return <RouteAccessDenied />;
+  }
   const [hostels, plans] = await Promise.all([listHostels(), listHostelMessPlans()]);
 
   return (
