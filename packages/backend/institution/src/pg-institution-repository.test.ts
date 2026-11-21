@@ -15,14 +15,28 @@ import { createInstitutionRepository, isPgInstitutionEnabled } from './repositor
 
 const created: Array<{ id: string; tenantId: string; areaId: string }> = [];
 
-async function seedTenantAndArea(tenantId: string, areaId: string): Promise<void> {
+/**
+ * F1: idempotent under concurrency. A bare `ON CONFLICT DO NOTHING` arbitrates
+ * every unique index (id and tenants_slug_key), so a concurrent seed of the
+ * same tenant waits and then does nothing instead of raising 23505. The slug
+ * carries the vitest worker id so parallel workers never share one.
+ */
+async function seedTenant(tenantId: string): Promise<void> {
+  const pool = getSharedPgPool();
+  expect(pool).not.toBeNull();
+  const worker = process.env.VITEST_POOL_ID ?? '0';
+  await withPgTenant(pool!, tenantId, async (client) => {
+    await client.query(
+      `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [tenantId, `inst-${tenantId.slice(0, 8)}`, `inst-${worker}-${tenantId}`],
+    );
+  });
+}
+
+async function seedArea(tenantId: string, areaId: string): Promise<void> {
   const pool = getSharedPgPool();
   expect(pool).not.toBeNull();
   await withPgTenant(pool!, tenantId, async (client) => {
-    await client.query(
-      `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [tenantId, `inst-${tenantId.slice(0, 8)}`, `inst-${tenantId}`],
-    );
     await client.query(
       `INSERT INTO geographic_areas
          (id, tenant_id, name, code, level, parent_id, path, lft, rgt)
@@ -31,6 +45,11 @@ async function seedTenantAndArea(tenantId: string, areaId: string): Promise<void
       [areaId, tenantId, 'Smoke District', `AREA-${areaId.slice(0, 8)}`, `/${areaId}`],
     );
   });
+}
+
+async function seedTenantAndArea(tenantId: string, areaId: string): Promise<void> {
+  await seedTenant(tenantId);
+  await seedArea(tenantId, areaId);
 }
 
 async function cleanupInstitution(row: {
@@ -232,7 +251,7 @@ describe('PgInstitutionRepository', () => {
       // geographic_areas row) cannot race the still-physically-present
       // (soft-deleted, not hard-deleted) first row's FK to the shared area.
       const secondAreaId = randomUUID();
-      await seedTenantAndArea(tenantId, secondAreaId);
+      await seedArea(tenantId, secondAreaId);
       const secondId = randomUUID();
       // Before the migration: this throws P2002/23505 (blocked — the plain
       // unique constraint still occupies the (tenant_id, code) slot). After
@@ -306,6 +325,35 @@ describe('PgInstitutionRepository', () => {
     },
   );
 
+  // F1: CI run 44832894861 failed the sortBy=directory test below with 23505
+  // tenants_slug_key: it seeded one tenant from two concurrent transactions,
+  // and `ON CONFLICT (id)` does not arbitrate the slug unique index, so the
+  // loser of the race raised instead of doing nothing. Seeding the same tenant
+  // concurrently must be idempotent.
+  it.skipIf(!isPgInstitutionEnabled())(
+    'seeding one tenant from concurrent transactions is idempotent (F1)',
+    async () => {
+      const pool = getSharedPgPool();
+      // The race window is a few statements wide; 100 rounds of 8 concurrent
+      // seeds made the old `ON CONFLICT (id)` helper fail in 5 of 5 runs.
+      for (let round = 0; round < 100; round += 1) {
+        const tenantId = randomUUID();
+        const areaIds = Array.from({ length: 8 }, () => randomUUID());
+        await Promise.all(areaIds.map((areaId) => seedTenantAndArea(tenantId, areaId)));
+
+        const { rows } = await withPgTenant(pool!, tenantId, (client) =>
+          client.query(`SELECT count(*)::int AS n FROM geographic_areas WHERE tenant_id = $1`, [
+            tenantId,
+          ]),
+        );
+        expect(rows[0]?.n).toBe(areaIds.length);
+        await withPgTenant(pool!, tenantId, (client) =>
+          client.query(`DELETE FROM geographic_areas WHERE tenant_id = $1`, [tenantId]),
+        );
+      }
+    },
+  );
+
   // PRC-L571: add non-skipped-when-DB-available coverage for
   // list({ sortBy: 'directory' }) — active-then-inactive ordering by code.
   it.skipIf(!isPgInstitutionEnabled())(
@@ -318,10 +366,9 @@ describe('PgInstitutionRepository', () => {
       // PRC-L571: separate areas per row — cleanupInstitution() deletes its
       // own geographic_areas row by areaId, which would violate the FK
       // against the still-live sibling row if both shared one area.
-      await Promise.all([
-        seedTenantAndArea(tenantId, activeAreaId),
-        seedTenantAndArea(tenantId, inactiveAreaId),
-      ]);
+      // F1: seed the shared tenant once, before its areas.
+      await seedTenant(tenantId);
+      await Promise.all([seedArea(tenantId, activeAreaId), seedArea(tenantId, inactiveAreaId)]);
 
       const activeId = randomUUID();
       const activeCode = `ZACT-${activeId.slice(0, 8)}`;
