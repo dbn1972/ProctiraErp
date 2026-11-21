@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **106**
+- Playwright specs: **107**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -100,12 +100,12 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/health/vaccinations` | a11y, functional | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/health/vaccinations/new` | functional | `17-health-inventory-smoke.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts` |
 | `/help` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`72-campus-staff-roles.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/assignments` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/attendance` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/fees` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/gate-passes` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/leaves` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/leaves` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`72-campus-staff-roles.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/mess` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/structure` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/visitors` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
@@ -191,7 +191,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/transport/routes` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport/routes/[id]/stops` | functional, smoke | `54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts` |
 | `/transport/routes/new` | a11y, functional, smoke | `20-notifications-transport-inventory-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/transport/vehicles` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/vehicles` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`72-campus-staff-roles.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/workflows` | a11y, dark, functional, touch | `12-workflows.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/workflows/approvals` | a11y, dark, functional, touch | `04-transfer-and-workflow.spec.ts`<br>`12-workflows.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/workflows/definitions/[id]` | a11y, dark, functional, touch | `12-workflows.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
