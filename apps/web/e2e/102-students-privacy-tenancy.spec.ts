@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import {
@@ -331,6 +332,18 @@ test.describe('Students privacy and tenancy — live (E2E_BACKEND_READY)', () =>
     });
     try {
       const enrollmentId = await enroll(request, adminA, a.id, pl);
+      // transcript_issuances.issued_by is a uuid column, so the issuer's subject is a uuid.
+      const issued = await request.post(`${GATEWAY_URL}/api/v1/gradebook/transcripts/issue`, {
+        headers: apiHeaders(stAdmin(randomUUID(), TENANT_A)),
+        data: { studentId: a.id },
+      });
+      expect(issued.status(), (await issued.text()).slice(0, 300)).toBeLessThan(300);
+      const issuedRow = (await issued.json()) as Row;
+      const transcript = {
+        id: String(issuedRow.id),
+        checksum: String(issuedRow.checksumSha256),
+      };
+      expect(transcript.checksum).toMatch(/^[0-9a-f]{64}$/);
       // Positive controls: each administrator reads its own student.
       expect((await getJson<Row>(request, adminA, `/students/${a.id}`)).id).toBe(a.id);
       expect((await getJson<Row>(request, adminB, `/students/${b.id}`)).id).toBe(b.id);
@@ -415,6 +428,42 @@ test.describe('Students privacy and tenancy — live (E2E_BACKEND_READY)', () =>
           leaked.filter((s) => s !== a.id),
         );
       }
+      // Records: tenant B gets none of tenant A's student or transcript for A's id.
+      const transcripts = await getJson<{ data: Row[] }>(
+        request,
+        adminA,
+        `/gradebook/transcripts?studentId=${a.id}`,
+      );
+      expect(transcripts.data, "tenant A reads its student's transcript").toEqual([
+        expect.objectContaining({ id: transcript.id, studentId: a.id }),
+      ]);
+      const transcriptLeaks = [
+        transcript.id,
+        transcript.checksum,
+        transcript.checksum.slice(0, 16),
+      ];
+      const recordsApi = await probe(
+        request,
+        adminB,
+        'GET',
+        `/gradebook/transcripts?studentId=${a.id}`,
+      );
+      expect.soft(recordsApi.status, `tenant B GET /gradebook/transcripts`).toBe(200);
+      expect
+        .soft((JSON.parse(recordsApi.body) as { data?: Row[] }).data, 'tenant B transcripts for A')
+        .toEqual([]);
+      for (const s of [enrollmentId, ...secrets(a), ...transcriptLeaks]) {
+        expect.soft(recordsApi.body, 'tenant B GET /gradebook/transcripts body').not.toContain(s);
+      }
+      await page.goto(`/students/records?studentId=${a.id}`, { waitUntil: 'load' });
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Student Records');
+      await expect(page.getByText('Records API unavailable')).toHaveCount(0);
+      await expect.soft(page.locator('table tbody tr'), 'tenant B records rows').toHaveCount(0);
+      await expectNotInPage(page, 'tenant B /students/records', [
+        ...leaked.filter((s) => s !== a.id),
+        ...transcriptLeaks,
+      ]);
+
       // The screens did load live data: tenant B's own student is listed.
       await page.goto(`/students?search=${b.firstName}`, { waitUntil: 'load' });
       await expect(page.getByRole('link', { name: b.name, exact: true })).toBeVisible();
