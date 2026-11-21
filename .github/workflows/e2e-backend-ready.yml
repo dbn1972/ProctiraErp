@@ -186,6 +186,9 @@ env:
     e2e/72-campus-staff-roles.spec.ts
     e2e/73-safe-error-responses.spec.ts
     e2e/74-health-defect-fixes.spec.ts
+    e2e/90-fees-screens-read.spec.ts
+    e2e/91-fees-screens-write.spec.ts
+    e2e/92-fees-privacy-tenancy.spec.ts
 
 permissions:
   contents: read
