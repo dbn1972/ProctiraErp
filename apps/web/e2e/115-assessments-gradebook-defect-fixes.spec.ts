@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   BACKEND_READY,
+  PERIOD_A,
   expectSafeReferenceError,
   newTag,
   probe,
@@ -64,5 +65,68 @@ test.describe('Assessments + gradebook defect fixes — live (E2E_BACKEND_READY)
     expect((job.metadata as Row).studentId).toBe(b.student.id);
     const listed = await reportCardJobsFor(request, b.admin, b.student.id);
     expect(listed.map((j) => j.id)).toContain(job.id);
+  });
+
+  test('P3 tenant B cannot define items or outcomes on a tenant-A subject or period', async ({
+    request,
+  }) => {
+    const itemSet = [{ name: `AS ${tag} P3`, weight: 100, minScore: 0, maxScore: 100 }];
+    for (const [label, subjectId, academicPeriodId] of [
+      ["tenant A's subject and period", a.subject.id, PERIOD_A],
+      ["tenant A's subject", a.subject.id, b.periodId],
+      ["tenant A's period", b.subject.id, PERIOD_A],
+    ]) {
+      const r = await probe(request, b.admin, 'POST', '/assessment-items', {
+        subjectId,
+        academicPeriodId,
+        gradingSchemeId: b.scheme.id,
+        items: itemSet,
+      });
+      expectSafeReferenceError(r, `tenant B POST /assessment-items (${label})`);
+      const stored = await probe(
+        request,
+        b.admin,
+        'GET',
+        `/assessment-items?subjectId=${subjectId}&academicPeriodId=${academicPeriodId}`,
+      );
+      expect(stored.status, stored.body.slice(0, 300)).toBe(200);
+      expect((JSON.parse(stored.body) as { items: Row[] }).items, label).toEqual([]);
+    }
+    const outcome = await probe(request, b.admin, 'POST', '/outcomes', {
+      subjectId: a.subject.id,
+      code: `AS${tag}P3`,
+      name: `AS ${tag} P3`,
+    });
+    try {
+      expectSafeReferenceError(outcome, 'tenant B POST /outcomes');
+    } finally {
+      // Before the fix the outcome is created; remove it so nothing accumulates.
+      if (outcome.status === 201) {
+        const id = String((JSON.parse(outcome.body) as Row).id);
+        await probe(request, b.admin, 'DELETE', `/outcomes/${id}`);
+      }
+    }
+    const outcomes = await probe(request, b.admin, 'GET', `/outcomes?subjectId=${a.subject.id}`);
+    expect(outcomes.status, outcomes.body.slice(0, 300)).toBe(200);
+    expect((JSON.parse(outcomes.body) as { data: Row[] }).data).toEqual([]);
+
+    // Positive control: tenant B's own subject and period.
+    const ownItems = await probe(request, b.admin, 'POST', '/assessment-items', {
+      subjectId: b.subject.id,
+      academicPeriodId: b.periodId,
+      gradingSchemeId: b.scheme.id,
+      items: itemSet,
+    });
+    expect(ownItems.status, ownItems.body.slice(0, 300)).toBe(201);
+    expect((JSON.parse(ownItems.body) as { totalWeight: number }).totalWeight).toBe(100);
+    const ownOutcome = await probe(request, b.admin, 'POST', '/outcomes', {
+      subjectId: b.subject.id,
+      code: `AS${tag}P3B`,
+      name: `AS ${tag} P3 B`,
+    });
+    expect(ownOutcome.status, ownOutcome.body.slice(0, 300)).toBe(201);
+    const ownOutcomeId = String((JSON.parse(ownOutcome.body) as Row).id);
+    const deleted = await probe(request, b.admin, 'DELETE', `/outcomes/${ownOutcomeId}`);
+    expect(deleted.status, deleted.body.slice(0, 300)).toBe(204);
   });
 });
