@@ -352,6 +352,10 @@ describe('PgInstitutionRepository', () => {
         );
       }
     },
+    // 100 rounds x 8 transactions exceed vitest's 5 s default on the shared
+    // CI runner (run 44904286301 timed out at 5019 ms); the race needs the
+    // round count, so the budget is raised instead of the rounds cut.
+    60_000,
   );
 
   // PRC-L571: add non-skipped-when-DB-available coverage for
