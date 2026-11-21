@@ -7,10 +7,11 @@
  * the same principal JWT and checks the same rows come back.
  *
  * Every test seeds its own rows with a per-run tag, and all API writes happen
- * before the first page visit. Lists capped at 20 rows (routes, vehicles,
- * assignments) are made independent of leftover rows by `rank()` names and
- * `nextStartDate()`; newest-first lists without a unique label (alert rules,
- * alerts, fee links) are matched by this run's id at its API index.
+ * before the first page visit. The routes, vehicles and assignments API lists
+ * return 20 rows by default, so tests that read them are made independent of
+ * leftover rows by `rank()` names and `nextStartDate()`; newest-first lists
+ * without a unique label (alert rules, alerts, fee links) are matched by this
+ * run's id at its API index.
  *
  * `/transport/routes/new` has no reads; spec 67 opens it and saves its form.
  *
@@ -503,5 +504,35 @@ test.describe('Transport screens — read path (E2E_BACKEND_READY)', () => {
     );
     await expect(page.locator(`#fee-route option[value="${route.id}"]`)).toHaveCount(1);
     await expect(page.locator(`#fee-stop option[value="${stop.id}"]`)).toHaveCount(1);
+  });
+
+  // T-D2 regression: GET /transport/routes returns 20 rows by default and the screen
+  // sent no paging params, so routes 21+ never showed and the count was wrong.
+  test('T-D2 /transport/routes shows every route and the true count', async ({ page, request }) => {
+    test.slow();
+    const sub = randomUUID();
+    const P = principalHeaders(TENANT_A, sub);
+    const tag = newTag();
+    let total = (
+      await getJson<{ meta: { totalItems: number } }>(request, '/transport/routes?pageSize=1', P)
+    ).meta.totalItems;
+    let n = 0;
+    let last = '';
+    while (total < 21 || n === 0) {
+      n += 1;
+      last = (
+        await createRoute(request, P, tag, {
+          name: `zz TR Cap ${tag} ${String(n).padStart(2, '0')}`,
+        })
+      ).name;
+      total = (
+        await getJson<{ meta: { totalItems: number } }>(request, '/transport/routes?pageSize=1', P)
+      ).meta.totalItems;
+    }
+    await openAs(page, principalUser(sub));
+    await page.goto('/transport/routes', { waitUntil: 'domcontentloaded' });
+    await expectScreen(page, 'Transport routes');
+    await expect(page.getByText(`${total} routes for this tenant.`)).toBeVisible();
+    await expect(page.getByTestId('transport-route-row').filter({ hasText: last })).toHaveCount(1);
   });
 });
