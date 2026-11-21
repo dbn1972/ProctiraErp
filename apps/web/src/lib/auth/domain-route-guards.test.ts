@@ -650,3 +650,21 @@ function pageFiles(dir: string): string[] {
     return entry.name === 'page.tsx' ? [path] : [];
   });
 }
+
+describe('UATENV-D12: guards fail closed instead of throwing', () => {
+  it('denies, and does not throw, when the session carries no roles array', () => {
+    const noRoles = session([]);
+    (noRoles.user as { roles?: unknown }).roles = undefined;
+    for (const domain of Object.keys(DASHBOARD_DOMAIN_RESOURCES) as DashboardDomain[]) {
+      expect(() => canAccessDashboardDomain(noRoles, domain)).not.toThrow();
+      expect(canAccessDashboardDomain(noRoles, domain)).toBe(false);
+    }
+    expect(canAccessReportRoleDashboard(noRoles)).toBe(false);
+  });
+
+  it('ignores role entries without a roleId', () => {
+    const odd = session(['teacher']);
+    (odd.user.roles as unknown[]).unshift({ roleName: 'x' }, null);
+    expect(canAccessDashboardDomain(odd, 'attendance')).toBe(true);
+  });
+});
