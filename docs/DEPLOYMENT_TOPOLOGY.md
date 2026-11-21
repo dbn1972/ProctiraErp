@@ -25,7 +25,7 @@ Standalone domain services exist for experiments and future cutovers:
 | Artifact | Role |
 | --- | --- |
 | `infrastructure/docker/docker-compose.services.yml` | Lab compose — **not** production |
-| Helm `institutionService` … `reportService` | Rendered only when `*.enabled=true` (defaults **off**) |
+| Helm `studentService`, `assessmentService`, `examinationService`, `reportService` | Rendered only when `*.enabled=true` (defaults **off**) |
 | `infrastructure/k8s/components/split-domain-services` | Opt-in kustomize component |
 | `Dockerfile.backend-service` | Builds lab images |
 
@@ -34,7 +34,7 @@ Enable split Helm mode only with an explicit override (example):
 ```bash
 helm template proctira ./infrastructure/helm/proctira-platform \
   --set topology.mode=split \
-  --set institutionService.enabled=true \
+  --set studentService.enabled=true \
   # … other domain services as needed
 ```
 

@@ -216,23 +216,6 @@ developerPortal:
     minAvailable: 1
 
 # -- Backend domain services (W1-OPS-16: disabled in production; lab-only templates)
-institutionService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-    targetMemoryUtilizationPercentage: 75
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
 studentService:
   enabled: false
   replicaCount: 3

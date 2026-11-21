@@ -83,7 +83,7 @@ test('#555 review #7: manual service input is validated before reaching GITHUB_O
     'web',
   ]);
   // Lab images stay available as an explicit opt-in (main W1-OPS-16 behaviour).
-  assert.deepEqual(validateManualServices(manifest, 'deploy', 'institution'), ['institution']);
+  assert.deepEqual(validateManualServices(manifest, 'deploy', 'student'), ['student']);
   for (const bad of [
     'api-gateway\nservices=evil',
     'api-gateway\n',
@@ -99,7 +99,7 @@ test('#555 review #7: manual service input is validated before reaching GITHUB_O
 
 // Topic 16 Option A: retired standalone lab servers have no entry point, image
 // or deploy path left; the gateway is the only runtime for these domains.
-const RETIRED_LAB_SERVICES = ['attendance', 'staff', 'notification', 'workflow'];
+const RETIRED_LAB_SERVICES = ['attendance', 'staff', 'notification', 'workflow', 'institution'];
 const repoRoot = new URL('../../', import.meta.url).pathname;
 const DEPLOY_FILES = [
   'infrastructure/docker/docker-compose.services.yml',

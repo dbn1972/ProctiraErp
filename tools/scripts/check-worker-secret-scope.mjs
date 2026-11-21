@@ -36,7 +36,6 @@ export const FULL_BUNDLE_SECRET = 'proctira-secrets';
  */
 export const FULL_BUNDLE_ALLOWLIST = new Set([
   'api-gateway',
-  'institution-service',
   'student-service',
   'assessment-service',
   'examination-service',

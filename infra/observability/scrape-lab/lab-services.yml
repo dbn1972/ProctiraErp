@@ -2,12 +2,6 @@
 # Loaded only when PROMETHEUS_EXTRA_SCRAPE_DIR=./scrape-lab is set for the
 # observability compose, so the canonical stack has no phantom targets.
 scrape_configs:
-  - job_name: institution
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['institution-service:3020']
-        labels: { service: institution, team: engineering }
-
   - job_name: student
     metrics_path: /metrics
     static_configs:

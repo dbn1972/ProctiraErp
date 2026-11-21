@@ -110,19 +110,6 @@ developerPortal:
       memory: 128Mi
 
 # -- Backend domain services (development overrides — single replica, no autoscaling)
-institutionService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
 studentService:
   enabled: false
   replicaCount: 1
