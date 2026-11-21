@@ -162,7 +162,8 @@ test('assessments gradebook screen specs run nightly and are not in PR_SPECS', (
     assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
     assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
   }
-  // The report-card specs need a writable artifact directory on the runner.
+  // The report-card specs write to a known per-run directory instead of relying on the
+  // code default under /opt/cursor/artifacts existing (PRC-M514 owns that default).
   const steps = Object.values(wf.jobs).flatMap((j) => j.steps ?? []);
   const harness = steps.filter((s) => String(s.run ?? '').includes('run-e2e-backend-ready.sh'));
   assert.ok(harness.length > 0, 'a step runs run-e2e-backend-ready.sh');

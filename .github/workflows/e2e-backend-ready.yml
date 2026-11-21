@@ -364,8 +364,9 @@ jobs:
           JWT_SECRET: ${{ env.JWT_SECRET }}
           E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
           NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
-          # Gradebook report-card artifacts (specs 112-114): the code default is a
-          # developer-machine path the runner cannot create, so every card would FAIL.
+          # Gradebook report-card artifacts (specs 112-114): a known per-run directory,
+          # so the cards do not depend on an earlier step having created the code
+          # default under /opt/cursor/artifacts (PRC-M514 owns that default).
           SIS_REPORT_CARD_DIR: ${{ runner.temp }}/proctira-report-cards
           E2E_SPECS: ${{ steps.mode.outputs.specs }}
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
