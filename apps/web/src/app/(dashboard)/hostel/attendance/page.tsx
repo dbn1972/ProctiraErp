@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listHostelAttendance, listHostelBlocks } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -23,7 +24,10 @@ export default async function HostelAttendancePage({
 }: {
   searchParams: Promise<{ blockId?: string; onDate?: string }>;
 }) {
-  await requireSession();
+  // H-D1: check before any hostel, student-directory or tenant-settings read.
+  if (!(await hasDashboardDomainRouteAccess('hostel', '/hostel'))) {
+    return <RouteAccessDenied />;
+  }
   const { blockId, onDate } = await searchParams;
   const today = await getTenantToday();
   const date = onDate && onDate.length >= 10 ? onDate.slice(0, 10) : today;

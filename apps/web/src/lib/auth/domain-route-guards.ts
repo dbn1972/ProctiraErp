@@ -20,6 +20,7 @@ export const DASHBOARD_DOMAIN_RESOURCES = {
   billing: 'platform',
   'data-warehouse': 'report',
   transport: 'transport',
+  hostel: 'hostel',
 } as const;
 
 export type DashboardDomain = keyof typeof DASHBOARD_DOMAIN_RESOURCES;
@@ -54,9 +55,37 @@ export const TRANSPORT_PACKAGE_ROLE_IDS: ReadonlySet<string> = new Set([
   'school-admin',
 ]);
 
+/**
+ * H-D1: role ids the hostel package allows `hostel.read` (`HOSTEL_STAFF_ROLES`
+ * incl. `ADMIN_ROLES` in packages/backend/hostel/src/hostel-access.ts). As for
+ * transport, the gateway serves hostel data only when a role holds the gateway
+ * `hostel` grant AND a role is in this set. Kept in sync by
+ * domain-route-guards.test.ts.
+ */
+export const HOSTEL_PACKAGE_ROLE_IDS: ReadonlySet<string> = new Set([
+  'warden',
+  'hostel_warden',
+  'hostel-warden',
+  'hostel_manager',
+  'hostel-manager',
+  'hostel_admin',
+  'hostel-admin',
+  'hostel_clerk',
+  'registrar',
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system_admin',
+  'system-admin',
+  'principal',
+  'school_admin',
+  'school-admin',
+]);
+
 /** Domains whose backend package adds its own role check after the gateway grant. */
 const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<string>>> = {
   transport: TRANSPORT_PACKAGE_ROLE_IDS,
+  hostel: HOSTEL_PACKAGE_ROLE_IDS,
 };
 
 function hasStaffRole(session: ServerSession): boolean {

@@ -23,14 +23,18 @@ import {
 } from '@proctira/ui/components';
 import { getTranslations } from 'next-intl/server';
 
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listHostels } from '@/lib/api/hostel';
 import { NewHostelForm } from './_components/new-hostel-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HostelOverviewPage() {
-  await requireSession();
+  // H-D1: check before any hostel read.
+  if (!(await hasDashboardDomainRouteAccess('hostel', '/hostel'))) {
+    return <RouteAccessDenied />;
+  }
   const [t, hostels] = await Promise.all([getTranslations('hostel'), listHostels()]);
 
   return (
