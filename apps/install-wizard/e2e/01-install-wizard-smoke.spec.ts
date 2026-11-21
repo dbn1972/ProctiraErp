@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { runAxe } from './helpers/axe';
+import { E2E_BOOTSTRAP_SECRET, unlockWizard } from './helpers/install-session';
 
 /**
  * Install Wizard production smoke.
@@ -21,22 +22,31 @@ const CONFIGURE_PAYLOADS: Record<string, Record<string, unknown>> = {
   storage: {
     adapter: 'minio',
     bucket: 'files',
-    endpoint: 'http://localhost:9000',
+    endpoint: 'https://minio.example.com',
     accessKeyId: 'admin',
     secretAccessKey: 'secret',
   },
   cache: { adapter: 'redis', host: 'localhost', port: 6379 },
   queue: {
     backend: 'rabbitmq',
-    rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' },
+    rabbitmq: { url: 'amqps://mq.example.com:5671', exchange: 'proctira' },
   },
   cdn: { adapter: 'nginx', baseUrl: 'https://cdn.example.com', tenantAware: true },
 };
 
 test.describe('Install Wizard — first-run UI', () => {
+  test('PRC-M467: home asks for the operator bootstrap secret first', async ({ page }) => {
+    const response = await page.goto('/');
+    expect(response?.ok()).toBeTruthy();
+    await expect(page.getByRole('heading', { name: /operator verification/i })).toBeVisible();
+    await expect(page.getByLabel('Bootstrap secret')).toHaveAttribute('type', 'password');
+    await expect(page.getByTestId('database-step')).toHaveCount(0);
+  });
+
   test('home loads with brand and Step 1 database fields', async ({ page }) => {
     const response = await page.goto('/');
     expect(response?.ok()).toBeTruthy();
+    await unlockWizard(page);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByText(/Proctira/i).first()).toBeVisible();
     await expect(
@@ -48,6 +58,7 @@ test.describe('Install Wizard — first-run UI', () => {
 
   test('stepper lists all six setup stages', async ({ page }) => {
     await page.goto('/');
+    await unlockWizard(page);
     for (const label of [
       'Database',
       'Object Storage',
@@ -62,6 +73,7 @@ test.describe('Install Wizard — first-run UI', () => {
 
   test('database step shows client validation when credentials empty', async ({ page }) => {
     await page.goto('/');
+    await unlockWizard(page);
     await page.getByTestId('database-test-submit').click();
     await expect(page.getByTestId('db-error-username')).toContainText(/required/i);
     await expect(page.getByTestId('db-error-password')).toContainText(/required/i);
@@ -89,14 +101,21 @@ test.describe('Install Wizard — first-run UI', () => {
   });
 });
 
-test.describe('Install Wizard — CSRF + bootstrap lock (ungated)', () => {
-  test('rejects mutate without CSRF; locks configure after finalize', async ({ request }) => {
+test.describe('Install Wizard — CSRF + bootstrap lock', () => {
+  test('rejects mutate without CSRF; locks configure after finalize', async ({
+    request,
+  }, testInfo) => {
+    // PRC-M467: the install lock is global, so only one project may engage it.
+    test.skip(testInfo.project.name !== 'chromium', 'global install lock engaged once (chromium)');
     const denied = await request.post('/api/install/finalize', {
       data: {},
     });
     expect(denied.status()).toBe(403);
-
-    const sessionRes = await request.get('/api/install/session');
+    const noSecret = await request.post('/api/install/session');
+    expect(noSecret.status()).toBe(401);
+    const sessionRes = await request.post('/api/install/session', {
+      headers: { 'x-install-bootstrap-secret': E2E_BOOTSTRAP_SECRET },
+    });
     expect(sessionRes.ok()).toBeTruthy();
     const session = (await sessionRes.json()) as {
       csrfToken: string;
@@ -148,12 +167,24 @@ test.describe('Install Wizard — CSRF + bootstrap lock (ungated)', () => {
     const status = await request.get('/api/install/status', { headers: auth });
     expect(status.ok()).toBeTruthy();
     expect((await status.json()).isComplete).toBe(true);
+    // PRC-M467: a fresh session cannot be opened once installed.
+    const fresh = await request.post('/api/install/session', {
+      headers: { 'x-install-bootstrap-secret': E2E_BOOTSTRAP_SECRET },
+    });
+    expect(fresh.status()).toBe(409);
   });
 });
 
 test.describe('Install Wizard — axe WCAG 2.1 AA', () => {
+  test('operator gate has no critical axe violations', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByLabel('Bootstrap secret')).toBeVisible();
+    await runAxe(page, { checkpointLabel: 'install-wizard-gate' });
+  });
+
   test('setup home has no critical axe violations', async ({ page }) => {
     await page.goto('/');
+    await unlockWizard(page);
     await expect(page.getByTestId('database-step')).toBeVisible();
     await runAxe(page, { checkpointLabel: 'install-wizard-home' });
   });

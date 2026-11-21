@@ -139,22 +139,19 @@ function normalizeBrandResponse(payload: unknown): Brand {
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 /**
- * The Theme Service published-theme endpoint (relative to the gateway).
+ * PRC-M132: the gateway's public branding endpoint.
  *
- * **No backend package currently serves this path.** The tenant service registers
- * `/tenant/branding` (and `/tenant/branding/active`), not `/tenant/theme/published`, so
- * `fetchPublishedThemeFromGateway` gets a 404 and `getPublishedTenantTheme` returns
- * `DEFAULT_BRAND` on every request — the SSR `<style data-tenant-theme>` block is
- * always the platform baseline today, whatever a tenant has published.
- *
- * Repointing it at `/tenant/branding` is not a one-line change: that endpoint resolves
- * the tenant from a verified JWT, and this fetcher runs before authentication with a
- * slug in `X-Tenant-ID` and no Authorization header. Closing it needs either a public
- * slug-addressed branding endpoint or a server-side credential. Tracked separately;
- * the client-side path (`/api/v1/tenant/branding` via BrandConfigProvider) does work,
- * so branding applies after hydration rather than on first paint.
+ * It resolves the tenant ONLY from the request Host through the gateway's verified host
+ * mapping (canonical `<slug>.<base-domain>` or a verified custom domain), accepts `?slug=`
+ * only when it equals that tenant's slug, and returns an allow-listed brand subset
+ * (name, logo/favicon URLs, colour tokens). This SSR fetcher therefore forwards the
+ * incoming Host; without a usable Host it does not fetch and renders `DEFAULT_BRAND`.
  */
-export const PUBLISHED_THEME_PATH = '/api/v1/tenant/theme/published';
+export const PUBLISHED_THEME_PATH = '/api/v1/registrations/branding';
+
+/** PRC-M132: upstream time box and response cap for the SSR branding fetch. */
+export const SSR_THEME_FETCH_TIMEOUT_MS = 3000;
+export const SSR_THEME_MAX_RESPONSE_BYTES = 16 * 1024;
 
 /** TTL for the SSR-side tenant-theme cache (60 seconds). */
 export const SSR_THEME_CACHE_TTL_MS = 60 * 1000;
@@ -391,31 +388,79 @@ function safeLoginBackground(value: string | null | undefined, fallback: string)
  * Test seam: lets unit tests inject a fake fetcher that resolves to the
  * normalized `Brand`. In production this is `fetchPublishedThemeFromGateway`.
  */
-export type PublishedThemeFetcher = (tenantSlug: string) => Promise<Brand>;
+export type PublishedThemeFetcher = (tenantSlug: string, requestHost?: string) => Promise<Brand>;
+
+/** PRC-M132: GET with an explicit Host header (WHATWG fetch cannot set Host). */
+export type HostRoutedTransport = (
+  url: string,
+  host: string,
+) => Promise<{ status: number; body: string }>;
+
+const REQUEST_HOST_PATTERN = /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?(?::\d{1,5})?$/;
+
+/** Normalise the incoming request Host; anything malformed is unusable (no fetch). */
+export function normalizeRequestHost(raw: string | null | undefined): string | undefined {
+  const host = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  return REQUEST_HOST_PATTERN.test(host) ? host : undefined;
+}
+
+/** Default transport: node:http(s) with the Host header, a time box and a body cap. */
+export const hostRoutedGet: HostRoutedTransport = async (url, host) => {
+  const target = new URL(url);
+  const { request } =
+    target.protocol === 'https:' ? await import('node:https') : await import('node:http');
+  return new Promise((resolve, reject) => {
+    const req = request(
+      target,
+      {
+        method: 'GET',
+        headers: { host, accept: 'application/json' },
+        timeout: SSR_THEME_FETCH_TIMEOUT_MS,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        res.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > SSR_THEME_MAX_RESPONSE_BYTES) {
+            req.destroy(new Error('branding response too large'));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
+        );
+        res.on('error', reject);
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error('branding request timed out')));
+    req.on('error', reject);
+    req.end();
+  });
+};
 
 /**
- * Default fetcher: GETs `/api/v1/tenant/theme/published` from the API
- * gateway, forwarding `X-Tenant-ID: <slug>` so the gateway can route to
- * the correct tenant. Returns `DEFAULT_BRAND` on any non-2xx, network
- * error, or malformed payload — the SSR head must always render *some*
- * branded baseline, even when the Theme Service is unreachable.
+ * Default fetcher (PRC-M132): GETs the public branding endpoint from the API gateway with the
+ * incoming request Host, so the gateway resolves the tenant from its verified host mapping, and
+ * `?slug=` so a Host/slug mismatch is refused there. Returns `DEFAULT_BRAND` without a usable
+ * Host and on any non-2xx, network error, or malformed payload — the SSR head must always
+ * render *some* branded baseline.
  */
-export async function fetchPublishedThemeFromGateway(tenantSlug: string): Promise<Brand> {
-  const url = `${getGatewayBaseUrl()}${PUBLISHED_THEME_PATH}`;
+export async function fetchPublishedThemeFromGateway(
+  tenantSlug: string,
+  requestHost?: string,
+  transport: HostRoutedTransport = hostRoutedGet,
+): Promise<Brand> {
+  const host = normalizeRequestHost(requestHost);
+  if (!host) return DEFAULT_BRAND;
+  const url = `${getGatewayBaseUrl()}${PUBLISHED_THEME_PATH}?slug=${encodeURIComponent(tenantSlug)}`;
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'X-Tenant-ID': tenantSlug,
-      },
-      // Next.js fetch caching: tag so we can revalidate via tag if needed,
-      // and keep the upstream-side TTL aligned with our in-memory cache.
-      next: { revalidate: 60, tags: [`tenant-theme:${tenantSlug}`] },
-    } as RequestInit);
-    if (!response.ok) return DEFAULT_BRAND;
-    const payload = (await response.json()) as unknown;
-    return normalizeBrandResponse(payload);
+    const response = await transport(url, host);
+    if (response.status < 200 || response.status >= 300) return DEFAULT_BRAND;
+    return normalizeBrandResponse(JSON.parse(response.body) as unknown);
   } catch {
     return DEFAULT_BRAND;
   }
@@ -437,16 +482,20 @@ export async function fetchPublishedThemeFromGateway(tenantSlug: string): Promis
  * @param tenantSlug   Tenant identifier resolved from subdomain or
  *                     `X-Tenant-ID` header.
  * @param fetcher      Optional override (for tests).
+ * @param requestHost  PRC-M132: the incoming request Host, forwarded to the gateway.
  */
 export async function getPublishedTenantTheme(
   tenantSlug: string,
   fetcher: PublishedThemeFetcher = fetchPublishedThemeFromGateway,
+  requestHost?: string,
 ): Promise<PublishedTenantTheme> {
   const slug = normalizeTenantSlug(tenantSlug);
+  const host = normalizeRequestHost(requestHost);
+  // PRC-M132: the brand depends on Host and slug together.
+  const cacheKey = host ? `${host}|${slug}` : slug;
   const now = Date.now();
-
-  const cached = _cache.get(slug);
-  if (cached && cached.expiresAt <= now) _cache.delete(slug);
+  const cached = _cache.get(cacheKey);
+  if (cached && cached.expiresAt <= now) _cache.delete(cacheKey);
   if (cached && cached.expiresAt > now) {
     return {
       tenantSlug: slug,
@@ -458,13 +507,12 @@ export async function getPublishedTenantTheme(
 
   let brand: Brand;
   try {
-    brand = await fetcher(slug);
+    brand = await fetcher(slug, host);
   } catch {
     brand = DEFAULT_BRAND;
   }
   const tokens = brandToTenantTokens(brand);
-
-  cacheSet(slug, { tokens, brand, expiresAt: now + SSR_THEME_CACHE_TTL_MS }, now);
+  cacheSet(cacheKey, { tokens, brand, expiresAt: now + SSR_THEME_CACHE_TTL_MS }, now);
 
   return { tenantSlug: slug, tokens, brand, fromCache: false };
 }
