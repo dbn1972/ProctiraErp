@@ -52,7 +52,5 @@ examinationService:
   enabled: false
 workflowService:
   enabled: false
-notificationService:
-  enabled: false
 reportService:
   enabled: false

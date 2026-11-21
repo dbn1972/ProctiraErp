@@ -51,7 +51,7 @@ grep -E '^topology:' -A2 "$prod_values" | grep -q 'mode:[[:space:]]*in-process' 
   || die "values-production.yaml must set topology.mode: in-process"
 
 for svc in institutionService studentService assessmentService \
-  examinationService workflowService notificationService reportService; do
+  examinationService workflowService reportService; do
   # First "enabled:" under the service key must be false
   block="$(awk -v svc="$svc" '
     $0 ~ "^"svc":" {grab=1; next}

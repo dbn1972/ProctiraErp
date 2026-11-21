@@ -29,9 +29,6 @@ resources:
   - ../../base/workflow/deployment.yaml
   - ../../base/workflow/service.yaml
   - ../../base/workflow/hpa.yaml
-  - ../../base/notification/deployment.yaml
-  - ../../base/notification/service.yaml
-  - ../../base/notification/hpa.yaml
   - ../../base/report/deployment.yaml
   - ../../base/report/service.yaml
   - ../../base/report/hpa.yaml

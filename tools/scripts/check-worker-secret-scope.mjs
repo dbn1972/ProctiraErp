@@ -41,7 +41,6 @@ export const FULL_BUNDLE_ALLOWLIST = new Set([
   'assessment-service',
   'examination-service',
   'workflow-service',
-  'notification-service',
   'report-service',
 ]);
 
