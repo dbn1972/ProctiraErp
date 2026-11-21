@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 import { GatewayError } from '@/lib/api/gateway';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -50,6 +51,14 @@ function fail(error: unknown, fallback: string): OpsActionState {
           ? error.message
           : fallback,
   };
+}
+
+/**
+ * H-D1 (T-D3 pattern): hostel forms never show server text (gateway RBAC or
+ * hostel package refusals, raw database errors); fixed copy plus a reference.
+ */
+function hostelFail(error: unknown, fallback: string): OpsActionState {
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 export async function lookupIsbnFillAction(isbn: string): Promise<OpsActionState> {
@@ -227,7 +236,7 @@ export async function createMessPlanAction(input: {
     revalidatePath('/hostel/mess');
     return { status: 'success', id: plan.id, message: 'Mess plan created.' };
   } catch (error) {
-    return fail(error, 'Failed to create mess plan');
+    return hostelFail(error, 'Failed to create mess plan');
   }
 }
 
@@ -251,7 +260,7 @@ export async function addMessMenuAction(input: {
     revalidatePath('/hostel/mess');
     return { status: 'success', id: item.id, message: 'Menu item added.' };
   } catch (error) {
-    return fail(error, 'Failed to add menu item');
+    return hostelFail(error, 'Failed to add menu item');
   }
 }
 
@@ -273,7 +282,7 @@ export async function subscribeMessAction(input: {
     revalidatePath('/hostel/mess');
     return { status: 'success', id: sub.id, message: 'Student subscribed.' };
   } catch (error) {
-    return fail(error, 'Failed to subscribe');
+    return hostelFail(error, 'Failed to subscribe');
   }
 }
 
@@ -306,7 +315,7 @@ export async function requestGatePassAction(input: {
     revalidatePath('/hostel/gate-passes');
     return { status: 'success', id: pass.id, message: 'Gate pass requested.' };
   } catch (error) {
-    return fail(error, 'Failed to request gate pass');
+    return hostelFail(error, 'Failed to request gate pass');
   }
 }
 
@@ -324,7 +333,7 @@ export async function decideGatePassAction(
     revalidatePath('/hostel/gate-passes');
     return { status: 'success', id: pass.id, message: `Gate pass ${pass.status}.` };
   } catch (error) {
-    return fail(error, 'Failed to decide gate pass');
+    return hostelFail(error, 'Failed to decide gate pass');
   }
 }
 
@@ -339,7 +348,7 @@ export async function scanGatePassAction(
     revalidatePath('/hostel/gate-passes');
     return { status: 'success', id: pass.id, message: `Gate pass ${pass.status}.` };
   } catch (error) {
-    return fail(error, 'Failed to scan gate pass');
+    return hostelFail(error, 'Failed to scan gate pass');
   }
 }
 
@@ -377,7 +386,7 @@ export async function createHostelFeeStructureAction(input: {
     revalidatePath('/hostel/assignments');
     return { status: 'success', id: row.id, message: 'Hostel fee structure saved.' };
   } catch (error) {
-    return fail(error, 'Failed to save fee structure');
+    return hostelFail(error, 'Failed to save fee structure');
   }
 }
 
@@ -403,7 +412,7 @@ export async function recordHostelAttendanceAction(input: {
     revalidatePath('/hostel/attendance');
     return { status: 'success', id: mark.id, message: `Marked ${mark.status}.` };
   } catch (error) {
-    return fail(error, 'Failed to record attendance');
+    return hostelFail(error, 'Failed to record attendance');
   }
 }
 

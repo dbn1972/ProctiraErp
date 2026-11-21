@@ -9,6 +9,7 @@ import type { ServerSession } from '@/lib/auth/server';
 import {
   canAccessDashboardDomain,
   DASHBOARD_DOMAIN_RESOURCES,
+  HOSTEL_PACKAGE_ROLE_IDS,
   TRANSPORT_PACKAGE_ROLE_IDS,
 } from './domain-route-guards';
 
@@ -99,6 +100,57 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     for (const roleId of packageRoles) {
       expect(TRANSPORT_PACKAGE_ROLE_IDS.has(roleId), roleId).toBe(true);
     }
+  });
+
+  it('H-D1: grants hostel only where the gateway and the hostel package both allow it', () => {
+    // Gateway grant (rbac-registry.ts) AND package guard (hostel-access.ts).
+    for (const roles of [['admin'], ['principal'], ['super-admin'], ['ADMIN']]) {
+      expect(canAccessDashboardDomain(session(roles), 'hostel'), roles.join()).toBe(true);
+    }
+    for (const roles of [
+      // Gateway STAFF_READS grants hostel.read, the package guard denies.
+      ['teacher'],
+      ['staff'],
+      // Gateway grants '*', the package guard has no platform role.
+      ['platform_admin'],
+      // H-D2: package allows, the gateway registry grants them no `hostel` (403).
+      ['warden'],
+      ['hostel_warden'],
+      ['hostel-manager'],
+      ['hostel_admin'],
+      ['hostel_clerk'],
+      ['registrar'],
+      // Fee roles: no gateway `hostel` grant either.
+      ['bursar'],
+      ['accountant'],
+      // Portal roles (the gateway grants student hostel.read, the package denies).
+      ['student'],
+      ['parent'],
+      ['guardian'],
+      [],
+    ]) {
+      expect(canAccessDashboardDomain(session(roles), 'hostel'), roles.join()).toBe(false);
+    }
+    expect(canAccessDashboardDomain(session(['teacher', 'principal']), 'hostel')).toBe(true);
+  });
+
+  it('H-D1: mirrors the hostel package hostel.read roles exactly', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../../../../packages/backend/hostel/src/hostel-access.ts'),
+      'utf8',
+    );
+    const block = (name: string): string[] => {
+      const body = new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const;`).exec(src)?.[1];
+      expect(body, name).toBeDefined();
+      return [...body!.matchAll(/'([a-z_-]+)'/g)].map((match) => match[1]!);
+    };
+    expect(src).toMatch(/'hostel\.read': HOSTEL_STAFF_ROLES,/);
+    expect(block('HOSTEL_STAFF_ROLES')).toContain('warden');
+    expect(src).toMatch(
+      /const HOSTEL_STAFF_ROLES = \[[\s\S]*?\.\.\.ADMIN_ROLES,[\s\S]*?\] as const;/,
+    );
+    const packageRoles = new Set([...block('HOSTEL_STAFF_ROLES'), ...block('ADMIN_ROLES')]);
+    expect([...HOSTEL_PACKAGE_ROLE_IDS].sort()).toEqual([...packageRoles].sort());
   });
 
   it('wires every domain layout to the guard', () => {
