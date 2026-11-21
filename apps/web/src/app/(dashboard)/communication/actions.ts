@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   ackCircularOnBehalf,
   confirmEmergencyBlast,
@@ -24,6 +23,11 @@ import {
   ACK_ON_BEHALF_REASON_MAX,
   circularFormSchema,
 } from '@/lib/validation/communication-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
+
+/** RAW-WEB: fixed copy for every 409 from the emergency blast confirm (two-person control). */
+const TWO_PERSON_CONFIRM_MESSAGE =
+  'This blast cannot take your confirmation. Two different people, neither of them its creator, must confirm it while it is awaiting confirmation.';
 
 export interface CommunicationActionState {
   status: 'idle' | 'success' | 'error';
@@ -44,12 +48,7 @@ export async function createCampaignAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create campaign',
+      message: genericActionErrorMessage(error, 'Failed to create campaign'),
     };
   }
 }
@@ -70,12 +69,7 @@ export async function sendCampaignAction(id: string): Promise<CommunicationActio
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to send campaign',
+      message: genericActionErrorMessage(error, 'Failed to send campaign'),
     };
   }
 }
@@ -104,12 +98,7 @@ export async function previewAudienceAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Audience preview failed',
+      message: genericActionErrorMessage(error, 'Audience preview failed'),
     };
   }
 }
@@ -127,12 +116,7 @@ export async function createEmergencyBlastAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create emergency blast',
+      message: genericActionErrorMessage(error, 'Failed to create emergency blast'),
     };
   }
 }
@@ -155,14 +139,13 @@ export async function confirmEmergencyBlastAction(id: string): Promise<Communica
       id: blast.id,
     };
   } catch (error) {
+    // RAW-WEB: the service's 409s (creator, same actor twice, already confirmed, no longer
+    // awaiting) share one code, so the two-person rule is restated as fixed copy.
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to confirm emergency blast',
+      message: genericActionErrorMessage(error, 'Failed to confirm emergency blast', {
+        conflict: TWO_PERSON_CONFIRM_MESSAGE,
+      }),
     };
   }
 }
@@ -181,12 +164,7 @@ export async function dispatchEmergencyBlastAction(id: string): Promise<Communic
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to dispatch emergency blast',
+      message: genericActionErrorMessage(error, 'Failed to dispatch emergency blast'),
     };
   }
 }
@@ -218,12 +196,7 @@ export async function createCircularAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to create circular',
+      message: genericActionErrorMessage(error, 'Failed to create circular'),
     };
   }
 }
@@ -243,12 +216,7 @@ export async function sendCircularAction(id: string): Promise<CommunicationActio
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to send circular',
+      message: genericActionErrorMessage(error, 'Failed to send circular'),
     };
   }
 }
@@ -287,12 +255,7 @@ export async function ackCircularAction(
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to acknowledge circular',
+      message: genericActionErrorMessage(error, 'Failed to acknowledge circular'),
     };
   }
 }
@@ -306,12 +269,7 @@ export async function retryDeliveryAction(id: string): Promise<CommunicationActi
   } catch (error) {
     return {
       status: 'error',
-      message:
-        error instanceof GatewayError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to retry delivery',
+      message: genericActionErrorMessage(error, 'Failed to retry delivery'),
     };
   }
 }

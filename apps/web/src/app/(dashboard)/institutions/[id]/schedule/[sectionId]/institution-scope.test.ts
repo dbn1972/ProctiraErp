@@ -5,6 +5,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
+
 const notFound = vi.fn(() => {
   throw new Error('NEXT_NOT_FOUND');
 });
@@ -63,7 +69,11 @@ describe('PRC-H022 institution scope', () => {
       capacity: 1,
       condition: 'Good',
     });
-    expect(result).toEqual({ ok: false, error: 'Not found' });
+    // RAW-WEB: fixed copy plus a reference, never the gateway text.
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringMatching(/^Could not update the facility\. \(ref /),
+    });
     expect(gatewayFetch).toHaveBeenCalledWith(
       `/infrastructure/${FACILITY_OF_B}?institutionId=${INST_A}`,
       expect.objectContaining({ method: 'PUT' }),

@@ -4,8 +4,16 @@
  * Counts, enrollment bars, and activity come from existing tables.
  * A missing table or query failure yields null / an empty list — never a
  * fabricated number. Cross-tenant ids return null so the route can 404.
+ *
+ * D1-F1 / D1-F3: every tolerated block (and each relation probe) runs under a savepoint, so one
+ * failed query inside the `withPgTenant` transaction cannot abort the blocks after it (25P02).
  */
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  getSharedPgPool,
+  withPgSavepoint,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { createGatewayRbacRegistry } from './rbac-registry.js';
@@ -58,7 +66,9 @@ function asNumber(value: unknown): number | null {
 
 async function relationExists(client: PgQueryable, name: string): Promise<boolean> {
   try {
-    const result = await client.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]);
+    const result = await withPgSavepoint(client, 'overview_relation_probe', (tx) =>
+      tx.query(`SELECT to_regclass($1) AS reg`, [`public.${name}`]),
+    );
     const row = result.rows[0] as { reg?: string | null } | undefined;
     return Boolean(row?.reg);
   } catch {
@@ -127,13 +137,15 @@ export async function loadInstitutionOverview(
 
   if (await relationExists(client, 'enrollments')) {
     try {
-      const result = await client.query(
-        `SELECT COUNT(DISTINCT student_id)::int AS value
+      const result = await withPgSavepoint(client, 'overview_students', (tx) =>
+        tx.query(
+          `SELECT COUNT(DISTINCT student_id)::int AS value
            FROM enrollments
           WHERE tenant_id = $1::uuid
             AND institution_id = $2::uuid
             AND status = 'ENROLLED'`,
-        [tenantId, institutionId],
+          [tenantId, institutionId],
+        ),
       );
       overview.students = asNumber((result.rows[0] as { value?: unknown } | undefined)?.value);
       overview.studentsAvailable = true;
@@ -143,8 +155,9 @@ export async function loadInstitutionOverview(
 
     if (await relationExists(client, 'grades')) {
       try {
-        const result = await client.query(
-          `SELECT g.id::text AS grade_id,
+        const result = await withPgSavepoint(client, 'overview_enrollment', (tx) =>
+          tx.query(
+            `SELECT g.id::text AS grade_id,
                   g.code,
                   g.name,
                   COUNT(DISTINCT e.student_id)::int AS count
@@ -155,7 +168,8 @@ export async function loadInstitutionOverview(
               AND e.status = 'ENROLLED'
             GROUP BY g.id, g.code, g.name, g."order"
             ORDER BY g."order"`,
-          [tenantId, institutionId],
+            [tenantId, institutionId],
+          ),
         );
         overview.enrollmentByGrade = (result.rows as Record<string, unknown>[])
           .map((row) => ({
@@ -174,14 +188,16 @@ export async function loadInstitutionOverview(
 
   if (await relationExists(client, 'staff_assignments')) {
     try {
-      const result = await client.query(
-        `SELECT COUNT(DISTINCT staff_id)::int AS value
+      const result = await withPgSavepoint(client, 'overview_staff', (tx) =>
+        tx.query(
+          `SELECT COUNT(DISTINCT staff_id)::int AS value
            FROM staff_assignments
           WHERE tenant_id = $1::uuid
             AND institution_id = $2::uuid
             AND status = 'ACTIVE'
             AND (end_date IS NULL OR end_date >= CURRENT_DATE)`,
-        [tenantId, institutionId],
+          [tenantId, institutionId],
+        ),
       );
       overview.staff = asNumber((result.rows[0] as { value?: unknown } | undefined)?.value);
       overview.staffAvailable = true;
@@ -192,8 +208,9 @@ export async function loadInstitutionOverview(
 
   if (await relationExists(client, 'student_attendance')) {
     try {
-      const result = await client.query(
-        `SELECT CASE
+      const result = await withPgSavepoint(client, 'overview_attendance', (tx) =>
+        tx.query(
+          `SELECT CASE
                   WHEN COUNT(*) = 0 THEN NULL
                   ELSE ROUND(
                     100.0 * COUNT(*) FILTER (WHERE UPPER(status) IN ('PRESENT', 'LATE'))
@@ -204,7 +221,8 @@ export async function loadInstitutionOverview(
           WHERE tenant_id = $1::uuid
             AND institution_id = $2::uuid
             AND date >= (CURRENT_DATE - INTERVAL '30 days')`,
-        [tenantId, institutionId],
+          [tenantId, institutionId],
+        ),
       );
       overview.attendancePercent = asNumber(
         (result.rows[0] as { value?: unknown } | undefined)?.value,
@@ -217,13 +235,15 @@ export async function loadInstitutionOverview(
 
   if (await relationExists(client, 'rooms')) {
     try {
-      const result = await client.query(
-        `SELECT COUNT(*)::int AS value
+      const result = await withPgSavepoint(client, 'overview_rooms', (tx) =>
+        tx.query(
+          `SELECT COUNT(*)::int AS value
            FROM rooms
           WHERE tenant_id = $1::uuid
             AND institution_id = $2::uuid
             AND deleted_at IS NULL`,
-        [tenantId, institutionId],
+          [tenantId, institutionId],
+        ),
       );
       overview.classrooms = asNumber((result.rows[0] as { value?: unknown } | undefined)?.value);
       overview.classroomsAvailable = true;
@@ -234,8 +254,9 @@ export async function loadInstitutionOverview(
 
   if (await relationExists(client, 'audit_log_entries')) {
     try {
-      const result = await client.query(
-        `SELECT user_name, occurred_at, metadata
+      const result = await withPgSavepoint(client, 'overview_activity', (tx) =>
+        tx.query(
+          `SELECT user_name, occurred_at, metadata
            FROM audit_log_entries
           WHERE tenant_id = $1
             AND (
@@ -244,7 +265,8 @@ export async function loadInstitutionOverview(
             )
           ORDER BY occurred_at DESC
           LIMIT 8`,
-        [tenantId, institutionId],
+          [tenantId, institutionId],
+        ),
       );
       overview.activity = (result.rows as Record<string, unknown>[])
         .map((row) => {

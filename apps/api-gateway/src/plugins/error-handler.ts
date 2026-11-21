@@ -9,6 +9,11 @@
  * - Rate limit errors
  * - Authentication/authorization errors
  * - Unexpected errors (500)
+ *
+ * H-D4a / D1-T7: no response body carries database internals (SQL text, constraint, table or
+ * column names) in any environment. pg SQLSTATEs map to safe codes and fixed messages, Prisma
+ * errors never echo `meta.target`/`meta.field_name`, and AppError 5xx keeps its code with a
+ * generic message. Mapped and 5xx bodies carry `correlationId`; the details are logged only.
  */
 
 import {
@@ -32,6 +37,77 @@ interface ApiErrorResponse {
   message: string;
   statusCode: number;
   errors?: Array<{ field: string; message: string; rule?: string }>;
+  /** H-D4a: request correlation id on mapped database errors and 5xx bodies. */
+  correlationId?: string;
+}
+
+const INTERNAL_MESSAGE = 'Internal server error';
+
+/** Subset of pg-protocol's DatabaseError fields used for mapping and server-side logs. */
+interface PgDatabaseErrorLike {
+  code: string;
+  message: string;
+  constraint?: string;
+  table?: string;
+  column?: string;
+}
+
+/** pg `DatabaseError`: a five-character SQLSTATE plus the protocol `severity` field. */
+function isPgDatabaseError(error: unknown): error is PgDatabaseErrorLike {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, severity } = error as { code?: unknown; severity?: unknown };
+  return typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code) && typeof severity === 'string';
+}
+
+/** The pg error itself or one nested in `cause` (wrapped by a repository). */
+function findPgDatabaseError(error: unknown): PgDatabaseErrorLike | null {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (isPgDatabaseError(current)) return current;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+/** Fixed client body for a SQLSTATE; never derived from the error text. */
+function mapSqlState(
+  sqlState: string,
+  pgMessage: string,
+): { status: number; code: string; message: string } {
+  if (sqlState === '23503') {
+    // "update or delete on table … still referenced" vs "insert or update … is not present".
+    return /^update or delete on table|still referenced/i.test(pgMessage)
+      ? { status: 409, code: 'REFERENCE_IN_USE', message: 'This record is still in use.' }
+      : {
+          status: 422,
+          code: 'REFERENCE_NOT_FOUND',
+          message: 'A referenced record does not exist.',
+        };
+  }
+  if (sqlState === '23505') {
+    return {
+      status: 409,
+      code: ErrorCode.CONFLICT,
+      message: 'A record with these details already exists.',
+    };
+  }
+  if (['23502', '23514', '22P02', '22001', '22007', '22008'].includes(sqlState)) {
+    return {
+      status: 400,
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'The request contains an invalid value.',
+    };
+  }
+  return { status: 500, code: ErrorCode.INTERNAL_ERROR, message: INTERNAL_MESSAGE };
+}
+
+/** Text that reads like a database error even when it reaches us as a plain Error. */
+const DATABASE_TEXT =
+  /violates (?:foreign key|unique|not-null|check) constraint|duplicate key value|current transaction is aborted|relation "[^"]*"|column "[^"]*"|syntax error at or near|invalid input syntax for|\bSQLSTATE\b/i;
+
+function correlationIdOf(request: FastifyRequest): string {
+  const value = (request as unknown as { correlationId?: unknown }).correlationId;
+  return typeof value === 'string' && value.length > 0 ? value : String(request.id);
 }
 
 /**
@@ -54,17 +130,37 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
   options: ErrorHandlerOptions = {},
 ) => {
   const { includeStackTrace = false } = options;
+  /** Replies whose body this handler built (already safe; keeps the development debug text). */
+  const handlerReplies = new WeakSet<FastifyReply>();
 
   fastify.setErrorHandler(function globalErrorHandler(
     error: Error & { statusCode?: number; code?: string; validation?: unknown[] },
     request: FastifyRequest,
     reply: FastifyReply,
   ) {
-    // Log the error
+    // Log the error (full detail stays server-side; H-D4a)
     const log =
       (request as unknown as { requestLog?: { error: (...args: unknown[]) => void } }).requestLog ??
       request.log;
-    log.error({ err: error, url: request.url, method: request.method }, 'Request error');
+    const pgError = findPgDatabaseError(error);
+    log.error(
+      {
+        err: error,
+        url: request.url,
+        method: request.method,
+        ...(pgError
+          ? {
+              pgCode: pgError.code,
+              pgConstraint: pgError.constraint,
+              pgTable: pgError.table,
+              pgColumn: pgError.column,
+            }
+          : {}),
+      },
+      'Request error',
+    );
+    const correlationId = correlationIdOf(request);
+    handlerReplies.add(reply);
 
     // Handle Fastify validation errors (from schema validation)
     if (error.validation && Array.isArray(error.validation)) {
@@ -140,10 +236,21 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
     }
 
     if (error instanceof AppError) {
+      const statusCode = error.statusCode || 500;
+      if (statusCode >= 500) {
+        // D1-T7: a 5xx AppError message can carry store/driver text; keep only the code.
+        const response: ApiErrorResponse = {
+          code: error.code || 'APP_ERROR',
+          message: INTERNAL_MESSAGE,
+          statusCode,
+          correlationId,
+        };
+        return reply.status(statusCode).send(response);
+      }
       const response: ApiErrorResponse = {
         code: error.code || 'APP_ERROR',
         message: error.message,
-        statusCode: error.statusCode || 500,
+        statusCode,
       };
       if (error.errors && error.errors.length > 0) {
         response.errors = error.errors.map((e) => ({
@@ -152,12 +259,36 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
           rule: e.rule,
         }));
       }
-      return reply.status(error.statusCode || 500).send(response);
+      return reply.status(statusCode).send(response);
     }
 
     // Handle Prisma errors
     if (isPrismaError(error)) {
-      return handlePrismaError(error, reply);
+      return handlePrismaError(error, reply, correlationId);
+    }
+
+    // H-D4a: any other Prisma client error (unknown request, validation, panic) carries query
+    // text; never echo it, also in development.
+    if (typeof error.name === 'string' && error.name.startsWith('PrismaClient')) {
+      const response: ApiErrorResponse = {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: INTERNAL_MESSAGE,
+        statusCode: 500,
+        correlationId,
+      };
+      return reply.status(500).send(response);
+    }
+
+    // H-D4a: pg DatabaseError (direct or as a cause) → safe code and fixed message.
+    if (pgError) {
+      const mapped = mapSqlState(pgError.code, pgError.message);
+      const response: ApiErrorResponse = {
+        code: mapped.code,
+        message: mapped.message,
+        statusCode: mapped.status,
+        correlationId,
+      };
+      return reply.status(mapped.status).send(response);
     }
 
     // Handle rate limit errors
@@ -202,13 +333,62 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
     }
 
     // Default: Internal server error
+    // Development keeps a plain error's message for debugging, unless it reads like DB text.
+    const message =
+      includeStackTrace && typeof error.message === 'string' && !DATABASE_TEXT.test(error.message)
+        ? error.message
+        : INTERNAL_MESSAGE;
     const response: ApiErrorResponse = {
       code: ErrorCode.INTERNAL_ERROR,
-      message: includeStackTrace ? error.message : 'Internal server error',
+      message,
       statusCode: 500,
+      correlationId,
     };
 
     return reply.status(500).send(response);
+  });
+
+  // D1-T7: package routes that send `error.toJSON()` themselves bypass the handler above. A
+  // JSON 5xx body from such a route whose text reads like a database error keeps its code and
+  // status but gets the generic message (and loses `errors`/`details`), plus the correlation
+  // id; the original goes to the log. Authored 5xx text (e.g. "Service 'auth' is
+  // unreachable.") is left alone.
+  fastify.addHook('onSend', async (request, reply, payload) => {
+    if (reply.statusCode < 500 || handlerReplies.has(reply) || typeof payload !== 'string') {
+      return payload;
+    }
+    if (!String(reply.getHeader('content-type') ?? '').includes('application/json')) return payload;
+    let body: unknown;
+    try {
+      body = JSON.parse(payload);
+    } catch {
+      return payload;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return payload;
+    const record = body as Record<string, unknown>;
+    // The payload is serialized JSON, so quotes inside strings arrive as \".
+    if (!DATABASE_TEXT.test(payload.replace(/\\"/g, '"'))) return payload;
+    const log =
+      (request as unknown as { requestLog?: { error: (...args: unknown[]) => void } }).requestLog ??
+      request.log;
+    log.error(
+      {
+        url: request.url,
+        statusCode: reply.statusCode,
+        code: record.code,
+        body: payload,
+      },
+      'Route-local 5xx body sanitised',
+    );
+    const { errors: _errors, details: _details, ...rest } = record;
+    void _errors;
+    void _details;
+    return JSON.stringify({
+      ...rest,
+      message: INTERNAL_MESSAGE,
+      correlationId:
+        typeof record.correlationId === 'string' ? record.correlationId : correlationIdOf(request),
+    });
   });
 
   // Handle 404 for unmatched routes
@@ -231,16 +411,16 @@ const errorHandlerPluginImpl: FastifyPluginAsync<ErrorHandlerOptions> = async (
 function handlePrismaError(
   error: { code: string; meta?: Record<string, unknown>; message: string },
   reply: FastifyReply,
+  correlationId: string,
 ) {
   switch (error.code) {
     case 'P2002': {
-      // Unique constraint violation
-      const target = error.meta?.target;
-      const fields = Array.isArray(target) ? target.join(', ') : 'field';
+      // Unique constraint violation (H-D4a: meta.target is logged, never echoed)
       const response: ApiErrorResponse = {
         code: ErrorCode.CONFLICT,
-        message: `Unique constraint violation on: ${fields}`,
+        message: 'A record with these details already exists.',
         statusCode: 409,
+        correlationId,
       };
       return reply.status(409).send(response);
     }
@@ -255,21 +435,35 @@ function handlePrismaError(
       return reply.status(404).send(response);
     }
     case 'P2003': {
-      // Foreign key constraint violation
-      const fieldName = error.meta?.field_name as string | undefined;
+      // Foreign key constraint violation (H-D4a: meta.field_name is logged, never echoed)
       const response: ApiErrorResponse = {
         code: ErrorCode.VALIDATION_ERROR,
-        message: `Foreign key constraint failed on: ${fieldName || 'unknown field'}`,
+        message: 'A related record does not exist or is still in use.',
         statusCode: 400,
+        correlationId,
       };
       return reply.status(400).send(response);
+    }
+    case 'P2010': {
+      // Raw query failed: meta.code is the SQLSTATE; map it like a pg DatabaseError.
+      const sqlState = typeof error.meta?.code === 'string' ? error.meta.code : '';
+      const pgMessage = typeof error.meta?.message === 'string' ? error.meta.message : '';
+      const mapped = mapSqlState(sqlState, pgMessage);
+      const response: ApiErrorResponse = {
+        code: mapped.code,
+        message: mapped.message,
+        statusCode: mapped.status,
+        correlationId,
+      };
+      return reply.status(mapped.status).send(response);
     }
     default: {
       // Unknown Prisma error
       const response: ApiErrorResponse = {
         code: ErrorCode.INTERNAL_ERROR,
-        message: 'Internal server error',
+        message: INTERNAL_MESSAGE,
         statusCode: 500,
+        correlationId,
       };
       return reply.status(500).send(response);
     }

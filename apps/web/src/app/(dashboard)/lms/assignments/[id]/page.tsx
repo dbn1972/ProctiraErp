@@ -37,6 +37,8 @@ import { AssignmentLifecycle } from '../../_components/assignment-lifecycle';
 import { canWrite } from '@/lib/auth/route-write-guard';
 import { AssignmentFileForm, RubricGradeForm } from '../../_components/depth-grade-forms';
 import { GradeSubmissionForm } from '../../_components/grade-submission-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +76,10 @@ export default async function AssignmentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const { id } = await params;
   if (!isUuidLike(id)) notFound();
 

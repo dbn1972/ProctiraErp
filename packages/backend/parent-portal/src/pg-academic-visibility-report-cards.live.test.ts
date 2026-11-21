@@ -215,4 +215,44 @@ describe('parent report cards on live Postgres (D1)', () => {
       expect(crossTenant.data).toEqual([]);
     },
   );
+
+  // D1-R1: the store check above passes on its SQL `tenant_id = $1` predicate alone. Prove
+  // that FORCE RLS isolates the rows by itself: the same queries with no tenant predicate
+  // return tenant A's rows under tenant A's context and nothing under tenant B's.
+  it.skipIf(!live)('FORCE RLS alone hides tenant A’s rows from a tenant-B context', async () => {
+    const predicateFree = async (tenantId: string) =>
+      withPgTenant(pool!, tenantId, async (client) => ({
+        jobs: (
+          await client.query<{ id: string }>(
+            `SELECT id FROM report_card_jobs WHERE id = ANY($1::uuid[]) ORDER BY id`,
+            [[completedJobId, queuedJobId]],
+          )
+        ).rows.map((row) => row.id),
+        grades: (
+          await client.query<{ code: string }>(
+            `SELECT assessment_code AS code FROM grade_entries WHERE student_id = $1 ORDER BY 1`,
+            [childC],
+          )
+        ).rows.map((row) => row.code),
+      }));
+    // Positive control: tenant A sees its own rows through the same queries.
+    expect(await predicateFree(tenantA)).toEqual({
+      jobs: [completedJobId, queuedJobId].sort(),
+      grades: ['ENG-T2', 'MATH-T1', 'SCI-T1'],
+    });
+    expect(await predicateFree(tenantB)).toEqual({ jobs: [], grades: [] });
+    // Both tables keep RLS enabled and forced (applies to the table owner too).
+    const { rows: forced } = await pool!.query<{
+      relname: string;
+      enabled: boolean;
+      force: boolean;
+    }>(
+      `SELECT relname, relrowsecurity AS enabled, relforcerowsecurity AS force FROM pg_class
+        WHERE relname IN ('report_card_jobs', 'grade_entries') ORDER BY relname`,
+    );
+    expect(forced).toEqual([
+      { relname: 'grade_entries', enabled: true, force: true },
+      { relname: 'report_card_jobs', enabled: true, force: true },
+    ]);
+  });
 });

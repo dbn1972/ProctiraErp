@@ -11,10 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { exportStaffPayroll, type PayrollExport } from '@/lib/api/staff';
 
 import { PayrollExportPanel } from '../_components/payroll-export-panel';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,10 @@ function defaultMonth(): string {
 }
 
 export default async function StaffPayrollPage() {
-  await requireSession();
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   let initial: PayrollExport | null = null;
   try {
     initial = await exportStaffPayroll(defaultMonth());

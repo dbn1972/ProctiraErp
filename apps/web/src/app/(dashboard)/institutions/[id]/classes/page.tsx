@@ -30,13 +30,10 @@ import {
 } from '@/components/institutions/class-section-controls';
 import { listStaff } from '@/lib/api/staff';
 import { formatPersonLabel } from '@/lib/entity-label';
-import {
-  ApiClientError,
-  listAcademicPeriods,
-  listClassesByInstitution,
-  listGrades,
-} from '@/lib/institutions/api';
+import { listAcademicPeriods, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
 import type { AcademicPeriod, ClassSection, Grade } from '@/lib/institutions/types';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface ClassesPageProps {
   params: Promise<{ id: string }>;
@@ -53,6 +50,10 @@ interface ClassesData {
 }
 
 export default async function InstitutionClassesPage(props: ClassesPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const searchParams = (await props.searchParams) ?? {};
   const data = await loadClasses(params.id);
@@ -272,15 +273,15 @@ async function loadClasses(institutionId: string): Promise<ClassesData> {
     ]);
     return { classes, grades, periods, error: null, gradesError };
   } catch (error) {
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[institution-classes] load failed', error);
     return {
       classes: [],
       grades: [],
       periods: [],
       gradesError: false,
-      error:
-        error instanceof ApiClientError
-          ? error.message
-          : 'The class catalog is currently unavailable.',
+      error: 'The class catalog is currently unavailable.',
     };
   }
 }

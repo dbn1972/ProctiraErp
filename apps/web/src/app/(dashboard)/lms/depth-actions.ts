@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   addLessonResource,
   createBankQuestion,
@@ -34,6 +33,7 @@ import {
   type LmsRubricGradeValues,
   type LmsRubricValues,
 } from '@/lib/validation/lms-depth-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface LmsDepthActionState {
   status: 'idle' | 'success' | 'error';
@@ -42,9 +42,8 @@ export interface LmsDepthActionState {
 }
 
 function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof GatewayError) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
+  return genericActionErrorMessage(error, fallback);
 }
 
 function optionalId(value?: string): string | undefined {

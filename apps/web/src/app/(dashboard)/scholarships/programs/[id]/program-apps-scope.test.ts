@@ -1,6 +1,12 @@
 /** PRC-M114 — the program detail applications request carries programId. */
 import { describe, expect, it, vi } from 'vitest';
 
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
+
 const listScholarshipApplications = vi.hoisted(() => vi.fn(async () => ({ ok: true, items: [] })));
 vi.mock('@/lib/api/scholarships', async (orig) => ({
   ...(await orig<typeof import('@/lib/api/scholarships')>()),

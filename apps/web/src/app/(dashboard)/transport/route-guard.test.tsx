@@ -48,6 +48,11 @@ const transportApi = vi.hoisted(() => ({
   listTransportVehicles: vi.fn(),
   listDriverAssignments: vi.fn(),
   listStudentAssignments: vi.fn(),
+  // T-D2: the list screens read these to print the list's total.
+  listTransportRoutesWithTotal: vi.fn(),
+  listTransportVehiclesWithTotal: vi.fn(),
+  listDriverAssignmentsWithTotal: vi.fn(),
+  listStudentAssignmentsWithTotal: vi.fn(),
 }));
 vi.mock('@/lib/api/transport', () => transportApi);
 
@@ -84,6 +89,15 @@ function resetFetches() {
   transportApi.listTransportVehicles.mockResolvedValue([]);
   transportApi.listDriverAssignments.mockResolvedValue([]);
   transportApi.listStudentAssignments.mockResolvedValue([]);
+  const empty = { items: [], totalItems: 0, truncated: false };
+  transportApi.listTransportRoutesWithTotal.mockResolvedValue({
+    items: [ROUTE],
+    totalItems: 1,
+    truncated: false,
+  });
+  transportApi.listTransportVehiclesWithTotal.mockResolvedValue(empty);
+  transportApi.listDriverAssignmentsWithTotal.mockResolvedValue(empty);
+  transportApi.listStudentAssignmentsWithTotal.mockResolvedValue(empty);
   opsApi.listRouteStops.mockResolvedValue([]);
   opsApi.listAllStops.mockResolvedValue([]);
   opsApi.getLiveMap.mockResolvedValue({ vehicles: [], stops: [] });
@@ -136,9 +150,26 @@ beforeEach(() => {
   resetFetches();
 });
 
-/** Teacher / staff: no transport access (package guard denies; T-O1 roles are denied at the gateway). */
-const DENIED_ROLE_SETS = [['teacher'], ['staff'], ['student'], ['transport_officer'], []];
-const ALLOWED_ROLE_SETS = [['principal'], ['admin']];
+/** Teacher / staff: no transport access (the package guard denies them); hostel staff have no transport grant. */
+const DENIED_ROLE_SETS = [
+  ['teacher'],
+  ['staff'],
+  ['student'],
+  ['warden'],
+  ['teacher', 'staff'],
+  [],
+];
+/** Admin roles, the transport package staff roles and the read-only registrar (T-O1), multi-role (MR-1). */
+const ALLOWED_ROLE_SETS = [
+  ['principal'],
+  ['admin'],
+  ['transport_officer'],
+  ['fleet_manager'],
+  ['transport-admin'],
+  ['registrar'],
+  ['teacher', 'transport_officer'],
+  ['teacher', 'school_admin'],
+];
 
 describe('transport route guard (T-D1)', () => {
   describe.each(ROUTES)('$path', (route) => {
@@ -177,10 +208,20 @@ describe('transport route guard (T-D1)', () => {
     expect(screen.getByTestId('transport-student-assignment-form')).toBeInTheDocument();
   });
 
+  it.each([['transport_officer'], ['registrar']])(
+    'keeps the vehicle form and vehicle list for %s on /transport/vehicles',
+    async (role) => {
+      auth.roles = [role];
+      await renderRoute(ROUTES.find((r) => r.path === '/transport/vehicles')!);
+      expect(screen.getByTestId('transport-vehicle-form')).toBeInTheDocument();
+      expect(transportApi.listTransportVehiclesWithTotal).toHaveBeenCalled();
+    },
+  );
+
   it('keeps the vehicle form for a tenant admin on /transport/vehicles', async () => {
     auth.roles = ['admin'];
     await renderRoute(ROUTES.find((r) => r.path === '/transport/vehicles')!);
     expect(screen.getByTestId('transport-vehicle-form')).toBeInTheDocument();
-    expect(transportApi.listTransportVehicles).toHaveBeenCalled();
+    expect(transportApi.listTransportVehiclesWithTotal).toHaveBeenCalled();
   });
 });

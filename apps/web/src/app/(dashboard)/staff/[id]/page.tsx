@@ -70,6 +70,8 @@ import {
 } from '@/lib/institutions/api';
 import type { ClassSection } from '@/lib/institutions/types';
 import { resolveProfileTab } from './profile-tab';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -725,6 +727,10 @@ function TrainingTab({
 /* ──────────────────────────────────────────── Page ── */
 
 export default async function StaffProfilePage(props: PageProps) {
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const staffId = params.id;
   const initialTab = resolveProfileTab((await props.searchParams)?.tab);

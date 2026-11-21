@@ -7,6 +7,12 @@
 import { render, screen } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// A-batch: pages check domain access before any read (route-guard.test.tsx
+// covers that); this file tests the screen an allowed user sees.
+vi.mock('@/lib/auth/domain-route-access', () => ({
+  hasDashboardDomainRouteAccess: vi.fn(async () => true),
+}));
+
 const ok = <T,>(data: T) => ({ ok: true as const, data });
 const fail = (error: string) => ({ ok: false as const, error });
 
@@ -120,9 +126,10 @@ describe('timetable page (PRC-M100)', () => {
     listAcademicPeriods.mockRejectedValue(new Error('Academic periods unavailable'));
     const { default: Page } = await import('./page');
     render(await Page({ params }));
-    expect(screen.getByTestId('timetable-load-errors').textContent).toContain(
-      'Academic periods: Academic periods unavailable',
-    );
+    // D1-T5: fixed copy; the thrown text stays in the server log.
+    const errors = screen.getByTestId('timetable-load-errors').textContent ?? '';
+    expect(errors).toContain('Academic periods: Could not be loaded.');
+    expect(errors).not.toContain('Academic periods unavailable');
     expect(screen.queryByText(/Create an academic period/)).toBeNull();
   });
 

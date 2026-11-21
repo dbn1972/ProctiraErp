@@ -24,6 +24,8 @@ import { cn } from '@/lib/utils';
 import { BulkImportPanel } from './_components/bulk-import-panel';
 import { DownloadTemplateButton } from './_components/download-template-button';
 import { IMPORT_TEMPLATE_COLUMNS } from './template/columns';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,7 +114,11 @@ function ImportStepper({ active = 1 }: { active?: number }) {
 
 /* ---------------------------------------------------------------- page */
 
-export default function StudentBulkImportPage() {
+export default async function StudentBulkImportPage() {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   return (
     <section aria-labelledby="import-heading" className="space-y-6">
       {/* ── Page head ── */}

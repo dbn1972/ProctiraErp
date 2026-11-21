@@ -131,18 +131,37 @@ ON CONFLICT (id) DO UPDATE
 -- service rejects grade entries whose section does not exist (NotFound), so
 -- the gradebook workflow spec (e2e/42) needs a real section. Fixed ids match
 -- SECTION_A / PERIOD_A in that spec.
+--
+-- SP-R2: the year is a rolling 365-day window around the day the database is
+-- seeded (CURRENT_DATE - 180 .. CURRENT_DATE + 184), not a fixed 2026-04-01 ..
+-- 2027-03-31, so date-relative specs (attendance pastWeekdays(), calendar) keep
+-- working after the fixed year ends. Keep the offsets in step with
+-- E2E_AY_DAYS_BEFORE / E2E_AY_DAYS_AFTER in apps/web/e2e/fixtures/test-data.ts.
+-- start_date/end_date are immutable after insert (trg_academic_periods_dates_
+-- immutable, db/sql/083), so a rerun keeps the inserted window and the check
+-- below fails the seed once a reused database's window no longer covers today.
 -- ---------------------------------------------------------------------------
 INSERT INTO academic_periods (id, tenant_id, name, code, start_date, end_date, status)
 VALUES (
   '00000000-0000-4000-8000-00000000ac01',
   '00000000-0000-4000-8000-000000000001',
   'E2E Academic Year', 'E2E-AY',
-  DATE '2026-04-01', DATE '2027-03-31', 'active'
+  CURRENT_DATE - 180, CURRENT_DATE + 184, 'active'
 )
 ON CONFLICT (id) DO UPDATE
   SET status = 'active',
       deleted_at = NULL,
       updated_at = now();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM academic_periods
+    WHERE id = '00000000-0000-4000-8000-00000000ac01'
+      AND start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE
+  ) THEN
+    RAISE EXCEPTION 'E2E-AY no longer covers CURRENT_DATE; recreate the E2E database (SP-R2)';
+  END IF;
+END $$;
 
 INSERT INTO sections (id, tenant_id, institution_id, academic_period_id, code, name, capacity, status)
 VALUES (

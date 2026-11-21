@@ -2,13 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError, gatewayFetch } from '@/lib/api/gateway';
+import { gatewayFetch } from '@/lib/api/gateway';
 import {
   createRoomSchema,
   firstIssue,
   repairRequestSchema,
   updateFacilitySchema,
 } from '@/lib/validation/campus-actions-schema';
+import { genericActionErrorMessage, genericResultErrorMessage } from '@/lib/api/action-error';
 
 export async function logRepairRequestAction(input: {
   institutionId: string;
@@ -33,14 +34,16 @@ export async function logRepairRequestAction(input: {
     if (!result.ok || !result.data) {
       return {
         ok: false,
-        error: result.error?.message ?? 'The repair request could not be saved.',
+        error: genericResultErrorMessage(result, 'The repair request could not be saved.'),
       };
     }
     revalidatePath(`/institutions/${input.institutionId}/infrastructure`);
     return { ok: true, id: result.data.id };
   } catch (error) {
-    if (error instanceof GatewayError) return { ok: false, error: error.message };
-    return { ok: false, error: 'The repair request could not be saved.' };
+    return {
+      ok: false,
+      error: genericActionErrorMessage(error, 'The repair request could not be saved.'),
+    };
   }
 }
 
@@ -61,13 +64,12 @@ export async function createRoomAction(input: {
       cache: 'no-store',
     });
     if (!result.ok) {
-      return { ok: false, error: result.error?.message ?? 'Could not add the room.' };
+      return { ok: false, error: genericResultErrorMessage(result, 'Could not add the room.') };
     }
     revalidatePath(`/institutions/${input.institutionId}/infrastructure`);
     return { ok: true };
   } catch (error) {
-    if (error instanceof GatewayError) return { ok: false, error: error.message };
-    return { ok: false, error: 'Could not add the room.' };
+    return { ok: false, error: genericActionErrorMessage(error, 'Could not add the room.') };
   }
 }
 
@@ -103,12 +105,14 @@ export async function updateFacilityAction(input: {
       },
     );
     if (!result.ok) {
-      return { ok: false, error: result.error?.message ?? 'Could not update the facility.' };
+      return {
+        ok: false,
+        error: genericResultErrorMessage(result, 'Could not update the facility.'),
+      };
     }
     revalidatePath(`/institutions/${input.institutionId}/infrastructure`);
     return { ok: true };
   } catch (error) {
-    if (error instanceof GatewayError) return { ok: false, error: error.message };
-    return { ok: false, error: 'Could not update the facility.' };
+    return { ok: false, error: genericActionErrorMessage(error, 'Could not update the facility.') };
   }
 }

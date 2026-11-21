@@ -7,7 +7,11 @@
  * only the changed segment). Pages that fetch domain data call this first and
  * render `RouteAccessDenied` when it returns false, before any read.
  */
-import { canAccessDashboardDomain, type DashboardDomain } from './domain-route-guards';
+import {
+  canAccessDashboardDomain,
+  canAccessReportRoleDashboard,
+  type DashboardDomain,
+} from './domain-route-guards';
 import { requireSession } from './server';
 
 export async function hasDashboardDomainRouteAccess(
@@ -16,4 +20,10 @@ export async function hasDashboardDomainRouteAccess(
 ): Promise<boolean> {
   const session = await requireSession(returnTo);
   return canAccessDashboardDomain(session, domain);
+}
+
+/** Page check for `/reports/dashboard` and `/reports/dashboards` (see REPORT_ROLE_DASHBOARD_ROLE_IDS). */
+export async function hasReportRoleDashboardRouteAccess(returnTo: string): Promise<boolean> {
+  const session = await requireSession(returnTo);
+  return canAccessReportRoleDashboard(session);
 }

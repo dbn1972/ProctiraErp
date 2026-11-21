@@ -29,6 +29,8 @@ import {
   listRooms,
   listSections,
 } from '@/lib/api/timetable';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,10 @@ function isBreakPeriod(name: string, isBreak?: boolean): boolean {
 }
 
 export default async function InstitutionTimetablePage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const searchParams = (await props.searchParams) ?? {};
   const institutionId = params.id;
@@ -74,7 +80,10 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   } catch (error) {
     // PRC-M100: a failed read must not render the 'Create an academic period' CTA.
     academicPeriodId = '';
-    academicPeriodsError = error instanceof Error ? error.message : 'Could not be loaded.';
+    // D1-T5: fixed copy; the failure itself goes to the server log.
+    // eslint-disable-next-line no-console -- server-side log for the failed read
+    console.error('[institution-timetable] academic periods read failed', error);
+    academicPeriodsError = 'Could not be loaded.';
   }
 
   const [meetingsResult, schedulesResult, sectionsResult, roomsResult, staffResult] =

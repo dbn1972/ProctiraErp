@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
-import { listTransportVehicles } from '@/lib/api/transport';
+import { listTransportVehiclesWithTotal } from '@/lib/api/transport';
+import { listCountCopy } from '../_components/list-count';
 import { NewVehicleForm } from '../_components/new-vehicle-form';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +12,8 @@ export default async function TransportVehiclesPage() {
   if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
     return <RouteAccessDenied />;
   }
-  const vehicles = await listTransportVehicles();
+  const list = await listTransportVehiclesWithTotal();
+  const vehicles = list.items;
 
   return (
     <div className="space-y-6 p-6">
@@ -30,7 +32,7 @@ export default async function TransportVehiclesPage() {
           <CardDescription>
             {vehicles.length === 0
               ? 'No vehicles loaded yet.'
-              : `${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'}.`}
+              : listCountCopy(list, { one: 'vehicle', many: 'vehicles' })}
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -20,6 +20,7 @@ import { AppError } from '@proctira/common';
 import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { enforceCustomFieldAccess } from './custom-field-access.js';
 import type {
   CustomFieldEntityType,
   CustomFieldValidationRules,
@@ -110,6 +111,41 @@ export async function registerCustomFieldRoutes(
 ): Promise<void> {
   const { customFieldService, prefix = '/custom-fields' } = options;
 
+  // PRC-L446: in-package guard on every route below (verified principal, token
+  // tenant == request tenant, per-entity record roles). Attached per route via
+  // onRoute. Coverage is keyed on the declaration window, not on the URL:
+  // Fastify runs onRoute synchronously inside each fastify.<method>() call
+  // (including the auto-exposed HEAD route), and `route.url` carries every
+  // enclosing register prefix (e.g. the gateway's /api/v1), so a URL match
+  // against the local `prefix` would silently skip the guard.
+  const guard = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
+    if (enforceCustomFieldAccess(request, reply)) done();
+  };
+  let declaringGuardedRoutes = true;
+  fastify.addHook('onRoute', (route) => {
+    if (!declaringGuardedRoutes) return;
+    const existing = route.preHandler;
+    route.preHandler = [
+      guard,
+      ...(existing ? (Array.isArray(existing) ? existing : [existing]) : []),
+    ];
+  });
+  try {
+    declareCustomFieldRoutes(fastify, customFieldService, prefix);
+  } finally {
+    declaringGuardedRoutes = false;
+  }
+}
+
+/**
+ * Declares the custom-field routes. Must stay synchronous (no await) so every
+ * route is declared inside the guarded window above.
+ */
+function declareCustomFieldRoutes(
+  fastify: FastifyInstance,
+  customFieldService: CustomFieldService,
+  prefix: string,
+): void {
   // ─── Definition Routes ───────────────────────────────────────────────────
 
   /**

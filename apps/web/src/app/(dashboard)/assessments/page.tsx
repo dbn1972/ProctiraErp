@@ -19,6 +19,8 @@ import {
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { listGradingSchemes } from '@/lib/api/assessments';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +56,10 @@ function titleCase(s: string): string {
 }
 
 export default async function AssessmentsPage(props: PageProps) {
+  // A-batch: check before any assessment read.
+  if (!(await hasDashboardDomainRouteAccess('assessments', '/assessments'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const search = readStr(searchParams, 'search');
   const type = readStr(searchParams, 'type');

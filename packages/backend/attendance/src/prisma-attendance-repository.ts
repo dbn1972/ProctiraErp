@@ -55,6 +55,9 @@ function fromDateOnly(date: Date): string {
  * PRC-H040: detect a unique-constraint violation from either the Prisma client
  * (code 'P2002') or a raw Postgres error (SQLSTATE '23505').
  */
+/** D1-F2: savepoint around the student attendance insert (fixed identifier). */
+const CREATE_ATTENDANCE_SAVEPOINT = 'attendance_create';
+
 function isUniqueViolation(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
   const code = (err as { code?: unknown }).code;
@@ -171,6 +174,9 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<StudentAttendanceEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
+      // D1-F2: the insert runs under a savepoint. A unique violation aborts the transaction in
+      // Postgres, so without ROLLBACK TO SAVEPOINT the lookup below failed with 25P02 (500).
+      await tx.$executeRawUnsafe(`SAVEPOINT ${CREATE_ATTENDANCE_SAVEPOINT}`);
       try {
         const row = (await tx.studentAttendance.create({
           data: {
@@ -188,12 +194,14 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
             recordedBy: actorUuid(data.recordedBy),
           },
         })) as StudentAttendanceRow;
+        await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${CREATE_ATTENDANCE_SAVEPOINT}`);
         return toStudentEntity(row);
       } catch (err) {
         // PRC-H040: a concurrent writer created the row first. The DB unique
         // index (db/sql/123, COALESCE over nullable subject/period) rejects the
         // duplicate; return the existing row instead of a second record.
         if (isUniqueViolation(err)) {
+          await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${CREATE_ATTENDANCE_SAVEPOINT}`);
           const existing = (await tx.studentAttendance.findFirst({
             where: {
               tenantId: data.tenantId,
