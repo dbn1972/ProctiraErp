@@ -64,6 +64,7 @@ export default async function ParentPalPage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No practice plan yet. Skills appear after quizzes and practice."
       hasRows={items.length > 0}
     >
