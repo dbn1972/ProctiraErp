@@ -1,8 +1,8 @@
 /**
  * PRC-L034 — negative authz for dashboard domain layouts.
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { ServerSession } from '@/lib/auth/server';
@@ -355,4 +355,53 @@ describe('dashboard domain route guards (PRC-L034)', () => {
       expect(src).toContain('RouteAccessDenied');
     }
   });
+
+  it('A-batch: every page of a page-guarded domain checks access before it renders', () => {
+    const unguarded: string[] = [];
+    for (const domain of Object.keys(DASHBOARD_DOMAIN_RESOURCES) as DashboardDomain[]) {
+      if (LAYOUT_ONLY_DOMAINS.has(domain)) continue;
+      const pages = pageFiles(resolve(__dirname, `../../app/(dashboard)/${domain}`));
+      expect(pages.length, domain).toBeGreaterThan(0);
+      for (const file of pages) {
+        if (!readFileSync(file, 'utf8').includes(`hasDashboardDomainRouteAccess('${domain}'`)) {
+          unguarded.push(relative(resolve(__dirname, '../../app'), file));
+        }
+      }
+    }
+    expect(unguarded).toEqual([]);
+  });
+
+  it('A-batch: the layout-only exception list names only domains still without page checks', () => {
+    // Remove a domain from LAYOUT_ONLY_DOMAINS once its pages are guarded.
+    for (const domain of LAYOUT_ONLY_DOMAINS) {
+      expect(DASHBOARD_DOMAIN_RESOURCES, domain).toHaveProperty(domain);
+      const pages = pageFiles(resolve(__dirname, `../../app/(dashboard)/${domain}`));
+      const guarded = pages.filter((file) =>
+        readFileSync(file, 'utf8').includes(`hasDashboardDomainRouteAccess('${domain}'`),
+      );
+      expect(guarded.length, `${domain} has page checks; drop it from the list`).toBeLessThan(
+        pages.length,
+      );
+    }
+  });
 });
+
+/**
+ * Domains guarded by their layout before T-D1 whose pages do not yet call
+ * `hasDashboardDomainRouteAccess` (outside the A-batch page list; follow-up).
+ */
+const LAYOUT_ONLY_DOMAINS: ReadonlySet<DashboardDomain> = new Set<DashboardDomain>([
+  'attendance',
+  'communication',
+  'audit-logs',
+  'billing',
+  'data-warehouse',
+]);
+
+function pageFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return pageFiles(path);
+    return entry.name === 'page.tsx' ? [path] : [];
+  });
+}
