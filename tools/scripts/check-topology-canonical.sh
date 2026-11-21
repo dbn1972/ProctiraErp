@@ -50,8 +50,8 @@ prod_values=infrastructure/helm/proctira-platform/values-production.yaml
 grep -E '^topology:' -A2 "$prod_values" | grep -q 'mode:[[:space:]]*in-process' \
   || die "values-production.yaml must set topology.mode: in-process"
 
-for svc in institutionService studentService staffService assessmentService \
-  attendanceService examinationService workflowService notificationService reportService; do
+for svc in studentService assessmentService \
+  examinationService reportService; do
   # First "enabled:" under the service key must be false
   block="$(awk -v svc="$svc" '
     $0 ~ "^"svc":" {grab=1; next}
@@ -94,9 +94,9 @@ if command -v helm >/dev/null 2>&1; then
     --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
     -f ./infrastructure/helm/proctira-platform/values-production.yaml \
     >"$out" 2>/dev/null || die "helm template production failed"
-  if grep -E 'name: .*institution-service$|app.kubernetes.io/name: institution-service' "$out" >/dev/null; then
+  if grep -E 'name: .*student-service$|app.kubernetes.io/name: student-service' "$out" >/dev/null; then
     rm -f "$out"
-    die "production helm render must not include institution-service"
+    die "production helm render must not include student-service"
   fi
   grep -q 'api-gateway' "$out" || {
     rm -f "$out"

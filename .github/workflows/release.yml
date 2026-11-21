@@ -215,7 +215,7 @@ jobs:
 
           # Master list of releasable images.
           # Canonical runtime: api-gateway (+ portals) + etl-worker (+ dr-tools).
-          # institution…report are W1-OPS-16 NON-PROD / lab split-domain images
+          # student, assessment, examination and report are W1-OPS-16 NON-PROD / lab split-domain images
           # (still buildable; not the default deploy path).
           ALL_SERVICES="$(node -e 'import("./tools/scripts/detect-affected-services.mjs").then((m) => console.log(m.servicesInScope(m.loadManifest(), "release").join(",")))')"
 
