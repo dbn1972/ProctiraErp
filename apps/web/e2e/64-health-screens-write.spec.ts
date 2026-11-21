@@ -188,7 +188,6 @@ test.describe('Health screens — live form saves (E2E_BACKEND_READY)', () => {
     const ha = healthAdmin(`hl-admin-${tag}`);
     const student = await createStudent(request, ha, tag);
     const category = `HL form visit ${tag}`;
-    const typedReporter = `HL form reporter ${tag}`;
     const notes = `HL visit notes ${tag}`;
     const incidentLocal = yesterdayAtTenLocal();
 
@@ -206,7 +205,11 @@ test.describe('Health screens — live form saves (E2E_BACKEND_READY)', () => {
     await form.locator('#incidentAt').fill(incidentLocal);
     await form.locator('#category').fill(category);
     await form.locator('#severity').selectOption('medium');
-    await form.locator('#reportedBy').fill(typedReporter);
+    // HL-O2: the recorder is the signed-in user, shown read-only and not submitted.
+    const reporter = form.locator('#reportedBy');
+    await expect(reporter).toHaveValue(ha.displayName);
+    await expect(reporter).toHaveAttribute('readonly', '');
+    await expect(reporter).not.toHaveAttribute('name', /.*/);
     await form.locator('#notes').fill(notes);
     // The form sends new Date(<local>).toISOString(); compute it in the same browser.
     const incidentIso = await page.evaluate((v) => new Date(v).toISOString(), incidentLocal);
@@ -218,9 +221,8 @@ test.describe('Health screens — live form saves (E2E_BACKEND_READY)', () => {
     await expect(item).toHaveCount(1, { timeout: 20_000 });
     await expect(item).toContainText(shownAt);
     await expect(item).toContainText(student.label);
-    // PRC-M520 / O2: the server records the session user, not the typed "Reported by".
+    // PRC-M520 / HL-O2: the server records the session user.
     await expect(item).toContainText(ha.sub);
-    await expect(item).not.toContainText(typedReporter);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(item).toHaveCount(1, { timeout: 20_000 });
     await expect(item).toContainText(shownAt);

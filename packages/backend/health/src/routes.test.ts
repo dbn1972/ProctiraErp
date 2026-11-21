@@ -403,6 +403,37 @@ describe('Health Routes', () => {
     });
   });
 
+  // HL-O2: the server always records the signed-in user as the reporter (PRC-M520), so
+  // the web form no longer sends reportedBy; the body field is optional and ignored.
+  describe('POST /health/incidents reporter (HL-O2)', () => {
+    const visit = {
+      studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+      incidentAt: '2024-09-01T10:00:00.000Z',
+      category: 'clinic_visit',
+      severity: 'low',
+    };
+
+    it('accepts a visit without reportedBy and records the signed-in user', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/incidents',
+        payload: visit,
+      });
+      expect(response.statusCode).toBe(201);
+      expect(JSON.parse(response.body).reportedBy).toBe('user-health-officer');
+    });
+
+    it('still ignores a client-supplied reportedBy', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/incidents',
+        payload: { ...visit, reportedBy: 'SPOOFED-other-staff' },
+      });
+      expect(response.statusCode).toBe(201);
+      expect(JSON.parse(response.body).reportedBy).toBe('user-health-officer');
+    });
+  });
+
   describe('GET /health/phi-access (PRD-005 deny)', () => {
     it('returns 403 when caller lacks health admin role', async () => {
       healthOfficerContext.roles = ['teacher'];

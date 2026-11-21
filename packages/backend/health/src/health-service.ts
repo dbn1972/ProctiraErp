@@ -1726,7 +1726,8 @@ export class HealthService {
       category: string;
       severity: 'low' | 'medium' | 'high' | 'critical';
       notes?: string;
-      reportedBy: string;
+      /** Ignored (PRC-M520): the reporter is always `access.userId`. */
+      reportedBy?: string;
     },
     access: HealthAccessContext,
     options?: {

@@ -335,7 +335,7 @@ export interface CreateNurseIncidentInput {
   category: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   notes?: string;
-  reportedBy: string;
+  // HL-O2: no reportedBy; the server records the signed-in user (PRC-M520).
 }
 
 export async function listStudentAllergies(studentId: string): Promise<AllergyRecord[]> {
