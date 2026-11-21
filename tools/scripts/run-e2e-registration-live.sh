@@ -196,8 +196,16 @@ pnpm --filter @proctira/api-gateway build
 
 # Same gateway env as run-e2e-backend-ready.sh, except: no demo seed (it writes
 # for the demo tenant, which only tools/e2e/seed-e2e-tenants.sql creates; the
-# journey does not need it) and TENANT_BASE_DOMAIN for Host routing.
-echo "==> Starting api-gateway (PORT=${GATEWAY_PORT}, TENANT_BASE_DOMAIN=${BASE_DOMAIN})"
+# journey does not need it), TENANT_BASE_DOMAIN for Host routing, and the
+# required submit challenge below.
+# UAT-9b: require the PRC-M332 bot challenge on submit, as a deployed gateway
+# does, so the journey proves the portal fetches, solves and sends it. The
+# challenge HMAC key is generated per run and never printed.
+REGISTRATION_CHALLENGE_SECRET="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))")"
+[[ ${#REGISTRATION_CHALLENGE_SECRET} -ge 32 ]] || fail "could not generate REGISTRATION_CHALLENGE_SECRET"
+echo "==> Starting api-gateway (PORT=${GATEWAY_PORT}, TENANT_BASE_DOMAIN=${BASE_DOMAIN}, REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1, REGISTRATION_CHALLENGE_SECRET set)"
+REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1 \
+REGISTRATION_CHALLENGE_SECRET="$REGISTRATION_CHALLENGE_SECRET" \
 PORT="$GATEWAY_PORT" \
 HOST="${E2E_GATEWAY_HOST:-127.0.0.1}" \
 NODE_ENV=development \

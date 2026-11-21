@@ -675,6 +675,44 @@ test('health screen specs 63-65 and 74 exist and run nightly', () => {
     HEALTH_SPECS_IN_PR,
   );
 });
+test('the shared E2E academic year is a rolling window around today (SP-R2)', () => {
+  // A fixed 2026-04-01..2027-03-31 year made every date-relative spec (attendance
+  // pastWeekdays(), calendar) fail from 2027-04-01. The seed and the fixture
+  // fallback must both derive the same window from today.
+  const seed = readFileSync(resolve(here, '../../tools/e2e/seed-e2e-tenants.sql'), 'utf8');
+  const insert = seed.match(/INSERT INTO academic_periods[\s\S]*?'E2E-AY'[\s\S]*?;/);
+  assert.ok(insert, 'seed-e2e-tenants.sql inserts the E2E-AY academic year');
+  const before = insert[0].match(/CURRENT_DATE\s*-\s*(\d+)/);
+  const after = insert[0].match(/CURRENT_DATE\s*\+\s*(\d+)/);
+  assert.ok(before && after, 'E2E-AY start_date/end_date derive from CURRENT_DATE');
+  assert.doesNotMatch(insert[0], /DATE\s*'\d{4}-\d{2}-\d{2}'/, 'E2E-AY has no fixed date literal');
+  // Dates are immutable after insert (trg_academic_periods_dates_immutable, db/sql/083),
+  // so the rerun path must not try to move them, and must fail loudly once a reused
+  // database's window no longer covers today.
+  const onConflict = insert[0].split(/ON CONFLICT/)[1] ?? '';
+  assert.doesNotMatch(onConflict, /start_date|end_date/, 'ON CONFLICT leaves the dates alone');
+  assert.match(
+    seed,
+    /start_date <= CURRENT_DATE[\s\S]*end_date >= CURRENT_DATE[\s\S]*RAISE EXCEPTION/,
+    'seed fails when an existing E2E-AY no longer covers CURRENT_DATE',
+  );
+
+  const fixture = readFileSync(resolve(e2eDir, 'fixtures/test-data.ts'), 'utf8');
+  const fn = fixture.match(/export async function ensureSharedAcademicYear[\s\S]*?\n}\n/);
+  assert.ok(fn, 'fixtures/test-data.ts defines ensureSharedAcademicYear');
+  assert.doesNotMatch(fn[0], /'\d{4}-\d{2}-\d{2}'/, 'fallback year has no fixed date literal');
+  assert.match(fn[0], /rollingAcademicYearWindow\(\)/, 'fallback uses rollingAcademicYearWindow()');
+  assert.equal(
+    fixture.match(/E2E_AY_DAYS_BEFORE = (\d+);/)?.[1],
+    before[1],
+    'fixture window starts the same number of days before today as the seed',
+  );
+  assert.equal(
+    fixture.match(/E2E_AY_DAYS_AFTER = (\d+);/)?.[1],
+    after[1],
+    'fixture window ends the same number of days after today as the seed',
+  );
+});
 test('hostel screen specs 69-71 exist and run nightly', () => {
   const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
   const HOSTEL_SPECS = [
