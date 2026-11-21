@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **102**
+- Playwright specs: **105**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -182,16 +182,16 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/students/new` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students/records` | smoke | `09-route-permission-coupling.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts` |
 | `/tenant-lifecycle` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport/alerts` | a11y, dark, functional, touch | `54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport/assignments` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport/attendance` | a11y, dark, functional, touch | `54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport/fees` | a11y, dark, functional, touch | `54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport/live` | a11y, dark, functional, touch | `54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport/routes` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transport/routes/[id]/stops` | functional | `54-transport-ops-write-smoke.spec.ts` |
-| `/transport/routes/new` | a11y, smoke | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/transport/vehicles` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/alerts` | a11y, dark, functional, smoke, touch | `54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/assignments` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/attendance` | a11y, dark, functional, smoke, touch | `54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/fees` | a11y, dark, functional, smoke, touch | `54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/live` | a11y, dark, functional, smoke, touch | `54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/routes` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/transport/routes/[id]/stops` | functional, smoke | `54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts` |
+| `/transport/routes/new` | a11y, functional, smoke | `20-notifications-transport-inventory-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/transport/vehicles` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`66-transport-screens-read.spec.ts`<br>`67-transport-screens-write.spec.ts`<br>`68-transport-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/workflows` | a11y, dark, functional, touch | `12-workflows.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/workflows/approvals` | a11y, dark, functional, touch | `04-transfer-and-workflow.spec.ts`<br>`12-workflows.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/workflows/definitions/[id]` | a11y, dark, functional, touch | `12-workflows.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
