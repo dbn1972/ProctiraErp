@@ -82,3 +82,29 @@ describe('/health/phi-access failed reads (HL-O1)', () => {
     expect(screen.queryByText('No PHI access events yet.')).toBeNull();
   });
 });
+
+describe('/health/phi-access student labels (HN-F1, HN-R6)', () => {
+  it('names resolved students and never shows an id fragment for the rest', async () => {
+    gatewayFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { data: [logRow(OWN, 'allergy'), logRow(FOREIGN, 'vaccination.list')] },
+    });
+    render(await PhiAccessPage());
+    expect(screen.getByText('allergy').closest('tr')).toHaveTextContent('Asha Rao');
+    expect(screen.getByText('vaccination.list').closest('tr')).toHaveTextContent('Unknown student');
+    expect(document.body.textContent).not.toMatch(/Student [0-9a-f]{8}/);
+    expect(students.getStudent).toHaveBeenCalledWith(FOREIGN);
+  });
+
+  it('the unknown label comes from the health messages', async () => {
+    intl.locale = 'hi';
+    gatewayFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { data: [logRow(FOREIGN, 'vaccination.list')] },
+    });
+    render(await PhiAccessPage());
+    expect(screen.getByText('vaccination.list').closest('tr')).toHaveTextContent('अज्ञात छात्र');
+  });
+});

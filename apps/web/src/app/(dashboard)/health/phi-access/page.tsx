@@ -3,6 +3,7 @@
  * Admin / health-officer only — aligned with HealthService.listPhiAccessLogs.
  */
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { ArrowLeft } from 'lucide-react';
 
 import {
@@ -20,7 +21,7 @@ import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { canAccessPhiAccessLogs, listPhiAccessLogsResult } from '@/lib/api/health';
 import { PhiAccessDenied } from '@/lib/auth/health-route-guards';
 import { requireSession } from '@/lib/auth/server';
-import { resolveEntityLabel } from '@/lib/entity-label';
+import { personDisplayName, resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
@@ -30,12 +31,17 @@ export default async function PhiAccessPage() {
   if (!canAccessPhiAccessLogs(session.user.roles ?? [])) {
     return <PhiAccessDenied />;
   }
-  const [result, studentLabels] = await Promise.all([
-    listPhiAccessLogsResult(),
-    loadStudentLabelMap(),
-  ]);
+  const result = await listPhiAccessLogsResult();
   const accessDenied = !result.ok && result.kind === 'denied';
-  const rows = result.ok ? result.items : [];
+  const t = await getTranslations('health');
+  // HN-F1 / PRC-M088: resolve each row's student by id; an unresolved one gets the
+  // localized fallback (HN-R6), never an id fragment.
+  const logRows = result.ok ? result.items : [];
+  const studentLabels = await loadStudentLabelMap(logRows.map((r) => r.studentId));
+  const rows = logRows.map((r) => ({
+    ...r,
+    studentName: personDisplayName(studentLabels.get(r.studentId), '', t('unknownStudent')),
+  }));
 
   return (
     <div className="space-y-6 p-6">
@@ -87,9 +93,7 @@ export default async function PhiAccessPage() {
                       {r.createdAt.slice(0, 19).replace('T', ' ')}
                     </TableCell>
                     <TableCell>{resolveEntityLabel(r.actorUserId, {}, 'User')}</TableCell>
-                    <TableCell>
-                      {resolveEntityLabel(r.studentId, studentLabels, 'Student')}
-                    </TableCell>
+                    <TableCell>{r.studentName}</TableCell>
                     <TableCell>{r.resourceType}</TableCell>
                     <TableCell>{r.action}</TableCell>
                   </TableRow>

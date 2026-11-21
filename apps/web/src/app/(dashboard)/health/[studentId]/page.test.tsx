@@ -19,6 +19,18 @@ const notFound = vi.fn(() => {
   throw new Error('NEXT_NOT_FOUND');
 });
 vi.mock('next/navigation', () => ({ notFound: () => notFound() }));
+const intl = vi.hoisted(() => ({ locale: 'en' }));
+vi.mock('next-intl/server', async () => {
+  const catalogues = {
+    en: (await import('@/messages/en.json')).default,
+    hi: (await import('@/messages/hi.json')).default,
+  } as unknown as Record<string, Record<string, Record<string, string>>>;
+  return {
+    getTranslations: vi.fn(
+      async (ns: string) => (key: string) => catalogues[intl.locale]![ns]![key] ?? key,
+    ),
+  };
+});
 
 const STUDENT = '00000000-0000-4000-8000-0000000000aa';
 
@@ -135,5 +147,17 @@ describe('health record detail heading (D3, PRC-M088)', () => {
     await renderPage();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Unknown student$/);
     expect(screen.getByText('Peanut')).toBeInTheDocument();
+  });
+
+  // HN-R6: the fallback heading was hard-coded English.
+  it('HN-R6: the fallback heading comes from the health messages', async () => {
+    intl.locale = 'hi';
+    getStudent.mockResolvedValue(null);
+    try {
+      await renderPage();
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^अज्ञात छात्र$/);
+    } finally {
+      intl.locale = 'en';
+    }
   });
 });

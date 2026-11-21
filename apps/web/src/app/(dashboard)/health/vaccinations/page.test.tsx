@@ -104,9 +104,7 @@ describe('/health/vaccinations failed reads (HL-O1)', () => {
 
 describe('/health/vaccinations truncation (HL-O5)', () => {
   it('more than 100 doses shows "Showing 100 of N"', async () => {
-    gatewayFetch.mockResolvedValue(
-      okRows(Array.from({ length: 150 }, (_, i) => dose(OWN, i + 1))),
-    );
+    gatewayFetch.mockResolvedValue(okRows(Array.from({ length: 150 }, (_, i) => dose(OWN, i + 1))));
     render(await HealthVaccinationsPage());
     expect(screen.getAllByRole('listitem')).toHaveLength(100);
     expect(screen.getByText('Showing 100 of 150 vaccinations.')).toBeInTheDocument();
@@ -116,5 +114,43 @@ describe('/health/vaccinations truncation (HL-O5)', () => {
     gatewayFetch.mockResolvedValue(okRows([dose(OWN, 1)]));
     render(await HealthVaccinationsPage());
     expect(screen.queryByText(/^Showing \d+ of \d+/)).toBeNull();
+  });
+});
+
+describe('/health/vaccinations student labels (HN-F1, HN-R5, HN-R6)', () => {
+  it('names resolved students and never shows an id fragment for the rest', async () => {
+    gatewayFetch.mockResolvedValue(okRows([dose(OWN, 1), dose(FOREIGN_1, 2)]));
+    render(await HealthVaccinationsPage());
+    expect(screen.getByRole('link', { name: 'Asha Rao' })).toHaveAttribute(
+      'href',
+      `/health/${OWN}`,
+    );
+    const unknown = document.querySelector(`a[href="/health/${FOREIGN_1}"]`);
+    expect(unknown?.textContent).toBe('Unknown student');
+    expect(document.body.textContent).not.toMatch(/Student [0-9a-f]{8}/);
+    expect(students.getStudent).toHaveBeenCalledWith(FOREIGN_1);
+  });
+
+  it('unresolved rows get distinct accessible link names', async () => {
+    gatewayFetch.mockResolvedValue(okRows([dose(FOREIGN_1, 1), dose(FOREIGN_2, 1)]));
+    render(await HealthVaccinationsPage());
+    // Same vaccine, same date: only a row qualifier can tell the two links apart.
+    const accessible = [FOREIGN_1, FOREIGN_2].map((id) =>
+      document.querySelector(`a[href="/health/${id}"]`)?.getAttribute('aria-label'),
+    );
+    for (const name of accessible) expect(name).toMatch(/^Unknown student\b/);
+    expect(new Set(accessible).size).toBe(2);
+    for (const name of accessible) {
+      expect(screen.getByRole('link', { name: name! })).toBeInTheDocument();
+    }
+  });
+
+  it('the unknown label comes from the health messages', async () => {
+    intl.locale = 'hi';
+    gatewayFetch.mockResolvedValue(okRows([dose(FOREIGN_1, 1)]));
+    render(await HealthVaccinationsPage());
+    expect(document.querySelector(`a[href="/health/${FOREIGN_1}"]`)?.textContent).toBe(
+      'अज्ञात छात्र',
+    );
   });
 });

@@ -1,11 +1,12 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { ArrowLeft, Plus } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { canAccessHealthRecords, listNurseIncidentsResult } from '@/lib/api/health';
-import { resolveEntityLabel } from '@/lib/entity-label';
+import { personDisplayName } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
@@ -26,8 +27,14 @@ export default async function HealthIncidentsPage() {
       </div>
     );
   }
-  const rows = result.items;
-  const studentLabels = await loadStudentLabelMap();
+  const t = await getTranslations('health');
+  // HN-F1 / PRC-M088: resolve each row's student by id; an unresolved one gets the
+  // localized fallback (HN-R6), never an id fragment.
+  const studentLabels = await loadStudentLabelMap(result.items.map((r) => r.studentId));
+  const rows = result.items.map((r) => ({
+    ...r,
+    studentName: personDisplayName(studentLabels.get(r.studentId), '', t('unknownStudent')),
+  }));
 
   return (
     <div className="space-y-6 p-6">
@@ -65,8 +72,7 @@ export default async function HealthIncidentsPage() {
                     {r.category} · {r.severity}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {r.incidentAt.slice(0, 16).replace('T', ' ')} ·{' '}
-                    {resolveEntityLabel(r.studentId, studentLabels, 'Student')} · {r.reportedBy}
+                    {r.incidentAt.slice(0, 16).replace('T', ' ')} · {r.studentName} · {r.reportedBy}
                   </p>
                 </li>
               ))}

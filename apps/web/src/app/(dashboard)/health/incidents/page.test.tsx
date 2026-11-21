@@ -71,19 +71,48 @@ describe('/health/incidents failed reads (HL-O1)', () => {
   it.each([
     [403, 'denied'],
     [503, 'unavailable'],
-  ])('a %i shows the %s panel, not "No incidents yet", and no Log visit button', async (status, kind) => {
-    gatewayFetch.mockResolvedValue({ ok: false, status, data: null, error: { code: 'X' } });
-    render(await HealthIncidentsPage());
-    expect(screen.getByTestId('list-load-failure')).toHaveAttribute('data-failure-kind', kind);
-    expect(screen.getByText(`Reference: HTTP ${status}`)).toBeInTheDocument();
-    expect(screen.queryByText('No incidents yet.')).toBeNull();
-    expect(screen.queryByRole('link', { name: /Log visit/ })).toBeNull();
-  });
+  ])(
+    'a %i shows the %s panel, not "No incidents yet", and no Log visit button',
+    async (status, kind) => {
+      gatewayFetch.mockResolvedValue({ ok: false, status, data: null, error: { code: 'X' } });
+      render(await HealthIncidentsPage());
+      expect(screen.getByTestId('list-load-failure')).toHaveAttribute('data-failure-kind', kind);
+      expect(screen.getByText(`Reference: HTTP ${status}`)).toBeInTheDocument();
+      expect(screen.queryByText('No incidents yet.')).toBeNull();
+      expect(screen.queryByRole('link', { name: /Log visit/ })).toBeNull();
+    },
+  );
 
   it('an empty 200 keeps the empty state and the Log visit button', async () => {
     gatewayFetch.mockResolvedValue({ ok: true, status: 200, data: { data: [] } });
     render(await HealthIncidentsPage());
     expect(screen.getByText('No incidents yet.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Log visit/ })).toBeInTheDocument();
+  });
+});
+
+describe('/health/incidents student labels (HN-F1, HN-R6)', () => {
+  it('names resolved students and never shows an id fragment for the rest', async () => {
+    gatewayFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { data: [visit(OWN, 'Headache'), visit(FOREIGN, 'Sprain')] },
+    });
+    render(await HealthIncidentsPage());
+    expect(screen.getByText(/Headache/).closest('li')).toHaveTextContent('Asha Rao');
+    expect(screen.getByText(/Sprain/).closest('li')).toHaveTextContent('Unknown student');
+    expect(document.body.textContent).not.toMatch(/Student [0-9a-f]{8}/);
+    expect(students.getStudent).toHaveBeenCalledWith(FOREIGN);
+  });
+
+  it('the unknown label comes from the health messages', async () => {
+    intl.locale = 'hi';
+    gatewayFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { data: [visit(FOREIGN, 'Sprain')] },
+    });
+    render(await HealthIncidentsPage());
+    expect(screen.getByText(/Sprain/).closest('li')).toHaveTextContent('अज्ञात छात्र');
   });
 });
