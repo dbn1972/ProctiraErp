@@ -71,8 +71,9 @@
 -- tenant-composite FKs: <constraint>=<n> cross-tenant/<m> dangling; ..."):
 --   (1) List the rows (read-only). As the table owner in a quiet window:
 --         BEGIN;
---         ALTER TABLE hostel_blocks NO FORCE ROW LEVEL SECURITY;  -- and the
---           -- other 12 hostel tables; or use a BYPASSRLS read-only ops role
+--         -- lift FORCE on all 13 hostel tables inside this transaction
+--         -- (ALTER TABLE <table> NO FORCE ROW LEVEL SECURITY, one per table),
+--         -- or use a BYPASSRLS read-only ops role instead
 --         SELECT * FROM (
 --           SELECT 'hostel_blocks.hostel_id' AS edge, c.id, c.tenant_id, c.hostel_id AS parent_id, p.tenant_id AS parent_tenant FROM hostel_blocks c LEFT JOIN hostels p ON p.id = c.hostel_id
 --           UNION ALL SELECT 'hostel_rooms.block_id', c.id, c.tenant_id, c.block_id, p.tenant_id FROM hostel_rooms c LEFT JOIN hostel_blocks p ON p.id = c.block_id
