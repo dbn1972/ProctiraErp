@@ -404,8 +404,10 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
         .getByRole('row')
         .filter({ hasText: 'Graduated from student profile' });
       await expect(graduated).toHaveCount(1);
-      await expect(graduated.getByRole('cell').nth(1)).toHaveText('ENROLLED');
-      await expect(graduated.getByRole('cell').nth(2)).toHaveText('Graduated');
+      // Previous status is shown as the raw enum and new status title-cased (defects.md
+      // M1-P10), so neither cell's casing is pinned here.
+      await expect(graduated.getByRole('cell').nth(1)).toHaveText(/^enrolled$/i);
+      await expect(graduated.getByRole('cell').nth(2)).toHaveText(/^graduated$/i);
       await expect(page.getByTestId('graduate-student')).toHaveCount(0);
     } finally {
       await deleteStudents(request, admin, [s.id]);
@@ -557,7 +559,8 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
       await expect(issued).toHaveCount(1);
       await expect(issued.locator('td').nth(0)).toHaveText(s.name);
       await expect(issued.locator('td').nth(1)).toHaveText('v1');
-      await expect(issued.locator('td').nth(2)).toHaveText(status);
+      // The cell shows the raw enum (defects.md M1-P10); match the stored value in any case.
+      await expect(issued.locator('td').nth(2)).toHaveText(new RegExp(`^${status}$`, 'i'));
       await expect(issued.locator('td').nth(4)).toHaveText(
         `${String(stored.data[0]!.checksumSha256).slice(0, 16)}…`,
       );
