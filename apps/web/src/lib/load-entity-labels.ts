@@ -61,11 +61,22 @@ export async function loadStudentOptions(): Promise<EntityLabelOption[]> {
   return rows.map(toStudentOption);
 }
 
+type StaffRow = Awaited<ReturnType<typeof listStaff>>['data'][number];
+
+/**
+ * T-O1b: every staff page, like {@link loadStudentOptions}. A single 100-row page
+ * left staff #101+ out of the driver picker. Same page cap as the student picker.
+ */
 export async function loadStaffOptions(): Promise<EntityLabelOption[]> {
-  const result = await listStaff({ pageSize: MAX_API_PAGE_SIZE }).catch(() => ({
-    data: [] as Awaited<ReturnType<typeof listStaff>>['data'],
-  }));
-  return (result.data ?? []).map((staff) => ({
+  const rows: StaffRow[] = [];
+  for (let page = 1; page <= STUDENT_OPTION_MAX_PAGES; page += 1) {
+    const result = await listStaff({ page, pageSize: MAX_API_PAGE_SIZE }).catch(() => null);
+    if (!result) break;
+    rows.push(...(result.data ?? []));
+    const totalPages = result.meta?.totalPages ?? 0;
+    if ((result.data ?? []).length < MAX_API_PAGE_SIZE || page >= totalPages) break;
+  }
+  return rows.map((staff) => ({
     id: staff.id,
     label: formatPersonLabel(staff.firstName, staff.lastName, staff.position),
     searchText: `${staff.firstName} ${staff.lastName} ${staff.position}`,
@@ -149,7 +160,8 @@ export function withStudentLabels(
 ): Promise<Map<string, string>> {
   return fillMissing(base, ids, async (id) => {
     const s = await getStudent(id);
-    return s ? formatPersonLabel(s.firstName, s.lastName, s.nationalId) : null;
+    // HN-F2 / PRC-M156: the display code, never the national ID.
+    return s ? formatPersonLabel(s.firstName, s.lastName, studentDisplayCode(s)) : null;
   });
 }
 
@@ -183,7 +195,9 @@ export function withPersonLabels(
 ): Promise<Map<string, string>> {
   return fillMissing(base, ids, async (id) => {
     const student = await getStudent(id).catch(() => null);
-    if (student) return formatPersonLabel(student.firstName, student.lastName, student.nationalId);
+    // HN-F2 / PRC-M156: the display code, never the national ID.
+    if (student)
+      return formatPersonLabel(student.firstName, student.lastName, studentDisplayCode(student));
     const staff = await getStaff(id).catch(() => null);
     return staff ? formatPersonLabel(staff.firstName, staff.lastName, staff.position) : null;
   });

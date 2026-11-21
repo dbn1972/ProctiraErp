@@ -3,9 +3,10 @@
  */
 import Link from 'next/link';
 
-import { requireSession } from '@/lib/auth/server';
 import { listReconciliationBatches, listReconciliationRows } from '@/lib/api/fees';
 import { ReconciliationWorkspace } from '../_components/reconciliation-workspace';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,10 @@ export default async function FeesReconciliationPage({
 }: {
   searchParams?: Promise<{ batch?: string }>;
 }) {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const params = (await searchParams) ?? {};
   const batches = await listReconciliationBatches();
   const requested = params?.batch?.trim() || null;

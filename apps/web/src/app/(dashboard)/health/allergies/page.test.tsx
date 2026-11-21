@@ -19,6 +19,18 @@ const students = vi.hoisted(() => ({ listStudents: vi.fn(), getStudent: vi.fn() 
 vi.mock('@/lib/api/students', () => students);
 vi.mock('@/lib/api/staff', () => ({ listStaff: vi.fn(), getStaff: vi.fn() }));
 vi.mock('@/lib/api/institutions', () => ({ listInstitutions: vi.fn(async () => []) }));
+const intl = vi.hoisted(() => ({ locale: 'en' }));
+vi.mock('next-intl/server', async () => {
+  const catalogues = {
+    en: (await import('@/messages/en.json')).default,
+    hi: (await import('@/messages/hi.json')).default,
+  } as unknown as Record<string, Record<string, Record<string, string>>>;
+  return {
+    getTranslations: vi.fn(
+      async (ns: string) => (key: string) => catalogues[intl.locale]![ns]![key] ?? key,
+    ),
+  };
+});
 
 const OWN = '00000000-0000-4000-8000-0000000000a1';
 /** A student id that is not in this tenant: the gateway's /students/:id answers 404. */
@@ -38,6 +50,7 @@ function liveRecord(studentId: string, allergy: string) {
 
 describe('/health/allergies student names (D1)', () => {
   beforeEach(() => {
+    intl.locale = 'en';
     gatewayFetch.mockReset();
     students.listStudents.mockReset();
     students.getStudent.mockReset();
@@ -79,9 +92,34 @@ describe('/health/allergies student names (D1)', () => {
     for (const a of links) expect(a.textContent?.trim()).not.toBe('');
     // Cross-tenant negative: an id outside this tenant resolves to the fallback,
     // never to another tenant's name and never to an id fragment.
-    const foreign = screen.getByRole('link', { name: 'Unknown student' });
+    const foreign = screen.getByRole('link', { name: /^Unknown student\b/ });
     expect(foreign).toHaveAttribute('href', `/health/${FOREIGN}`);
     expect(document.body.innerHTML).not.toContain(OTHER_TENANT_NAME);
     expect(screen.queryByText(new RegExp(FOREIGN.slice(0, 8)))).toBeNull();
+  });
+
+  // HN-R5: two unresolved students with the same allergy text had identical link names.
+  it('HN-R5: unresolved rows get distinct accessible link names', async () => {
+    const SECOND = '00000000-0000-4000-8000-0000000000b9';
+    gatewayFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { data: [liveRecord(FOREIGN, 'Penicillin'), liveRecord(SECOND, 'Penicillin')] },
+    });
+    render(await HealthAllergiesPage());
+    const names = [FOREIGN, SECOND].map((id) =>
+      document.querySelector(`a[href="/health/${id}"]`)?.getAttribute('aria-label'),
+    );
+    for (const name of names) expect(name).toMatch(/^Unknown student\b/);
+    expect(new Set(names).size).toBe(2);
+  });
+
+  // HN-R6: the fallback was hard-coded English.
+  it('HN-R6: the unknown label comes from the health messages', async () => {
+    intl.locale = 'hi';
+    render(await HealthAllergiesPage());
+    expect(document.querySelector(`a[href="/health/${FOREIGN}"]`)?.textContent).toBe(
+      'अज्ञात छात्र',
+    );
   });
 });

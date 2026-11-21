@@ -65,17 +65,31 @@ const SUPPLEMENTAL_GRANTS: Record<string, readonly string[]> = {
     'communication.read',
   ],
   'attendance-officer': ['student.read', 'attendance.read', 'attendance.approve'],
-  registrar: ['student.read', 'attendance.read', 'attendance.approve'],
+  // H-D1-R3: registrar reads hostel and transport (no writes; gateway grant).
+  registrar: [
+    'student.read',
+    'attendance.read',
+    'attendance.approve',
+    'hostel.read',
+    'transport.read',
+  ],
   staff: ['communication.read'],
   accountant: ['fees.read'],
   bursar: ['fees.read'],
   'fees-officer': ['fees.read'],
   'finance-officer': ['fees.read'],
   librarian: ['library.read'],
+  // H-D1-R3: every hostel / transport package staff role the gateway grants
+  // (keys are hyphenated: normaliseRole maps `_` to `-`).
   'transport-manager': ['transport.read'],
   'transport-officer': ['transport.read'],
+  'fleet-manager': ['transport.read'],
+  'transport-admin': ['transport.read'],
   warden: ['hostel.read'],
   'hostel-warden': ['hostel.read'],
+  'hostel-manager': ['hostel.read'],
+  'hostel-admin': ['hostel.read'],
+  'hostel-clerk': ['hostel.read'],
 };
 
 const ADMIN_CAMPUS_GRANTS = [

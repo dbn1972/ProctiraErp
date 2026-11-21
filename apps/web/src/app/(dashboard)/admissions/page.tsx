@@ -12,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { getTenantSettings } from '@/lib/api/admin.server';
 import { formatInTimeZone } from '@/lib/datetime/zoned';
 import { listApplications, listInterviewSlots, listWaitlist } from '@/lib/api/admissions';
@@ -22,11 +21,16 @@ import { AdmissionsNav } from './_components/admissions-nav';
 import { StatusForm } from './_components/status-form';
 import { NewInterviewSlotForm } from './_components/new-interview-slot-form';
 import { BookInterviewForm } from './_components/book-interview-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdmissionsPage() {
-  await requireSession();
+  // A-batch: check before any admissions read.
+  if (!(await hasDashboardDomainRouteAccess('admissions', '/admissions'))) {
+    return <RouteAccessDenied />;
+  }
   const [applications, waitlist, slots, lookups, tenant] = await Promise.all([
     listApplications(),
     listWaitlist(),

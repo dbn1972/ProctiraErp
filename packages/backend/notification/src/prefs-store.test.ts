@@ -55,7 +55,7 @@ describe('InMemoryNotificationPrefsStore', () => {
     const listed = await store.listDevices(tenantId, userId);
     expect(listed).toHaveLength(1);
 
-    expect(await store.deleteDevice(tenantId, first.id)).toBe(true);
+    expect(await store.deleteDevice(tenantId, userId, first.id)).toBe(true);
     expect(await store.listDevices(tenantId, userId)).toHaveLength(0);
   });
 });
@@ -95,7 +95,7 @@ describe('createPgNotificationPrefsStore (RLS binding)', () => {
     await store.updatePreferences(tenantId, 'user-1', { digestFrequency: 'daily' });
     await store.registerDevice({ tenantId, userId: 'user-1', platform: 'web', pushToken: 't' });
     await store.listDevices(tenantId, 'user-1');
-    await store.deleteDevice(tenantId, 'dev-1');
+    await store.deleteDevice(tenantId, 'user-1', 'dev-1');
 
     const domainStatements = calls.filter((c) => /notification_(preferences|devices)/.test(c.text));
     expect(domainStatements.length).toBeGreaterThanOrEqual(5);

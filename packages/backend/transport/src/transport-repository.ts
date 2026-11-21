@@ -96,6 +96,8 @@ export interface DriverAssignmentFilter {
   driverId?: string;
   routeId?: string;
   isActive?: boolean;
+  /** T-D4: YYYY-MM-DD; only assignments with start_date <= day and no end_date or end_date >= day. */
+  activeOn?: string;
 }
 
 // ─── Student Assignment Entity ───────────────────────────────────────────────
@@ -118,6 +120,8 @@ export interface StudentAssignmentFilter {
   routeId?: string;
   stopId?: string;
   isActive?: boolean;
+  /** T-D4: YYYY-MM-DD; only assignments with start_date <= day and no end_date or end_date >= day. */
+  activeOn?: string;
 }
 
 // ─── Wave 9 / G-920 ops entities ──────────────────────────────────────────────

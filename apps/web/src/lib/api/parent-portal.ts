@@ -1,6 +1,7 @@
 /**
  * Parent portal service client.
  */
+import { SAFE_CORRELATION_ID } from './action-error';
 import { GatewayError, gatewayFetch } from './gateway';
 import { fetchList, type ListResult } from './list-result';
 
@@ -297,8 +298,6 @@ export interface AcademicFetchResult<T> {
   /** Gateway correlation id of a failed read, shown to families as a support reference. */
   correlationId?: string;
 }
-
-const SAFE_CORRELATION_ID = /^[A-Za-z0-9-]{8,64}$/;
 
 async function fetchAcademic<T>(path: string): Promise<AcademicFetchResult<T>> {
   const result = await gatewayFetch<T>(path, { throwOnError: false, next: { revalidate: 0 } });

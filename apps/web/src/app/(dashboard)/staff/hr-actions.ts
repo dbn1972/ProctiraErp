@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   commitStaffImport,
   createStaffContract,
@@ -21,6 +20,7 @@ import {
   qualificationFormSchema,
   staffImportSchema,
 } from '@/lib/validation/staff-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface HrActionState {
   status: 'idle' | 'success' | 'partial' | 'error';
@@ -55,7 +55,7 @@ export async function createContractAction(input: CreateContractInput): Promise<
   } catch (error) {
     return {
       status: 'error',
-      message: error instanceof GatewayError ? error.message : 'Failed to create contract',
+      message: genericActionErrorMessage(error, 'Failed to create contract'),
     };
   }
 }
@@ -83,7 +83,7 @@ export async function createQualificationAction(
   } catch (error) {
     return {
       status: 'error',
-      message: error instanceof GatewayError ? error.message : 'Failed to create qualification',
+      message: genericActionErrorMessage(error, 'Failed to create qualification'),
     };
   }
 }
@@ -107,7 +107,7 @@ export async function saveAttendanceAction(input: {
   } catch (error) {
     return {
       status: 'error',
-      message: error instanceof GatewayError ? error.message : 'Failed to save attendance',
+      message: genericActionErrorMessage(error, 'Failed to save attendance'),
     };
   }
 }
@@ -127,7 +127,7 @@ export async function dryRunImportAction(csv: string, filename?: string): Promis
   } catch (error) {
     return {
       status: 'error',
-      message: error instanceof GatewayError ? error.message : 'Dry-run failed',
+      message: genericActionErrorMessage(error, 'Dry-run failed'),
     };
   }
 }
@@ -153,7 +153,7 @@ export async function commitImportAction(csv: string, filename?: string): Promis
   } catch (error) {
     return {
       status: 'error',
-      message: error instanceof GatewayError ? error.message : 'Import commit failed',
+      message: genericActionErrorMessage(error, 'Import commit failed'),
     };
   }
 }
@@ -168,7 +168,7 @@ export async function exportPayrollAction(month: string): Promise<HrActionState>
   } catch (error) {
     return {
       status: 'error',
-      message: error instanceof GatewayError ? error.message : 'Payroll export failed',
+      message: genericActionErrorMessage(error, 'Payroll export failed'),
     };
   }
 }

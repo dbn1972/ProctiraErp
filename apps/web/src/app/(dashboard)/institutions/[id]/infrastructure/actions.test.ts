@@ -35,14 +35,17 @@ describe('infrastructure actions (PRC-L411)', () => {
     expect(gatewayFetch).not.toHaveBeenCalled();
   });
 
-  it('logRepairRequestAction maps a gateway failure envelope to its message', async () => {
+  it('logRepairRequestAction maps a gateway failure envelope to fixed copy (RAW-WEB)', async () => {
     gatewayFetch.mockResolvedValue({ ok: false, error: { message: 'queue full' } });
     const res = await logRepairRequestAction({
       institutionId: INST,
       infrastructureId: FAC,
       summary: 'Broken window',
     });
-    expect(res).toEqual({ ok: false, error: 'queue full' });
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringMatching(/^The repair request could not be saved\. \(ref /),
+    });
   });
 
   it('logRepairRequestAction returns the new id on success', async () => {

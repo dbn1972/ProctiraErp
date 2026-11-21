@@ -146,3 +146,36 @@ describe('report download token owner binding (PRC-L337)', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('report download token failure codes (UAT-9d)', () => {
+  it('names each failure with a stable code', () => {
+    setEnv({ NODE_ENV: 'production', REPORT_DOWNLOAD_SIGNING_SECRET: 'dedicated-report-secret' });
+    const signed = createReportDownloadToken(TENANT_A, ARTIFACT, ACTOR_A);
+    const [exp] = signed.token.split('.');
+    const pastExp = Math.floor(Date.now() / 1000) - 60;
+    const cases: Array<[string, string]> = [
+      ['no-dot-token', 'token_malformed'],
+      ['.abc', 'token_malformed'],
+      ['soon.abcdef', 'token_malformed'],
+      [`${pastExp}.abcdef`, 'token_expired'],
+      [`${exp}.${'0'.repeat(64)}`, 'token_signature_invalid'],
+      [`${exp}.not-hex`, 'token_signature_invalid'],
+    ];
+    for (const [token, code] of cases) {
+      expect(verifyReportDownloadToken(TENANT_A, ARTIFACT, ACTOR_A, token)).toMatchObject({
+        ok: false,
+        code,
+      });
+    }
+    // Owner mismatch is a signature failure (the HMAC binds the owner).
+    expect(verifyReportDownloadToken(TENANT_A, ARTIFACT, ACTOR_B, signed.token)).toMatchObject({
+      ok: false,
+      code: 'token_signature_invalid',
+    });
+    delete process.env.REPORT_DOWNLOAD_SIGNING_SECRET;
+    expect(verifyReportDownloadToken(TENANT_A, ARTIFACT, ACTOR_A, signed.token)).toMatchObject({
+      ok: false,
+      code: 'signing_key_missing',
+    });
+  });
+});

@@ -15,6 +15,8 @@ import { ApiClientError } from '@/lib/institutions/api';
 import { classifyInstitutionLoadError } from '@/lib/institutions/load-state';
 import { getCachedInstitution } from '@/lib/institutions/request-cache';
 import { loadInstitutionFormLookups } from '@/lib/institutions/lookups';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface EditInstitutionPageProps {
   params: Promise<{ id: string }>;
@@ -28,6 +30,10 @@ interface EditInstitutionPageProps {
  * max-width edit form below that shell.
  */
 export default async function EditInstitutionPage(props: EditInstitutionPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const [institution, lookups] = await Promise.all([
     loadInstitutionOrNotFound(params.id),

@@ -33,6 +33,8 @@ import {
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 import { EmptyState } from '@/components/page';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +82,10 @@ function formatWindow(start: string, end: string): string {
 }
 
 export default async function ScholarshipsPage() {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   const [t, programsResult, applicationsResult, disbursementsResult] = await Promise.all([
     getTranslations('scholarships'),
     listScholarshipPrograms(),
