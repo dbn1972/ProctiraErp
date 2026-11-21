@@ -186,6 +186,9 @@ env:
     e2e/72-campus-staff-roles.spec.ts
     e2e/73-safe-error-responses.spec.ts
     e2e/74-health-defect-fixes.spec.ts
+    e2e/112-assessments-gradebook-screens-read.spec.ts
+    e2e/113-assessments-gradebook-screens-write.spec.ts
+    e2e/114-assessments-gradebook-privacy-tenancy.spec.ts
 
 permissions:
   contents: read
@@ -361,6 +364,9 @@ jobs:
           JWT_SECRET: ${{ env.JWT_SECRET }}
           E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
           NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
+          # Gradebook report-card artifacts (specs 112-114): the code default is a
+          # developer-machine path the runner cannot create, so every card would FAIL.
+          SIS_REPORT_CARD_DIR: ${{ runner.temp }}/proctira-report-cards
           E2E_SPECS: ${{ steps.mode.outputs.specs }}
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
           # Harness is fail-closed unless E2E_ALLOW_SKIP=1 (PRC-L389).
