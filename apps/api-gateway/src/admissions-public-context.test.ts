@@ -70,6 +70,9 @@ describe('gateway public admissions context composition', () => {
       domain: 'admissions.district-a.example',
       primary: true,
       verified: true,
+      // PRC-L169: a verified domain resolves only while its verification is current.
+      verifiedAt: new Date(),
+      verificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       createdAt: new Date(),
     });
     app = await buildApp({

@@ -344,7 +344,8 @@ describe('Registration Routes', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.sessionId).not.toBe(forged);
-      expect(body.sessionId).toMatch(/^[0-9a-f]{32}$/);
+      // PRC-L139: a GET never mints a replacement session either.
+      expect(body.sessionId).toBeUndefined();
     });
 
     it('should return 400 for invalid language code', async () => {

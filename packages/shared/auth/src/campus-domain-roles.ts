@@ -113,7 +113,18 @@ export const CAMPUS_DOMAIN_ROLE_GRANTS: readonly CampusDomainRoleGrant[] = [
  * Idempotent; permission objects are copied, never shared.
  */
 export function applyCampusDomainRoleGrants(roles: RoleDefinition[]): RoleDefinition[] {
-  for (const grant of CAMPUS_DOMAIN_ROLE_GRANTS) {
+  return applyDomainRoleGrants(roles, CAMPUS_DOMAIN_ROLE_GRANTS);
+}
+
+/**
+ * Adds `grants` to `roles` in place (see {@link applyCampusDomainRoleGrants});
+ * shared with the fees matrix (F-D3, fees-domain-roles.ts).
+ */
+export function applyDomainRoleGrants(
+  roles: RoleDefinition[],
+  grants: readonly CampusDomainRoleGrant[],
+): RoleDefinition[] {
+  for (const grant of grants) {
     const existing = roles.find((role) => role.roleId === grant.roleId);
     if (!existing) {
       roles.push({

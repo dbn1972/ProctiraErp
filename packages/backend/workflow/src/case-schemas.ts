@@ -55,6 +55,24 @@ export const CaseAttachmentSchema = Type.Object({
 
 export type CaseAttachmentInput = Static<typeof CaseAttachmentSchema>;
 
+// ─── Add Attachment Schema ───────────────────────────────────────────────────
+
+/**
+ * PRC-M459: clients send file metadata only. The server sets `id`,
+ * `storagePath`, `uploadedBy` and `uploadedAt`, so unknown properties
+ * (including a client `storagePath` or `uploadedBy`) are rejected.
+ */
+export const AddAttachmentSchema = Type.Object(
+  {
+    fileName: Type.String({ minLength: 1, maxLength: 255, description: 'Original file name' }),
+    fileType: Type.String({ minLength: 1, maxLength: 100, description: 'MIME type of the file' }),
+    fileSize: Type.Number({ minimum: 1, description: 'File size in bytes' }),
+  },
+  { additionalProperties: false },
+);
+
+export type AddAttachmentInput = Static<typeof AddAttachmentSchema>;
+
 // ─── Case Resolution Schema ─────────────────────────────────────────────────
 
 export const CaseResolutionSchema = Type.Object({
@@ -109,7 +127,7 @@ export const CreateCaseSchema = Type.Object({
     Type.String({ pattern: UUID_PATTERN, description: 'Linked workflow instance' }),
   ),
   attachments: Type.Optional(
-    Type.Array(CaseAttachmentSchema, { description: 'Initial attachments' }),
+    Type.Array(AddAttachmentSchema, { description: 'Initial attachments (metadata only)' }),
   ),
   metadata: Type.Optional(
     Type.Record(Type.String(), Type.Unknown(), { description: 'Additional case metadata' }),
@@ -141,22 +159,6 @@ export const UpdateCaseSchema = Type.Object({
 });
 
 export type UpdateCaseInput = Static<typeof UpdateCaseSchema>;
-
-// ─── Add Attachment Schema ───────────────────────────────────────────────────
-
-export const AddAttachmentSchema = Type.Object({
-  fileName: Type.String({ minLength: 1, maxLength: 255, description: 'Original file name' }),
-  fileType: Type.String({ minLength: 1, maxLength: 100, description: 'MIME type of the file' }),
-  fileSize: Type.Number({ minimum: 1, description: 'File size in bytes' }),
-  storagePath: Type.String({ minLength: 1, maxLength: 500, description: 'Storage path or URL' }),
-  uploadedBy: Type.String({
-    minLength: 1,
-    maxLength: 255,
-    description: 'User who uploaded the file',
-  }),
-});
-
-export type AddAttachmentInput = Static<typeof AddAttachmentSchema>;
 
 // ─── Resolve Case Schema ─────────────────────────────────────────────────────
 

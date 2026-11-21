@@ -144,7 +144,16 @@ export function validateDocumentContents(documents: DocumentUpload[]): FieldErro
   const errors: FieldError[] = [];
   for (let i = 0; i < documents.length; i++) {
     const doc = documents[i]!;
-    if (doc.content === undefined) continue;
+    // PRC-M330: every document (required or optional) must carry its bytes so
+    // it is sniffed, scanned and stored; metadata alone is never accepted.
+    if (doc.content === undefined || doc.content.length === 0) {
+      errors.push({
+        field: `documents[${i}].content`,
+        rule: 'fileRequired',
+        message: `Document '${doc.fileName}' must include the uploaded file`,
+      });
+      continue;
+    }
     const result = sniffDocumentContent(doc.content, doc.fileType);
     if (!result.ok) {
       errors.push({

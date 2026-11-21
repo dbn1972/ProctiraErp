@@ -140,7 +140,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Service fetch falls back to ProctiraERP defaults on any failure.
   const headerStore = await headers();
   const tenantSlug = await resolveRequestTenantSlug(headerStore);
-  const { tokens } = await getPublishedTenantTheme(tenantSlug);
+  // PRC-M132: the gateway resolves the brand from this Host through its verified mapping.
+  const { tokens } = await getPublishedTenantTheme(
+    tenantSlug,
+    undefined,
+    headerStore.get('host') ?? undefined,
+  );
   const tenantThemeCSS = renderTenantThemeCSS(tokens);
 
   return (
