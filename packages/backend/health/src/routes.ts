@@ -22,12 +22,17 @@
  * - 12.5: Screening programs
  */
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
-import { AppError } from '@proctira/common';
+import { AppError, ForbiddenError } from '@proctira/common';
 import type { PgQueryable } from '@proctira/database';
 import { resolvePaginationQuery, validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { HealthService, HealthAccessContext } from './health-service.js';
+import {
+  isSchoolBoundHealthActor,
+  isTenantWideHealthActor,
+  type HealthService,
+  type HealthAccessContext,
+} from './health-service.js';
 import { isPgPhiEnabled } from './pg-phi-store.js';
 import {
   CreateMeasurementSchema,
@@ -1374,6 +1379,18 @@ export async function registerHealthRoutes(
   fastify.post(
     `${prefix}/counselling/sessions`,
     async (request: FastifyRequest, reply: FastifyReply) => {
+      // HL-O9: refuse a caller with no health role before validating the body, so an
+      // unauthorised role gets 403 and never the schema's field rules. The per-student
+      // write check still runs in the service.
+      const access = getAccessContext(request);
+      if (!isTenantWideHealthActor(access) && !isSchoolBoundHealthActor(access)) {
+        return sendError(
+          reply,
+          new ForbiddenError(
+            "Access denied: not authorized to modify this student's health records",
+          ),
+        );
+      }
       const result = validate(CreateCounsellingSessionSchema, request.body);
       if (!result.success)
         return reply.status(400).send({
@@ -1393,7 +1410,7 @@ export async function registerHealthRoutes(
         const entity = await healthService.createCounsellingSession(
           tenantId,
           result.data,
-          getAccessContext(request),
+          access,
           buildCounsellingSessionAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);

@@ -208,6 +208,42 @@ describe('Health Routes', () => {
       expect(body.status).toBe('completed');
     });
 
+    // HL-O9: the role check runs before body validation, so a role without health
+    // access gets 403 and never the schema's field rules.
+    it('HL-O9: returns 403 (not 400 field rules) to a role without health access', async () => {
+      healthOfficerContext.roles = ['admin'];
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/counselling/sessions',
+        payload: { studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' },
+      });
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body);
+      expect(body.errors).toBeUndefined();
+      expect(JSON.stringify(body)).not.toContain('caseNotes');
+    });
+
+    it('HL-O9: a guardian (no health role) also gets 403 before validation', async () => {
+      healthOfficerContext.roles = ['guardian'];
+      healthOfficerContext.guardianOfStudentIds = ['a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'];
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/counselling/sessions',
+        payload: {},
+      });
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('HL-O9: a health role with an invalid body still gets 400 VALIDATION_ERROR', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/health/counselling/sessions',
+        payload: { studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
+    });
+
     // PRC-L316 (10a): counsellorId is an FK-id field too — failing-first
     // before the UUID pattern was added to CreateCounsellingSessionSchema.
     it('PRC-L316: returns 400 VALIDATION_ERROR for a non-UUID counsellorId', async () => {
