@@ -65,6 +65,7 @@ test.describe('Registration Portal — live submit and track', () => {
 
   const dob = '2018-04-12';
   let trackingNumber = '';
+  let submittedBody = '';
 
   test('applicant submits and receives a tracking number', async ({ page }) => {
     expect(INSTITUTION_ID, 'E2E_REGISTRATION_INSTITUTION_ID must be seeded').not.toBe('');
@@ -79,7 +80,23 @@ test.describe('Registration Portal — live submit and track', () => {
     await page.getByRole('button', { name: /^next$/i }).click();
 
     await expect(page).toHaveURL(/\/review/);
+    // UAT-9b: the harness gateway requires the PRC-M332 bot challenge, so the
+    // portal must fetch one and send the solved token with the submit.
+    const challenge = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === '/api/registrations/challenge' &&
+        r.request().method() === 'GET',
+    );
+    const submit = page.waitForRequest(
+      (r) => new URL(r.url()).pathname === '/api/registrations' && r.method() === 'POST',
+    );
     await page.getByRole('button', { name: /^submit$/i }).click();
+    expect((await challenge).status(), 'GET /registrations/challenge').toBe(200);
+    const submitted = await submit;
+    expect(submitted.headers()['x-registration-challenge'], 'solved challenge header').toMatch(
+      /\S/,
+    );
+    submittedBody = submitted.postData() ?? '';
 
     await expect(page).toHaveURL(/\/apply\/success/, { timeout: 30_000 });
     const number = page.getByText(/^REG-[A-Z0-9]{8}$/);
@@ -105,6 +122,26 @@ test.describe('Registration Portal — live submit and track', () => {
     await page.getByRole('button', { name: /check status/i }).click();
     await expect(page.getByText(/no application was found/i).first()).toBeVisible();
     await expect(page.getByText(/pending review|under review/i)).toHaveCount(0);
+  });
+
+  test('a submit without the bot challenge is refused (PRC-M332)', async ({ page }) => {
+    expect(submittedBody, 'the first test captured the portal submit body').not.toBe('');
+    await page.goto('/track');
+    // The body the portal sent, through the same-origin proxy, with a fresh
+    // Idempotency-Key and no x-registration-challenge header.
+    const res = await page.evaluate(
+      async ({ body, key }) => {
+        const r = await fetch('/api/registrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+          body,
+        });
+        return { status: r.status, body: (await r.json().catch(() => null)) as unknown };
+      },
+      { body: submittedBody, key: `e2e-no-challenge-${Date.now()}` },
+    );
+    expect(res.status, JSON.stringify(res.body)).toBe(400);
+    expect(res.body).toMatchObject({ code: 'CHALLENGE_REQUIRED' });
   });
 
   test('backend down: submit shows an error instead of a fake success', async ({ page }) => {
