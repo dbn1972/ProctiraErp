@@ -204,8 +204,8 @@ test.describe('Students privacy and tenancy — live (E2E_BACKEND_READY)', () =>
           .toHaveText(s.name);
         await expectNotInPage(page, `${roleId} /students/[id]`, masked);
 
+        // Holds whether the route renders the form (today) or access denied (M1-R3).
         await page.goto(`/students/${s.id}/edit`, { waitUntil: 'load' });
-        await expect.soft(page.locator('#nationalId'), `${roleId} edit NID`).toHaveValue('');
         await expect
           .soft(page.locator('[id="identityDocuments.0.number"]'), `${roleId} edit documents`)
           .toHaveCount(0);
@@ -286,15 +286,18 @@ test.describe('Students privacy and tenancy — live (E2E_BACKEND_READY)', () =>
       ]);
       expect(await searchStudents(request, admin, `St${tag}X`), 'no refused create').toEqual([]);
 
-      // The teacher's save on /students/new fails with fixed copy and a reference.
-      const teacher = stTeacher(`st-t-${tag}`);
-      await openAs(page, teacher);
+      // A save that reaches the gateway with the teacher's session fails with fixed copy and a
+      // reference. The form is loaded as the administrator and the session is then switched,
+      // so this holds whether or not read-only roles get the form themselves (M1-R3).
+      await openAs(page, admin);
       await page.goto('/students/new', { waitUntil: 'load' });
       const form = await hydratedForm(page, 'student-form');
       await form.locator('#firstName').fill(`St${tag}X`);
       await form.locator('#lastName').fill('Refused');
       await form.locator('#dateOfBirth').fill(utcDate(-4000));
       await chooseOption(page, 'gender', 'Female');
+      await page.context().clearCookies();
+      await openAs(page, stTeacher(`st-t-${tag}`));
       await form.getByRole('button', { name: 'Save student' }).click();
       const alert = form.getByRole('alert');
       await expect(alert).toHaveText(
