@@ -608,3 +608,25 @@ test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=o
     assert.ok(bound, `${s.file} step "${s.name}" applies 006 without proctira.allow_demo_seed=on`);
   }
 });
+test('health screen specs 63-65 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const HEALTH_SPECS = [
+    '63-health-screens-read.spec.ts',
+    '64-health-screens-write.spec.ts',
+    '65-health-privacy-phi.spec.ts',
+  ];
+  // Nightly only: the worst PR shard job already takes 17.17 min (CI run 44258213737,
+  // shard 3/4), above the 16-min budget, so any of 63-65 would push it further over.
+  // Move a spec here only together with PR_SPECS.
+  const HEALTH_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of HEALTH_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    HEALTH_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    HEALTH_SPECS_IN_PR,
+  );
+});
