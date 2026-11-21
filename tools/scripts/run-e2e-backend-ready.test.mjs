@@ -758,3 +758,17 @@ test('fees screen specs 90-92 exist and run nightly', () => {
     FEES_SPECS_IN_PR,
   );
 });
+// Assessments + gradebook security defect fixes (M4 P2, P3): cross-tenant student,
+// institution, subject and period references get the safe 422, live. Nightly only: the PR
+// shard time budget is used up. Moving it into PR_SPECS is a visible change here.
+const ASSESSMENTS_GRADEBOOK_DEFECT_FIX_SPECS = ['115-assessments-gradebook-defect-fixes.spec.ts'];
+test('assessments + gradebook defect-fix spec 115 runs nightly and is not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of ASSESSMENTS_GRADEBOOK_DEFECT_FIX_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+});
