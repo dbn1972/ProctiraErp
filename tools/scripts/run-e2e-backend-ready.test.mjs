@@ -627,6 +627,17 @@ test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=o
     assert.ok(bound, `${s.file} step "${s.name}" applies 006 without proctira.allow_demo_seed=on`);
   }
 });
+test('safe error responses spec 73 exists and runs nightly only (PR-4)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const file = '73-safe-error-responses.spec.ts';
+  // Nightly only: the PR shard budget is used up (see the health specs below).
+  assert.ok(readdirSync(e2eDir).includes(file), `apps/web/e2e/${file} exists`);
+  assert.ok(
+    wf.env.NIGHTLY_SPECS.split(/\s+/).includes(`e2e/${file}`),
+    `NIGHTLY_SPECS has e2e/${file}`,
+  );
+  assert.ok(!wf.env.PR_SPECS.split(/\s+/).includes(`e2e/${file}`), `PR_SPECS lacks e2e/${file}`);
+});
 test('health screen specs 63-65 exist and run nightly', () => {
   const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
   const HEALTH_SPECS = [
