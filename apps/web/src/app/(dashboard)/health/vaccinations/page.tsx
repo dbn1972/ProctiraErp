@@ -13,6 +13,9 @@ import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
+/** Rows rendered; the register says when more exist (HL-O5). */
+const REGISTER_ROW_LIMIT = 100;
+
 export default async function HealthVaccinationsPage() {
   const session = await requireSession('/health/vaccinations');
   if (!canAccessHealthRecords(session.user.roles ?? [])) {
@@ -38,6 +41,7 @@ export default async function HealthVaccinationsPage() {
     );
   }
   const rows = result.items;
+  const shown = rows.slice(0, REGISTER_ROW_LIMIT);
   const studentLabels = await loadStudentLabelMap();
 
   return (
@@ -70,7 +74,7 @@ export default async function HealthVaccinationsPage() {
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
-              {rows.slice(0, 100).map((r) => (
+              {shown.map((r) => (
                 <li key={r.id} className="flex flex-wrap justify-between gap-2 py-3">
                   <div>
                     <Link href={`/health/${r.studentId}`} className="font-medium hover:underline">
@@ -86,6 +90,12 @@ export default async function HealthVaccinationsPage() {
               ))}
             </ul>
           )}
+          {rows.length > shown.length ? (
+            // HL-O5: the register used to cut at 100 rows without saying so.
+            <p className="mt-4 text-xs text-muted-foreground" role="status">
+              Showing {shown.length} of {rows.length} vaccinations.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

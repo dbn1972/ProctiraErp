@@ -101,3 +101,20 @@ describe('/health/vaccinations failed reads (HL-O1)', () => {
     expect(screen.getByRole('link', { name: /New vaccination/ })).toBeInTheDocument();
   });
 });
+
+describe('/health/vaccinations truncation (HL-O5)', () => {
+  it('more than 100 doses shows "Showing 100 of N"', async () => {
+    gatewayFetch.mockResolvedValue(
+      okRows(Array.from({ length: 150 }, (_, i) => dose(OWN, i + 1))),
+    );
+    render(await HealthVaccinationsPage());
+    expect(screen.getAllByRole('listitem')).toHaveLength(100);
+    expect(screen.getByText('Showing 100 of 150 vaccinations.')).toBeInTheDocument();
+  });
+
+  it('100 or fewer doses show no truncation note', async () => {
+    gatewayFetch.mockResolvedValue(okRows([dose(OWN, 1)]));
+    render(await HealthVaccinationsPage());
+    expect(screen.queryByText(/^Showing \d+ of \d+/)).toBeNull();
+  });
+});
