@@ -11,18 +11,22 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { listStaffContracts, listStaffQualifications } from '@/lib/api/staff';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStaffOptions } from '@/lib/load-entity-labels';
 
 import { NewContractForm } from '../_components/new-contract-form';
 import { NewQualificationForm } from '../_components/new-qualification-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function StaffContractsPage() {
-  await requireSession();
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const [contracts, qualifications, staffOptions] = await Promise.all([
     listStaffContracts(),
     listStaffQualifications(),

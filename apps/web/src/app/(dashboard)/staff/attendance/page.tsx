@@ -11,10 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { listStaff, listStaffAttendance, listStaffAttendanceSummary } from '@/lib/api/staff';
 
 import { StaffAttendanceGrid } from '../_components/staff-attendance-grid';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,10 @@ function monthOf(date: string): string {
 }
 
 export default async function StaffAttendancePage(props: PageProps) {
-  await requireSession();
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const date = readStr(searchParams, 'date', todayIso()) || todayIso();
   const month = readStr(searchParams, 'month', monthOf(date)) || monthOf(date);

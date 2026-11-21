@@ -12,6 +12,8 @@ import { OutcomeCreateForm } from '../_components/outcome-create-form';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { listOutcomes } from '@/lib/api/assessments';
 import { listSubjects, type SubjectSummary } from '@/lib/institutions/api';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +22,10 @@ interface PageProps {
 }
 
 export default async function AssessmentOutcomesPage(props: PageProps) {
+  // A-batch: check before any assessment read.
+  if (!(await hasDashboardDomainRouteAccess('assessments', '/assessments'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const subjects = await listSubjects().catch(() => [] as SubjectSummary[]);
   const subjectId =

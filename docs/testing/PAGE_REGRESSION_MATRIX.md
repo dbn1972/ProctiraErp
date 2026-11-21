@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **108**
+- Playwright specs: **111**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -100,15 +100,15 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/health/vaccinations` | a11y, functional | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/health/vaccinations/new` | functional | `17-health-inventory-smoke.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts` |
 | `/help` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`72-campus-staff-roles.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/assignments` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/attendance` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/fees` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/gate-passes` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/leaves` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`72-campus-staff-roles.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/mess` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/structure` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/hostel/visitors` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel` | a11y, dark, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`71-hostel-privacy-tenancy.spec.ts`<br>`72-campus-staff-roles.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/assignments` | a11y, dark, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`71-hostel-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/attendance` | a11y, dark, functional, smoke, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`71-hostel-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/fees` | a11y, dark, functional, smoke, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/gate-passes` | a11y, dark, functional, smoke, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`71-hostel-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/leaves` | a11y, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`71-hostel-privacy-tenancy.spec.ts`<br>`72-campus-staff-roles.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/mess` | a11y, dark, functional, smoke, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/structure` | a11y, dark, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/hostel/visitors` | a11y, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`69-hostel-screens-read.spec.ts`<br>`70-hostel-screens-write.spec.ts`<br>`71-hostel-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions` | a11y, dark, functional, smoke, touch, visual | `01-login-and-create-student.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`16b-institutions-directory-ui.spec.ts`<br>`16c-institutions-directory-live.spec.ts`<br>`16d-institutions-reactivate-live.spec.ts`<br>`16f-institutions-profile-write.spec.ts`<br>`24-visual-regression.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions/[id]` | a11y, functional, smoke | `09-route-permission-coupling.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`16f-institutions-profile-write.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/institutions/[id]/classes` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16d-institutions-detail-live.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |

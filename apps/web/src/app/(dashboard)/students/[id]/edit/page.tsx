@@ -16,6 +16,8 @@ import {
 } from '../../_components/load-student-placement';
 import { classSectionLabel, institutionLabel } from '../../_components/student-placement-label';
 import type { StudentFormValues } from '@/lib/validation/student-schema';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +26,10 @@ interface PageProps {
 }
 
 export default async function EditStudentPage(props: PageProps) {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const [student, customFields, enrollments] = await Promise.all([
     getStudent(params.id),

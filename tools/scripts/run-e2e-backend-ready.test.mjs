@@ -713,3 +713,25 @@ test('the shared E2E academic year is a rolling window around today (SP-R2)', ()
     'fixture window ends the same number of days after today as the seed',
   );
 });
+test('hostel screen specs 69-71 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const HOSTEL_SPECS = [
+    '69-hostel-screens-read.spec.ts',
+    '70-hostel-screens-write.spec.ts',
+    '71-hostel-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only: the PR shard budget is used up (the health PR measured 21.3 min with
+  // 63-65 in the PR set, against a 16-min budget). Move a spec here only together with
+  // PR_SPECS.
+  const HOSTEL_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of HOSTEL_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    HOSTEL_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    HOSTEL_SPECS_IN_PR,
+  );
+});
