@@ -36,10 +36,12 @@ import {
  * "Not shown" is checked against the page HTML (rendered text and the RSC payload), so
  * data that reaches the browser but is hidden also fails the test.
  *
- * Known open defects are not asserted here (defects.md): /hostel/** has no web route
- * guard, so these roles still get the hostel page shell (H-D1); writes that reference
- * another tenant's hostel, block or room are accepted (H-D3). Their assertions live in
- * patches/ for the fix PRs.
+ * /hostel/** has a web route guard (hostel/layout.tsx plus a per-page check, #733), so
+ * these roles get an access-denied screen on every hostel route (H-D1 test below).
+ *
+ * A known open defect is not asserted here (defects.md): writes that reference another
+ * tenant's hostel, block or room are accepted (H-D3). Its assertion lives in patches/
+ * for the fix PR.
  */
 
 interface Probe {
@@ -213,6 +215,34 @@ test.describe('Hostel privacy and tenancy — live (E2E_BACKEND_READY)', () => {
       for (const route of HOSTEL_ROUTES) {
         await open(page, screenUrl(route, d));
         await expectNotInPage(page, `${role} ${route}`, secret);
+      }
+    }
+  });
+
+  test('H-D1 roles without hostel access get an access-denied screen on every hostel route', async ({
+    page,
+  }) => {
+    test.slow();
+    const tag = newTag();
+    for (const p of [
+      teacher(`ho-t-${tag}`),
+      studentUser(`ho-s-${tag}`),
+      parentUser(`ho-p-${tag}`),
+    ]) {
+      await page.context().clearCookies();
+      await openAs(page, p);
+      const role = p.roles[0]!.roleId;
+      for (const route of HOSTEL_ROUTES) {
+        await open(page, route);
+        await expect
+          .soft(
+            page.getByRole('alert').filter({ hasText: /access denied|not authori[sz]ed/i }),
+            `${role} ${route}: access denied`,
+          )
+          .toHaveCount(1, { timeout: 8_000 });
+        await expect
+          .soft(page.locator('form[data-testid^="hostel-"]'), `${role} ${route}: no hostel forms`)
+          .toHaveCount(0);
       }
     }
   });

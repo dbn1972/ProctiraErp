@@ -5,7 +5,10 @@
  * gateway with a unique tag, so assertions find this run's rows regardless of leftovers
  * on a reused database. The hostel API has no delete routes, so rows from earlier runs
  * stay; the hostel lists the screens read are uncapped (every page is read), and the
- * student pickers are searched by tag, so leftovers never hide this run's rows.
+ * student pickers are searched by tag. The pickers and student labels load up to 5000
+ * students (`loadStudentOptions`, 50 pages × 100, ordered by last name), so on a
+ * database reused past 5000 students in tenant A a label could fall back to "Student";
+ * CI starts from a fresh database each run.
  *
  * Screen persona: a tenant administrator (`roleId: 'admin'`). Gateway RBAC and the hostel
  * domain (`hostel-access.ts`) both allow it. The hostel staff roles (warden, registrar)
