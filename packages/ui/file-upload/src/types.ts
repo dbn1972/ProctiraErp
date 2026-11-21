@@ -1,6 +1,7 @@
 export interface FileValidationError {
   file: File;
-  error: 'type' | 'size' | 'count';
+  /** `content`: the bytes do not match the declared type (PRC-L200). */
+  error: 'type' | 'size' | 'count' | 'content';
   message: string;
 }
 

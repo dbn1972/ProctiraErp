@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 
+import { contentMatchesDeclaredType } from './content-sniff';
 import type { FileScanResult, FileScanStatus, FileUploadProps, FileValidationError } from './types';
 
 /** PRC-L201: default text for each server scan status. */
@@ -138,11 +139,31 @@ export function FileUpload({
   );
 
   const handleFiles = useCallback(
-    (fileList: FileList | null) => {
+    async (fileList: FileList | null) => {
       if (!fileList || fileList.length === 0) return;
 
+      const selection = ++selectionRef.current;
       const fileArray = Array.from(fileList);
-      const { valid, errors } = validateFiles(fileArray);
+      const checked = validateFiles(fileArray);
+      // PRC-L200: the bytes must match the declared MIME type / extension.
+      const sniffed = await Promise.all(
+        checked.valid.map(async (file) => ({
+          file,
+          ok: await contentMatchesDeclaredType(file).catch(() => false),
+        })),
+      );
+      if (selection !== selectionRef.current) return;
+      const valid = sniffed.filter((s) => s.ok).map((s) => s.file);
+      const errors: FileValidationError[] = [
+        ...checked.errors,
+        ...sniffed
+          .filter((s) => !s.ok)
+          .map((s) => ({
+            file: s.file,
+            error: 'content' as const,
+            message: 'File content does not match its declared type',
+          })),
+      ];
       // Replace (not append) so the alert reflects the latest attempt only.
       setValidationErrors(errors);
 
@@ -151,7 +172,6 @@ export function FileUpload({
       }
 
       if (valid.length > 0) {
-        const selection = ++selectionRef.current;
         const outcome = onFilesSelected(valid);
         if (!isPromiseLike<void | FileScanResult[]>(outcome)) {
           setScanResults([]);
@@ -205,14 +225,14 @@ export function FileUpload({
       setIsDragOver(false);
 
       if (disabled) return;
-      handleFiles(e.dataTransfer.files);
+      void handleFiles(e.dataTransfer.files);
     },
     [disabled, handleFiles],
   );
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      handleFiles(e.target.files);
+      void handleFiles(e.target.files);
       // Reset input so the same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
