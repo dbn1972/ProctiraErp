@@ -916,6 +916,7 @@ jobs:
           tools/scripts/assert-dod-evidence.test.ts
           tools/scripts/assert-live-test-execution.test.ts
           tools/scripts/assert-vitest-skips.test.ts
+          tools/scripts/__tests__/check-contrast.test.ts
 
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
