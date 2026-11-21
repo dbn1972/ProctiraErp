@@ -10,7 +10,9 @@ import {
   canAccessDashboardDomain,
   DASHBOARD_DOMAIN_RESOURCES,
   DOMAIN_ROUTE_ROLE_IDS,
+  canAccessReportRoleDashboard,
   HOSTEL_PACKAGE_ROLE_IDS,
+  REPORT_ROLE_DASHBOARD_ROLE_IDS,
   TRANSPORT_PACKAGE_ROLE_IDS,
   type DashboardDomain,
 } from './domain-route-guards';
@@ -36,6 +38,18 @@ const GATEWAY_ROLE_IDS: ReadonlySet<string> = new Set([
   'nurse',
   'parent',
   'student',
+  'platform_admin',
+]);
+
+/** Gateway `report:read` holders (evidence rbac-matrix.json, rbac-registry.ts). */
+const GATEWAY_REPORT_READ_ROLE_IDS: ReadonlySet<string> = new Set([
+  'super-admin',
+  'admin',
+  'principal',
+  'teacher',
+  'staff',
+  'guardian',
+  'parent',
   'platform_admin',
 ]);
 
@@ -345,6 +359,63 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     });
   }
 
+  it('A-batch: the report role dashboard admits staff, the report catalogue does not', () => {
+    // GET /api/v1/reports/dashboard (packages/backend/report/src/catalogue-routes.ts:642)
+    // serves any gateway report:read holder; the catalogue routes add requireReportStaff.
+    for (const roleId of ['admin', 'principal', 'teacher', 'staff', 'super-admin', 'STAFF']) {
+      expect(canAccessReportRoleDashboard(session([roleId])), roleId).toBe(true);
+    }
+    for (const roleId of [
+      'registrar',
+      'admissions_officer',
+      'staff_admin',
+      'hr_officer',
+      'counsellor',
+      'nurse',
+      'platform_admin',
+      'student',
+      'guardian',
+      'parent',
+    ]) {
+      expect(canAccessReportRoleDashboard(session([roleId])), roleId).toBe(false);
+    }
+    expect(canAccessReportRoleDashboard(session([]))).toBe(false);
+    expect(canAccessDashboardDomain(session(['staff']), 'reports')).toBe(false);
+  });
+
+  it('A-batch: the report role dashboard set is gateway report:read minus portal roles', () => {
+    expect([...REPORT_ROLE_DASHBOARD_ROLE_IDS].sort()).toEqual(
+      ['admin', 'principal', 'teacher', 'staff', 'super-admin'].sort(),
+    );
+    for (const roleId of REPORT_ROLE_DASHBOARD_ROLE_IDS) {
+      expect(GATEWAY_REPORT_READ_ROLE_IDS.has(roleId), `${roleId} has gateway report:read`).toBe(
+        true,
+      );
+    }
+    for (const roleId of DOMAIN_ROUTE_ROLE_IDS.reports!) {
+      expect(REPORT_ROLE_DASHBOARD_ROLE_IDS.has(roleId), roleId).toBe(true);
+    }
+    const src = readFileSync(
+      resolve(__dirname, '../../../../../packages/backend/report/src/catalogue-routes.ts'),
+      'utf8',
+    );
+    const start = src.indexOf('fastify.get(`${prefix}/dashboard`');
+    expect(start, 'dashboard handler').toBeGreaterThan(-1);
+    const end = src.indexOf('fastify.', start + 1);
+    const handler = src.slice(start, end === -1 ? undefined : end);
+    // If the package adds a staff check here, narrow the web set to match.
+    expect(handler).not.toContain('requireReportStaff');
+  });
+
+  it('A-batch: only the role-dashboard pages use the report role-dashboard check', () => {
+    const app = resolve(__dirname, '../../app/(dashboard)');
+    const users = pageFiles(app)
+      .filter((file) => readFileSync(file, 'utf8').includes('hasReportRoleDashboardRouteAccess('))
+      .map((file) => relative(app, file))
+      .sort();
+    expect(users).toEqual(Object.keys(SECTION_PAGE_GUARDS).sort());
+  });
+
   it('wires every domain layout to the guard', () => {
     for (const domain of Object.keys(DASHBOARD_DOMAIN_RESOURCES)) {
       const src = readFileSync(
@@ -363,7 +434,7 @@ describe('dashboard domain route guards (PRC-L034)', () => {
       const pages = pageFiles(resolve(__dirname, `../../app/(dashboard)/${domain}`));
       expect(pages.length, domain).toBeGreaterThan(0);
       for (const file of pages) {
-        if (!readFileSync(file, 'utf8').includes(`hasDashboardDomainRouteAccess('${domain}'`)) {
+        if (!pageChecksAccess(file, domain)) {
           unguarded.push(relative(resolve(__dirname, '../../app'), file));
         }
       }
@@ -376,9 +447,7 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     for (const domain of LAYOUT_ONLY_DOMAINS) {
       expect(DASHBOARD_DOMAIN_RESOURCES, domain).toHaveProperty(domain);
       const pages = pageFiles(resolve(__dirname, `../../app/(dashboard)/${domain}`));
-      const guarded = pages.filter((file) =>
-        readFileSync(file, 'utf8').includes(`hasDashboardDomainRouteAccess('${domain}'`),
-      );
+      const guarded = pages.filter((file) => pageChecksAccess(file, domain));
       expect(guarded.length, `${domain} has page checks; drop it from the list`).toBeLessThan(
         pages.length,
       );
@@ -397,6 +466,23 @@ const LAYOUT_ONLY_DOMAINS: ReadonlySet<DashboardDomain> = new Set<DashboardDomai
   'billing',
   'data-warehouse',
 ]);
+
+/**
+ * Pages that check a section role set instead of their domain set, keyed by
+ * path under app/(dashboard). The report role dashboard serves office `staff`
+ * (packages/backend/report/src/catalogue-routes.ts:642).
+ */
+const SECTION_PAGE_GUARDS: Readonly<Record<string, string>> = {
+  'reports/dashboard/page.tsx': 'hasReportRoleDashboardRouteAccess(',
+  'reports/dashboards/page.tsx': 'hasReportRoleDashboardRouteAccess(',
+};
+
+function pageChecksAccess(file: string, domain: DashboardDomain): boolean {
+  const section = SECTION_PAGE_GUARDS[relative(resolve(__dirname, '../../app/(dashboard)'), file)];
+  return readFileSync(file, 'utf8').includes(
+    section ?? `hasDashboardDomainRouteAccess('${domain}'`,
+  );
+}
 
 function pageFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

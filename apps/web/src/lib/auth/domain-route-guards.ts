@@ -148,8 +148,32 @@ export const DOMAIN_ROUTE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<
   workflows: new Set(['admin', 'principal', 'teacher', 'staff', 'super-admin', 'platform_admin']),
 };
 
+/**
+ * A-batch: role ids for the report role dashboards (`/reports/dashboard`,
+ * `/reports/dashboards`). GET /api/v1/reports/dashboard
+ * (packages/backend/report/src/catalogue-routes.ts:642) does not call
+ * requireReportStaff: it serves any gateway `report:read` holder. This set is
+ * that grant minus portal roles and platform_admin, so office `staff` keeps
+ * the staff dashboard the home page links to. The catalogue pages keep the
+ * narrower `reports` set. Kept in sync by domain-route-guards.test.ts.
+ */
+export const REPORT_ROLE_DASHBOARD_ROLE_IDS: ReadonlySet<string> = new Set([
+  'admin',
+  'principal',
+  'teacher',
+  'staff',
+  'super-admin',
+]);
+
 function hasStaffRole(session: ServerSession): boolean {
   return session.user.roles.some((role) => !PORTAL_ONLY_ROLE_IDS.has(role.roleId.toLowerCase()));
+}
+
+export function canAccessReportRoleDashboard(session: ServerSession): boolean {
+  return (
+    hasStaffRole(session) &&
+    session.user.roles.some((role) => REPORT_ROLE_DASHBOARD_ROLE_IDS.has(role.roleId.toLowerCase()))
+  );
 }
 
 export function canAccessDashboardDomain(session: ServerSession, domain: DashboardDomain): boolean {

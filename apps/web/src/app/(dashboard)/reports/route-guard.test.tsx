@@ -1,7 +1,11 @@
 /// <reference types="vite/client" />
 /**
  * A-batch (PRC-L034 pattern) — every `/reports/**` route is gated on report
- * staff access.
+ * access. The catalogue pages (`/reports`, `/reports/new`, `/reports/schedules`,
+ * `/reports/[id]/results`) need the report staff set. The role-dashboard pages
+ * (`/reports/dashboard`, `/reports/dashboards`) also admit office `staff`:
+ * GET /api/v1/reports/dashboard has no check beyond the gateway `report:read`
+ * grant (packages/backend/report/src/catalogue-routes.ts:642).
  *
  * The layout guard alone is not enough: Next.js renders each page segment
  * independently of its layout (the page's RSC is part of the flight payload
@@ -128,25 +132,34 @@ interface RouteCase {
   props?: Record<string, unknown>;
   /** The page only redirects; the allowed case checks the redirect target. */
   redirectsTo?: string;
+  /** Which role set the page checks. */
+  access: 'catalogue' | 'role-dashboard';
 }
 
 const NO_SEARCH = { searchParams: Promise.resolve({}) };
 
 const ROUTES: RouteCase[] = [
-  { path: '/reports', file: './page.tsx' },
-  { path: '/reports/dashboard', file: './dashboard/page.tsx', props: NO_SEARCH },
+  { path: '/reports', file: './page.tsx', access: 'catalogue' },
+  {
+    path: '/reports/dashboard',
+    file: './dashboard/page.tsx',
+    props: NO_SEARCH,
+    access: 'role-dashboard',
+  },
   {
     path: '/reports/dashboards',
     file: './dashboards/page.tsx',
     props: NO_SEARCH,
     redirectsTo: '/reports/dashboard',
+    access: 'role-dashboard',
   },
-  { path: '/reports/new', file: './new/page.tsx', props: NO_SEARCH },
-  { path: '/reports/schedules', file: './schedules/page.tsx' },
+  { path: '/reports/new', file: './new/page.tsx', props: NO_SEARCH, access: 'catalogue' },
+  { path: '/reports/schedules', file: './schedules/page.tsx', access: 'catalogue' },
   {
     path: '/reports/[id]/results',
     file: './[id]/results/page.tsx',
     props: { params: Promise.resolve({ id: TEMPLATE.id }) },
+    access: 'catalogue',
   },
 ];
 
@@ -173,11 +186,10 @@ afterEach(() => {
 });
 
 /**
- * Office, registrar, admissions, HR-admin, platform and portal roles are not in
- * the report staff set.
+ * Registrar, admissions, HR-admin, platform and portal roles reach no reports
+ * page. Office `staff` reaches only the role dashboard.
  */
-const DENIED_ROLE_SETS = [
-  ['staff'],
+const ROLE_DASHBOARD_DENIED_ROLE_SETS = [
   ['registrar'],
   ['admissions_officer'],
   ['staff_admin'],
@@ -187,7 +199,15 @@ const DENIED_ROLE_SETS = [
   [],
 ];
 
-const ALLOWED_ROLE_SETS = [['teacher'], ['principal']];
+const DENIED_ROLE_SETS: Record<RouteCase['access'], string[][]> = {
+  catalogue: [['staff'], ...ROLE_DASHBOARD_DENIED_ROLE_SETS],
+  'role-dashboard': ROLE_DASHBOARD_DENIED_ROLE_SETS,
+};
+
+const ALLOWED_ROLE_SETS: Record<RouteCase['access'], string[][]> = {
+  catalogue: [['teacher'], ['principal']],
+  'role-dashboard': [['teacher'], ['principal'], ['staff']],
+};
 
 describe('reports route guard (A-batch)', () => {
   it('covers every page under /reports', () => {
@@ -195,7 +215,7 @@ describe('reports route guard (A-batch)', () => {
   });
 
   describe.each(ROUTES)('$path', (route) => {
-    it.each(DENIED_ROLE_SETS.map((roles) => [roles.join('+') || 'no roles', roles]))(
+    it.each(DENIED_ROLE_SETS[route.access].map((roles) => [roles.join('+') || 'no roles', roles]))(
       'renders access denied with no UI or reads for %s',
       async (_label, roles) => {
         auth.state.roles = roles as string[];
@@ -211,7 +231,7 @@ describe('reports route guard (A-batch)', () => {
       },
     );
 
-    it.each(ALLOWED_ROLE_SETS.map((roles) => [roles.join('+'), roles]))(
+    it.each(ALLOWED_ROLE_SETS[route.access].map((roles) => [roles.join('+'), roles]))(
       'renders the screen for %s',
       async (_label, roles) => {
         auth.state.roles = roles as string[];

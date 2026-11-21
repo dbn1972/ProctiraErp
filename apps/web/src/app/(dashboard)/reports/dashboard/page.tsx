@@ -12,7 +12,7 @@ import { detectDashboardRole } from '@/lib/dashboard/role-detection';
 
 import { RoleDashboardPanel } from '../_components/role-dashboard-panel';
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
-import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
+import { hasReportRoleDashboardRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,8 +29,9 @@ interface PageProps {
 }
 
 export default async function ReportsDashboardPage(props: PageProps) {
-  // A-batch: check before any report read.
-  if (!(await hasDashboardDomainRouteAccess('reports', '/reports'))) {
+  // A-batch: check before any report read. The role dashboard admits office
+  // `staff` too (REPORT_ROLE_DASHBOARD_ROLE_IDS).
+  if (!(await hasReportRoleDashboardRouteAccess('/reports'))) {
     return <RouteAccessDenied />;
   }
   const searchParams = await props.searchParams;

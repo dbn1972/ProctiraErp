@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // covers that); this file tests the screen an allowed user sees.
 vi.mock('@/lib/auth/domain-route-access', () => ({
   hasDashboardDomainRouteAccess: vi.fn(async () => true),
+  hasReportRoleDashboardRouteAccess: vi.fn(async () => true),
 }));
 
 const getSession = vi.fn();

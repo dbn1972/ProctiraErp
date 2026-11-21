@@ -1,6 +1,11 @@
 /**
  * A-batch — the `/reports` layout replaces every reports screen with the
  * access-denied card for roles without report access (PRC-L034 pattern).
+ *
+ * The layout admits the union of the catalogue set and the role-dashboard set,
+ * so office `staff` can open /reports/dashboard (GET /api/v1/reports/dashboard
+ * has no staff check, packages/backend/report/src/catalogue-routes.ts:642).
+ * The catalogue pages deny `staff` themselves (route-guard.test.tsx).
  */
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
@@ -29,7 +34,6 @@ const child: ReactNode = <p data-testid="reports-child">reports screen</p>;
 
 describe('reports layout guard (A-batch)', () => {
   it.each([
-    ['staff'],
     ['registrar'],
     ['admissions_officer'],
     ['staff_admin'],
@@ -44,7 +48,7 @@ describe('reports layout guard (A-batch)', () => {
     expect(screen.queryByTestId('reports-child')).toBeNull();
   });
 
-  it.each([['admin'], ['principal'], ['teacher'], ['super-admin']])(
+  it.each([['admin'], ['principal'], ['teacher'], ['staff'], ['super-admin']])(
     'renders the reports screen for %s',
     async (role) => {
       auth.roles = [role];
