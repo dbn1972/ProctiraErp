@@ -225,8 +225,8 @@ test.describe('Fees privacy and tenancy — live (E2E_BACKEND_READY)', () => {
       ).toHaveCount(1);
     });
 
-    // Teachers may read the student directory, so only fee strings are secret for them;
-    // portal roles must not get the student's name either.
+    // Teachers may read the student directory and the class list, so only fee strings are
+    // secret for them; portal roles must not get the student's or the class's name either.
     for (const [role, make, portal] of [
       ['teacher', teacher, false],
       ['student', studentUser, true],
@@ -237,7 +237,11 @@ test.describe('Fees privacy and tenancy — live (E2E_BACKEND_READY)', () => {
       }) => {
         test.slow();
         const p = make(`fe-${role}-${tag}`);
-        const secret = [...d.strings, ...d.ids, ...(portal ? [d.student.label] : [])];
+        const secret = [
+          ...d.strings,
+          ...d.ids,
+          ...(portal ? [d.student.label, ...(d.klass ? [d.klass.name] : [])] : []),
+        ];
         await openAs(page, p);
         for (const route of FEES_ROUTES) {
           await open(page, route);
@@ -395,7 +399,13 @@ test.describe('Fees privacy and tenancy — live (E2E_BACKEND_READY)', () => {
       ];
       for (const [viewer, own, other, otherTenant] of views) {
         const who = viewer.tenantId === TENANT_A ? 'tenant A' : 'tenant B';
-        const leaked = [...other.strings, ...other.ids, other.student.id, other.student.label];
+        const leaked = [
+          ...other.strings,
+          ...other.ids,
+          other.student.id,
+          other.student.label,
+          ...(other.klass ? [other.klass.name, other.klass.id] : []),
+        ];
         for (const [label, extra] of [
           [`${who} JWT`, {}],
           [`${who} JWT + forged X-Tenant-ID`, { 'X-Tenant-ID': otherTenant }],

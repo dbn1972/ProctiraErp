@@ -470,7 +470,7 @@ export interface SeededFeesData {
   suppression: { id: string; reason: string };
   /** Paid but un-netted ₹250.50 (test seam); tenant A only. */
   disbursement: { id: string; paidDate: string } | null;
-  /** Every fee string seeded above (not the student label). */
+  /** Every fee string seeded above (not the student label or the class name). */
   strings: string[];
   /** Every fee row id seeded above. */
   ids: string[];
@@ -571,7 +571,6 @@ export async function seedFeesData(
       filename,
       missing,
       reason,
-      ...(klass ? [klass.name] : []),
     ],
     ids: [
       plan.id,

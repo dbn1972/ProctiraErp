@@ -76,9 +76,9 @@ test.describe('Fees screens — read path (E2E_BACKEND_READY)', () => {
     await page.goto('/fees', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'Fees' })).toBeVisible();
     const n = plans.data.length;
-    await expect(
-      page.getByText(n === 1 ? '1 plan.' : `${n} plans.`, { exact: true }),
-    ).toBeVisible();
+    // ICU plural `# plans.` formats the number for the locale (`en`: 1,234).
+    const count = n === 1 ? '1 plan.' : `${n.toLocaleString('en-US')} plans.`;
+    await expect(page.getByText(count, { exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Manage plans' }).filter({ visible: true }).click();
     await expect(page).toHaveURL(/\/fees\/plans$/);
     await expect(listItem(page, 'fee-plan-row', d.plan.name)).toHaveCount(1);
