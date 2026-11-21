@@ -656,7 +656,7 @@ export class PgTenantRepository implements TenantRepository {
    * `control_plane_documents_data_gin` (jsonb_path_ops) index instead of a collection scan.
    */
   findDomainsByHostname(hostname: string): Promise<DomainEntity[]> {
-    return this.domains.where({ domain: hostname } as Partial<DomainEntity>);
+    return this.domains.where({ domain: hostname } as Partial<DomainEntity>, null);
   }
 
   // ─── PRC-L169 domain verification (platform-owned `tenant.domains` documents) ──
@@ -846,7 +846,7 @@ export class PgTenantRepository implements TenantRepository {
    * then the `tenants.slug` unique index. Never a scan of every tenant.
    */
   async findTenantBySlugExact(slug: string): Promise<TenantEntity | null> {
-    const docs = await this.tenants.where({ slug } as Partial<TenantEntity>);
+    const docs = await this.tenants.where({ slug } as Partial<TenantEntity>, null);
     const doc = docs.find((t) => t.slug === slug);
     if (doc) return doc;
     try {
