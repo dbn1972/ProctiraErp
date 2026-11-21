@@ -20,7 +20,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const returnTo = sanitizeReturnTo(incoming.searchParams.get('returnTo') || '/');
 
   if (!ticket) {
-    return redirectToLogin(request, { error: 'missing_ticket', returnTo });
+    return redirectToLogin({ error: 'missing_ticket', returnTo });
   }
 
   let upstream: Response;
@@ -29,7 +29,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     ticketUrl.searchParams.set('ticket', ticket);
     upstream = await fetch(ticketUrl, { cache: 'no-store' });
   } catch {
-    return redirectToLogin(request, { error: 'auth_unavailable', returnTo });
+    return redirectToLogin({ error: 'auth_unavailable', returnTo });
   }
 
   const data = (await safeJson(upstream)) as {
@@ -39,10 +39,10 @@ export async function GET(request: Request): Promise<NextResponse> {
   };
 
   if (!upstream.ok || !data.accessToken) {
-    return redirectToLogin(request, { error: 'ticket_invalid', returnTo });
+    return redirectToLogin({ error: 'ticket_invalid', returnTo });
   }
 
-  const response = NextResponse.redirect(new URL(returnTo, request.url));
+  const response = relativeRedirect(returnTo);
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
     data.accessToken,
@@ -58,14 +58,28 @@ export async function GET(request: Request): Promise<NextResponse> {
   return response;
 }
 
-function redirectToLogin(
-  request: Request,
-  params: { error?: string; returnTo?: string },
-): NextResponse {
-  const loginUrl = new URL('/login', request.url);
-  if (params.error) loginUrl.searchParams.set('error', params.error);
-  if (params.returnTo) loginUrl.searchParams.set('returnTo', sanitizeReturnTo(params.returnTo));
-  return NextResponse.redirect(loginUrl);
+function redirectToLogin(params: { error?: string; returnTo?: string }): NextResponse {
+  const query = new URLSearchParams();
+  if (params.error) query.set('error', params.error);
+  if (params.returnTo) query.set('returnTo', sanitizeReturnTo(params.returnTo));
+  const search = query.toString();
+  return relativeRedirect(search ? `/login?${search}` : '/login');
+}
+
+/**
+ * UATENV-D05: behind a proxy the standalone server's `request.url` is its bind
+ * address (`http://0.0.0.0:3001`), so an absolute redirect built from it sent
+ * the browser to 0.0.0.0. A relative Location (RFC 9110 §10.2.2) resolves
+ * against the public URL the browser is on. `path` is already a sanitised
+ * same-origin path; re-resolving it against a sentinel origin keeps only its
+ * path, query and fragment.
+ */
+function relativeRedirect(path: string): NextResponse {
+  const target = new URL(path, 'http://sentinel.invalid');
+  return new NextResponse(null, {
+    status: 307,
+    headers: { Location: `${target.pathname}${target.search}${target.hash}` },
+  });
 }
 
 async function safeJson(response: Response): Promise<Record<string, unknown>> {
