@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 import {
   BACKEND_READY,
@@ -46,10 +46,6 @@ import {
  */
 const SAVE_TIMEOUT = 60_000;
 
-async function open(page: Page, url: string) {
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
-}
-
 test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires live gateway (E2E_BACKEND_READY)');
   // Several saves per test, each up to SAVE_TIMEOUT.
@@ -72,7 +68,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
       position: 'Counselor',
     };
 
-    await open(page, '/staff/new');
+    await page.goto('/staff/new', { waitUntil: 'domcontentloaded' });
     const form = await hydratedForm(page, 'staff-form');
     for (const [field, value] of Object.entries(v)) await form.locator(`#${field}`).fill(value);
     await form.getByRole('button', { name: 'Create staff record' }).click();
@@ -105,7 +101,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     const phone = '+15550009999';
     const position = 'Vice Principal';
 
-    await open(page, `/staff/${staff.id}/edit`);
+    await page.goto(`/staff/${staff.id}/edit`, { waitUntil: 'domcontentloaded' });
     const form = await hydratedForm(page, 'staff-form');
     await form.locator('#contactPhone').fill(phone);
     await form.locator('#position').fill(position);
@@ -136,7 +132,9 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     const school = await seedClassAndSubject(request, admin, tag);
     await openAs(page, admin);
 
-    await open(page, `/staff/${staff.id}/assignments/new?institutionId=${INSTITUTION_A}`);
+    await page.goto(`/staff/${staff.id}/assignments/new?institutionId=${INSTITUTION_A}`, {
+      waitUntil: 'domcontentloaded',
+    });
     const form = await hydratedForm(page, 'staff-assignment-form');
     await expect(form.locator('#institutionId')).toContainText(INSTITUTION_A_NAME);
     await pickRadixOption(page, 'classId', school.klass.name);
@@ -185,7 +183,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     const date = utcDate(-3);
     const comment = `ST overall comment ${tag}`;
 
-    await open(page, `/staff/${staff.id}/appraisals/new`);
+    await page.goto(`/staff/${staff.id}/appraisals/new`, { waitUntil: 'domcontentloaded' });
     const form = await hydratedForm(page, 'staff-appraisal-form');
     await pickRadixOption(page, 'templateId', template.name);
     await expect(form.getByText(template.criteria[0]!.name)).toBeVisible();
@@ -230,7 +228,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
       `${firstName},Imported,1988-03-04,ST-I${tag},+15551230000,Teacher,sti-${tag.toLowerCase()}@staff.test,probation,${start},${end},${band}`,
     ].join('\n');
 
-    await open(page, '/staff/import');
+    await page.goto('/staff/import', { waitUntil: 'domcontentloaded' });
     const form = await hydratedForm(page, 'staff-import-form');
     await form.getByLabel('CSV text').fill(csv);
     await form.getByRole('button', { name: 'Dry-run' }).click();
@@ -243,7 +241,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     });
     await expect(report).toContainText('1 row(s) · 1 valid · 1 created');
 
-    await open(page, `/staff?search=${firstName}`);
+    await page.goto(`/staff?search=${firstName}`, { waitUntil: 'domcontentloaded' });
     const row = page
       .getByRole('table', { name: 'Staff records' })
       .getByRole('row')
@@ -278,7 +276,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     const university = `ST form university ${tag}`;
     const docRef = `ST-FDOC-${tag}`;
 
-    await open(page, '/staff/contracts');
+    await page.goto('/staff/contracts', { waitUntil: 'domcontentloaded' });
     const cForm = await hydratedForm(page, 'staff-contract-form');
     await pickStaff(cForm, 'contract-staff', staff);
     await cForm.locator('#contract-type').selectOption('fixed_term');
@@ -349,7 +347,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     const start = utcDate(10);
     const end = utcDate(12);
 
-    await open(page, '/staff/leaves');
+    await page.goto('/staff/leaves', { waitUntil: 'domcontentloaded' });
     const form = page.locator('form').filter({ has: page.locator('#leave-staff') });
     await expect(form.locator('#leave-start')).toBeEnabled({ timeout: 30_000 });
     await pickStaff(form, 'leave-staff', staff);
@@ -404,7 +402,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     await openAs(page, admin);
     const date = utcDate(-334);
 
-    await open(page, `/staff/attendance?date=${date}`);
+    await page.goto(`/staff/attendance?date=${date}`, { waitUntil: 'domcontentloaded' });
     const grid = await hydratedForm(page, 'staff-attendance-grid');
     const marks = grid.getByRole('group', { name: `Attendance for ${staff.name}` });
     await expect(marks.getByRole('radio')).toHaveCount(4);
@@ -445,7 +443,7 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
     await openAs(page, admin);
     const rowText = `${staff.name} · band ${p.band} · present 1 · leave 1 · payable 1.5`;
 
-    await open(page, '/staff/payroll');
+    await page.goto('/staff/payroll', { waitUntil: 'domcontentloaded' });
     const panel = await hydratedForm(page, 'staff-payroll-panel');
     await panel.getByLabel('Month').fill(p.month);
     await panel.getByRole('button', { name: 'Build export' }).click();
