@@ -2,7 +2,7 @@
  * Gateway RBAC registry — DEFAULT_ROLES plus campus/platform extensions (G-101).
  */
 
-import { applyCampusDomainRoleGrants } from '@proctira/auth';
+import { applyCampusDomainRoleGrants, applyFeesDomainRoleGrants } from '@proctira/auth';
 import type { Permission, PermissionAction, RoleDefinition } from '@proctira/backend-auth';
 import { DEFAULT_ROLES, RbacPermissionRegistry } from '@proctira/backend-auth';
 
@@ -388,6 +388,11 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   // (hostel-access.ts, transport-access.ts) intend. Least privilege, one shared
   // matrix with the web registry; the package guards still run after this.
   applyCampusDomainRoleGrants(roles);
+  // F-D3: finance roles (finance_officer, bursar, accountant: fees read/list/
+  // create/delete) and a read-only registrar, as fees-access.ts intends. One
+  // shared matrix with the web registry; the fees package guard still decides
+  // each fees action (e.g. the accountant cannot approve concessions).
+  applyFeesDomainRoleGrants(roles);
   // PRC-H111: case workers — case access only; scope is enforced in CaseService.
   for (const roleId of CASE_WORKER_ROLE_IDS) {
     roles.push({
