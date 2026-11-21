@@ -108,6 +108,24 @@ describe('gatewayFetch', () => {
     expect(result.ok).toBe(false);
     expect(result.correlationId).toBe('2ee7694a-4534-4ad0-a4bf-44cc3f17b9d7');
   });
+
+  it('puts the response correlation id on a thrown GatewayError (T-D3)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'denied' }), {
+        status: 403,
+        headers: {
+          'content-type': 'application/json',
+          'x-request-id': 'req-7f3c2a91',
+        },
+      }),
+    );
+    const { gatewayFetch, GatewayError } = await import('./gateway');
+    const error = await gatewayFetch('/transport/vehicles', { method: 'POST' }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(GatewayError);
+    expect((error as { correlationId?: string }).correlationId).toBe('req-7f3c2a91');
+  });
   it('turns revalidate 0 into cache no-store so the Data Cache cannot serve a stale plan', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ items: [] }), {
