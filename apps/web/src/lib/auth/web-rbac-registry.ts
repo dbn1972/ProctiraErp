@@ -7,6 +7,7 @@
  */
 import {
   applyCampusDomainRoleGrants,
+  applyFeesDomainRoleGrants,
   DEFAULT_ROLES,
   RbacPermissionRegistry,
   type Permission,
@@ -93,6 +94,8 @@ export function createWebRbacRegistry(): RbacPermissionRegistry {
   // H-D2 / T-O1 / H-D1-R5: the same hostel/transport staff matrix the gateway
   // registry applies (one source in @proctira/auth, so the two cannot drift).
   applyCampusDomainRoleGrants(roles);
+  // F-D3: the same finance-role fees matrix the gateway registry applies.
+  applyFeesDomainRoleGrants(roles);
   // PRC-L234: mirror the gateway's platform_admin role (platform + '*' manage)
   // so platform surfaces are only advertised to callers the gateway serves.
   if (!roles.some((role) => role.roleId === 'platform_admin')) {
