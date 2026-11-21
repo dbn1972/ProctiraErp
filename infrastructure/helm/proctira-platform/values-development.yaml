@@ -162,19 +162,6 @@ examinationService:
       cpu: 500m
       memory: 256Mi
 
-workflowService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
 reportService:
   enabled: false
   replicaCount: 1

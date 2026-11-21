@@ -33,8 +33,6 @@ images:
     newTag: sha-pending
   - name: proctira/examination-service
     newTag: sha-pending
-  - name: proctira/workflow-service
-    newTag: sha-pending
   - name: proctira/report-service
     newTag: sha-pending
   - name: proctira/etl-worker

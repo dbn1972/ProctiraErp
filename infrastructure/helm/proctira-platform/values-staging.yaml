@@ -141,14 +141,6 @@ examinationService:
     minReplicas: 2
     maxReplicas: 4
 
-workflowService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 4
-
 reportService:
   enabled: false
   replicaCount: 2

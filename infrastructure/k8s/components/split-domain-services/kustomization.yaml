@@ -26,9 +26,6 @@ resources:
   - ../../base/examination/deployment.yaml
   - ../../base/examination/service.yaml
   - ../../base/examination/hpa.yaml
-  - ../../base/workflow/deployment.yaml
-  - ../../base/workflow/service.yaml
-  - ../../base/workflow/hpa.yaml
   - ../../base/report/deployment.yaml
   - ../../base/report/service.yaml
   - ../../base/report/hpa.yaml

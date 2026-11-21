@@ -40,7 +40,6 @@ export const FULL_BUNDLE_ALLOWLIST = new Set([
   'student-service',
   'assessment-service',
   'examination-service',
-  'workflow-service',
   'report-service',
 ]);
 

@@ -50,7 +50,5 @@ assessmentService:
   enabled: false
 examinationService:
   enabled: false
-workflowService:
-  enabled: false
 reportService:
   enabled: false
