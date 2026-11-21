@@ -25,8 +25,7 @@ const ASSESSMENT_STAFF_ROLES = [
   'faculty',
   'academic_coordinator',
   'academic-coordinator',
-  'exam_officer',
-  'exam-officer',
+  'examinations_officer',
   'registrar',
   ...ADMIN_ROLES,
 ] as const;
@@ -48,7 +47,7 @@ export function isAssessmentAdmin(roles: unknown): boolean {
  * (and other assessment.write holders) are denied even though they can author
  * grades.
  */
-const REPORT_CARD_OPERATOR_ROLES = [...ADMIN_ROLES, 'exam_officer', 'exam-officer'] as const;
+const REPORT_CARD_OPERATOR_ROLES = [...ADMIN_ROLES, 'examinations_officer'] as const;
 
 export function isReportCardOperator(roles: unknown): boolean {
   const normalized = normalizeAssessmentRoles(roles);
