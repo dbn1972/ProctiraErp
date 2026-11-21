@@ -4,15 +4,19 @@
 import Link from 'next/link';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { listEtlConnections, listPipelines } from '@/lib/api/etl';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { CreatePipelineForm } from './_components/create-pipeline-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PipelinesPage() {
-  await requireSession('/pipelines');
+  // A-batch: check before any pipeline read.
+  if (!(await hasDashboardDomainRouteAccess('pipelines', '/pipelines'))) {
+    return <RouteAccessDenied />;
+  }
   const [pipelinesResult, connections] = await Promise.all([listPipelines(), listEtlConnections()]);
   const pipelines = pipelinesResult.ok ? pipelinesResult.items : [];
 

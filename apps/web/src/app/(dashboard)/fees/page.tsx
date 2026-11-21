@@ -23,13 +23,17 @@ import {
 } from '@proctira/ui/components';
 import { getTranslations } from 'next-intl/server';
 
-import { requireSession } from '@/lib/auth/server';
 import { listFeePlansResult, listInvoicesResult, listReceiptsResult } from '@/lib/api/fees';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesOverviewPage() {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const [t, plansResult, invoicesResult, receiptsResult] = await Promise.all([
     getTranslations('fees'),
     listFeePlansResult(),

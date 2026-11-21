@@ -9,6 +9,8 @@ import { EmptyState } from '@/components/page';
 
 import { BankItemForm } from '../_components/bank-item-form';
 import { LmsSubnav } from '../_components/lms-subnav';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +19,10 @@ export default async function LmsBankPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await searchParams;
   const subject = typeof params.subject === 'string' ? params.subject : undefined;
   const gradeLevel = typeof params.gradeLevel === 'string' ? params.gradeLevel : undefined;
