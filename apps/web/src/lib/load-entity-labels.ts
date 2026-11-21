@@ -61,11 +61,22 @@ export async function loadStudentOptions(): Promise<EntityLabelOption[]> {
   return rows.map(toStudentOption);
 }
 
+type StaffRow = Awaited<ReturnType<typeof listStaff>>['data'][number];
+
+/**
+ * T-O1b: every staff page, like {@link loadStudentOptions}. A single 100-row page
+ * left staff #101+ out of the driver picker. Same page cap as the student picker.
+ */
 export async function loadStaffOptions(): Promise<EntityLabelOption[]> {
-  const result = await listStaff({ pageSize: MAX_API_PAGE_SIZE }).catch(() => ({
-    data: [] as Awaited<ReturnType<typeof listStaff>>['data'],
-  }));
-  return (result.data ?? []).map((staff) => ({
+  const rows: StaffRow[] = [];
+  for (let page = 1; page <= STUDENT_OPTION_MAX_PAGES; page += 1) {
+    const result = await listStaff({ page, pageSize: MAX_API_PAGE_SIZE }).catch(() => null);
+    if (!result) break;
+    rows.push(...(result.data ?? []));
+    const totalPages = result.meta?.totalPages ?? 0;
+    if ((result.data ?? []).length < MAX_API_PAGE_SIZE || page >= totalPages) break;
+  }
+  return rows.map((staff) => ({
     id: staff.id,
     label: formatPersonLabel(staff.firstName, staff.lastName, staff.position),
     searchText: `${staff.firstName} ${staff.lastName} ${staff.position}`,

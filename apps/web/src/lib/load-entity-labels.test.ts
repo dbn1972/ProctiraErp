@@ -17,6 +17,7 @@ vi.mock('@/lib/api/students', () => ({
 vi.mock('@/lib/api/staff', () => ({ listStaff: api.listStaff, getStaff: api.getStaff }));
 vi.mock('@/lib/api/institutions', () => ({ listInstitutions: vi.fn(async () => []) }));
 import {
+  loadStaffOptions,
   loadStudentDirectory,
   loadStudentLabelMap,
   loadStudentLabelsForIds,
@@ -145,5 +146,40 @@ describe('PRC-M156 student picker labels', () => {
     }
     expect(dir.options[0]!.label).toBe('ADM-1 · Kid 1');
     expect(dir.options[0]!.searchText).toBe('Kid 1 ADM-1');
+  });
+});
+// T-O1b: the driver picker read one page of 100 staff, so staff #101+ could not be picked.
+describe('T-O1b staff picker options follow every page', () => {
+  const allStaff = Array.from({ length: 250 }, (_, i) => ({
+    id: `t-${i + 1}`,
+    firstName: 'Staff',
+    lastName: String(i + 1),
+    position: 'Driver',
+  }));
+  beforeEach(() => {
+    api.listStaff.mockImplementation(
+      async ({ page = 1, pageSize = 20 }: { page?: number; pageSize?: number }) => ({
+        data: allStaff.slice((page - 1) * pageSize, page * pageSize),
+        meta: { page, pageSize, totalItems: 250, totalPages: Math.ceil(250 / pageSize) },
+      }),
+    );
+  });
+  it('a tenant with 250 staff can select staff #200', async () => {
+    const options = await loadStaffOptions();
+    expect(options).toHaveLength(250);
+    expect(options.find((o) => o.id === 't-200')?.searchText).toBe('Staff 200 Driver');
+    expect(api.listStaff.mock.calls.map(([filters]) => filters)).toEqual([
+      { page: 1, pageSize: 100 },
+      { page: 2, pageSize: 100 },
+      { page: 3, pageSize: 100 },
+    ]);
+  });
+  it('keeps the pages read when a later page comes back empty (failed read)', async () => {
+    api.listStaff.mockImplementation(async ({ page = 1 }: { page?: number }) =>
+      page === 1
+        ? { data: allStaff.slice(0, 100), meta: { totalItems: 250, totalPages: 3 } }
+        : { data: [], meta: { totalItems: 0, totalPages: 0 } },
+    );
+    expect(await loadStaffOptions()).toHaveLength(100);
   });
 });
