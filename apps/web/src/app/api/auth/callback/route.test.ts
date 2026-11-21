@@ -69,4 +69,24 @@ describe('GET /api/auth/callback (UATENV-D05)', () => {
 
     expect(res.headers.get('location')).toBe('/');
   });
+
+  // Dot segments that the sanitiser accepts collapse to `//host` once the path
+  // is re-resolved; a protocol-relative Location would leave the site.
+  it.each(['/.//evil.com', '/%2e//evil.com', '/a/..//evil.com/x'])(
+    'never emits a protocol-relative Location for returnTo=%s',
+    async (returnTo) => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ accessToken: 'KC-A' }), { status: 200 }),
+        ) as unknown as typeof fetch;
+
+      const res = await GET(req(`?ticket=t-1&returnTo=${encodeURIComponent(returnTo)}`));
+
+      const location = res.headers.get('location') ?? '';
+      expect(location.startsWith('/')).toBe(true);
+      expect(location.startsWith('//')).toBe(false);
+      expect(new URL(location, 'https://school.example').origin).toBe('https://school.example');
+    },
+  );
 });

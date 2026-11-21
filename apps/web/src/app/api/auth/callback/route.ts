@@ -72,13 +72,16 @@ function redirectToLogin(params: { error?: string; returnTo?: string }): NextRes
  * the browser to 0.0.0.0. A relative Location (RFC 9110 §10.2.2) resolves
  * against the public URL the browser is on. `path` is already a sanitised
  * same-origin path; re-resolving it against a sentinel origin keeps only its
- * path, query and fragment.
+ * path, query and fragment. Dot segments the sanitiser accepts (`/.//evil.com`)
+ * resolve to a pathname starting with `//`, which as a Location is
+ * protocol-relative and leaves the site, so leading slashes collapse to one.
  */
 function relativeRedirect(path: string): NextResponse {
   const target = new URL(path, 'http://sentinel.invalid');
+  const pathname = target.pathname.replace(/^\/+/, '/');
   return new NextResponse(null, {
     status: 307,
-    headers: { Location: `${target.pathname}${target.search}${target.hash}` },
+    headers: { Location: `${pathname}${target.search}${target.hash}` },
   });
 }
 
