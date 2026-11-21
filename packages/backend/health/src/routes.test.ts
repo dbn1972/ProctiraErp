@@ -3,7 +3,7 @@
  *
  * Tests the Fastify plugin registration and HTTP route handling.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 
@@ -434,6 +434,54 @@ describe('Health Routes', () => {
     });
   });
 
+  // HL-O3 follow-up: the registers now audit, so in fail-closed production an auditor
+  // failure reaches sendError. The body must not carry the driver/constraint text.
+  describe('register reads when the PHI auditor fails (HL-O3)', () => {
+    const driverText =
+      'insert violates foreign key constraint "health_phi_access_log_tenant_id_fkey"';
+    beforeEach(async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/health/vaccinations',
+        payload: {
+          studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+          vaccineName: 'MMR',
+          doseNumber: 1,
+          dateAdministered: '2024-06-01',
+        },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/health/incidents',
+        payload: {
+          studentId: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+          incidentAt: '2024-09-01T10:00:00.000Z',
+          category: 'clinic_visit',
+          severity: 'low',
+        },
+      });
+      repository.logPhiAccess = async () => {
+        throw new Error(driverText);
+      };
+      vi.stubEnv('NODE_ENV', 'production');
+      vi.stubEnv('ALLOW_PHI_AUDIT_DEGRADE', '');
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+    for (const url of ['/health/vaccinations', '/health/incidents']) {
+      it(`GET ${url} returns a fixed 503 body without the auditor error text`, async () => {
+        const response = await app.inject({ method: 'GET', url });
+        expect(response.statusCode).toBe(503);
+        expect(JSON.parse(response.body)).toEqual({
+          code: 'PHI_AUDIT_UNAVAILABLE',
+          message: 'Health records are temporarily unavailable. Please try again later.',
+          statusCode: 503,
+        });
+        expect(response.body).not.toMatch(/constraint|fkey|auditor/i);
+      });
+    }
+  });
   describe('GET /health/phi-access (PRD-005 deny)', () => {
     it('returns 403 when caller lacks health admin role', async () => {
       healthOfficerContext.roles = ['teacher'];

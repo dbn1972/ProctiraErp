@@ -34,6 +34,7 @@ import {
   type HealthAccessContext,
 } from './health-service.js';
 import { isPgPhiEnabled } from './pg-phi-store.js';
+import { PhiAuditUnavailableError } from './phi-read-audit.js';
 import {
   CreateMeasurementSchema,
   UpdateMeasurementSchema,
@@ -325,6 +326,15 @@ function buildBreakGlassAuditBinder(
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
+  if (error instanceof PhiAuditUnavailableError) {
+    // Same fixed body as the gateway health plugin: auditor/driver detail stays in server logs.
+    reply.log.error({ err: error }, 'PHI read audit unavailable; refusing PHI response');
+    return reply.status(503).send({
+      code: 'PHI_AUDIT_UNAVAILABLE',
+      message: 'Health records are temporarily unavailable. Please try again later.',
+      statusCode: 503,
+    });
+  }
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
   }
