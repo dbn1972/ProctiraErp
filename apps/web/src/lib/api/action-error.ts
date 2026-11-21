@@ -12,8 +12,11 @@ export function newCorrelationId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}`;
 }
 
-/** Same rule as the parent academic frame (D1b): only a plain token is shown. */
-const SAFE_CORRELATION_ID = /^[A-Za-z0-9-]{8,64}$/;
+/**
+ * The one rule for a gateway correlation id shown to users (D1b): only a plain token. Shared by
+ * server actions and the parent/student academic frame (`parent-portal.ts`, T-D3-R4).
+ */
+export const SAFE_CORRELATION_ID = /^[A-Za-z0-9-]{8,64}$/;
 
 export const PERMISSION_DENIED_ACTION_MESSAGE =
   'You do not have permission to make this change. Contact your administrator if you need access.';
