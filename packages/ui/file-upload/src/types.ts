@@ -4,6 +4,20 @@ export interface FileValidationError {
   message: string;
 }
 
+/**
+ * Topic 18: server-side malware-scan lifecycle of an upload. Only `clean`
+ * files are usable; `pending` means the server has not finished scanning.
+ */
+export type FileScanStatus = 'pending' | 'clean' | 'infected' | 'error';
+
+/** Server verdict for one selected file, returned by `onFilesSelected`. */
+export interface FileScanResult {
+  file: File;
+  scanStatus: FileScanStatus;
+  /** Optional server message shown instead of the default status text. */
+  message?: string;
+}
+
 export interface UploadedFile {
   /** Original file object */
   file: File;
@@ -17,6 +31,8 @@ export interface UploadedFile {
   errorMessage?: string;
   /** Preview URL for images */
   previewUrl?: string;
+  /** Server malware-scan status; the file is usable only when `clean`. */
+  scanStatus?: FileScanStatus;
 }
 
 export interface FileUploadProps {
@@ -34,8 +50,13 @@ export interface FileUploadProps {
   maxFiles?: number;
   /** Whether multiple files can be uploaded */
   multiple?: boolean;
-  /** Callback when files are selected */
-  onFilesSelected: (files: File[]) => void;
+  /**
+   * Callback when files are selected. It may return a promise of per-file
+   * server scan results; the component then shows each file as scanning until
+   * the promise settles and announces the verdicts (a rejection marks every
+   * file as failed). Returning nothing keeps the previous synchronous contract.
+   */
+  onFilesSelected: (files: File[]) => void | Promise<void | FileScanResult[]>;
   /** Callback when validation errors occur */
   onValidationError?: (errors: FileValidationError[]) => void;
   /**
