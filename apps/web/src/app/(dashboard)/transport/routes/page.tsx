@@ -9,13 +9,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listTransportRoutes } from '@/lib/api/transport';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransportRoutesPage() {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const routes = await listTransportRoutes();
 
   return (

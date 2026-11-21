@@ -6,7 +6,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { ServerSession } from '@/lib/auth/server';
-import { canAccessDashboardDomain, DASHBOARD_DOMAIN_RESOURCES } from './domain-route-guards';
+import {
+  canAccessDashboardDomain,
+  DASHBOARD_DOMAIN_RESOURCES,
+  TRANSPORT_PACKAGE_ROLE_IDS,
+} from './domain-route-guards';
 
 function session(roleIds: string[]): ServerSession {
   return {
@@ -51,6 +55,50 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     expect(canAccessDashboardDomain(session(['admin']), 'audit-logs')).toBe(false);
     expect(canAccessDashboardDomain(session(['platform_admin']), 'billing')).toBe(true);
     expect(canAccessDashboardDomain(session(['super-admin']), 'audit-logs')).toBe(true);
+  });
+
+  it('T-D1: grants transport only where the gateway and the transport package both allow it', () => {
+    // Gateway grant (rbac-registry.ts) AND package guard (transport-access.ts).
+    for (const roles of [['admin'], ['principal'], ['super-admin'], ['PRINCIPAL']]) {
+      expect(canAccessDashboardDomain(session(roles), 'transport'), roles.join()).toBe(true);
+    }
+    for (const roles of [
+      // Gateway STAFF_READS grants transport.read, the package guard denies.
+      ['teacher'],
+      ['staff'],
+      // Gateway grants '*', the package guard has no platform role.
+      ['platform_admin'],
+      // T-O1: package allows, the gateway registry has no such role (403).
+      ['transport_officer'],
+      ['transport-manager'],
+      ['fleet_manager'],
+      ['transport_admin'],
+      ['registrar'],
+      ['student'],
+      ['guardian'],
+      [],
+    ]) {
+      expect(canAccessDashboardDomain(session(roles), 'transport'), roles.join()).toBe(false);
+    }
+    // Any role carrying both grants is enough, as at the gateway.
+    expect(canAccessDashboardDomain(session(['teacher', 'principal']), 'transport')).toBe(true);
+  });
+
+  it('T-D1: mirrors every transport package role the web guard lets through', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../../../../packages/backend/transport/src/transport-access.ts'),
+      'utf8',
+    );
+    const packageRoles = new Set(
+      [...src.matchAll(/^\s+'([a-z_-]+)',$/gm)].map((match) => match[1]!.toLowerCase()),
+    );
+    expect(packageRoles.size).toBeGreaterThan(0);
+    for (const roleId of TRANSPORT_PACKAGE_ROLE_IDS) {
+      expect(packageRoles.has(roleId), roleId).toBe(true);
+    }
+    for (const roleId of packageRoles) {
+      expect(TRANSPORT_PACKAGE_ROLE_IDS.has(roleId), roleId).toBe(true);
+    }
   });
 
   it('wires every domain layout to the guard', () => {

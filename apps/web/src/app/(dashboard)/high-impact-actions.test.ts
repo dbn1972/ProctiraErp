@@ -166,14 +166,15 @@ describe('createTransportRouteAction', () => {
     expect(revalidatePath).toHaveBeenCalledWith('/transport/routes/r1');
   });
 
-  it('surfaces gateway validation errors', async () => {
+  it('reports gateway validation errors with fixed copy, not server text (T-D3)', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     transport.createTransportRoute.mockRejectedValue(
       gwError(400, 'VALIDATION_ERROR', 'name is required'),
     );
-    expect(await createTransportRouteAction(VALID_ROUTE)).toEqual({
-      status: 'error',
-      message: 'name is required',
-    });
+    const failed = await createTransportRouteAction(VALID_ROUTE);
+    expect(failed.status).toBe('error');
+    expect(failed.message).toMatch(/^Failed to create route \(ref [0-9a-z]{8}\)$/);
+    consoleError.mockRestore();
     // PRC-L24x (#532): obviously invalid input is rejected before the gateway.
     transport.createTransportRoute.mockClear();
     expect((await createTransportRouteAction({ ...VALID_ROUTE, name: '' })).status).toBe('error');

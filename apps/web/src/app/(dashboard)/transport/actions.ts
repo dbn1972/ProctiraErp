@@ -6,7 +6,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { safeActionErrorMessage } from '@/lib/api/action-error';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 import {
   driverAssignmentInputSchema,
   transportRouteInputSchema,
@@ -46,8 +46,9 @@ export interface TransportActionState {
 const uuid = z.string().uuid();
 const hm = z.string().regex(/^\d{2}:\d{2}$/);
 
+/** T-D3: transport forms never show gateway or package text, only fixed copy and a reference. */
 function fail(error: unknown, fallback: string): TransportActionState {
-  return { status: 'error', message: safeActionErrorMessage(error, fallback) };
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 export async function createTransportRouteAction(
