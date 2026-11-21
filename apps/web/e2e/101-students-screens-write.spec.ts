@@ -388,10 +388,13 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
       await waitForReact(button);
       page.once('dialog', (dialog) => void dialog.accept());
       await button.click();
-      await expect(page.getByRole('status').filter({ hasText: 'Student graduated.' })).toBeVisible({
-        timeout: 30_000,
-      });
-
+      // The "Student graduated." note unmounts with the button when the page refreshes
+      // (defects.md M1-P9), so check the stored result and the reloaded profile instead.
+      await expect
+        .poll(async () => (await enrollmentsOf(request, admin, s.id)).map((r) => r.status), {
+          timeout: 30_000,
+        })
+        .toEqual(['GRADUATED']);
       const rows = await enrollmentsOf(request, admin, s.id);
       expect(rows).toEqual([expect.objectContaining({ id: enrollmentId, status: 'GRADUATED' })]);
       await page.goto(`/students/${s.id}`, { waitUntil: 'load' });
@@ -424,10 +427,13 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
       await checkbox.click();
       page.once('dialog', (dialog) => void dialog.accept());
       await bar.getByRole('button', { name: 'Graduate selected (1)' }).click();
-      await expect(bar.getByRole('status')).toHaveText('Graduated 1 enrollment.', {
-        timeout: 30_000,
-      });
-
+      // The bar (and its "Graduated 1 enrollment." note) unmounts when the refreshed list has
+      // no eligible row left (defects.md M1-P9); check the stored result, then the list.
+      await expect
+        .poll(async () => (await enrollmentsOf(request, admin, s.id)).map((r) => r.status), {
+          timeout: 30_000,
+        })
+        .toEqual(['GRADUATED']);
       const rows = await enrollmentsOf(request, admin, s.id);
       expect(rows).toEqual([expect.objectContaining({ id: enrollmentId, status: 'GRADUATED' })]);
       await page.goto(`/students?search=${s.firstName}`, { waitUntil: 'load' });

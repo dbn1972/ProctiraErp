@@ -16,7 +16,7 @@
  * Strings never look like real people: they start with `St` / `ST` and carry the tag.
  */
 import ExcelJS from 'exceljs';
-import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 import { IMPORT_TEMPLATE_HEADERS } from '../../src/app/(dashboard)/students/import/template/columns';
 import {
@@ -44,7 +44,6 @@ export {
   type Persona,
   type Row,
 } from './hostel-screens';
-export { waitForReact } from './health-screens';
 
 /** Seeded by tools/e2e/seed-e2e-tenants.sql (tenant A). */
 export const DEMO_SCHOOL = { id: 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', name: 'E2E Demo School' };
@@ -439,6 +438,21 @@ export async function buildImportWorkbook(rows: ImportRow[]): Promise<Buffer> {
     sheet.addRow(IMPORT_TEMPLATE_HEADERS.map((key) => row[key as keyof ImportRow] ?? ''));
   }
   return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+/**
+ * Wait until React has attached its props to `locator` (hydrated), so a click reaches the
+ * client handler. Same probe as fixtures/health-screens.ts, with a longer wait: `next dev`
+ * can take over 20 s to hydrate a freshly compiled route on a loaded runner.
+ */
+export async function waitForReact(locator: Locator): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        locator.evaluate((el) => Object.keys(el).some((key) => key.startsWith('__reactProps$'))),
+      { message: 'React props attached', timeout: 45_000 },
+    )
+    .toBe(true);
 }
 
 /** Pick `name` in the Radix select whose trigger has id `triggerId`. */
