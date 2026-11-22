@@ -17,6 +17,33 @@ describe('mapKeycloakRoles', () => {
   it('returns an empty list when Keycloak sent no school roles', () => {
     expect(mapKeycloakRoles(['offline_access', 'uma_authorization'])).toEqual([]);
   });
+
+  it('keeps every role in the supplied catalogue and drops the rest (UATENV-D07)', () => {
+    const roleCatalog = [
+      { roleId: 'admin', roleName: 'Administrator' },
+      { roleId: 'warden', roleName: 'Warden' },
+      { roleId: 'transport_officer', roleName: 'Transport Officer' },
+      { roleId: 'student', roleName: 'Student' },
+    ];
+    const roles = mapKeycloakRoles(
+      ['Warden', 'transport_officer', 'student', 'admin', 'offline_access', 'default-roles-x'],
+      { roleCatalog },
+    );
+    expect(roles).toEqual([
+      { roleId: 'warden', roleName: 'Warden', areaId: 'ROOT' },
+      { roleId: 'transport_officer', roleName: 'Transport Officer', areaId: 'ROOT' },
+      { roleId: 'student', roleName: 'Student', areaId: 'ROOT' },
+      { roleId: 'admin', roleName: 'Administrator', areaId: 'ROOT' },
+    ]);
+  });
+
+  it('grants nothing outside the supplied catalogue, even a built-in role (UATENV-D07)', () => {
+    expect(
+      mapKeycloakRoles(['super-admin', 'teacher'], {
+        roleCatalog: [{ roleId: 'teacher', roleName: 'Teacher' }],
+      }).map((role) => role.roleId),
+    ).toEqual(['teacher']);
+  });
 });
 
 describe('extractKeycloakRoleNames', () => {

@@ -40,7 +40,6 @@ import {
   InviteService,
   createPasswordThrottleState,
   keycloakAuthPlugin,
-  loadKeycloakAuthConfig,
   OtpService,
   PasswordLoginThrottle,
   rbacPlugin,
@@ -107,6 +106,7 @@ import {
   type InstitutionScopeUser,
 } from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
+import { loadGatewayKeycloakConfig } from './keycloak-config.js';
 import { redactedRequestSerializer } from './log-redaction.js';
 import { PARKED_GATEWAY_PREFIXES } from './mount-matrix.js';
 import {
@@ -519,7 +519,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 7. Authentication: Keycloak RS256 is the platform IdP (ADR-001).
   // When KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set, verify Keycloak JWKS tokens.
   // Omitting them keeps local HS-JWT as a CI/headless fallback only — not an alternate product IdP.
-  const keycloak = loadKeycloakAuthConfig();
+  // UATENV-D07: carries the gateway RBAC role catalogue for Keycloak role mapping.
+  const keycloak = loadGatewayKeycloakConfig();
   // PRC-M011: no silent HS fallback / localhost IdP redirects in deployed envs.
   assertAuthBootPolicy({ configEnv: config.env, keycloakConfigured: Boolean(keycloak) });
   // G-713: the only anonymous surface is health probes, docs (non-prod), and the
