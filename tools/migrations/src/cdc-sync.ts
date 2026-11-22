@@ -1,20 +1,27 @@
 /**
  * Change Data Capture (CDC) Service for Incremental Sync.
  *
- * Implements Kafka-based CDC to keep the legacy MySQL and new PostgreSQL
- * systems in sync during the parallel operation transition period.
+ * Keeps the new PostgreSQL system in step with the legacy source during the parallel
+ * operation transition period.
  *
  * Satisfies Requirement 24.4: Support incremental migration allowing parallel
  * operation of legacy and new systems during transition.
  *
- * Architecture:
- * - Polls MySQL binlog-like changes via timestamp-based tracking
- * - Publishes change events to Kafka topics
- * - Consumes events and applies them to PostgreSQL
- * - Supports bidirectional sync with conflict resolution
- * - Tracks sync position per table for resumability
+ * What is implemented (PRC-M552):
+ * - timestamp + legacy-id keyset polling of the source tables;
+ * - INSERT vs UPDATE decided from migration_uuid_map (not "always UPDATE");
+ * - publish of every captured event to Kafka (kafkajs, idempotent producer, acks=all)
+ *   when brokers are configured, before the events are applied;
+ * - apply to PostgreSQL with per-event SAVEPOINTs; inserts get a mapped UUID, the
+ *   migration tenant_id and remapped legacy foreign keys;
+ * - sync position persisted only after a clean batch.
+ * Not implemented: the reverse direction (PostgreSQL -> legacy) and a Kafka consumer
+ * service; the one-shot runner applies the events it captured directly.
  */
 
+import { randomUUID } from 'node:crypto';
+
+import { Kafka, type Producer } from 'kafkajs';
 import type { PoolClient } from 'pg';
 import { Pool } from 'pg';
 
@@ -103,6 +110,8 @@ export class CDCProducer {
   private syncPositions: Map<string, SyncPosition> = new Map();
   private running = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** PRC-M552: target pool holding migration_uuid_map (set by initialize()). */
+  private mappingPool: Pool | null = null;
 
   constructor(cdcConfig: CDCSyncConfig, migrationConfig: MigrationConfig) {
     this.config = { ...DEFAULT_CDC_CONFIG, ...cdcConfig } as CDCSyncConfig;
@@ -113,6 +122,7 @@ export class CDCProducer {
    * Initializes sync positions from the tracking table.
    */
   async initialize(pgPool: Pool): Promise<void> {
+    this.mappingPool = pgPool;
     const client = await pgPool.connect();
     try {
       // Create sync tracking table if not exists
@@ -220,7 +230,7 @@ export class CDCProducer {
         const legacyId = Number(row[mapping.legacyPkColumn]);
 
         // Determine if this is an INSERT or UPDATE by checking target
-        const operation: CDCOperation = await this.determineOperation(client, mapping, legacyId);
+        const operation: CDCOperation = await this.determineOperation(mapping, legacyId);
 
         const event: CDCEvent = {
           id: `cdc_${mapping.sourceTable}_${legacyId}_${sequence}`,
@@ -256,14 +266,18 @@ export class CDCProducer {
    * Determines whether a change is an INSERT or UPDATE by checking
    * if the record already exists in the target system.
    */
-  private async determineOperation(
-    _client: PoolClient,
-    _mapping: TableMapping,
-    _legacyId: number,
-  ): Promise<CDCOperation> {
-    // In a real implementation, this would check the UUID mapping table
-    // For now, we treat all captured changes as UPSERTs
-    return 'UPDATE';
+  private async determineOperation(mapping: TableMapping, legacyId: number): Promise<CDCOperation> {
+    // PRC-M552: a legacy row that already has a UUID mapping exists in the target.
+    if (!this.mappingPool) {
+      throw new Error('CDCProducer.initialize() must run before captureChanges()');
+    }
+    const result = await this.mappingPool.query<{ found: number }>(
+      `SELECT 1 AS found FROM ${MIGRATION_UUID_MAP_TABLE}
+       WHERE legacy_table = $1 AND legacy_id = $2
+       LIMIT 1`,
+      [mapping.sourceTable, legacyId],
+    );
+    return result.rows.length > 0 ? 'UPDATE' : 'INSERT';
   }
 
   /**
@@ -461,14 +475,67 @@ export class CDCConsumer {
 
   /**
    * Applies an INSERT event to the target database.
+   *
+   * PRC-M552: the row gets the UUID from migration_uuid_map (created if absent), the
+   * migration tenant as tenant_id when the target has that column, and every mapped
+   * legacy foreign key remapped to its UUID. An unmapped foreign key fails the event
+   * (its SAVEPOINT rolls back and the sync position is not advanced).
    */
   private async applyInsert(
     client: PoolClient,
     event: CDCEvent,
     schema: string,
   ): Promise<CDCEventResult> {
-    const columns = Object.keys(event.data);
-    const values = Object.values(event.data);
+    const mapped = await client.query<{ new_uuid: string }>(
+      `INSERT INTO ${MIGRATION_UUID_MAP_TABLE} (legacy_table, legacy_id, new_uuid)
+       VALUES ($1, $2, $3::uuid)
+       ON CONFLICT (legacy_table, legacy_id) DO UPDATE SET legacy_table = EXCLUDED.legacy_table
+       RETURNING new_uuid`,
+      [event.sourceTable, event.legacyId, randomUUID()],
+    );
+    const newId = mapped.rows[0]?.new_uuid;
+    if (!newId) {
+      throw new Error(
+        `No UUID mapping could be created for ${event.sourceTable}#${event.legacyId}`,
+      );
+    }
+    event.newId = newId;
+
+    const data: Record<string, unknown> = { ...event.data, id: newId };
+    const tableMapping = TABLE_MAPPINGS.find(
+      (m) => m.sourceTable === event.sourceTable && m.targetTable === event.targetTable,
+    );
+    for (const fk of tableMapping?.foreignKeys ?? []) {
+      const raw = data[fk.column];
+      if (raw === null || raw === undefined || raw === '') continue;
+      if (!/^[0-9]+$/.test(String(raw))) continue; // already a UUID
+      const ref = await client.query<{ new_uuid: string }>(
+        `SELECT new_uuid FROM ${MIGRATION_UUID_MAP_TABLE}
+         WHERE legacy_table = $1 AND legacy_id = $2`,
+        [fk.referencesTable, Number(raw)],
+      );
+      if (ref.rows.length === 0) {
+        throw new Error(
+          `Unmapped foreign key ${event.targetTable}.${fk.column}=${String(raw)} (${fk.referencesTable})`,
+        );
+      }
+      data[fk.column] = ref.rows[0]!.new_uuid;
+    }
+
+    const tenantColumn = await client.query<{ found: number }>(
+      `SELECT 1 AS found FROM information_schema.columns
+       WHERE table_schema = $1 AND table_name = $2 AND column_name = 'tenant_id'`,
+      [schema, event.targetTable],
+    );
+    if (tenantColumn.rows.length > 0) {
+      if (!UUID_RE.test(event.tenantId)) {
+        throw new Error(`CDC tenantId must be a UUID to insert into ${event.targetTable}`);
+      }
+      data.tenant_id = event.tenantId;
+    }
+
+    const columns = Object.keys(data);
+    const values = Object.values(data);
     const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
     const columnList = columns.map((c) => `"${c}"`).join(', ');
 
@@ -607,6 +674,56 @@ export class CDCConsumer {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * PRC-M552: publishes captured CDC events to Kafka. One topic per tenant + source
+ * table (`buildCDCTopic`); the message key is `<sourceTable>:<legacyId>` so all
+ * changes of one row stay ordered in one partition.
+ */
+export interface CDCEventPublisher {
+  publish(topic: string, events: CDCEvent[]): Promise<void>;
+  disconnect(): Promise<void>;
+}
+
+export interface KafkaCdcPublisherDeps {
+  /** Test seam: anything with kafkajs' `producer()` factory. */
+  kafka?: { producer(config: { idempotent: boolean; maxInFlightRequests: number }): Producer };
+}
+
+export function createKafkaCdcPublisher(
+  config: Pick<CDCSyncConfig, 'kafkaBrokers' | 'kafkaClientId'>,
+  deps: KafkaCdcPublisherDeps = {},
+): CDCEventPublisher {
+  if (!deps.kafka && config.kafkaBrokers.length === 0) {
+    throw new Error('Kafka CDC publisher needs at least one broker');
+  }
+  const kafka =
+    deps.kafka ?? new Kafka({ clientId: config.kafkaClientId, brokers: config.kafkaBrokers });
+  // Idempotent producer: retries cannot duplicate or reorder messages.
+  const producer = kafka.producer({ idempotent: true, maxInFlightRequests: 1 });
+  let connected: Promise<void> | null = null;
+  return {
+    async publish(topic, events) {
+      if (events.length === 0) return;
+      connected ??= producer.connect();
+      await connected;
+      await producer.send({
+        topic,
+        acks: -1,
+        messages: events.map((e) => ({
+          key: `${e.sourceTable}:${e.legacyId}`,
+          value: serializeCDCEvent(e),
+          headers: { 'cdc-operation': e.operation, 'tenant-id': e.tenantId },
+        })),
+      });
+    },
+    async disconnect() {
+      if (connected) await producer.disconnect();
+    },
+  };
+}
+
 /** Result of processing a single CDC event. */
 export interface CDCEventResult {
   eventId: string;
@@ -637,12 +754,14 @@ export interface TableSyncOutcome {
  * in-memory position is restored so the failed changes are re-captured.
  */
 export async function syncTableCycle(
-  producer: Pick<CDCProducer, 'captureChanges' | 'commitPosition'>,
+  producer: Pick<CDCProducer, 'captureChanges' | 'commitPosition'> &
+    Partial<Pick<CDCProducer, 'buildTopicName'>>,
   consumer: Pick<CDCConsumer, 'processBatch'>,
   pgPool: Pool,
   stagingPool: Pool,
   mapping: TableMapping,
   position: SyncPosition,
+  publisher?: CDCEventPublisher,
 ): Promise<TableSyncOutcome> {
   const snapshot = { ...position };
   const restore = (): void => {
@@ -656,6 +775,14 @@ export async function syncTableCycle(
     const events = await producer.captureChanges(stagingPool, mapping);
     captured = events.length;
     if (events.length === 0) return { captured, applied };
+
+    // PRC-M552: publish before apply; a failed publish does not advance the position.
+    if (publisher) {
+      const topic = producer.buildTopicName
+        ? producer.buildTopicName(mapping.sourceTable)
+        : buildCDCTopic(DEFAULT_CDC_CONFIG.topicPrefix!, events[0]!.tenantId, mapping.sourceTable);
+      await publisher.publish(topic, events);
+    }
 
     const batchResult = await consumer.processBatch(pgPool, events);
     applied = batchResult.applied;
@@ -713,6 +840,15 @@ export async function runIncrementalSync(
     password: config.pg.password,
   });
 
+  const publisher =
+    cdcConfig.kafkaBrokers.length > 0 ? createKafkaCdcPublisher(cdcConfig) : undefined;
+  if (!publisher) {
+    warnings.push({
+      table: 'all',
+      message: 'No Kafka brokers configured: CDC events are applied without being published',
+    });
+  }
+
   try {
     const producer = new CDCProducer(cdcConfig, config);
     const consumer = new CDCConsumer(cdcConfig, config);
@@ -736,6 +872,7 @@ export async function runIncrementalSync(
         stagingPool,
         mapping,
         position,
+        publisher,
       );
       totalCaptured += outcome.captured;
       totalApplied += outcome.applied;
@@ -753,7 +890,7 @@ export async function runIncrementalSync(
     return {
       step: 'incremental_sync',
       // Any failed event or table is an error: the run must exit non-zero.
-      status: errors.length > 0 ? 'error' : 'success',
+      status: errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'success',
       tablesProcessed,
       rowsProcessed: totalApplied,
       errors,
@@ -774,6 +911,7 @@ export async function runIncrementalSync(
       durationMs: Date.now() - startTime,
     };
   } finally {
+    await publisher?.disconnect().catch(() => undefined);
     await pgPool.end();
     await stagingPool.end();
   }
