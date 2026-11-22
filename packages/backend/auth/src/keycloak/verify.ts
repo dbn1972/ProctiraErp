@@ -2,7 +2,11 @@ import { createPublicKey, createVerify, type KeyObject } from 'node:crypto';
 
 import type { JwtPayload } from '@proctira/auth';
 
-import { extractKeycloakRoleNames, mapKeycloakRoles } from './roles.js';
+import {
+  extractKeycloakRoleNames,
+  mapKeycloakRoles,
+  type KeycloakRoleCatalogEntry,
+} from './roles.js';
 
 export type KeycloakAuthConfig = {
   issuer: string;
@@ -10,6 +14,11 @@ export type KeycloakAuthConfig = {
   clientId: string;
   jwksUri: string;
   realm: string;
+  /**
+   * Platform roles a Keycloak role may map onto (UATENV-D07). The gateway passes
+   * its RBAC registry roles; omitted, only the six realm roles are kept.
+   */
+  roleCatalog?: readonly KeycloakRoleCatalogEntry[];
 };
 
 type Jwk = {
@@ -252,7 +261,10 @@ export async function verifyKeycloakAccessToken(
     tenantId,
     email: claims.email ?? claims.preferred_username ?? '',
     displayName,
-    roles: mapKeycloakRoles(roleNames),
+    roles: mapKeycloakRoles(
+      roleNames,
+      config.roleCatalog ? { roleCatalog: config.roleCatalog } : {},
+    ),
     areas: tenantId ? [{ areaId: 'ROOT', level: 0 }] : [],
     institutions: [],
     iat: claims.iat ?? nowSeconds,
