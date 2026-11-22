@@ -298,8 +298,10 @@ describe('path safety (PRC-L580)', () => {
   });
 });
 describe('NginxCdnAdapter.invalidate path safety (PRC-L580)', () => {
+  // PRC-L489: the adapter now sends real PURGE requests; answer them locally.
   const adapter = new NginxCdnAdapter(
     createConfig({ adapter: 'nginx', baseUrl: 'https://cdn.example.org/' }),
+    { fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch },
   );
   it('rejects a traversal purge path', async () => {
     const result = await adapter.invalidate({ paths: ['/uploads/../../etc/passwd'] });
