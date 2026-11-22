@@ -48,6 +48,8 @@ export const REPORT_SCHEDULE_TICK_BATCH = 50;
 /** Minimal structured logger for swallowed scheduler failures (PRC-M346). */
 export interface ReportSchedulerLogger {
   error(message: string, context: Record<string, unknown>): void;
+  /** PRC-M338: recipients a schedule could not reach (no live delivery channel). */
+  info?(message: string, context: Record<string, unknown>): void;
 }
 
 /** W2-RPT-01: hard cap — refuse unbounded synchronous generation. */
@@ -351,7 +353,13 @@ export class CatalogueService {
   async tickDueSchedules(
     now = new Date(),
     tenantId?: string,
-  ): Promise<{ due: number; completed: number; failed: number; delivered: number }> {
+  ): Promise<{
+    due: number;
+    completed: number;
+    failed: number;
+    delivered: number;
+    undelivered: number;
+  }> {
     // W2-JOB-08: claim (lease) before work so concurrent replicas do not double-run.
     // PRC-M346: bound the batch so the sequential run finishes inside the lease.
     const due = await this.store.claimDueSchedules(
@@ -363,6 +371,7 @@ export class CatalogueService {
     let completed = 0;
     let failed = 0;
     let delivered = 0;
+    let undelivered = 0;
     for (const schedule of due) {
       try {
         const result = await this.generate(
@@ -376,7 +385,9 @@ export class CatalogueService {
         );
         // W2-JOB-09: deliver download link to configured recipients.
         if (schedule.recipients.length > 0) {
-          await this.delivery.deliver({
+          // PRC-M338: count only deliveries a live channel accepted. An in-memory,
+          // no-op or sandbox port reports `not_delivered` and is logged, never counted.
+          const outcome = await this.delivery.deliver({
             tenantId: schedule.tenantId,
             scheduleId: schedule.id,
             reportKey: schedule.reportKey,
@@ -385,7 +396,18 @@ export class CatalogueService {
             artifactId: result.artifact.id,
             runId: result.run.id,
           });
-          delivered += 1;
+          if (outcome && outcome.status === 'delivered') {
+            delivered += 1;
+          } else {
+            undelivered += 1;
+            this.logger?.info?.('report schedule recipients not delivered', {
+              scheduleId: schedule.id,
+              tenantId: schedule.tenantId,
+              reportKey: schedule.reportKey,
+              recipients: schedule.recipients.length,
+              reason: outcome?.reason ?? 'delivery port reported no outcome',
+            });
+          }
         }
         await this.store.updateSchedule(schedule.tenantId, schedule.id, {
           lastRunAt: now,
@@ -409,7 +431,7 @@ export class CatalogueService {
         });
       }
     }
-    return { due: due.length, completed, failed, delivered };
+    return { due: due.length, completed, failed, delivered, undelivered };
   }
 
   toInsightsRun(result: GenerateResult, requestedBy: string) {
