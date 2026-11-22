@@ -93,7 +93,7 @@ export function ListLoadFailure({
       {/* `!== undefined`, not truthiness: 0 is the documented status for a network
           failure and must still be quotable. */}
       {status !== undefined ? (
-        <p className="text-xs text-muted-foreground/70">Reference: HTTP {status}</p>
+        <p className="text-xs text-muted-foreground">Reference: HTTP {status}</p>
       ) : null}
     </div>
   );

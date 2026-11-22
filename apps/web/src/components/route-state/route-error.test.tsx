@@ -22,4 +22,14 @@ describe('RouteErrorPanel', () => {
     expect(screen.queryByTestId('route-error-digest')).not.toBeInTheDocument();
     expect(screen.queryByText('boom')).not.toBeInTheDocument();
   });
+
+  it('renders the reference line without an opacity modifier (UATENV-D14, WCAG 1.4.3)', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = Object.assign(new Error('boom'), { digest: 'abc123' });
+    render(<RouteErrorPanel error={error} reset={() => {}} />);
+    // text-muted-foreground/70 measured 2.75:1 on the page background (needs 4.5:1).
+    const className = screen.getByTestId('route-error-digest').className;
+    expect(className).toContain('text-muted-foreground');
+    expect(className).not.toMatch(/text-muted-foreground\/\d+/);
+  });
 });
