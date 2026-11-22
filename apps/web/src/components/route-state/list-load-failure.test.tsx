@@ -68,6 +68,14 @@ describe('ListLoadFailure', () => {
     expect(screen.getByText(/HTTP 0/)).toBeInTheDocument();
   });
 
+  it('renders the reference line without an opacity modifier (UATENV-D14, WCAG 1.4.3)', () => {
+    // text-muted-foreground/70 measured 2.81:1 on the page background (needs 4.5:1).
+    render(<ListLoadFailure kind="denied" status={403} />);
+    const className = screen.getByText(/Reference: HTTP 403/).className;
+    expect(className).toContain('text-muted-foreground');
+    expect(className).not.toMatch(/text-muted-foreground\/\d+/);
+  });
+
   it('uses a polite live region, not an assertive one', () => {
     // This renders during ordinary page load; role="alert" would interrupt a
     // screen-reader user mid-navigation.
