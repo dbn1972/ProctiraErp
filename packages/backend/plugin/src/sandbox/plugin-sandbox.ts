@@ -1,50 +1,85 @@
 /**
  * Plugin Sandbox Runtime
  *
- * Provides isolated execution for plugin code using Node.js Worker threads.
- * Key security features:
- * - Crash containment: plugin failure cannot crash the host service
- * - Resource quotas: memory, CPU time, network access limits
- * - Tenant isolation: all data access scoped to declaring tenant
- * - No filesystem access, unrestricted network, or secret access
- * - Full audit visibility for all plugin actions
+ * PRC-M602: plugin code runs in a separate, short-lived Node.js child process, not in a
+ * worker thread of the host process. A `vm` escape inside a worker reached the host
+ * process's realm (same process, same fs/net/child_process access). The child is started
+ * with:
+ *   - `--experimental-permission --allow-fs-read=<sandbox-child.mjs>`: no fs reads beyond
+ *     its own entry file, no fs writes, no child processes, no workers, no native bindings;
+ *   - `--disallow-code-generation-from-strings`: `Function('…')` / `eval` throw EvalError
+ *     in every realm of the child, so the host-`Function` constructor escape is closed;
+ *   - `--max-old-space-size=<quota>` and an empty environment (no secrets);
+ *   - a wall-clock kill (SIGKILL) enforced from this process.
+ * Inside the child the plugin runs in a `vm` context with code generation disabled and no
+ * `require`, `process` or `import`. Network access only goes through an IPC bridge to this
+ * process, which applies the egress policy (allow-list + shared SSRF guard).
+ *
+ * Residual (documented, PARTIAL): Node 20's permission model has no network flag, so code
+ * that escaped the vm realm into the child's main realm could still open sockets. Full
+ * isolation needs isolated-vm or an OS/container sandbox.
  */
-import { Worker } from 'node:worker_threads';
+import { fork, type ChildProcess } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+
+import { safeFetch } from '@proctira/common/safe-fetch';
 import { v4 as uuidv4 } from 'uuid';
 
+import { assertEgressAllowed, assertSafeAllowedHosts } from './egress-policy.js';
 import type {
   ResourceQuota,
   SandboxExecutionContext,
   SandboxExecutionResult,
   SandboxOptions,
   SandboxAuditRecord,
-  SandboxWorkerMessage,
-  SandboxWorkerResponse,
 } from './types.js';
 import { DEFAULT_RESOURCE_QUOTA } from './types.js';
 
+/** Messages exchanged with sandbox-child.mjs over IPC. */
+type ChildMessage =
+  | { type: 'ready' }
+  | { type: 'fetch'; id: number; request: string }
+  | {
+      type: 'result';
+      ok: boolean;
+      resultJson?: string;
+      error?: string;
+      timeout?: boolean;
+      durationMs: number;
+      peakMemoryBytes: number;
+    };
+
+const MIN_HEAP_MB = 16;
+/** Responses larger than this are refused by the bridge (bytes). */
+const MAX_BRIDGE_RESPONSE_BYTES = 1024 * 1024;
+const BRIDGE_TIMEOUT_MS = 10_000;
+
+/** Absolute, symlink-resolved path of the child entry (the only file it may read). */
+export function resolveSandboxChildEntry(): string {
+  return realpathSync(fileURLToPath(new URL('./sandbox-child.mjs', import.meta.url)));
+}
+
 /**
- * Resolves the path to the sandbox worker script.
+ * Node flags the sandbox child is started with. Exported so the defence-in-depth test can
+ * start a probe script under exactly the same restrictions.
  */
-function getWorkerPath(): string {
-  // In a bundled/compiled environment, this resolves to the worker file
-  // relative to this module
-  try {
-    const currentDir = dirname(fileURLToPath(import.meta.url));
-    return join(currentDir, 'sandbox-worker.ts');
-  } catch {
-    // Fallback for CommonJS or test environments
-    return join(__dirname, 'sandbox-worker.ts');
-  }
+export function buildSandboxExecArgv(entry: string, maxMemoryBytes: number): string[] {
+  const heapMb = Math.max(MIN_HEAP_MB, Math.ceil(maxMemoryBytes / (1024 * 1024)));
+  return [
+    '--experimental-permission',
+    `--allow-fs-read=${entry}`,
+    '--disallow-code-generation-from-strings',
+    `--max-old-space-size=${heapMb}`,
+    '--no-warnings',
+  ];
 }
 
 /**
  * Plugin Sandbox - manages isolated execution of plugin code.
  *
- * Each execution spawns a Worker thread with restricted capabilities.
- * The worker is terminated after execution or on timeout/crash.
+ * Each execution forks one restricted child process; it is killed after the result, on
+ * timeout or on crash.
  */
 export class PluginSandbox {
   private readonly quota: ResourceQuota;
@@ -60,6 +95,8 @@ export class PluginSandbox {
     if (options.enableNetwork === false) {
       this.quota.allowedNetworkHosts = [];
     }
+    // Fail closed on a wildcard / blank allow-list entry (same rule as InProcessSandbox).
+    assertSafeAllowedHosts(this.quota.allowedNetworkHosts);
 
     this.onAudit = options.onAudit;
   }
@@ -69,7 +106,7 @@ export class PluginSandbox {
    *
    * @param code - The plugin code as a string (module source)
    * @param handler - The exported function name to invoke
-   * @param args - Arguments to pass to the handler
+   * @param args - Arguments to pass to the handler (JSON-serialisable)
    * @param context - Execution context with tenant scoping
    * @returns Execution result with metrics
    */
@@ -127,227 +164,282 @@ export class PluginSandbox {
       };
     }
 
-    return this.executeInWorker<T>(code, handler, args, context);
+    let argsJson: string;
+    let contextJson: string;
+    try {
+      argsJson = JSON.stringify(args ?? []);
+      contextJson = JSON.stringify({
+        tenantId: context.tenantId,
+        pluginId: context.pluginId,
+        installId: context.installId,
+        permissions: [...context.grantedPermissions],
+        configuration: context.configuration ?? {},
+        correlationId: context.correlationId,
+      });
+    } catch (err) {
+      const message = `Sandbox arguments must be JSON-serialisable: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
+      await this.emitAudit(this.createAuditRecord(context, handler, 'error', 0, 0, 0, message));
+      return {
+        success: false,
+        error: { message, code: 'EXECUTION_ERROR' },
+        metrics: { durationMs: 0, peakMemoryBytes: 0, networkRequestCount: 0 },
+      };
+    }
+
+    return this.executeInChild<T>(code, handler, argsJson, contextJson, context);
   }
 
   /**
-   * Execute code in a Worker thread with crash containment.
+   * Execute code in a restricted child process with crash containment.
    */
-  private async executeInWorker<T>(
+  private async executeInChild<T>(
     code: string,
     handler: string,
-    args: unknown[],
+    argsJson: string,
+    contextJson: string,
     context: SandboxExecutionContext,
   ): Promise<SandboxExecutionResult<T>> {
-    return new Promise<SandboxExecutionResult<T>>((resolve) => {
-      let worker: Worker | null = null;
-      let wallTimeTimer: ReturnType<typeof setTimeout> | null = null;
-      let resolved = false;
+    const startedAt = Date.now();
+    let networkRequestCount = 0;
 
-      const cleanup = () => {
-        if (wallTimeTimer) {
-          clearTimeout(wallTimeTimer);
-          wallTimeTimer = null;
-        }
-        if (worker) {
-          try {
-            worker.terminate();
-          } catch {
-            // Worker may already be terminated
-          }
-          worker = null;
-        }
-      };
+    const outcome = await new Promise<{
+      result: SandboxExecutionResult<T>;
+      audit: SandboxAuditRecord['outcome'];
+    }>((resolve) => {
+      let child: ChildProcess | null = null;
+      let settled = false;
+      let stderrTail = '';
+      let wallTimer: ReturnType<typeof setTimeout> | null = null;
 
-      const resolveOnce = (result: SandboxExecutionResult<T>) => {
-        if (!resolved) {
-          resolved = true;
-          cleanup();
-          resolve(result);
+      const failure = (
+        code: NonNullable<SandboxExecutionResult['error']>['code'],
+        message: string,
+        audit: SandboxAuditRecord['outcome'],
+        extra: Partial<SandboxExecutionResult['metrics']> = {},
+      ) => ({
+        result: {
+          success: false,
+          error: { message, code },
+          metrics: {
+            durationMs: extra.durationMs ?? Date.now() - startedAt,
+            peakMemoryBytes: extra.peakMemoryBytes ?? 0,
+            networkRequestCount,
+          },
+        } as SandboxExecutionResult<T>,
+        audit,
+      });
+
+      const settle = (value: {
+        result: SandboxExecutionResult<T>;
+        audit: SandboxAuditRecord['outcome'];
+      }) => {
+        if (settled) return;
+        settled = true;
+        if (wallTimer) clearTimeout(wallTimer);
+        if (child && child.exitCode === null && child.signalCode === null) {
+          child.kill('SIGKILL');
         }
+        resolve(value);
       };
 
       try {
-        const workerPath = getWorkerPath();
-
-        worker = new Worker(workerPath, {
-          // Limit worker resources
-          resourceLimits: {
-            maxOldGenerationSizeMb: Math.ceil(this.quota.maxMemoryBytes / (1024 * 1024)),
-            maxYoungGenerationSizeMb: Math.ceil(this.quota.maxMemoryBytes / (4 * 1024 * 1024)),
-            stackSizeMb: 4,
-          },
-          // Restrict environment variables (no secrets leak)
-          env: {
-            NODE_ENV: 'sandbox',
-            TZ: 'UTC',
-          },
-          execArgv: ['--loader', 'ts-node/esm', '--no-warnings'],
+        const entry = resolveSandboxChildEntry();
+        child = fork(entry, [], {
+          execArgv: buildSandboxExecArgv(entry, this.quota.maxMemoryBytes),
+          // Empty environment: no secrets, no NODE_OPTIONS inherited from the host.
+          env: {},
+          stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+          serialization: 'json',
         });
-
-        // Wall-time timeout (hard kill)
-        wallTimeTimer = setTimeout(() => {
-          const auditRecord = this.createAuditRecord(
-            context,
-            handler,
-            'timeout',
-            this.quota.maxWallTimeMs,
-            0,
-            0,
-            `Execution exceeded wall-time limit (${this.quota.maxWallTimeMs}ms)`,
-          );
-          this.emitAudit(auditRecord);
-
-          resolveOnce({
-            success: false,
-            error: {
-              message: `Plugin execution timed out after ${this.quota.maxWallTimeMs}ms`,
-              code: 'TIMEOUT',
-            },
-            metrics: {
-              durationMs: this.quota.maxWallTimeMs,
-              peakMemoryBytes: 0,
-              networkRequestCount: 0,
-            },
-          });
-        }, this.quota.maxWallTimeMs + 1000); // Extra 1s for cleanup
-
-        // Handle worker messages (execution results)
-        worker.on('message', async (response: SandboxWorkerResponse) => {
-          const outcome =
-            response.type === 'success'
-              ? 'success'
-              : response.type === 'timeout'
-                ? 'timeout'
-                : response.type === 'oom'
-                  ? 'oom'
-                  : 'error';
-
-          const auditRecord = this.createAuditRecord(
-            context,
-            handler,
-            outcome,
-            response.durationMs,
-            response.peakMemoryBytes,
-            response.networkRequestCount,
-            response.error,
-          );
-          await this.emitAudit(auditRecord);
-
-          if (response.type === 'success') {
-            resolveOnce({
-              success: true,
-              result: response.result as T,
-              metrics: {
-                durationMs: response.durationMs,
-                peakMemoryBytes: response.peakMemoryBytes,
-                networkRequestCount: response.networkRequestCount,
-              },
-            });
-          } else {
-            resolveOnce({
-              success: false,
-              error: {
-                message: response.error ?? 'Unknown execution error',
-                code:
-                  response.type === 'timeout'
-                    ? 'TIMEOUT'
-                    : response.type === 'oom'
-                      ? 'OOM'
-                      : 'EXECUTION_ERROR',
-                stack: response.stack,
-              },
-              metrics: {
-                durationMs: response.durationMs,
-                peakMemoryBytes: response.peakMemoryBytes,
-                networkRequestCount: response.networkRequestCount,
-              },
-            });
-          }
-        });
-
-        // Handle worker errors (crashes)
-        worker.on('error', async (err: Error) => {
-          const auditRecord = this.createAuditRecord(
-            context,
-            handler,
+      } catch (err) {
+        settle(
+          failure(
+            'CRASH',
+            `Failed to create sandbox: ${err instanceof Error ? err.message : String(err)}`,
             'error',
-            0,
-            0,
-            0,
-            err.message,
-          );
-          await this.emitAudit(auditRecord);
-
-          resolveOnce({
-            success: false,
-            error: {
-              message: `Plugin crashed: ${err.message}`,
-              code: 'CRASH',
-              stack: err.stack,
-            },
-            metrics: { durationMs: 0, peakMemoryBytes: 0, networkRequestCount: 0 },
-          });
-        });
-
-        // Handle worker exit (unexpected termination)
-        worker.on('exit', (exitCode: number) => {
-          if (exitCode !== 0 && !resolved) {
-            const auditRecord = this.createAuditRecord(
-              context,
-              handler,
-              'error',
-              0,
-              0,
-              0,
-              `Worker exited with code ${exitCode}`,
-            );
-            this.emitAudit(auditRecord);
-
-            resolveOnce({
-              success: false,
-              error: {
-                message: `Plugin worker exited unexpectedly (code: ${exitCode})`,
-                code: 'CRASH',
-              },
-              metrics: { durationMs: 0, peakMemoryBytes: 0, networkRequestCount: 0 },
-            });
-          }
-        });
-
-        // Send execution message to worker
-        const message: SandboxWorkerMessage = {
-          type: 'execute',
-          code,
-          handler,
-          args,
-          context,
-          quota: this.quota,
-        };
-
-        worker.postMessage(message);
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        const auditRecord = this.createAuditRecord(
-          context,
-          handler,
-          'error',
-          0,
-          0,
-          0,
-          errorMessage,
+          ),
         );
-        this.emitAudit(auditRecord);
-
-        resolveOnce({
-          success: false,
-          error: {
-            message: `Failed to create sandbox: ${errorMessage}`,
-            code: 'CRASH',
-          },
-          metrics: { durationMs: 0, peakMemoryBytes: 0, networkRequestCount: 0 },
-        });
+        return;
       }
+
+      const proc = child;
+      proc.stdout?.resume();
+      proc.stderr?.on('data', (chunk: Buffer) => {
+        stderrTail = (stderrTail + chunk.toString('utf8')).slice(-4096);
+      });
+
+      wallTimer = setTimeout(() => {
+        settle(
+          failure(
+            'TIMEOUT',
+            `Plugin execution timed out after ${this.quota.maxWallTimeMs}ms`,
+            'timeout',
+            { durationMs: this.quota.maxWallTimeMs },
+          ),
+        );
+      }, this.quota.maxWallTimeMs);
+
+      proc.on('message', (raw: unknown) => {
+        const message = raw as ChildMessage;
+        if (!message || typeof message !== 'object') return;
+        if (message.type === 'ready') {
+          proc.send({
+            type: 'execute',
+            code,
+            handler,
+            argsJson,
+            contextJson,
+            maxCpuTimeMs: this.quota.maxCpuTimeMs,
+            maxTimerMs: this.quota.maxWallTimeMs,
+          });
+          return;
+        }
+        if (message.type === 'fetch') {
+          networkRequestCount += 1;
+          void this.bridgeFetch(message.request, networkRequestCount).then(
+            (responseJson) => {
+              if (!settled && proc.connected) {
+                proc.send({ type: 'fetch-result', id: message.id, responseJson });
+              }
+            },
+            (err: unknown) => {
+              if (!settled && proc.connected) {
+                proc.send({
+                  type: 'fetch-result',
+                  id: message.id,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            },
+          );
+          return;
+        }
+        if (message.type === 'result') {
+          const metrics = {
+            durationMs: message.durationMs,
+            peakMemoryBytes: message.peakMemoryBytes,
+          };
+          if (message.ok) {
+            let parsed: unknown = null;
+            try {
+              parsed = message.resultJson === undefined ? null : JSON.parse(message.resultJson);
+            } catch {
+              settle(
+                failure('EXECUTION_ERROR', 'Plugin returned an unserialisable result', 'error'),
+              );
+              return;
+            }
+            const peak = metrics.peakMemoryBytes;
+            if (peak > this.quota.maxMemoryBytes) {
+              settle(
+                failure(
+                  'OOM',
+                  `Memory usage (${peak} bytes) exceeded quota (${this.quota.maxMemoryBytes} bytes)`,
+                  'oom',
+                  metrics,
+                ),
+              );
+              return;
+            }
+            settle({
+              result: {
+                success: true,
+                result: parsed as T,
+                metrics: { ...metrics, networkRequestCount },
+              },
+              audit: 'success',
+            });
+            return;
+          }
+          settle(
+            failure(
+              message.timeout ? 'TIMEOUT' : 'EXECUTION_ERROR',
+              message.error ?? 'Unknown execution error',
+              message.timeout ? 'timeout' : 'error',
+              metrics,
+            ),
+          );
+        }
+      });
+
+      proc.on('error', (err: Error) => {
+        settle(failure('CRASH', `Plugin crashed: ${err.message}`, 'error'));
+      });
+
+      proc.on('exit', (exitCode: number | null, signal: NodeJS.Signals | null) => {
+        if (settled) return;
+        const oom = /heap out of memory|Allocation failed/i.test(stderrTail);
+        settle(
+          oom
+            ? failure('OOM', 'Plugin exceeded its memory quota', 'oom')
+            : failure(
+                'CRASH',
+                `Plugin sandbox exited unexpectedly (code: ${exitCode ?? 'null'}, signal: ${signal ?? 'none'})`,
+                'error',
+              ),
+        );
+      });
+    });
+
+    const { result } = outcome;
+    await this.emitAudit(
+      this.createAuditRecord(
+        context,
+        handler,
+        outcome.audit,
+        result.metrics.durationMs,
+        result.metrics.peakMemoryBytes,
+        result.metrics.networkRequestCount,
+        result.error?.message,
+      ),
+    );
+    return result;
+  }
+
+  /**
+   * Network bridge: the only way plugin code reaches the network. Enforces the request
+   * quota, the explicit allow-list and the shared SSRF guard, and never follows redirects
+   * (a redirect could leave the allow-list).
+   */
+  private async bridgeFetch(requestJson: string, requestNumber: number): Promise<string> {
+    if (requestNumber > this.quota.maxNetworkRequests) {
+      throw new Error(
+        `[Sandbox] Network request quota exceeded (max: ${this.quota.maxNetworkRequests})`,
+      );
+    }
+    let request: { url: string; method?: string; headers?: unknown; body?: string };
+    try {
+      request = JSON.parse(requestJson) as typeof request;
+    } catch {
+      throw new Error('[Sandbox] Malformed network request');
+    }
+    if (typeof request.url !== 'string') throw new Error('[Sandbox] Malformed network request');
+    await assertEgressAllowed(request.url, this.quota.allowedNetworkHosts);
+
+    const headers: Record<string, string> = {};
+    if (request.headers && typeof request.headers === 'object') {
+      for (const [key, value] of Object.entries(request.headers as Record<string, unknown>)) {
+        headers[key] = String(value);
+      }
+    }
+    const response = await safeFetch(request.url, {
+      method: typeof request.method === 'string' ? request.method : 'GET',
+      headers,
+      body: typeof request.body === 'string' ? request.body : undefined,
+      maxRedirects: 0,
+      timeoutMs: Math.min(BRIDGE_TIMEOUT_MS, this.quota.maxWallTimeMs),
+      maxResponseBytes: MAX_BRIDGE_RESPONSE_BYTES,
+    });
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    return JSON.stringify({
+      status: response.status,
+      headers: responseHeaders,
+      body: await response.text(),
     });
   }
 
@@ -372,7 +464,7 @@ export class PluginSandbox {
 
   /**
    * Validate plugin code for obvious sandbox escape patterns.
-   * This is a defense-in-depth measure; the VM sandbox is the primary barrier.
+   * This is a defense-in-depth measure; the process boundary is the primary barrier.
    */
   private validateCode(code: string): { valid: boolean; reason?: string } {
     // Check for attempts to access process or require dangerous modules
