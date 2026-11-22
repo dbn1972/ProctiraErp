@@ -735,3 +735,26 @@ test('hostel screen specs 69-71 exist and run nightly', () => {
     HOSTEL_SPECS_IN_PR,
   );
 });
+
+test('fees screen specs 90-92 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const FEES_SPECS = [
+    '90-fees-screens-read.spec.ts',
+    '91-fees-screens-write.spec.ts',
+    '92-fees-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only: the PR shard budget is used up (the health PR measured 21.3 min with
+  // 63-65 in the PR set, against a 16-min budget). Move a spec here only together with
+  // PR_SPECS.
+  const FEES_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of FEES_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    FEES_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    FEES_SPECS_IN_PR,
+  );
+});

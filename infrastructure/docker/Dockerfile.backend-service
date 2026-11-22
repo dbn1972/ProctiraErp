@@ -9,15 +9,15 @@
 # Build context MUST be the monorepo root.
 #
 # Required build args:
-#   SERVICE_NAME  - The package directory name (e.g., institution, student)
+#   SERVICE_NAME  - The package directory name (e.g., student, assessment)
 #   SERVICE_PORT  - Port the service listens on (default: 3000)
 #
 # Example:
 #   docker build \
 #     -f infrastructure/docker/Dockerfile.backend-service \
-#     --build-arg SERVICE_NAME=institution \
-#     --build-arg SERVICE_PORT=3020 \
-#     -t proctira/institution-service .
+#     --build-arg SERVICE_NAME=student \
+#     --build-arg SERVICE_PORT=3021 \
+#     -t proctira/student-service .
 #
 # Stages:
 #   1. base    - Minimal Node + pnpm

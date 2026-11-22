@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -28,6 +31,12 @@ export default defineConfig({
     ? undefined
     : {
         command: `pnpm exec next dev --port ${PORT}`,
+        // PRC-M467: operator bootstrap secret + a per-run global install lock file.
+        env: {
+          INSTALL_BOOTSTRAP_SECRET:
+            process.env.E2E_INSTALL_BOOTSTRAP_SECRET ?? 'e2e-install-bootstrap-secret',
+          INSTALL_LOCK_FILE: join(tmpdir(), `proctira-install-e2e-${process.pid}.lock`),
+        },
         url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

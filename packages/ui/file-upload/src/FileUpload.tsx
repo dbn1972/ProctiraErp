@@ -2,7 +2,24 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 
-import type { FileUploadProps, FileValidationError } from './types';
+import { contentMatchesDeclaredType } from './content-sniff';
+import type { FileScanResult, FileScanStatus, FileUploadProps, FileValidationError } from './types';
+
+/** PRC-L201: default text for each server scan status. */
+const SCAN_STATUS_TEXT: Record<FileScanStatus, string> = {
+  pending: 'Scanning…',
+  clean: 'Scan passed',
+  infected: 'Blocked: malware detected',
+  error: 'Scan failed; the file was not accepted',
+};
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
+}
 
 /**
  * FileUpload component with drag-and-drop, file type and size validation.
@@ -11,6 +28,11 @@ import type { FileUploadProps, FileValidationError } from './types';
  * Security: type/size checks here are advisory UX only (extension and
  * client-reported MIME). Consumers' upload endpoints must enforce size,
  * magic-byte content checks and malware scanning server-side.
+ *
+ * PRC-L201 / topic 18: `onFilesSelected` may return a promise of per-file
+ * server scan results (`FileScanResult[]`). Files show as scanning until it
+ * settles, then the verdict is announced in a `role="status"` region. Treat a
+ * file as usable only when its `scanStatus` is `clean`.
  *
  * @example
  * ```tsx
@@ -41,6 +63,9 @@ export function FileUpload({
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [validationErrors, setValidationErrors] = useState<FileValidationError[]>([]);
+  const [scanResults, setScanResults] = useState<FileScanResult[]>([]);
+  // Ignore verdicts from an earlier selection that settle after a newer one.
+  const selectionRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -114,11 +139,31 @@ export function FileUpload({
   );
 
   const handleFiles = useCallback(
-    (fileList: FileList | null) => {
+    async (fileList: FileList | null) => {
       if (!fileList || fileList.length === 0) return;
 
+      const selection = ++selectionRef.current;
       const fileArray = Array.from(fileList);
-      const { valid, errors } = validateFiles(fileArray);
+      const checked = validateFiles(fileArray);
+      // PRC-L200: the bytes must match the declared MIME type / extension.
+      const sniffed = await Promise.all(
+        checked.valid.map(async (file) => ({
+          file,
+          ok: await contentMatchesDeclaredType(file).catch(() => false),
+        })),
+      );
+      if (selection !== selectionRef.current) return;
+      const valid = sniffed.filter((s) => s.ok).map((s) => s.file);
+      const errors: FileValidationError[] = [
+        ...checked.errors,
+        ...sniffed
+          .filter((s) => !s.ok)
+          .map((s) => ({
+            file: s.file,
+            error: 'content' as const,
+            message: 'File content does not match its declared type',
+          })),
+      ];
       // Replace (not append) so the alert reflects the latest attempt only.
       setValidationErrors(errors);
 
@@ -127,7 +172,23 @@ export function FileUpload({
       }
 
       if (valid.length > 0) {
-        onFilesSelected(valid);
+        const outcome = onFilesSelected(valid);
+        if (!isPromiseLike<void | FileScanResult[]>(outcome)) {
+          setScanResults([]);
+          return;
+        }
+        // PRC-L201: show each file as scanning until the server verdict arrives.
+        setScanResults(valid.map((file) => ({ file, scanStatus: 'pending' })));
+        outcome.then(
+          (results) => {
+            if (selection === selectionRef.current) setScanResults(results ?? []);
+          },
+          (err: unknown) => {
+            if (selection !== selectionRef.current) return;
+            const message = err instanceof Error && err.message ? err.message : undefined;
+            setScanResults(valid.map((file) => ({ file, scanStatus: 'error', message })));
+          },
+        );
       }
     },
     [validateFiles, onFilesSelected, onValidationError],
@@ -164,14 +225,14 @@ export function FileUpload({
       setIsDragOver(false);
 
       if (disabled) return;
-      handleFiles(e.dataTransfer.files);
+      void handleFiles(e.dataTransfer.files);
     },
     [disabled, handleFiles],
   );
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      handleFiles(e.target.files);
+      void handleFiles(e.target.files);
       // Reset input so the same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -256,6 +317,22 @@ export function FileUpload({
         </div>
       )}
 
+      {/* PRC-L201: server scan status of the latest selection */}
+      {scanResults.length > 0 && (
+        <ul
+          className="proctira-file-upload__scan-status"
+          role="status"
+          aria-live="polite"
+          data-testid="file-upload-scan-status"
+        >
+          {scanResults.map((result, index) => (
+            <li key={`${result.file.name}-${index}`} data-scan-status={result.scanStatus}>
+              {result.file.name}: {result.message ?? SCAN_STATUS_TEXT[result.scanStatus]}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {/* File list */}
       {files.length > 0 && (
         <ul className="proctira-file-upload__file-list" aria-label="Uploaded files">
@@ -289,6 +366,14 @@ export function FileUpload({
                     aria-label="Upload complete"
                   >
                     ✓
+                  </span>
+                )}
+                {uploadedFile.scanStatus && (
+                  <span
+                    className={`proctira-file-upload__scan proctira-file-upload__scan--${uploadedFile.scanStatus}`}
+                    data-testid={`file-upload-file-scan-${uploadedFile.id}`}
+                  >
+                    {SCAN_STATUS_TEXT[uploadedFile.scanStatus]}
                   </span>
                 )}
                 {uploadedFile.status === 'error' && (

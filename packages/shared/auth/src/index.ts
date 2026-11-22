@@ -65,6 +65,14 @@ export {
   TRANSPORT_STAFF_ROLE_IDS,
 } from './campus-domain-roles.js';
 export type { CampusDomainRoleGrant } from './campus-domain-roles.js';
+// Finance role fees grants shared by the gateway and web registries (F-D3)
+export {
+  applyFeesDomainRoleGrants,
+  FEES_BASE_READ_ROLE_IDS,
+  FEES_DOMAIN_ROLE_GRANTS,
+  FEES_READ_ONLY_ROLE_IDS,
+  FEES_STAFF_ROLE_IDS,
+} from './fees-domain-roles.js';
 // Password strength scoring (Task 49.6)
 export { scorePassword, scorePasswordDetails } from './scorePassword.js';
 export type {

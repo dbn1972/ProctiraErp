@@ -46,7 +46,8 @@ const mockValidationResult: ImportValidationResult = {
 };
 
 function createFile(name: string, size: number): File {
-  const content = new Array(size).fill('a').join('');
+  // PRC-L200: .xlsx content must start with the ZIP signature.
+  const content = `PK\u0003\u0004${new Array(Math.max(size - 4, 0)).fill('a').join('')}`;
   return new File([content], name, {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
