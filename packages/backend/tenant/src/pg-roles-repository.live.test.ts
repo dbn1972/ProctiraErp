@@ -169,4 +169,60 @@ describe.skipIf(!live)('PgRolesRepository (live)', () => {
     const crossRole = await repo.queryUsers(TENANT_B, { roleId }, { offset: 0, limit: 10 });
     expect(crossRole.total).toBe(0);
   });
+
+  // PRC-L171: listUsers filters, orders and pages in SQL; search is literal text.
+  it('listUsers pages in SQL with search / role / status filters and real totals', async () => {
+    const tenant = randomUUID();
+    await ensureTenant(tenant);
+    const tag = `l171${Date.now().toString(36)}`;
+    const roleId = (await service.listRoles(tenant))[0]!.id;
+    for (let i = 0; i < 5; i += 1) {
+      await service.inviteUser(tenant, {
+        email: `${tag}-${i}@school.org`,
+        displayName: `${tag} user ${i}`,
+        roleIds: i % 2 === 0 ? [roleId] : [],
+      });
+    }
+    await service.inviteUser(tenant, {
+      email: 'percent@school.org',
+      displayName: '100% sure',
+      roleIds: [],
+    });
+    const first = await repo.listUsers(tenant, { search: tag }, { page: 1, pageSize: 2 });
+    expect(first.meta).toEqual({ page: 1, pageSize: 2, totalItems: 5, totalPages: 3 });
+    expect(first.data.map((u) => u.displayName)).toEqual([`${tag} user 0`, `${tag} user 1`]);
+    const last = await repo.listUsers(tenant, { search: tag }, { page: 3, pageSize: 2 });
+    expect(last.data.map((u) => u.displayName)).toEqual([`${tag} user 4`]);
+    const members = await repo.listUsers(tenant, { roleId }, { page: 1, pageSize: 20 });
+    expect(members.meta.totalItems).toBe(3);
+    const literal = await repo.listUsers(tenant, { search: '0%' }, { page: 1, pageSize: 20 });
+    expect(literal.data.map((u) => u.displayName)).toEqual(['100% sure']);
+    const other = await repo.listUsers(TENANT_B, { search: tag }, { page: 1, pageSize: 20 });
+    expect(other.meta.totalItems).toBe(0);
+  });
+
+  // PRC-L171: a built-in seeded by an older release is reconciled to the current seed,
+  // and a built-in added to the seed reaches an existing tenant.
+  it('reconciles built-in roles to the current seed for an existing tenant', async () => {
+    const tenant = randomUUID();
+    await ensureTenant(tenant);
+    await new PgRolesRepository(pool!, SEED).listRoles(tenant);
+    const NEXT: BuiltInRoleSeed[] = [
+      SEED[0]!,
+      {
+        roleId: 'principal',
+        roleName: 'Head of School',
+        permissions: [
+          { resource: 'institution', action: 'read' },
+          { resource: 'student', action: 'read' },
+        ],
+      },
+      { roleId: 'registrar', roleName: 'Registrar', permissions: [] },
+    ];
+    const roles = await new PgRolesRepository(pool!, NEXT).listRoles(tenant);
+    const principal = roles.find((r) => r.roleId === 'principal');
+    expect(principal?.name).toBe('Head of School');
+    expect(principal?.permissions).toEqual(NEXT[1]!.permissions);
+    expect(roles.map((r) => r.roleId)).toContain('registrar');
+  });
 });
