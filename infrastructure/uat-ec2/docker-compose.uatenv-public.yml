@@ -1,12 +1,13 @@
 # =============================================================================
 # ProctiraERP UAT — optional public TLS listener (NOT used by default)
 # =============================================================================
-# Added by uatenv_compose only when UATENV_PUBLIC_TLS=1 is exported, after the
-# owner has provided a DNS name, a security-group rule and a certificate
-# (docs/testing/uat/UAT_ENVIRONMENT.md, "Public exposure"). The proxy then also
-# listens on 29090 with TLS (uatenv-render.mjs emits `listen 29090 ssl` when
-# UATENV_TLS_CERT / UATENV_TLS_KEY are set) and publishes it on
-# UATENV_PUBLIC_BIND:443.
+# Added by uatenv_compose only when UATENV_PUBLIC_TLS=1 is set in
+# secrets/uatenv.env, after the owner has provided a DNS name, a security-group
+# rule and a certificate (docs/testing/uat/UAT_ENVIRONMENT.md, "Public
+# exposure"). UATENV_PUBLIC_BIND and UATENV_TLS_* live in the same file. The
+# proxy then also listens on 29090 with TLS (uatenv-render.mjs emits
+# `listen 29090 ssl` under the same conditions), publishes it on
+# UATENV_PUBLIC_BIND:443 and refuses Keycloak /admin and /realms/master there.
 # =============================================================================
 services:
   proxy:

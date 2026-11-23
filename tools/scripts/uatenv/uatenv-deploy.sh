@@ -82,6 +82,7 @@ if run_stage apps; then
   uatenv_guard
   # shellcheck disable=SC2046
   uatenv_compose $(uatenv_profile_args) up -d "${APPS[@]}" proxy
+  uatenv_reload_proxy
   wait_healthy "${APPS[@]}" proxy
   bash "$TOOLS/uatenv-link-portal-users.sh"
   ln -sfn "releases/$SHA" "$UATENV_RT/current"

@@ -36,6 +36,19 @@ fi
 init_key
 
 REL="$(uatenv_release_dir)"
+
+# A user unit cannot order itself after the system docker.service, so the
+# boot catch-up run (Persistent=true) may start before Postgres is published.
+# Wait up to UATENV_BACKUP_WAIT seconds (default 600) for it to accept connections.
+pg_wait_start=$SECONDS
+until pg_isready -q -h 127.0.0.1 -p 29010 -t 5; do
+  if ((SECONDS - pg_wait_start > ${UATENV_BACKUP_WAIT:-600})); then
+    uatenv_die "postgres on 127.0.0.1:29010 not ready after ${UATENV_BACKUP_WAIT:-600}s; backup not taken"
+  fi
+  uatenv_log "postgres not ready yet; retrying in 15s"
+  sleep 15
+done
+
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
 uatenv_log "proctira database -> pg-backup.sh"

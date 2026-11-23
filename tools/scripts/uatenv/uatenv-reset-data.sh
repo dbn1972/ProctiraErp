@@ -19,6 +19,19 @@ echo "Keycloak and the UAT role users are kept." >&2
 confirm_typed proctira-uatenv "Type 'proctira-uatenv' to reset the data: "
 
 load_env_file "$UATENV_SEC/ops.env"
+
+# A failed step leaves the apps stopped and database proctira partial: say so
+# and how to recover instead of exiting silently.
+RESET_DONE=0
+on_exit() {
+  local rc=$?
+  [[ "$RESET_DONE" == 1 ]] && return 0
+  uatenv_log "RESET FAILED (exit $rc): the app services (${APPS[*]}) are stopped and database proctira may be partial."
+  uatenv_log "Recover: fix the cause shown above (logs in $UATENV_RT/logs/), then re-run: bash $0"
+  uatenv_log "The reset starts from DROP DATABASE, so a re-run is safe; it ends by starting the apps."
+}
+trap on_exit EXIT
+
 uatenv_log "stopping app services: ${APPS[*]}"
 uatenv_compose stop "${APPS[@]}"
 
@@ -43,4 +56,5 @@ uatenv_compose $(uatenv_profile_args) up -d "${APPS[@]}" proxy
 wait_healthy "${APPS[@]}" proxy
 bash "$UATENV_RT/tooling/tools/scripts/uatenv/uatenv-link-portal-users.sh"
 bash "$UATENV_RT/tooling/tools/scripts/uatenv/uatenv-health.sh"
+RESET_DONE=1
 uatenv_log "reset complete"

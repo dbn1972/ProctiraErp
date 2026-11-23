@@ -29,6 +29,8 @@ const readYaml = (rel) =>
   parse(readFileSync(join(ROOT, rel), 'utf8').replace(/ !(override|reset)\b/g, ''));
 const overlay = readYaml('infrastructure/uat-ec2/docker-compose.uatenv.yml');
 const base = readYaml('docker-compose.yml');
+const scripts = readdirSync(HERE).filter((f) => f.endsWith('.sh'));
+const src = (f) => readFileSync(join(HERE, f), 'utf8');
 
 /** Release Dockerfiles per service (tools/scripts/detect-affected-services.mjs docker-config). */
 const RELEASE_DOCKERFILES = {
@@ -129,9 +131,114 @@ test('nginx routing: web-owned /api/v1 routes go to web, the rest of /api/v1 to 
   assert.doesNotMatch(conf, /X-Forwarded-Proto \$http_x_forwarded_proto/);
 });
 
-test('nginx renders a TLS listener only when a certificate is configured', () => {
-  const opts = hostOptions({ UATENV_TLS_CERT: '/x/cert.pem', UATENV_TLS_KEY: '/x/key.pem' });
-  assert.match(renderNginxConf(opts, []), /listen 29090 ssl default_server;/);
+test('nginx renders a TLS listener only in public TLS mode with a certificate', () => {
+  const tls = { UATENV_TLS_CERT: '/x/cert.pem', UATENV_TLS_KEY: '/x/key.pem' };
+  assert.match(
+    renderNginxConf(hostOptions({ ...tls, UATENV_PUBLIC_TLS: '1' }), []),
+    /listen 29090 ssl default_server;/,
+  );
+  // Certificate paths alone (public overlay not applied) must not render a
+  // listener whose certificate is not mounted.
+  assert.doesNotMatch(renderNginxConf(hostOptions(tls), []), /listen 29090/);
+  assert.doesNotMatch(
+    renderNginxConf(hostOptions({ ...tls, UATENV_PUBLIC_TLS: '0' }), []),
+    /listen 29090/,
+  );
+});
+
+test('the proxy overwrites X-Forwarded-For and is the only trusted proxy (SEM-6)', () => {
+  const conf = renderNginxConf(hostOptions({}), []);
+  assert.match(conf, /proxy_set_header X-Forwarded-For \$remote_addr;/);
+  assert.doesNotMatch(conf, /\$proxy_add_x_forwarded_for/);
+  assert.equal(
+    overlay.services.proxy.networks.proctira.ipv4_address,
+    '${UATENV_PROXY_IP:-172.29.90.250}',
+  );
+  const s = src('uatenv-secrets.sh');
+  assert.match(s, /ensure "\$U" UATENV_PROXY_IP 172\.29\.90\.250/);
+  assert.match(s, /ensure "\$U" TRUSTED_PROXY_CIDRS "\$\(get "\$U" UATENV_PROXY_IP\)\/32"/);
+  assert.doesNotMatch(s, /ensure "\$U" TRUSTED_PROXY_CIDRS "\$\(get "\$U" UATENV_SUBNET\)"/);
+});
+
+test('Keycloak /admin and /realms/master are refused on the public listener only (SEM-7)', () => {
+  const conf = renderNginxConf(
+    hostOptions({ UATENV_PUBLIC_TLS: '1', UATENV_TLS_CERT: '/c', UATENV_TLS_KEY: '/k' }),
+    [],
+  );
+  assert.match(conf, /map \$server_port \$uatenv_public_listener \{\s*29090\s+1;\s*default 0;/);
+  const auth = conf.slice(conf.indexOf('server_name auth.proctira-uat.localhost;'));
+  const authBlock = auth.slice(0, auth.indexOf('\nserver {'));
+  for (const path of ['/admin', '/realms/master']) {
+    assert.match(
+      authBlock,
+      new RegExp(
+        `location \\^~ ${path.replace(/\//g, '\\/')} \\{\\s*if \\(\\$uatenv_public_listener\\) \\{\\s*return 403;`,
+      ),
+      `${path} must be refused on 29090`,
+    );
+  }
+  assert.match(authBlock, /location \/ \{[^}]*proxy_pass \$up_keycloak;/);
+});
+
+test('public TLS mode is read from secrets/uatenv.env, not only the shell (SEM-8)', () => {
+  const lib = src('uatenv-lib.sh');
+  assert.match(lib, /env_file_get "\$UATENV_SEC\/uatenv\.env" UATENV_PUBLIC_TLS/);
+  assert.match(src('uatenv-secrets.sh'), /ensure "\$U" UATENV_PUBLIC_TLS 0/);
+});
+
+test('every re-render is followed by a proxy recreate (SEM-1)', () => {
+  const lib = src('uatenv-lib.sh');
+  assert.match(
+    lib,
+    /uatenv_reload_proxy\(\) \{[^}]*uatenv_compose up -d --no-deps --force-recreate proxy/,
+  );
+  const redeploy = src('uatenv-redeploy.sh');
+  const rollback = redeploy.slice(
+    redeploy.indexOf('rollback() {'),
+    redeploy.indexOf("trap 'rollback' EXIT"),
+  );
+  assert.match(
+    rollback,
+    /uatenv_render_configs "\$PREV_REL"[\s\S]*UATENV_RELEASE="\$PREV_REL" uatenv_reload_proxy/,
+    'rollback must reload the proxy with the previous release config',
+  );
+  const main = redeploy.slice(redeploy.indexOf("trap 'rollback' EXIT"));
+  assert.match(
+    main,
+    /up -d --remove-orphans[^\n]*proxy\nuatenv_reload_proxy\nwait_healthy/,
+    'redeploy must reload the proxy before the health wait',
+  );
+  assert.match(src('uatenv-deploy.sh'), /up -d "\$\{APPS\[@\]\}" proxy\n\s*uatenv_reload_proxy\n/);
+});
+
+test('a failed reset reports the stopped apps and the recovery command (SEM-10)', () => {
+  const reset = src('uatenv-reset-data.sh');
+  const trapAt = reset.indexOf('trap on_exit EXIT');
+  assert.ok(trapAt > 0, 'reset sets an EXIT trap');
+  assert.ok(trapAt < reset.indexOf('uatenv_compose stop'), 'trap is set before the apps stop');
+  assert.ok(
+    trapAt > reset.indexOf('confirm_typed'),
+    'an aborted confirmation prints no recovery hint',
+  );
+  assert.match(reset, /RESET FAILED[\s\S]*re-run: bash \$0/);
+  assert.match(reset, /RESET_DONE=1\nuatenv_log "reset complete"/);
+});
+
+test('the backup waits for Postgres before dumping (boot catch-up, SEM-12)', () => {
+  const backup = src('uatenv-backup.sh');
+  assert.ok(
+    backup.indexOf('pg_isready -q -h 127.0.0.1 -p 29010') < backup.indexOf('pg-backup.sh"'),
+    'pg_isready wait precedes the dump',
+  );
+  const unit = readFileSync(
+    join(ROOT, 'infrastructure/uat-ec2/systemd/proctira-uatenv-backup.service.in'),
+    'utf8',
+  );
+  assert.doesNotMatch(
+    unit,
+    /^After=docker\.service/m,
+    'user units cannot order after docker.service',
+  );
 });
 
 test('CORS origins cover the tenant and platform hosts', () => {
@@ -161,9 +268,6 @@ test('rendered realm drops committed users and the dev secret, adds the UAT role
   assert.throws(() => renderRealm(realm, hostOptions({}), ''));
 });
 
-const scripts = readdirSync(HERE).filter((f) => f.endsWith('.sh'));
-const src = (f) => readFileSync(join(HERE, f), 'utf8');
-
 test('ops scripts never enable xtrace', () => {
   for (const f of scripts) assert.doesNotMatch(src(f), /^\s*set -[a-z]*x/m, `${f} uses set -x`);
 });
@@ -189,7 +293,7 @@ test('docker is only reached through uatenv_compose or for proctira-uatenv objec
       if (!/(^|\$\(|\||&&|;|xargs -r)\s*docker\s+(?!compose\b)/.test(code)) continue;
       assert.match(
         code,
-        /docker (inspect|ps|image ls|image rm|image inspect|build)\b|docker run --rm --name "oth-uat-env-|docker compose/,
+        /docker (inspect|ps|image ls|image rm|image inspect|build)\b|docker run --rm --name "\$UATENV_PROJECT-probe-|docker compose/,
         `${f}: unexpected docker call: ${line.trim()}`,
       );
     }

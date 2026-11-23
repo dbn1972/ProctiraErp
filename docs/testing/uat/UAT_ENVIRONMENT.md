@@ -13,26 +13,26 @@ The stack is the repository's canonical single-host topology (`docker-compose.ym
 - production images built locally from the Release workflow Dockerfiles (`infrastructure/docker/Dockerfile.*`, `workers/exam-document/Dockerfile`), tagged `proctira/<service>:uatenv-<sha12>`, never pushed. `NODE_ENV=production`; the gateway runs its `dist/server.js` bundle and the Next.js apps run their standalone `server.js`;
 - CPU and memory limits on every service (about 5.4 CPU and 10.6 GB for the core set);
 - Keycloak in production mode (`start --import-realm`) on its own `keycloak` Postgres database;
-- one nginx reverse proxy (`proxy`, `nginxinc/nginx-unprivileged`, digest-pinned) on `127.0.0.1:29080` with host-based routing;
+- one nginx reverse proxy (`proxy`, `nginxinc/nginx-unprivileged`, digest-pinned) on `127.0.0.1:29080` with host-based routing. It has the fixed network address `UATENV_PROXY_IP` (`172.29.90.250`), overwrites `X-Forwarded-For` with the peer address, and is the only proxy the gateway trusts (`TRUSTED_PROXY_CIDRS=172.29.90.250/32`), so a client-supplied `X-Forwarded-For` never becomes the gateway's client IP;
 - json-file logs, 20 MB x 5 files per container;
 - MinIO serves TLS from a UAT-internal CA, because the gateway's MinIO adapter refuses plaintext in production (PRC-M542); the gateway trusts the CA through `NODE_EXTRA_CA_CERTS`;
 - a stop-gap image layer for UATENV-D01 (see "Defects found while deploying").
 
 The running stack depends only on the host folder `UATENV_HOME` (`/home/ec2-user/ProctiraErp/.agents/tasks/ProctiraErp-uat-environment-ec2`), never on a git worktree:
 
-| Path under `UATENV_HOME`      | Contents                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `runtime/releases/<sha>/`     | source of the deployed commit (`git archive`), the image build context and host `pnpm` tree |
-| `runtime/current`             | symlink to the deployed release                                                             |
-| `runtime/tooling/`            | copy of `tools/scripts/uatenv/` and `infrastructure/uat-ec2/` the stack and timer use       |
-| `runtime/generated/nginx/`    | rendered proxy config (no secrets)                                                          |
-| `runtime/generated/tls/`      | MinIO, api-gateway                                                                          | UAT-internal CA and MinIO certificates (public parts only)                                     |
-| `runtime/bin/`                | backup and restore                                                                          | `gpg` and `gpg-agent` from the signed Amazon Linux `gnupg2` package (see "Backup and restore") |
-| `runtime/state/deployed.json` | deployed SHA, image tag, time, services, CI run                                             |
-| `runtime/logs/`               | deploy, build, migration, backup and drill logs                                             |
-| `secrets/` (mode 700)         | env files, rendered realm, role-user credentials, backup gpg key (files mode 600)           |
-| `backups/` (mode 700)         | encrypted nightly dumps                                                                     |
-| `evidence/`                   | health summaries and restore-drill results                                                  |
+| Path under `UATENV_HOME`      | Contents                                                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `runtime/releases/<sha>/`     | source of the deployed commit (`git archive`), the image build context and host `pnpm` tree                                |
+| `runtime/current`             | symlink to the deployed release                                                                                            |
+| `runtime/tooling/`            | copy of `tools/scripts/uatenv/` and `infrastructure/uat-ec2/` the stack and timer use                                      |
+| `runtime/generated/nginx/`    | rendered proxy config (no secrets)                                                                                         |
+| `runtime/generated/tls/`      | UAT-internal CA and MinIO certificates, public parts only (used by MinIO and api-gateway)                                  |
+| `runtime/bin/`                | `gpg` and `gpg-agent` from the signed Amazon Linux `gnupg2` package, used by backup and restore (see "Backup and restore") |
+| `runtime/state/deployed.json` | deployed SHA, image tag, time, services, CI run                                                                            |
+| `runtime/logs/`               | deploy, build, migration, backup and drill logs                                                                            |
+| `secrets/` (mode 700)         | env files, rendered realm, role-user credentials, backup gpg key (files mode 600)                                          |
+| `backups/` (mode 700)         | encrypted nightly dumps                                                                                                    |
+| `evidence/`                   | health summaries and restore-drill results                                                                                 |
 
 ## Deployed commit
 
@@ -83,7 +83,7 @@ Everything goes through the proxy on port 29080. The `*.localhost` names resolve
 | `http://e2e-registration.proctira.localhost:29080`      | registration portal for the registration fixture tenant (the gateway resolves the tenant from the host)              |
 | any other host                                          | `421 Misdirected Request`                                                                                            |
 
-The web-owned `/api/v1` routes are read from `apps/web/src/app/api/v1/**/route.ts` of the deployed commit at render time (today: `institutions/directory-context`, `notifications/unread-count`, `tenant/branding`). Inside the compose network the proxy also answers as `api.proctira-uat.localhost` and `auth.proctira-uat.localhost`, so the browser and the server-side calls use the same URLs (`GATEWAY_URL`, `KEYCLOAK_ISSUER`).
+The web-owned `/api/v1` routes are read from `apps/web/src/app/api/v1/**/route.ts` of the deployed commit at render time (today: `institutions/directory-context`, `notifications/unread-count`, `tenant/branding`). nginx does not watch its config file, so deploy, redeploy and rollback recreate the proxy after every render (`uatenv_reload_proxy`). Inside the compose network the proxy also answers as `api.proctira-uat.localhost` and `auth.proctira-uat.localhost`, so the browser and the server-side calls use the same URLs (`GATEWAY_URL`, `KEYCLOAK_ISSUER`).
 
 ## Access (SSH tunnel)
 
@@ -127,7 +127,7 @@ One Keycloak user per role the role catalogue and gateway support. Passwords are
 
 Each user carries the `tenant_id` and `tenant_slug` attributes that the realm's token mappers emit. The realm user profile is set to `unmanagedAttributePolicy: ADMIN_EDIT`, so the attributes reach the tokens but users cannot edit them. `uatenv-keycloak.sh --verify` takes a direct-grant token for every user and checks `iss`, `tenant_id`, `tenant_slug` and the role (claim names only, no values).
 
-Keycloak admin console: `http://auth.proctira-uat.localhost:29080/admin/` with `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` from `secrets/uatenv.env`.
+Keycloak admin console: `http://auth.proctira-uat.localhost:29080/admin/` with `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` from `secrets/uatenv.env`. It is served on the tunnel listener only; the public TLS listener refuses `/admin` and `/realms/master` with 403.
 
 ## Data
 
@@ -164,7 +164,7 @@ Keycloak admin console: `http://auth.proctira-uat.localhost:29080/admin/` with `
 | `secrets/gnupg/`                        | backup and restore            | backup encryption key (no passphrase)                                                                                                                                                                                                                                                                                                                                                |
 | `secrets/tls/`                          | MinIO, secrets script         | private keys of the UAT-internal CA and the MinIO certificate                                                                                                                                                                                                                                                                                                                        |
 
-No container receives the migrator, superuser or backup credentials. The scripts pass passwords to `psql`, `pg_dump` and `curl` through environment variables or stdin, never on the command line. Exception: the repository's `run-target-database-migrations.sh` and `apply-sql.sh` pass `MIGRATOR_DATABASE_URL` to `psql` as an argument, so the migrator URL is visible in the host process list while migrations run.
+No app container (gateway, workers, web, portals) receives the migrator, superuser or backup credentials. The `postgres` container itself receives `POSTGRES_PASSWORD`, `MIGRATOR_PASSWORD` and `APP_ROLE_PASSWORD` from the base `docker-compose.yml`, because its init scripts create the roles; the backup role password reaches no container. The scripts pass passwords to `psql`, `pg_dump` and `curl` through environment variables or stdin, never on the command line. Exception: the repository's `run-target-database-migrations.sh` and `apply-sql.sh` pass `MIGRATOR_DATABASE_URL` to `psql` as an argument, so the migrator URL is visible in the host process list while migrations run.
 
 ## Redeploy, reset and teardown
 
@@ -187,9 +187,9 @@ bash $UATENV/uatenv-health.sh
 bash $UATENV/uatenv-teardown.sh [--volumes]
 ```
 
-`uatenv-redeploy.sh` extracts the commit with `git archive` from the shared object store, builds the images one at a time, takes a pre-migration backup, runs the production migrations, recreates the services and waits for health. If the new services do not become healthy it brings the previous release back up. Schema changes are forward-only, so a rollback relies on the previous images tolerating the newer schema. It keeps the current and previous releases and images and prunes older ones. `--with-secondary` adds public-website, admin-console, developer-portal and install-wizard (after PR #735 is on `main`).
+`uatenv-redeploy.sh` extracts the commit with `git archive` from the shared object store, builds the images one at a time, takes a pre-migration backup, runs the production migrations, recreates the services and the proxy (so nginx loads the newly rendered routes) and waits for health. If the new services do not become healthy it re-renders the previous release's config and brings that release and the proxy back up. Schema changes are forward-only, so a rollback relies on the previous images tolerating the newer schema. It keeps the current and previous releases and images and prunes older ones. `--with-secondary` adds public-website, admin-console, developer-portal and install-wizard (after PR #735 is on `main`).
 
-`uatenv-reset-data.sh` stops the apps, drops database `proctira`, re-runs roles, migrations and seeds, flushes Redis, empties the MinIO bucket, starts the apps and re-links the portal users. Keycloak and the role users are kept.
+`uatenv-reset-data.sh` stops the apps, drops database `proctira`, re-runs roles, migrations and seeds, flushes Redis, empties the MinIO bucket, starts the apps and re-links the portal users. Keycloak and the role users are kept. If a step fails after the apps stop, the script logs `RESET FAILED`, says the apps are stopped and the database may be partial, and gives the re-run command. A re-run is safe because the reset starts with `DROP DATABASE` and ends by starting the apps.
 
 First install (already done on this host): `uatenv-deploy.sh --sha <sha> [--stage prepare|build|data|keycloak|apps|ops]`.
 
@@ -199,7 +199,7 @@ Every service has `restart: unless-stopped` (from `docker-compose.yml`) and `doc
 
 ## Backup and restore
 
-- Schedule: `proctira-uatenv-backup.timer` (systemd user timer), daily at 02:30 server time with up to 10 minutes of random delay; missed runs catch up at boot.
+- Schedule: `proctira-uatenv-backup.timer` (systemd user timer), daily at 02:30 server time with up to 10 minutes of random delay; missed runs catch up at boot. A user unit cannot order itself after the system `docker.service`, so `uatenv-backup.sh` waits up to 10 minutes (`UATENV_BACKUP_WAIT`) for `pg_isready` on `127.0.0.1:29010` before dumping.
 - What: `tools/scripts/pg-backup.sh` dumps database `proctira` as `proctira_backup` (custom format); `pg_dump` dumps database `keycloak` as its owner.
 - Encryption: gpg to the local key `proctira-uatenv-backup@localhost` in `secrets/gnupg` (`BACKUP_ENCRYPT=1`, so no plaintext dump is kept). Amazon Linux 2023 ships `gnupg2-minimal`, which has no `gpg-agent` (no key generation or decryption) and no `--trust-model` (used by `tools/scripts/backup-crypto.sh`). Without sudo, the scripts take `gpg` and `gpg-agent` from the signed `gnupg2` package of the same version (`dnf download`, `rpm -K` must report `digests signatures OK`) into `runtime/bin/` and point the keyring at that agent.
 - Where: `backups/proctira-<ts>.dump.gpg` and `backups/keycloak-<ts>.dump.gpg`, mode 600.
@@ -242,6 +242,7 @@ Payments cannot be exercised: with `NODE_ENV=production` the web refuses the san
 ## Known limitations and deviations
 
 - `RATE_LIMIT_MAX_REQUESTS=600` (production default 100): every server-side web call reaches the gateway from the web container's address through the proxy, so 100 per minute would throttle a render pass.
+- Client IPs: every browser request through the SSH tunnel reaches nginx from the Docker bridge address (`172.29.90.1`), so the gateway sees that one address for all tunnel users. The web's sign-up route forwards `X-Forwarded-For` straight to the gateway (not through the proxy), so the gateway records the web container's address there.
 - Kafka keeps `KAFKA_AUTO_CREATE_TOPICS=true`; the repository has no topic-provisioning script.
 - `TENANT_FALLBACK_SLUG=sunrise-public-school`, so bare `localhost:29080` serves tenant A (needed by Playwright specs that use a `localhost` cookie domain).
 - One OIDC return address (`NEXT_PUBLIC_WEB_URL` = the Sunrise host), so tenant B users return to the Sunrise host after Keycloak login.
@@ -253,7 +254,9 @@ Payments cannot be exercised: with `NODE_ENV=production` the web refuses the san
 - The deployed backend images carry the UATENV-D01 stop-gap layer. The Release Dockerfile fix is on `main` (#757); the layer is skipped automatically once a redeployed image already has the OpenSSL 3 engine.
 - The proxy rewrites `Location: http://0.0.0.0:<port>/...` redirects to the public host (UATENV-D05). The web fix is on `main` (#755); the rewrite is harmless after the redeploy and can then be removed.
 - Secondary apps (public-website, admin-console, developer-portal, install-wizard) are not deployed until PR #735 is on `main`.
-- Playwright specs that sign HS256 session cookies or open the database directly cannot run against this Keycloak-mode stack (see "Smoke results").
+- Playwright specs that sign HS256 session cookies or open the database directly cannot run against this Keycloak-mode stack (see "Smoke results"). The 53 specs were classed as incompatible by the helper they import. 31 of their failures show no 401, so the shared cause is an inference; triage them per test once an RS256 session helper exists, because a real defect could hide behind the session problem.
+- Container restarts seen so far: `proctira-uatenv-minio-1` exited with code 0 at 2026-11-23T04:39Z (not OOM-killed, no shutdown line in its log, cause not found) and the restart policy brought it back. The workers' startup restarts on 21 Nov were `ECONNREFUSED` to RabbitMQ while it restarted in the same `docker compose restart`; the restart policy retried until RabbitMQ was up.
+- The base `docker-compose.yml` passes the Redis password on the container command line (`--requirepass`), so `docker inspect` and the host process list show it. This predates the UAT overlay; the fix is tracked as a separate follow-up.
 
 ## Public exposure (not enabled)
 
@@ -266,17 +269,25 @@ The stack is loopback-only by design. To expose it, the owner must provide:
 Config change for the on-host TLS option:
 
 ```bash
-# in secrets/uatenv.env (then regenerate derived URLs, see below)
+# All of these go in secrets/uatenv.env (edit the existing keys; then
+# regenerate the derived URLs, see below). Every script reads the TLS mode
+# from this file, so a later reset or rollback from a new shell keeps it.
 UATENV_TENANT_BASE_DOMAIN=uat.<domain>
 UATENV_PLATFORM_DOMAIN=platform.uat.<domain>
 UATENV_PUBLIC_SCHEME=https
 UATENV_PUBLIC_PORT=443
-# exported in the shell that runs the scripts
-export UATENV_PUBLIC_TLS=1 UATENV_PUBLIC_BIND=0.0.0.0
-export UATENV_TLS_CERT=/path/fullchain.pem UATENV_TLS_KEY=/path/privkey.pem
+UATENV_PUBLIC_TLS=1
+UATENV_PUBLIC_BIND=<private IP of the instance's interface, or 0.0.0.0>
+UATENV_TLS_CERT=/path/fullchain.pem
+UATENV_TLS_KEY=/path/privkey.pem
 ```
 
-Delete the derived keys (`KEYCLOAK_ISSUER`, `KEYCLOAK_REDIRECT_URI`, `NEXT_PUBLIC_WEB_URL`, `CORS_ORIGINS`, `GATEWAY_URL`, `NEXT_PUBLIC_API_URL`) from `secrets/uatenv.env` so `uatenv-secrets.sh` regenerates them for the new names, then run `uatenv-redeploy.sh <current sha>`. The renderer adds a `listen 29090 ssl` server block, `infrastructure/uat-ec2/docker-compose.uatenv-public.yml` publishes it on `UATENV_PUBLIC_BIND:443` and mounts the certificate (readable by uid 101), and the realm redirect URIs and web origins follow the new names. No image rebuild is needed, because no `NEXT_PUBLIC_*` host name is baked into the builds.
+Delete the derived keys (`KEYCLOAK_ISSUER`, `KEYCLOAK_REDIRECT_URI`, `NEXT_PUBLIC_WEB_URL`, `CORS_ORIGINS`, `GATEWAY_URL`, `NEXT_PUBLIC_API_URL`) from `secrets/uatenv.env` so `uatenv-secrets.sh` regenerates them for the new names, then run `uatenv-redeploy.sh <current sha>`. The renderer adds a `listen 29090 ssl` server block (only when `UATENV_PUBLIC_TLS=1` and both certificate paths are set), `infrastructure/uat-ec2/docker-compose.uatenv-public.yml` publishes it on `UATENV_PUBLIC_BIND:443` and mounts the certificate (readable by uid 101), and the realm redirect URIs and web origins follow the new names. No image rebuild is needed, because no `NEXT_PUBLIC_*` host name is baked into the builds.
+
+Hardening that is already in place for the public listener:
+
+- The proxy overwrites `X-Forwarded-For` with the connecting address, and the gateway trusts only the proxy's pinned address (`TRUSTED_PROXY_CIDRS=<UATENV_PROXY_IP>/32`), so per-IP rate limits and audit IPs cannot be spoofed with a header. Behind an ALB, the ALB becomes the edge: change the proxy to append to the ALB's header (`$proxy_add_x_forwarded_for`) and add the ALB subnet to `TRUSTED_PROXY_CIDRS`, so the gateway takes the address the ALB saw.
+- On `auth.<platform domain>`, the 29090 listener returns 403 for `/admin` and `/realms/master`; the Keycloak admin console stays on the SSH tunnel (port 29080). Replace the temporary bootstrap admin with a permanent admin before going public.
 
 ## Smoke results (E3 evidence)
 
@@ -301,7 +312,7 @@ Full ledger with requests, responses and evidence: `UATENV_HOME/defects.md`. Cod
 | ---------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | UATENV-D01 | code (Release Dockerfiles) | api-gateway, etl-worker and exam-document-worker images carry only the OpenSSL 1.1 Prisma engine and crash at boot on Alpine           | merged #757 (`c3053045`); UAT uses the stop-gap layer `Dockerfile.prisma-openssl3` until redeploy           |
 | UATENV-D02 | config (Helm allowlist)    | `SCIM_TOKEN_PEPPER` and `MFA_PRE_TICKET_SECRET` are missing from Helm `serviceKeys.api-gateway` and from the allowlist check           | worked around in `secrets/gateway.env`; repo fix PR pending                                                 |
-| UATENV-D03 | config (compose)           | compose passes neither `RABBITMQ_URL` nor `RABBITMQ_EXCHANGE` to the gateway                                                           | fixed in the environment (`secrets/gateway.env`)                                                            |
+| UATENV-D03 | config (compose)           | compose passes `RABBITMQ_URL` to the gateway but neither `RABBITMQ_EXCHANGE` nor `QUEUE_BACKEND`                                       | fixed in the environment (`secrets/gateway.env`)                                                            |
 | UATENV-D04 | config (compose, Helm)     | etl-worker needs `JWT_SECRET` in production (PRC-M030); compose and Helm do not pass it                                                | worked around in the overlay; repo fix PR pending                                                           |
 | UATENV-D05 | code (web callback)        | the login callback redirects to the container bind address `http://0.0.0.0:3001/`                                                      | merged #755 (`45cf9c68`); UAT uses the nginx `proxy_redirect` workaround until redeploy                     |
 | UATENV-D06 | code (web session)         | Keycloak sessions carry no roles and no tenant in the web; the web uses the raw Keycloak `sub`                                         | merged #754 (`372dcf72`); UAT re-run pending redeploy                                                       |
@@ -331,17 +342,17 @@ Full ledger with requests, responses and evidence: `UATENV_HOME/defects.md`. Cod
 
 Host evidence lives in `UATENV_HOME/evidence/` (21 Nov 2026, commit `219093a4`).
 
-| Check                        | Result                                                                                                                                                                                                                         | Evidence                                            |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
-| Roles and migrations         | `run-target-database-migrations: PASS` (192 db/sql migrations), `assert-runtime-database-role: PASS`, `assert-runtime-schema-ready: PASS`; `proctira` and `proctira_app` NOSUPERUSER NOBYPASSRLS                               | `db-provisioning.md`                                |
-| Seeds                        | Sunrise 5 institutions / 3,619 students / 249 staff; `e2e-tenant-a` 1 institution / 6 students; `e2e-registration` 1 institution                                                                                               | `db-provisioning.md`                                |
-| Keycloak users               | 15 users created; direct-grant token for every user carries the expected `iss`, `tenant_id`, `tenant_slug` and realm role                                                                                                      | deploy log, `reset-proof.md`                        |
-| Services                     | 12 core containers healthy; 34/34 health probes pass (direct, through the proxy, Redis `requirepass`, unknown host 421)                                                                                                        | `services-20261121T182749Z.json`                    |
-| Loopback only                | every listener in 29000-29099 is on `127.0.0.1`; Redis, AMQP, Kafka and the MinIO API are not published                                                                                                                        | `ss -ltnH` in `deploy.md`                           |
-| In-network names             | gateway -> `auth.proctira-uat.localhost:29080` 200; web -> `api.proctira-uat.localhost:29080` 200 (compose network aliases, no fallback needed)                                                                                | `deploy.md`                                         |
-| Login path through the proxy | Chromium: `/api/auth/keycloak` -> gateway `/api/v1/auth/login` -> Keycloak form -> gateway callback -> web callback -> `/` (after the UATENV-D05 proxy fix); role mapping is the smoke step's check                            | `deploy.md`                                         |
-| `docker compose restart`     | all services healthy again within about 90 s; 34/34 probes pass; restart policy `unless-stopped` on every container; `docker.service` enabled                                                                                  | `restart-proof.md`, `services-after-restart-*.json` |
-| Reset data                   | typed `no` aborts with nothing changed; typed `proctira-uatenv` drops and re-seeds (marker row gone, seed counts restored) in about 5 minutes; Keycloak users kept                                                             | `reset-proof.md`                                    |
-| Nightly backup               | `proctira-uatenv-backup.timer` enabled (next run 02:30 UTC); first run through the systemd unit: `Result=success`, 2 encrypted artifacts (mode 600)                                                                            | `backup-restore.md`                                 |
-| Restore drill                | newest dump restored into `proctira_restore_drill_<ts>` in 8 s; row counts match (tenants 10, institutions 7, students 3,625, staff 249, schema_migrations 192, _prisma_migrations 10, guardian_households 3); scratch dropped | `restore-drill-20261121T184534Z.json`               |
-| Protected containers         | the 16 `proctira-staging-*`, `proctira-erp-*`, `serviceformai-*`, `lanea-pg-43848`, `pc-back2-rmq` containers have the same id, state, start time and restart count as before the deploy                                       | `preflight-protected.txt`, `deploy.md`              |
+| Check                        | Result                                                                                                                                                                                                                                                                                                                                                                            | Evidence                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Roles and migrations         | `run-target-database-migrations: PASS` (192 db/sql migrations), `assert-runtime-database-role: PASS`, `assert-runtime-schema-ready: PASS`; `proctira` and `proctira_app` NOSUPERUSER NOBYPASSRLS                                                                                                                                                                                  | `db-provisioning.md`                                |
+| Seeds                        | Sunrise 5 institutions / 3,619 students / 249 staff; `e2e-tenant-a` 1 institution / 6 students; `e2e-registration` 1 institution                                                                                                                                                                                                                                                  | `db-provisioning.md`                                |
+| Keycloak users               | 15 users created; direct-grant token for every user carries the expected `iss`, `tenant_id`, `tenant_slug` and realm role                                                                                                                                                                                                                                                         | deploy log, `reset-proof.md`                        |
+| Services                     | 12 core containers healthy; 34/34 health probes pass (direct, through the proxy, Redis `requirepass`, unknown host 421)                                                                                                                                                                                                                                                           | `services-20261121T182749Z.json`                    |
+| Loopback only                | every listener in 29000-29099 is on `127.0.0.1`; Redis, AMQP, Kafka and the MinIO API are not published                                                                                                                                                                                                                                                                           | `ss -ltnH` in `deploy.md`                           |
+| In-network names             | gateway -> `auth.proctira-uat.localhost:29080` 200; web -> `api.proctira-uat.localhost:29080` 200 (compose network aliases, no fallback needed)                                                                                                                                                                                                                                   | `deploy.md`                                         |
+| Login path through the proxy | Chromium: `/api/auth/keycloak` -> gateway `/api/v1/auth/login` -> Keycloak form -> gateway callback -> web callback -> `/` (after the UATENV-D05 proxy fix); role mapping is the smoke step's check                                                                                                                                                                               | `deploy.md`                                         |
+| `docker compose restart`     | all services healthy again within about 90 s; 34/34 probes pass; restart policy `unless-stopped` on every container; `docker.service` enabled                                                                                                                                                                                                                                     | `restart-proof.md`, `services-after-restart-*.json` |
+| Reset data                   | typed `no` aborts with nothing changed; typed `proctira-uatenv` drops and re-seeds (marker row gone, seed counts restored) in about 5 minutes; Keycloak users kept. 23 Nov: reset plus portal relink exit 0 (parent link 1, student binding 1, 34/34 probes, 15/15 token checks); a forced failure after the drop printed the `RESET FAILED` recovery hint and a re-run recovered | `reset-proof.md`, `env-review-fixes.md`             |
+| Nightly backup               | `proctira-uatenv-backup.timer` enabled (next run 02:30 UTC); first run through the systemd unit: `Result=success`, 2 encrypted artifacts (mode 600)                                                                                                                                                                                                                               | `backup-restore.md`                                 |
+| Restore drill                | newest dump restored into `proctira_restore_drill_<ts>` in 8 s; row counts match (tenants 10, institutions 7, students 3,625, staff 249, schema_migrations 192, _prisma_migrations 10, guardian_households 3); scratch dropped                                                                                                                                                    | `restore-drill-20261121T184534Z.json`               |
+| Protected containers         | the 16 `proctira-staging-*`, `proctira-erp-*`, `serviceformai-*`, `lanea-pg-43848`, `pc-back2-rmq` containers have the same id, state, start time and restart count as before the deploy                                                                                                                                                                                          | `preflight-protected.txt`, `deploy.md`              |

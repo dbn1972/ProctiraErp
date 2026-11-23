@@ -58,6 +58,10 @@ ensure "$U" UATENV_TENANT_BASE_DOMAIN "$TENANT_BASE"
 ensure "$U" UATENV_PUBLIC_SCHEME "$SCHEME"
 ensure "$U" UATENV_PUBLIC_PORT "$PORT"
 ensure "$U" UATENV_SUBNET 172.29.90.0/24
+# Fixed proxy address inside UATENV_SUBNET; the only trusted proxy for the gateway.
+ensure "$U" UATENV_PROXY_IP 172.29.90.250
+# Public TLS listener off by default; see the doc's "Public exposure" to enable it.
+ensure "$U" UATENV_PUBLIC_TLS 0
 ensure "$U" UATENV_TENANT_SLUGS sunrise-public-school,e2e-tenant-a
 ensure "$U" UATENV_REGISTRATION_SLUGS e2e-registration
 ensure "$U" NODE_ENV production
@@ -109,7 +113,12 @@ ensure "$U" NEXT_PUBLIC_WEB_URL "$SCHEME://sunrise-public-school.$TENANT_BASE$PU
 ensure "$U" CORS_ORIGINS "$(UATENV_PLATFORM_DOMAIN="$PLATFORM" UATENV_TENANT_BASE_DOMAIN="$TENANT_BASE" \
   UATENV_PUBLIC_SCHEME="$SCHEME" UATENV_PUBLIC_PORT="$PORT" \
   node "$(dirname "${BASH_SOURCE[0]}")/uatenv-render.mjs" cors)"
-ensure "$U" TRUSTED_PROXY_CIDRS "$(get "$U" UATENV_SUBNET)"
+# Trust forwarding headers from the pinned proxy only. Earlier installs trusted
+# the whole subnet, which let a client-supplied X-Forwarded-For become request.ip.
+if [[ "$(get "$U" TRUSTED_PROXY_CIDRS || true)" == "$(get "$U" UATENV_SUBNET)" ]]; then
+  sed -i '/^TRUSTED_PROXY_CIDRS=/d' "$U"
+fi
+ensure "$U" TRUSTED_PROXY_CIDRS "$(get "$U" UATENV_PROXY_IP)/32"
 ensure "$U" RATE_LIMIT_MAX_REQUESTS 600
 ensure "$U" TENANT_BASE_DOMAIN "$TENANT_BASE"
 ensure "$U" TENANT_FALLBACK_SLUG sunrise-public-school

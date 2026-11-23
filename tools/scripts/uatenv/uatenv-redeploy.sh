@@ -73,6 +73,7 @@ rollback() {
   uatenv_render_configs "$PREV_REL"
   # shellcheck disable=SC2046
   UATENV_RELEASE="$PREV_REL" uatenv_compose $(uatenv_profile_args) up -d "${APPS[@]}" proxy || true
+  UATENV_RELEASE="$PREV_REL" uatenv_reload_proxy || true
 }
 trap 'rollback' EXIT
 
@@ -80,6 +81,7 @@ export UATENV_RELEASE="$REL"
 uatenv_guard
 # shellcheck disable=SC2046
 uatenv_compose $(uatenv_profile_args) up -d --remove-orphans "${UATENV_DATASTORES[@]}" keycloak "${APPS[@]}" proxy
+uatenv_reload_proxy
 wait_healthy "${UATENV_DATASTORES[@]}" keycloak "${APPS[@]}" proxy
 bash "$TOOLS/uatenv-keycloak.sh"
 DEPLOYED=1

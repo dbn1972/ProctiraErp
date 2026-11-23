@@ -15,7 +15,8 @@
  *
  * Host names come from UATENV_TENANT_BASE_DOMAIN, UATENV_PLATFORM_DOMAIN,
  * UATENV_PUBLIC_SCHEME, UATENV_PUBLIC_PORT and UATENV_TENANT_SLUGS, so public
- * exposure is a configuration change (see the doc's "Public exposure").
+ * exposure is a configuration change (see the doc's "Public exposure"). The TLS
+ * listener needs UATENV_PUBLIC_TLS=1 plus UATENV_TLS_CERT / UATENV_TLS_KEY.
  */
 import { readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
@@ -56,6 +57,7 @@ export function hostOptions(env = process.env) {
     .filter(Boolean);
   const defaultPort =
     (scheme === 'https' && port === '443') || (scheme === 'http' && port === '80');
+  const publicTls = env.UATENV_PUBLIC_TLS === '1';
   const origin = (host) => `${scheme}://${host}${defaultPort ? '' : `:${port}`}`;
   return {
     tenantBase,
@@ -71,8 +73,11 @@ export function hostOptions(env = process.env) {
     adminHost: `admin.${platform}`,
     wwwHost: `www.${platform}`,
     developersHost: `developers.${platform}`,
-    tlsCert: env.UATENV_TLS_CERT ? '/etc/nginx/tls/fullchain.pem' : '',
-    tlsKey: env.UATENV_TLS_KEY ? '/etc/nginx/tls/privkey.pem' : '',
+    // The 29090 TLS listener is rendered only when the public overlay that
+    // mounts the certificate is active too (uatenv_compose reads the same
+    // UATENV_PUBLIC_TLS from secrets/uatenv.env).
+    tlsCert: publicTls && env.UATENV_TLS_CERT ? '/etc/nginx/tls/fullchain.pem' : '',
+    tlsKey: publicTls && env.UATENV_TLS_KEY ? '/etc/nginx/tls/privkey.pem' : '',
   };
 }
 
@@ -123,7 +128,10 @@ const proxyCommon = `
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # The proxy is the edge: overwrite any client-supplied X-Forwarded-For so
+        # the gateway (TRUSTED_PROXY_CIDRS = this proxy's pinned IP only) never
+        # takes a spoofed value as request.ip (PRC-M524 / W1-SEC-07).
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $http_host;
         proxy_set_header X-Forwarded-Port $uatenv_port;
@@ -160,6 +168,22 @@ function tenantLocations(webV1Routes) {
     loc('^~ /api/v1/', 'up_gateway'),
     loc('/', 'up_web'),
   ].join('\n');
+}
+
+/**
+ * Keycloak behind auth.<platform>. The admin console and the master realm stay
+ * reachable on the loopback listener (SSH tunnel) but are refused on the public
+ * TLS listener (29090), so a public UAT never serves them.
+ */
+function keycloakLocations() {
+  const tunnelOnly = (path) => `
+    location ^~ ${path} {
+        if ($uatenv_public_listener) {
+            return 403;
+        }${proxyCommon}
+        proxy_pass $up_keycloak;
+    }`;
+  return [tunnelOnly('/admin'), tunnelOnly('/realms/master'), loc('/', 'up_keycloak')].join('\n');
 }
 
 const HEALTH_LOCATION = `
@@ -217,6 +241,10 @@ map $http_upgrade $uatenv_connection {
 map $server_port $uatenv_port {
     default ${opts.port};
 }
+map $server_port $uatenv_public_listener {
+    29090   1;
+    default 0;
+}
 ${server('_', `${HEALTH_LOCATION}\n    location / {\n        return 421;\n    }`, true)}
 ${server('localhost 127.0.0.1', `${HEALTH_LOCATION}\n${tenant}`)}
 ${server(tenantRegex, tenant)}
@@ -229,7 +257,7 @@ ${
     : ''
 }
 ${server(opts.apiHost, loc('/', 'up_gateway'))}
-${server(opts.authHost, loc('/', 'up_keycloak'))}
+${server(opts.authHost, keycloakLocations())}
 ${server(opts.registerHost, loc('/', 'up_registration'))}
 ${server(opts.adminHost, loc('/', 'up_admin'))}
 ${server(opts.wwwHost, loc('/', 'up_www'))}

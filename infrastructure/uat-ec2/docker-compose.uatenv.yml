@@ -62,6 +62,9 @@ services:
     logging: *uatenv-logging
     networks:
       proctira:
+        # Pinned so the gateway trusts forwarding headers from this address
+        # only (TRUSTED_PROXY_CIDRS=<UATENV_PROXY_IP>/32, uatenv-secrets.sh).
+        ipv4_address: ${UATENV_PROXY_IP:-172.29.90.250}
         aliases:
           # Browser and server-side calls share one host name (see the doc).
           - api.${UATENV_PLATFORM_DOMAIN:-proctira-uat.localhost}

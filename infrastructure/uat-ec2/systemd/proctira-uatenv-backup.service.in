@@ -1,8 +1,8 @@
 # Rendered by tools/scripts/uatenv/uatenv-install-timer.sh into ~/.config/systemd/user/.
+# A user unit cannot order itself after the system docker.service; the script
+# itself waits for Postgres on 127.0.0.1:29010 before dumping (boot catch-up).
 [Unit]
 Description=ProctiraERP UAT nightly pg_dump (7-day retention)
-After=docker.service
-
 [Service]
 Type=oneshot
 Environment=UATENV_HOME=@UATENV_HOME@

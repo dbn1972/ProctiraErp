@@ -120,10 +120,14 @@ uatenv_release_dir() {
 # interpolation, so the tag and paths always follow the selected release.
 uatenv_compose() {
   local rel="${UATENV_RELEASE:-$(uatenv_release_dir)}"
-  local sha
+  local sha public_tls
   sha="$(basename "$rel")"
   local files=(-f "$rel/docker-compose.yml" -f "$UATENV_RT/tooling/infrastructure/uat-ec2/docker-compose.uatenv.yml")
-  if [[ "${UATENV_PUBLIC_TLS:-0}" == "1" ]]; then
+  # The public TLS mode is persisted in secrets/uatenv.env (with
+  # UATENV_PUBLIC_BIND and UATENV_TLS_*, which compose reads through
+  # --env-file), so every script in every shell applies the same overlay.
+  public_tls="${UATENV_PUBLIC_TLS:-$(env_file_get "$UATENV_SEC/uatenv.env" UATENV_PUBLIC_TLS 2>/dev/null || true)}"
+  if [[ "$public_tls" == "1" ]]; then
     files+=(-f "$UATENV_RT/tooling/infrastructure/uat-ec2/docker-compose.uatenv-public.yml")
   fi
   UATENV_TAG="${sha:0:12}" \
@@ -270,7 +274,7 @@ uatenv_build_images() {
     uatenv_log "building $svc (log: $log)"
     (
       export UATENV_RELEASE="$rel" BUILDKIT_PROGRESS=plain UATENV_PROJECT UATENV_RT UATENV_SEC
-      export -f uatenv_compose uatenv_release_dir uatenv_die uatenv_log
+      export -f uatenv_compose uatenv_release_dir uatenv_die uatenv_log env_file_get
       timeout 3600 bash -c 'uatenv_compose build "$1"' _ "$svc"
     ) >"$log" 2>&1 || uatenv_die "build of $svc failed; see $log"
   done
@@ -315,7 +319,7 @@ uatenv_patch_prisma_openssl() {
     if [[ "$(docker image inspect -f '{{index .Config.Labels "com.proctira.uatenv.patch"}}' "$img" 2>/dev/null)" == prisma-openssl3 ]]; then
       continue
     fi
-    probe="$(docker run --rm --name "oth-uat-env-probe-$svc-$$" --entrypoint sh "$img" -c \
+    probe="$(docker run --rm --name "$UATENV_PROJECT-probe-$svc-$$" --entrypoint sh "$img" -c \
       'ls /app/node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/ 2>/dev/null | grep -c "^libquery_engine-linux-musl-openssl-3" ; ls /lib/libssl.so.1.1 /usr/lib/libssl.so.1.1 2>/dev/null | wc -l')"
     if [[ "$(head -1 <<<"$probe")" != 0 || "$(tail -1 <<<"$probe")" != 0 ]]; then
       uatenv_log "$svc: Prisma engine matches the runtime OpenSSL; no patch needed"
@@ -340,6 +344,15 @@ uatenv_render_configs() {
     --release "$rel" --out "$UATENV_SEC/generated/keycloak-realm.json"
   chmod 644 "$UATENV_RT/generated/nginx/uatenv.conf"
   chmod 600 "$UATENV_SEC/generated/keycloak-realm.json"
+}
+
+# The proxy bind-mounts the rendered config as one file and nginx has no file
+# watcher; `up -d` leaves an unchanged proxy service running on the old
+# config. Call this after every uatenv_render_configs that should take effect.
+# Uses UATENV_RELEASE like uatenv_compose.
+uatenv_reload_proxy() {
+  uatenv_log "recreating the proxy to load the rendered nginx config"
+  uatenv_compose up -d --no-deps --force-recreate proxy
 }
 
 # Production migration path (deploy.yml): roles, Prisma + apply-sql (strict FKs), gates.
