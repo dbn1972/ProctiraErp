@@ -65,8 +65,15 @@ export class PluginService {
   /**
    * Register a new plugin in the registry.
    * Validates the manifest and checks for name uniqueness.
+   *
+   * @param tenantId the verified tenant of the caller (PRC-L477): the register
+   *   audit row is attributed to it, never to a literal `'system'` tenant.
    */
-  async register(input: RegisterPluginInput, actor: string): Promise<PluginEntity> {
+  async register(
+    input: RegisterPluginInput,
+    actor: string,
+    tenantId: string,
+  ): Promise<PluginEntity> {
     const { manifest, description, category } = input;
 
     // Check for duplicate plugin name
@@ -116,11 +123,11 @@ export class PluginService {
       throw new ConflictError(`Plugin with name '${manifest.name}' already exists`);
     }
 
-    // Audit log (use a system tenant for registry-level operations)
+    // Audit log, attributed to the caller's verified tenant (PRC-L477)
     await this.audit({
       id: uuidv4(),
       pluginId,
-      tenantId: 'system',
+      tenantId,
       installId: null,
       action: 'register',
       actor,

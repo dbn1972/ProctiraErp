@@ -48,7 +48,7 @@ describe('PluginService', () => {
       const { service } = createService();
       const input = validRegisterInput();
 
-      const plugin = await service.register(input, 'admin-user');
+      const plugin = await service.register(input, 'admin-user', 'platform-tenant');
 
       expect(plugin.id).toBeDefined();
       expect(plugin.name).toBe('test-plugin');
@@ -63,9 +63,11 @@ describe('PluginService', () => {
       const { service } = createService();
       const input = validRegisterInput();
 
-      await service.register(input, 'admin-user');
+      await service.register(input, 'admin-user', 'platform-tenant');
 
-      await expect(service.register(input, 'admin-user')).rejects.toThrow(ConflictError);
+      await expect(service.register(input, 'admin-user', 'platform-tenant')).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should reject incompatible product versions', async () => {
@@ -74,7 +76,9 @@ describe('PluginService', () => {
         manifest: validManifest({ supportedProductVersions: '^2.0.0' }),
       });
 
-      await expect(service.register(input, 'admin-user')).rejects.toThrow(BusinessRuleError);
+      await expect(service.register(input, 'admin-user', 'platform-tenant')).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should accept wildcard version compatibility', async () => {
@@ -83,7 +87,7 @@ describe('PluginService', () => {
         manifest: validManifest({ supportedProductVersions: '*' }),
       });
 
-      const plugin = await service.register(input, 'admin-user');
+      const plugin = await service.register(input, 'admin-user', 'platform-tenant');
       expect(plugin.name).toBe('test-plugin');
     });
   });
@@ -92,7 +96,7 @@ describe('PluginService', () => {
     it('should install a plugin for a tenant with consented permissions', async () => {
       const { service } = createService();
       const registerInput = validRegisterInput();
-      const plugin = await service.register(registerInput, 'admin-user');
+      const plugin = await service.register(registerInput, 'admin-user', 'platform-tenant');
 
       const installInput: InstallPluginInput = {
         pluginId: plugin.id,
@@ -122,7 +126,7 @@ describe('PluginService', () => {
 
     it('should reject duplicate installation for same tenant', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
 
       const installInput: InstallPluginInput = {
         pluginId: plugin.id,
@@ -137,7 +141,7 @@ describe('PluginService', () => {
 
     it('should reject installation if required permissions not consented', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
 
       const installInput: InstallPluginInput = {
         pluginId: plugin.id,
@@ -151,7 +155,7 @@ describe('PluginService', () => {
 
     it('should allow different tenants to install the same plugin', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
 
       const installInput: InstallPluginInput = {
         pluginId: plugin.id,
@@ -169,7 +173,7 @@ describe('PluginService', () => {
   describe('enable', () => {
     it('should enable an installed plugin', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -184,7 +188,7 @@ describe('PluginService', () => {
 
     it('should reject enabling an already enabled plugin', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -199,7 +203,7 @@ describe('PluginService', () => {
 
     it('should reject enabling for wrong tenant', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -213,7 +217,7 @@ describe('PluginService', () => {
   describe('disable', () => {
     it('should disable an enabled plugin', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -229,7 +233,7 @@ describe('PluginService', () => {
 
     it('should reject disabling an already disabled plugin', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -247,7 +251,7 @@ describe('PluginService', () => {
   describe('uninstall', () => {
     it('should uninstall a plugin and revoke all permissions', async () => {
       const { service, repository } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -271,7 +275,7 @@ describe('PluginService', () => {
 
     it('should reject uninstalling an already uninstalled plugin', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -288,7 +292,7 @@ describe('PluginService', () => {
   describe('permissions', () => {
     it('should revoke a specific permission', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
       const install = await service.install(
         'tenant-1',
         { pluginId: plugin.id, consentedPermissions: ['read:students', 'write:attendance'] },
@@ -310,7 +314,7 @@ describe('PluginService', () => {
   describe('listInstallations', () => {
     it('should list only installations for the specified tenant', async () => {
       const { service } = createService();
-      const plugin = await service.register(validRegisterInput(), 'admin');
+      const plugin = await service.register(validRegisterInput(), 'admin', 'platform-tenant');
 
       await service.install(
         'tenant-1',

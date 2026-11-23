@@ -81,7 +81,7 @@ async function registerAsPlatform() {
   return app.inject({
     method: 'POST',
     url: '/plugins',
-    headers: headers('', PLATFORM),
+    headers: headers('platform-tenant', PLATFORM),
     payload: validManifestBody(),
   });
 }
@@ -91,7 +91,7 @@ describe('PRC-M603 register requires platform admin', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/plugins',
-      headers: headers('', TENANT),
+      headers: headers('platform-tenant', TENANT),
       payload: validManifestBody(),
     });
     expect(res.statusCode).toBe(403);

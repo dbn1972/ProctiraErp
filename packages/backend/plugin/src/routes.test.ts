@@ -62,6 +62,7 @@ describe('POST /plugins (register)', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
 
@@ -77,6 +78,7 @@ describe('POST /plugins (register)', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: { manifest: { name: '' } },
     });
 
@@ -89,12 +91,14 @@ describe('POST /plugins (register)', () => {
     await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
 
     const response = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
 
@@ -107,6 +111,7 @@ describe('GET /plugins', () => {
     await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
 
@@ -127,6 +132,7 @@ describe('GET /plugins/:pluginId', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
     const pluginId = createResponse.json().id;
@@ -155,6 +161,7 @@ describe('POST /plugins/install', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
     const pluginId = createResponse.json().id;
@@ -196,6 +203,7 @@ describe('POST /plugins/installations/:installId/enable', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
     const pluginId = createResponse.json().id;
@@ -224,6 +232,7 @@ describe('POST /plugins/installations/:installId/disable', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
     const pluginId = createResponse.json().id;
@@ -258,6 +267,7 @@ describe('POST /plugins/installations/:installId/uninstall', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
     const pluginId = createResponse.json().id;
@@ -287,6 +297,7 @@ describe('GET /plugins/installations', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/plugins',
+      headers: { 'x-tenant-id': 'platform-tenant' },
       payload: validManifestBody(),
     });
     const pluginId = createResponse.json().id;

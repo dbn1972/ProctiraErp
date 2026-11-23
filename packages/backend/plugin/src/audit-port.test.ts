@@ -16,6 +16,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import type { PluginAuditEvent, PluginAuditPort } from './audit-port.js';
 import { InMemoryPluginRepository } from './in-memory-repository.js';
+import { pluginPlugin } from './plugin-plugin.js';
 import { PluginService } from './plugin-service.js';
 import { registerPluginRoutes } from './routes.js';
 
@@ -90,7 +91,7 @@ describe('PRC-L477 injected AuditPort receives the real actor and tenant', () =>
     const regRes = await app.inject({
       method: 'POST',
       url: '/plugins',
-      headers: { 'x-sub': 'alice', 'x-roles': 'platform_admin' },
+      headers: { 'x-tenant-id': 'platform-tenant', 'x-sub': 'alice', 'x-roles': 'platform_admin' },
       payload: validManifestBody(),
     });
     expect(regRes.statusCode).toBe(201);
@@ -107,10 +108,25 @@ describe('PRC-L477 injected AuditPort receives the real actor and tenant', () =>
     const register = port.events.find((e) => e.action === 'register');
     const install = port.events.find((e) => e.action === 'install');
     expect(register?.actor).toBe('alice');
+    // The register row carries the caller's verified tenant, not a literal 'system' tenant.
+    expect(register?.tenantId).toBe('platform-tenant');
     expect(install?.actor).toBe('bob');
     expect(install?.tenantId).toBe('tenant-xyz');
     // The literal 'system' actor must never be recorded for an authenticated mutation.
     expect(port.events.every((e) => e.actor !== 'system')).toBe(true);
+    expect(port.events.every((e) => e.tenantId !== 'system')).toBe(true);
+  });
+
+  it('rejects a register with no tenant context instead of logging it under a fake tenant', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/plugins',
+      headers: { 'x-sub': 'alice', 'x-roles': 'platform_admin' },
+      payload: validManifestBody(),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('TENANT_REQUIRED');
+    expect(port.events).toHaveLength(0);
   });
 });
 
@@ -119,11 +135,32 @@ describe('PRC-L477 fail-closed when no verified actor is present', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/plugins',
-      headers: { 'x-roles': 'platform_admin' }, // no x-sub -> no verified actor
+      headers: { 'x-tenant-id': 'platform-tenant', 'x-roles': 'platform_admin' }, // no x-sub
       payload: validManifestBody(),
     });
     expect(res.statusCode).toBe(401);
     expect(res.json().code).toBe('ACTOR_REQUIRED');
     expect(port.events).toHaveLength(0);
+  });
+});
+
+describe('PRC-L477 the Fastify plugin threads the injected audit port', () => {
+  it('routes register audit through the port passed to pluginPlugin', async () => {
+    const injected = new RecordingAuditPort();
+    const pluginApp = Fastify();
+    await pluginApp.register(pluginPlugin, {
+      repository: new InMemoryPluginRepository(),
+      config: { productVersion: '2.0.0' },
+      auditPort: injected,
+    });
+    await pluginApp.ready();
+    await pluginApp.pluginService.register(validManifestBody(), 'alice', 'platform-tenant');
+    expect(injected.events).toHaveLength(1);
+    expect(injected.events[0]).toMatchObject({
+      action: 'register',
+      actor: 'alice',
+      tenantId: 'platform-tenant',
+    });
+    await pluginApp.close();
   });
 });

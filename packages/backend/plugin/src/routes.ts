@@ -145,6 +145,16 @@ export async function registerPluginRoutes(
       request: FastifyRequest<{ Body: RegisterPluginInput }>,
       reply: FastifyReply,
     ) {
+      // PRC-L477: the register audit row carries the caller's verified tenant.
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
       const result = validate(RegisterPluginSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -158,7 +168,7 @@ export async function registerPluginRoutes(
       try {
         assertCanRegisterPlugin(request);
         const actor = requireActor(request);
-        const plugin = await pluginService.register(result.data, actor);
+        const plugin = await pluginService.register(result.data, actor, tenantId);
         return reply.status(201).send(formatPluginResponse(plugin));
       } catch (error: unknown) {
         if (error instanceof PluginActorRequiredError) {
