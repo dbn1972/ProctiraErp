@@ -337,7 +337,15 @@ describe('StaffService', () => {
       await service.create(TENANT_ID, validCreateInput({ identityNumber: 'NAT-12345' }));
       await service.create(TENANT_ID, validCreateInput({ identityNumber: 'NAT-67890' }));
 
-      const result = await service.list(TENANT_ID, { search: '12345' }, { page: 1, pageSize: 20 });
+      // HN-F4-R4: identity matching is opt-in (the route enables it for staff.update roles).
+      const hidden = await service.list(TENANT_ID, { search: '12345' }, { page: 1, pageSize: 20 });
+      expect(hidden.data).toHaveLength(0);
+
+      const result = await service.list(
+        TENANT_ID,
+        { search: '12345', matchIdentityNumber: true },
+        { page: 1, pageSize: 20 },
+      );
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.identityNumber).toBe('NAT-12345');

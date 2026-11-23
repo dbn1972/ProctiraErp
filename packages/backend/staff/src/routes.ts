@@ -274,12 +274,15 @@ export async function registerStaffRoutes(
         ids = await onLeaveStaffIds(tenantId, new Date().toISOString().slice(0, 10));
       }
 
+      const maskIdentity = !canViewStaffIdentity(staffRequestRoles(request));
       const result = await staffService.list(
         tenantId,
         {
           status: query.status as 'ACTIVE' | 'INACTIVE' | undefined,
           position: query.position,
           search: query.search,
+          // HN-F4-R4: a caller who sees masked identity numbers cannot search by them.
+          matchIdentityNumber: !maskIdentity,
           institutionId: query.institutionId,
           ...(type === 'TEACHING' || type === 'NON_TEACHING' ? { staffType: type } : {}),
           ...(ids ? { ids } : {}),
@@ -287,7 +290,6 @@ export async function registerStaffRoutes(
         { page, pageSize, sortBy, sortOrder },
       );
 
-      const maskIdentity = !canViewStaffIdentity(staffRequestRoles(request));
       return reply.status(200).send({
         data: result.data.map((entity) => formatStaffResponse(entity, { maskIdentity })),
         meta: result.meta,

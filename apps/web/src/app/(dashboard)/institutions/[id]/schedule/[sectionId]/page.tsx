@@ -134,16 +134,14 @@ export default async function SectionRosterPage(props: PageProps) {
   for (const student of missingStudents) {
     if (!student) continue;
     rememberStudent(student);
-    const label = formatPersonLabel(
-      student.firstName,
-      student.lastName,
-      studentAdmission.get(student.id) ?? student.nationalId,
-    );
+    // HN-F4-R2: same rule as the first page above; never fall back to the national ID.
+    const admission = studentAdmission.get(student.id) ?? '';
+    const label = formatPersonLabel(student.firstName, student.lastName, admission || null);
     studentLabel.set(student.id, label);
     studentOptions.push({
       id: student.id,
       label,
-      searchText: `${student.firstName} ${student.lastName} ${student.nationalId ?? ''}`,
+      searchText: `${student.firstName} ${student.lastName} ${admission}`,
     });
   }
   const staffLabel = new Map(

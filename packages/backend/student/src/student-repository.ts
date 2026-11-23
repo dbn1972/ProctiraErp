@@ -68,6 +68,17 @@ export interface StudentFilter {
   institutionId?: string;
   /** When set, only these student ids are returned (batch label lookup). */
   ids?: string[];
+  /**
+   * HN-F4-R3: let `search` also match `nationalId`. Off by default (fail closed);
+   * routes set it only for roles that may view national IDs (registrar/admin).
+   */
+  matchNationalId?: boolean;
+}
+
+/** HN-F4-R3: options for {@link StudentRepository.search}. */
+export interface StudentSearchOptions {
+  /** Also match `nationalId`. Off by default; only for roles that may view it. */
+  matchNationalId?: boolean;
 }
 
 /** PRC-L365: optimistic-concurrency precondition for student updates. */
@@ -184,11 +195,12 @@ export interface StudentRepository {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StudentEntity>>;
 
-  /** Full-text search on student name and national ID */
+  /** Full-text search on student name (and national ID when `options.matchNationalId`) */
   search(
     tenantId: string,
     query: string,
     pagination: PaginationOptions,
+    options?: StudentSearchOptions,
   ): Promise<PaginatedResult<StudentEntity>>;
 
   /**

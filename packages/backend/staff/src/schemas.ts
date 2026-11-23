@@ -135,7 +135,9 @@ export const StaffListQuerySchema = Type.Object({
   ),
   position: Type.Optional(Type.String({ description: 'Filter by position' })),
   search: Type.Optional(
-    Type.String({ description: 'Full-text search on name and identity number' }),
+    Type.String({
+      description: 'Search on name; identity number matches only for staff.update roles',
+    }),
   ),
   sortBy: Type.Optional(
     Type.String({
