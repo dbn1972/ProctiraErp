@@ -64,10 +64,10 @@ updates:
 
   # ---- Container base images ---------------------------------------------------
   # PRC-L111: every git-tracked Dockerfile* directory (root base images, each
-  # app, workers, infrastructure/docker). Enforced by
+  # app, workers, infrastructure/docker, infrastructure/uat-ec2). Enforced by
   # tools/scripts/check-dependabot-coverage.mjs (workflow lint).
   - package-ecosystem: docker
-    directories: ['/', '/apps/*', '/workers/*', '/infrastructure/docker']
+    directories: ['/', '/apps/*', '/workers/*', '/infrastructure/docker', '/infrastructure/uat-ec2']
     schedule:
       interval: weekly
       day: monday
@@ -81,7 +81,7 @@ updates:
   # Helm charts have no `dependencies` and reference only first-party
   # proctira/* images, so the helm ecosystem is not applicable.
   - package-ecosystem: docker-compose
-    directories: ['/', '/infra/observability', '/infrastructure/docker']
+    directories: ['/', '/infra/observability', '/infrastructure/docker', '/infrastructure/uat-ec2']
     schedule:
       interval: weekly
       day: monday
