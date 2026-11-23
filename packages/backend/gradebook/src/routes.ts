@@ -19,6 +19,7 @@ import {
   type GradebookAction,
 } from './gradebook-access.js';
 import {
+  ReferenceNotFoundError,
   isGradebookSchemaMissingError,
   isGradeLockedError,
   isTranscriptImmutableError,
@@ -192,6 +193,10 @@ function sendDomainError(reply: FastifyReply, error: unknown) {
   }
   if (isGradeLockedError(error) || isTranscriptImmutableError(error)) {
     return reply.status(409).send(error.toJSON());
+  }
+  if (error instanceof ReferenceNotFoundError) {
+    // M4-P2 / #739: fixed copy plus the request's correlation id, as the gateway's FK mapping.
+    return reply.status(422).send({ ...error.toJSON(), correlationId: String(reply.request.id) });
   }
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
