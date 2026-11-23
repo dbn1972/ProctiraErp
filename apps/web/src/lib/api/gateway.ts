@@ -57,7 +57,8 @@ export async function getSessionContext(): Promise<{
   const payload = accessToken ? decodeTokenPayload(accessToken) : null;
 
   // Prefer JWT claim; fall back to middleware-injected header; finally to "default".
-  const tenantId = payload?.tenantId ?? headerStore.get('x-tenant-id') ?? 'default';
+  // `||`: a token without a tenant claim decodes to an empty tenantId (UATENV-D06).
+  const tenantId = payload?.tenantId || headerStore.get('x-tenant-id') || 'default';
 
   return { tenantId, accessToken };
 }
