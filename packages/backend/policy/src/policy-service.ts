@@ -7,8 +7,10 @@
  *
  * Charter: Section 27 (Security and Compliance)
  */
-import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { validate } from '@proctira/validation';
+import { Type, type TSchema } from '@sinclair/typebox';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { PolicyAuditEvent, PolicyAuditPort } from './audit-port.js';
@@ -23,12 +25,39 @@ import type {
   PolicyFilter,
   PolicyRepository,
 } from './policy-repository.js';
-import type {
-  CreatePolicyInput,
-  UpdatePolicyInput,
-  PolicyEvaluationResponse,
-  CreatePolicyAssignmentInput,
+import {
+  DataRetentionRulesSchema,
+  PasswordComplexityRulesSchema,
+  RateLimitingRulesSchema,
+  SessionTimeoutRulesSchema,
+  type CreatePolicyInput,
+  type UpdatePolicyInput,
+  type PolicyEvaluationResponse,
+  type CreatePolicyAssignmentInput,
+  type PolicyType,
 } from './schemas.js';
+
+/**
+ * PRC-M609: per-type rule schemas. A policy at a more specific scope may set
+ * only the keys it overrides (rules are merged down the inheritance chain), so
+ * every key is optional, but each key must belong to the policy type and hold
+ * a value of the declared type and range.
+ */
+const RULE_SCHEMAS: Record<PolicyType, TSchema> = {
+  data_retention: Type.Partial(DataRetentionRulesSchema, { additionalProperties: false }),
+  password_complexity: Type.Partial(PasswordComplexityRulesSchema, {
+    additionalProperties: false,
+  }),
+  session_timeout: Type.Partial(SessionTimeoutRulesSchema, { additionalProperties: false }),
+  rate_limiting: Type.Partial(RateLimitingRulesSchema, { additionalProperties: false }),
+};
+
+function assertRulesMatchType(type: PolicyType, rules: unknown): void {
+  const result = validate(RULE_SCHEMAS[type], rules);
+  if (!result.success) {
+    throw new ValidationError(`Policy rules are not valid for type '${type}'`, result.errors);
+  }
+}
 
 /**
  * Service handling policy business logic.
@@ -76,6 +105,8 @@ export class PolicyService {
    * @throws ConflictError if name already exists
    */
   async create(tenantId: string, input: CreatePolicyInput, actor?: string): Promise<PolicyEntity> {
+    assertRulesMatchType(input.type, input.rules);
+
     // Check name uniqueness within tenant
     const existingByName = await this.repository.findByName(input.name, tenantId);
     if (existingByName) {
@@ -165,6 +196,8 @@ export class PolicyService {
 
     // If rules are changed, bump version and record the new version row
     if (input.rules !== undefined) {
+      // PRC-M609: new rules must match the stored policy's type (type is immutable).
+      assertRulesMatchType(existing.type, input.rules);
       const newVersion = existing.version + 1;
       updateData.rules = input.rules as Record<string, unknown>;
       updateData.version = newVersion;
@@ -327,6 +360,24 @@ export class PolicyService {
 
     if (policy.status !== 'active') {
       throw new BusinessRuleError('Only active policies can be assigned');
+    }
+
+    // PRC-M609: the assignment target must match the policy scope, and the
+    // target id must fit that scope (the evaluator looks tenant assignments up
+    // by the tenant id and institution assignments by the institution id).
+    if (input.targetType !== policy.scope) {
+      throw new BusinessRuleError(
+        `A ${policy.scope}-scope policy cannot be assigned to a ${input.targetType} target`,
+      );
+    }
+    if (input.targetType === 'platform' && input.targetId) {
+      throw new BusinessRuleError('A platform assignment takes no targetId');
+    }
+    if (input.targetType === 'tenant' && input.targetId !== tenantId) {
+      throw new BusinessRuleError('A tenant assignment must target the current tenant');
+    }
+    if (input.targetType === 'institution' && !input.targetId) {
+      throw new BusinessRuleError('An institution assignment needs a targetId');
     }
 
     const assignment = await this.repository.createAssignment({
