@@ -51,9 +51,12 @@ import {
  * positive control (the tenant administrator does see the row).
  *
  * Known open defects are not asserted here (defects.md); their assertions live in
- * patches/ for the fix PRs: the national id in the gradebook pickers (P1), the `staff`
- * role seeing "Gradebook is unavailable" instead of the access-denied screen (R2), and
- * writes that reference another tenant's student or subject (P2, P3).
+ * patches/ for the fix PRs: the national id in the gradebook pickers (P1) and the `staff`
+ * role seeing "Gradebook is unavailable" instead of the access-denied screen (R2).
+ * Writes that reference another tenant's student, institution, subject or period (P2, P3,
+ * fixed in #759) are asserted in `115-assessments-gradebook-defect-fixes.spec.ts`, which
+ * covers every assertion of the P2 and P3 patches with the exact safe 422 body; they are
+ * not repeated here.
  */
 
 const SCREENS_S1_TO_S7 = 7;
@@ -433,28 +436,6 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
     expect(rowsOf(bResults), 'tenant B recorded no result').toEqual([]);
   });
 
-  test('P3 tenant B cannot define items or outcomes on a tenant-A subject or period', async ({
-    request,
-  }) => {
-    const items = await probe(request, adminB, 'POST', '/assessment-items', {
-      subjectId: a.subject.id,
-      academicPeriodId: PERIOD_A,
-      gradingSchemeId: b.scheme.id,
-      items: [{ name: `AS ${tagB} P3`, weight: 100, minScore: 0, maxScore: 100 }],
-    });
-    expect
-      .soft([404, 422], `tenant B POST /assessment-items: ${items.status} ${items.body}`)
-      .toContain(items.status);
-    const outcome = await probe(request, adminB, 'POST', '/outcomes', {
-      subjectId: a.subject.id,
-      code: `AS${tagB}P3`,
-      name: `AS ${tagB} P3`,
-    });
-    expect
-      .soft([404, 422], `tenant B POST /outcomes: ${outcome.status} ${outcome.body}`)
-      .toContain(outcome.status);
-  });
-
   test('N5 a forged X-Tenant-ID header is ignored in both directions', async ({ request }) => {
     const views: Array<[Persona, string, string, string, string]> = [
       [a.admin, TENANT_B, tag, a.scheme.id, b.scheme.id],
@@ -496,23 +477,6 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
     );
     expect(forgedEntries.status).toBe(200);
     expect(rowsOf(forgedEntries)).toEqual([]);
-  });
-
-  test('P2 tenant B cannot queue a report card for a tenant-A student or institution', async ({
-    request,
-  }) => {
-    const fx = await import('./fixtures/assessments-gradebook-screens');
-    const boardB = fx.ensureTenantBBoard();
-    for (const body of [
-      { studentId: a.l1.id, boardId: boardB, institutionId: null },
-      { studentId: a.l1.id, boardId: boardB, institutionId: a.institution.id },
-    ]) {
-      const r = await probe(request, adminB, 'POST', '/gradebook/report-cards', body);
-      expect
-        .soft([404, 422], `tenant B POST /gradebook/report-cards ${JSON.stringify(body)}: ${r.body}`)
-        .toContain(r.status);
-    }
-    expect(await fx.reportCardJobsFor(request, adminB, a.l1.id), 'no tenant-B card').toEqual([]);
   });
 
   test('N6 student pickers and labels carry no date of birth or guardian phone (S5, S8); S5 no national id', async ({
