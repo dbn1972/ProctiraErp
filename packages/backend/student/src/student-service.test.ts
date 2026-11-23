@@ -377,7 +377,15 @@ describe('StudentService', () => {
         validCreateInput({ firstName: 'Bob', nationalId: 'NID-XYZ' }),
       );
 
-      const result = await service.list(TENANT_ID, { search: 'ABC' }, { page: 1, pageSize: 20 });
+      // HN-F4-R3: national ID matching is opt-in (routes enable it for registrar/admin).
+      const hidden = await service.list(TENANT_ID, { search: 'ABC' }, { page: 1, pageSize: 20 });
+      expect(hidden.data).toHaveLength(0);
+
+      const result = await service.list(
+        TENANT_ID,
+        { search: 'ABC', matchNationalId: true },
+        { page: 1, pageSize: 20 },
+      );
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].nationalId).toBe('NID-ABC');
@@ -442,7 +450,16 @@ describe('StudentService', () => {
         validCreateInput({ firstName: 'Bob', nationalId: 'NID-OTHER-002' }),
       );
 
-      const result = await service.search(TENANT_ID, 'SEARCH-001', { page: 1, pageSize: 20 });
+      // HN-F4-R3: national ID matching is opt-in (routes enable it for registrar/admin).
+      const hidden = await service.search(TENANT_ID, 'SEARCH-001', { page: 1, pageSize: 20 });
+      expect(hidden.data).toHaveLength(0);
+
+      const result = await service.search(
+        TENANT_ID,
+        'SEARCH-001',
+        { page: 1, pageSize: 20 },
+        { matchNationalId: true },
+      );
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].nationalId).toBe('NID-SEARCH-001');

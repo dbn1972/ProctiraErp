@@ -411,6 +411,7 @@ describe('PRC-L561 gradebook download and portal read authorization', () => {
       code: 'CBSE-DEL-01',
       name: 'CBSE Demo',
     });
+    repo.seedStudent(TENANT, STUDENT);
     for (const [id, codeType, codeValue] of [
       ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'AFFILIATION', 'CBSE-AFF-L561'],
       ['cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'CENTRE', 'CBSE-CTR-L561'],

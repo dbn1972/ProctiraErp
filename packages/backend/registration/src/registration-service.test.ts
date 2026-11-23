@@ -205,12 +205,15 @@ describe('RegistrationService', () => {
             fileType: 'image/jpeg',
             fileSize: 1024 * 100,
             documentType: 'photo',
+            // PRC-M330: every document carries its bytes.
+            content: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00]).toString('base64'),
           },
           {
             fileName: 'certificate.pdf',
             fileType: 'application/pdf',
             fileSize: 1024 * 500,
             documentType: 'birth_certificate',
+            content: Buffer.from('%PDF-1.7\n').toString('base64'),
           },
         ],
       };

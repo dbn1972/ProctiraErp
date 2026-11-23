@@ -49,8 +49,8 @@ describe('check-topology-canonical (W1-OPS-16)', () => {
       writeFileSync(
         prod,
         readFileSync(prod, 'utf8').replace(
-          /institutionService:\n  enabled: false/,
-          'institutionService:\n  enabled: true',
+          /studentService:\n  enabled: false/,
+          'studentService:\n  enabled: true',
         ),
         'utf8',
       );
@@ -66,7 +66,7 @@ describe('check-topology-canonical (W1-OPS-16)', () => {
       });
       const combined = `${result.stdout ?? ''}${result.stderr ?? ''}`;
       expect(result.status, combined).not.toBe(0);
-      expect(combined).toMatch(/institutionService|enabled: false/i);
+      expect(combined).toMatch(/studentService|enabled: false/i);
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }

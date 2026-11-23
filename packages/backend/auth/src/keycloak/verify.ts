@@ -2,7 +2,11 @@ import { createPublicKey, createVerify, type KeyObject } from 'node:crypto';
 
 import type { JwtPayload } from '@proctira/auth';
 
-import { extractKeycloakRoleNames, mapKeycloakRoles } from './roles.js';
+import {
+  extractKeycloakRoleNames,
+  mapKeycloakRoles,
+  type KeycloakRoleCatalogEntry,
+} from './roles.js';
 
 export type KeycloakAuthConfig = {
   issuer: string;
@@ -10,6 +14,11 @@ export type KeycloakAuthConfig = {
   clientId: string;
   jwksUri: string;
   realm: string;
+  /**
+   * Platform roles a Keycloak role may map onto (UATENV-D07). The gateway passes
+   * its RBAC registry roles; omitted, only the six realm roles are kept.
+   */
+  roleCatalog?: readonly KeycloakRoleCatalogEntry[];
 };
 
 type Jwk = {
@@ -238,7 +247,7 @@ export async function verifyKeycloakAccessToken(
     throw new KeycloakTokenError('Keycloak audience mismatch');
   }
 
-  const tenantId = firstClaim(claims.tenant_id ?? claims.tenantId) ?? '';
+  const tenantId = singleTenantClaim(claims.tenant_id ?? claims.tenantId) ?? '';
   const roleNames = extractKeycloakRoleNames(claims, config.clientId);
   const displayName =
     claims.name ??
@@ -252,7 +261,10 @@ export async function verifyKeycloakAccessToken(
     tenantId,
     email: claims.email ?? claims.preferred_username ?? '',
     displayName,
-    roles: mapKeycloakRoles(roleNames),
+    roles: mapKeycloakRoles(
+      roleNames,
+      config.roleCatalog ? { roleCatalog: config.roleCatalog } : {},
+    ),
     areas: tenantId ? [{ areaId: 'ROOT', level: 0 }] : [],
     institutions: [],
     iat: claims.iat ?? nowSeconds,
@@ -262,9 +274,17 @@ export async function verifyKeycloakAccessToken(
   };
 }
 
-function firstClaim(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
+/**
+ * PRC-L213: one account per tenant (DECISION_REGISTER ## 43). A tenant claim
+ * that holds more than one value is refused instead of silently using the
+ * first element; a one-element array is read as that value.
+ */
+function singleTenantClaim(value: string | string[] | undefined): string | undefined {
+  if (!Array.isArray(value)) return value;
+  if (value.length > 1) {
+    throw new KeycloakTokenError('Keycloak token carries more than one tenant');
+  }
+  return value[0];
 }
 
 function audienceIncludes(aud: string | string[] | undefined, expected: string): boolean {

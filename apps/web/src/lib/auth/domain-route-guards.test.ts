@@ -11,6 +11,7 @@ import {
   DASHBOARD_DOMAIN_RESOURCES,
   DOMAIN_ROUTE_ROLE_IDS,
   canAccessReportRoleDashboard,
+  FEES_PACKAGE_ROLE_IDS,
   HOSTEL_PACKAGE_ROLE_IDS,
   REPORT_ROLE_DASHBOARD_ROLE_IDS,
   TRANSPORT_PACKAGE_ROLE_IDS,
@@ -101,12 +102,6 @@ const A_BATCH_SET_DOMAINS: DomainCase[] = [
     allowed: ['admin', 'principal', 'teacher', 'super-admin'],
     denied: ['staff', 'registrar', 'platform_admin', 'student', 'guardian', 'parent'],
     packageFile: 'assessment/src/assessment-access.ts',
-  },
-  {
-    domain: 'fees',
-    allowed: ['admin', 'principal', 'super-admin'],
-    denied: ['teacher', 'staff', 'registrar', 'platform_admin', 'student', 'guardian', 'parent'],
-    packageFile: 'fees/src/fees-access.ts',
   },
   {
     domain: 'library',
@@ -405,11 +400,97 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     });
   }
 
-  it('A-batch: fees is served when any single role is in the set, fail-closed otherwise', () => {
-    expect(canAccessDashboardDomain(session(['teacher', 'principal']), 'fees')).toBe(true);
-    // The gateway serves this pair (teacher grant + bursar package role); the
-    // web guard needs one role in the intersection and stays closed.
-    expect(canAccessDashboardDomain(session(['teacher', 'bursar']), 'fees')).toBe(false);
+  it('F-D3: grants fees only where the gateway and the fees package both allow it', () => {
+    // Gateway grant (rbac-registry.ts + fees-domain-roles.ts) AND package
+    // `fees.read` (fees-access.ts FINANCE_ROLES).
+    for (const roles of [
+      ['admin'],
+      ['principal'],
+      ['super-admin'],
+      ['ADMIN'],
+      // F-D3: the gateway now grants the finance roles.
+      ['finance_officer'],
+      ['FINANCE_OFFICER'],
+      ['bursar'],
+      ['accountant'],
+      // Read-only at the gateway (writes are 403 there).
+      ['registrar'],
+    ]) {
+      expect(canAccessDashboardDomain(session(roles), 'fees'), roles.join()).toBe(true);
+    }
+    for (const roles of [
+      // Gateway STAFF_READS grants fees.read, the package guard denies.
+      ['teacher'],
+      ['staff'],
+      // Gateway grants '*', the package guard has no platform role.
+      ['platform_admin'],
+      // Package roles with no gateway fees grant (residual, owner decision).
+      ['fees_clerk'],
+      ['cashier'],
+      ['school_admin'],
+      ['system_admin'],
+      // No fees grant at the gateway or in the package.
+      ['warden'],
+      ['nurse'],
+      ['hr_officer'],
+      // Portal roles use the parent/student portals.
+      ['student'],
+      ['parent'],
+      ['guardian'],
+      [],
+    ]) {
+      expect(canAccessDashboardDomain(session(roles), 'fees'), roles.join()).toBe(false);
+    }
+    expect(DOMAIN_ROUTE_ROLE_IDS.fees).toBeUndefined();
+  });
+
+  it('F-D3: a multi-role session gets the gateway answer on fees', () => {
+    // Each set gets the same answer from the gateway (apps/api-gateway rbac-fees-roles.test.ts).
+    for (const roles of [
+      ['teacher', 'principal'],
+      ['teacher', 'bursar'],
+      ['staff', 'registrar'],
+      // The grant comes only from the base reader; the package role has no
+      // web or gateway registry entry.
+      ['teacher', 'school_admin'],
+      ['staff', 'fees_clerk'],
+      ['teacher', 'cashier'],
+      ['guardian', 'system_admin'],
+    ]) {
+      expect(canAccessDashboardDomain(session(roles), 'fees'), roles.join('+')).toBe(true);
+    }
+    for (const roles of [
+      ['school_admin'],
+      ['fees_clerk'],
+      ['cashier'],
+      ['system-admin'],
+      ['nurse', 'fees_clerk'],
+      ['teacher', 'staff'],
+      ['teacher', 'guardian'],
+      ['platform_admin'],
+    ]) {
+      expect(canAccessDashboardDomain(session(roles), 'fees'), roles.join('+')).toBe(false);
+    }
+    // The fees base readers do not open hostel or transport.
+    expect(canAccessDashboardDomain(session(['guardian', 'school_admin']), 'hostel')).toBe(false);
+    expect(canAccessDashboardDomain(session(['parent', 'school_admin']), 'transport')).toBe(false);
+  });
+
+  it('F-D3: mirrors the fees package fees.read roles exactly', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../../../../packages/backend/fees/src/fees-access.ts'),
+      'utf8',
+    );
+    const block = (name: string): string[] => {
+      const body = new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const;`).exec(src)?.[1];
+      expect(body, name).toBeDefined();
+      return [...body!.matchAll(/'([a-z_-]+)'/g)].map((match) => match[1]!);
+    };
+    expect(src).toMatch(/'fees\.read': FINANCE_ROLES,/);
+    expect(src).toMatch(/const FINANCE_ROLES = \[[\s\S]*?\.\.\.ADMIN_ROLES,[\s\S]*?\] as const;/);
+    const packageRoles = new Set([...block('FINANCE_ROLES'), ...block('ADMIN_ROLES')]);
+    expect(packageRoles.has('bursar')).toBe(true);
+    expect([...(FEES_PACKAGE_ROLE_IDS ?? [])].sort()).toEqual([...packageRoles].sort());
   });
 
   it('A-batch: registry domains keep the web RBAC registry check (no explicit set)', () => {
@@ -569,3 +650,21 @@ function pageFiles(dir: string): string[] {
     return entry.name === 'page.tsx' ? [path] : [];
   });
 }
+
+describe('UATENV-D12: guards fail closed instead of throwing', () => {
+  it('denies, and does not throw, when the session carries no roles array', () => {
+    const noRoles = session([]);
+    (noRoles.user as { roles?: unknown }).roles = undefined;
+    for (const domain of Object.keys(DASHBOARD_DOMAIN_RESOURCES) as DashboardDomain[]) {
+      expect(() => canAccessDashboardDomain(noRoles, domain)).not.toThrow();
+      expect(canAccessDashboardDomain(noRoles, domain)).toBe(false);
+    }
+    expect(canAccessReportRoleDashboard(noRoles)).toBe(false);
+  });
+
+  it('ignores role entries without a roleId', () => {
+    const odd = session(['teacher']);
+    (odd.user.roles as unknown[]).unshift({ roleName: 'x' }, null);
+    expect(canAccessDashboardDomain(odd, 'attendance')).toBe(true);
+  });
+});

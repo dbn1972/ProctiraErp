@@ -7,17 +7,34 @@
  * by `gatewayFetch`; the gateway enforces tenant scope and permissions.
  * Returns labels only (id + display label), never full records.
  *
+ * HN-F4: student labels use the admission/roll code (`toStudentOption`), never the
+ * national ID, and a student is returned only when `q` matches the name or that
+ * code. The gateway may still match national ID for registrar/admin callers; the
+ * picker drops those rows so a national ID is neither displayed nor searchable here.
+ *
  * GET /api/directory/search?kind=student|staff|person&q=<2..100 chars>
  */
 import { NextResponse } from 'next/server';
 
 import { getSession } from '@/lib/auth/server';
 import { listStaff } from '@/lib/api/staff';
-import { listStudents } from '@/lib/api/students';
+import { listStudents, type Student } from '@/lib/api/students';
 import { formatPersonLabel, type EntityLabelOption } from '@/lib/entity-label';
+import { studentDisplayCode, toStudentOption } from '@/lib/load-entity-labels';
 
 const RESULT_LIMIT = 20;
 const KINDS = new Set(['student', 'staff', 'person']);
+
+/** HN-F4: case-insensitive `contains` on the name or display code only. */
+function studentMatches(student: Student, q: string): boolean {
+  const needle = q.toLowerCase();
+  return [
+    student.firstName,
+    student.lastName,
+    `${student.firstName} ${student.lastName}`,
+    studentDisplayCode(student),
+  ].some((value) => typeof value === 'string' && value.toLowerCase().includes(needle));
+}
 
 export async function GET(request: Request): Promise<Response> {
   const session = await getSession();
@@ -35,11 +52,7 @@ export async function GET(request: Request): Promise<Response> {
   if (kind === 'student' || kind === 'person') {
     tasks.push(
       listStudents({ search: q, pageSize: RESULT_LIMIT }).then((r) =>
-        (r.data ?? []).map((s) => ({
-          id: s.id,
-          label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
-          searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
-        })),
+        (r.data ?? []).filter((s) => studentMatches(s, q)).map(toStudentOption),
       ),
     );
   }

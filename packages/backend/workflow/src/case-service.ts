@@ -45,6 +45,28 @@ const VALID_STATUS_TRANSITIONS: Record<CaseStatus, CaseStatus[]> = {
   escalated: ['in_progress', 'closed'],
 };
 
+/**
+ * PRC-M459: the server sets the attachment id, the tenant/case-scoped storage
+ * key and the uploader (the verified caller); clients send metadata only.
+ */
+function buildAttachment(
+  tenantId: string,
+  caseId: string,
+  file: AddAttachmentInput,
+  principal: CasePrincipal,
+): CaseAttachmentInput {
+  const id = uuidv4();
+  return {
+    id,
+    fileName: file.fileName,
+    fileType: file.fileType,
+    fileSize: file.fileSize,
+    storagePath: `tenants/${tenantId}/cases/${caseId}/attachments/${id}`,
+    uploadedBy: principal.userId,
+    uploadedAt: new Date().toISOString(),
+  };
+}
+
 // ─── Case Service ────────────────────────────────────────────────────────────
 
 /**
@@ -91,8 +113,13 @@ export class CaseService {
         throw new ForbiddenError('You may not create this case type outside your scope');
       }
     }
+    const initialFiles = input.attachments ?? [];
+    if (initialFiles.length > 0 && !principal) {
+      throw new BusinessRuleError('Attachments require an authenticated uploader');
+    }
+    const caseId = uuidv4();
     const caseEntity: Omit<CaseEntity, 'createdAt' | 'updatedAt'> = {
-      id: uuidv4(),
+      id: caseId,
       tenantId,
       type: input.type,
       title: input.title,
@@ -105,7 +132,9 @@ export class CaseService {
       assignedTo: input.assignedTo ?? null,
       priority: input.priority ?? 'medium',
       workflowInstanceId: input.workflowInstanceId ?? null,
-      attachments: input.attachments ?? [],
+      attachments: principal
+        ? initialFiles.map((file) => buildAttachment(tenantId, caseId, file, principal))
+        : [],
       resolution: null,
       metadata: input.metadata ?? null,
     };
@@ -179,7 +208,7 @@ export class CaseService {
     tenantId: string,
     caseId: string,
     input: AddAttachmentInput,
-    principal?: CasePrincipal,
+    principal: CasePrincipal,
   ): Promise<CaseEntity> {
     const existing = await this.loadAccessible(tenantId, caseId, principal);
 
@@ -187,15 +216,7 @@ export class CaseService {
       throw new BusinessRuleError('Cannot add attachments to a closed case');
     }
 
-    const attachment: CaseAttachmentInput = {
-      id: uuidv4(),
-      fileName: input.fileName,
-      fileType: input.fileType,
-      fileSize: input.fileSize,
-      storagePath: input.storagePath,
-      uploadedBy: input.uploadedBy,
-      uploadedAt: new Date().toISOString(),
-    };
+    const attachment = buildAttachment(tenantId, caseId, input, principal);
 
     const updatedAttachments = [...existing.attachments, attachment];
 

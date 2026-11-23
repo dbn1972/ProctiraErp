@@ -146,6 +146,32 @@ test('transport screen specs run nightly and are not in PR_SPECS', () => {
   }
 });
 
+// Assessments + gradebook screen coverage (M4): nightly only, the PR shard time budget is
+// used up. Moving them into PR_SPECS is a visible change here.
+const ASSESSMENTS_GRADEBOOK_SCREEN_SPECS = [
+  '112-assessments-gradebook-screens-read.spec.ts',
+  '113-assessments-gradebook-screens-write.spec.ts',
+  '114-assessments-gradebook-privacy-tenancy.spec.ts',
+];
+test('assessments gradebook screen specs run nightly and are not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of ASSESSMENTS_GRADEBOOK_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+  // The report-card specs write to a known per-run directory instead of relying on the
+  // code default under /opt/cursor/artifacts existing (PRC-M514 owns that default).
+  const steps = Object.values(wf.jobs).flatMap((j) => j.steps ?? []);
+  const harness = steps.filter((s) => String(s.run ?? '').includes('run-e2e-backend-ready.sh'));
+  assert.ok(harness.length > 0, 'a step runs run-e2e-backend-ready.sh');
+  for (const step of harness) {
+    assert.match(String(step.env?.SIS_REPORT_CARD_DIR ?? ''), /runner\.temp/, step.name);
+  }
+});
+
 // Campus staff roles (H-D2, T-O1, MR-1, T-D3): warden / transport officer / registrar
 // allowed paths and teacher / parent / student denials, live. Nightly only: the PR
 // shard time budget is used up. Moving it into PR_SPECS is a visible change here.
@@ -734,4 +760,78 @@ test('hostel screen specs 69-71 exist and run nightly', () => {
     HOSTEL_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
     HOSTEL_SPECS_IN_PR,
   );
+});
+
+test('fees screen specs 90-92 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const FEES_SPECS = [
+    '90-fees-screens-read.spec.ts',
+    '91-fees-screens-write.spec.ts',
+    '92-fees-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only: the PR shard budget is used up (the health PR measured 21.3 min with
+  // 63-65 in the PR set, against a 16-min budget). Move a spec here only together with
+  // PR_SPECS.
+  const FEES_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of FEES_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    FEES_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    FEES_SPECS_IN_PR,
+  );
+});
+// Assessments + gradebook security defect fixes (M4 P2, P3): cross-tenant student,
+// institution, subject and period references get the safe 422, live. Nightly only: the PR
+// shard time budget is used up. Moving it into PR_SPECS is a visible change here.
+const ASSESSMENTS_GRADEBOOK_DEFECT_FIX_SPECS = ['115-assessments-gradebook-defect-fixes.spec.ts'];
+test('assessments + gradebook defect-fix spec 115 runs nightly and is not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of ASSESSMENTS_GRADEBOOK_DEFECT_FIX_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+});
+
+test('staff screen specs 93-95 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const STAFF_SPECS = [
+    '93-staff-screens-read.spec.ts',
+    '94-staff-screens-write.spec.ts',
+    '95-staff-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only, like the other screen-coverage specs: the PR shard budget is used up.
+  // Move a spec here only together with PR_SPECS.
+  const STAFF_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of STAFF_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    STAFF_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    STAFF_SPECS_IN_PR,
+  );
+});
+
+// Admissions defect fixes (AD-T1 cross-tenant period/grade/institution refs, M2-TR-4).
+// Nightly only: the PR shard time budget is used up. Moving it into PR_SPECS is a
+// visible change here.
+const ADMISSIONS_DEFECT_SPECS = ['107-admissions-defect-fixes.spec.ts'];
+test('admissions defect-fix spec 107 runs nightly and is not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of ADMISSIONS_DEFECT_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
 });

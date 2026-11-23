@@ -16,6 +16,7 @@ import type {
   StudentEntity,
   StudentFilter,
   StudentRepository,
+  StudentSearchOptions,
   StudentUpdateOptions,
 } from './student-repository.js';
 
@@ -103,8 +104,9 @@ export class CachedStudentRepository implements StudentRepository {
     tenantId: string,
     query: string,
     pagination: PaginationOptions,
+    options?: StudentSearchOptions,
   ): Promise<PaginatedResult<StudentEntity>> {
-    return this.delegate.search(tenantId, query, pagination);
+    return this.delegate.search(tenantId, query, pagination, options);
   }
 
   async allocateAdmissionNumber(tenantId: string): Promise<string> {
