@@ -146,6 +146,32 @@ test('transport screen specs run nightly and are not in PR_SPECS', () => {
   }
 });
 
+// Assessments + gradebook screen coverage (M4): nightly only, the PR shard time budget is
+// used up. Moving them into PR_SPECS is a visible change here.
+const ASSESSMENTS_GRADEBOOK_SCREEN_SPECS = [
+  '112-assessments-gradebook-screens-read.spec.ts',
+  '113-assessments-gradebook-screens-write.spec.ts',
+  '114-assessments-gradebook-privacy-tenancy.spec.ts',
+];
+test('assessments gradebook screen specs run nightly and are not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of ASSESSMENTS_GRADEBOOK_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+  // The report-card specs write to a known per-run directory instead of relying on the
+  // code default under /opt/cursor/artifacts existing (PRC-M514 owns that default).
+  const steps = Object.values(wf.jobs).flatMap((j) => j.steps ?? []);
+  const harness = steps.filter((s) => String(s.run ?? '').includes('run-e2e-backend-ready.sh'));
+  assert.ok(harness.length > 0, 'a step runs run-e2e-backend-ready.sh');
+  for (const step of harness) {
+    assert.match(String(step.env?.SIS_REPORT_CARD_DIR ?? ''), /runner\.temp/, step.name);
+  }
+});
+
 // Campus staff roles (H-D2, T-O1, MR-1, T-D3): warden / transport officer / registrar
 // allowed paths and teacher / parent / student denials, live. Nightly only: the PR
 // shard time budget is used up. Moving it into PR_SPECS is a visible change here.
