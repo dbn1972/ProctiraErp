@@ -12,9 +12,9 @@
 -- idempotency gate in .github/workflows/e2e-backend-ready.yml applies this
 -- file twice and diffs the per-tenant row counts produced by
 -- db/seeds/006_sunrise_demo_rowcounts.sql across every tenant-scoped table;
--- any drift (a single-use teardown leaving stale rows) fails CI. The
--- section_meetings teardown above is the re-runnable path that keeps that
--- gate green. (The demo institution sector/ownership values are a separate,
+-- any drift (a single-use teardown leaving stale rows) fails CI. Fixed ids,
+-- ON CONFLICT upserts and the re-runnable section_meetings teardowns keep
+-- that gate green. (The demo institution sector/ownership values are a separate,
 -- WAITING_ON_INPUT residual on PRC-L462 and are not touched here.)
 --
 -- Not applied by tools/scripts/apply-sql.sh. Run after Prisma migrate and
