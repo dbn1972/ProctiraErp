@@ -374,6 +374,24 @@ function scholarshipRepositoryForFees(): ScholarshipRepository {
  * see the same rows the staff routes wrote).
  */
 let assignmentRepositorySingleton: ReturnType<typeof createAssignmentRepository> | undefined;
+let admissionsStoresSingleton:
+  | {
+      crmStore: ReturnType<typeof createAdmissionsCrmStore>;
+      pipelineStore: ReturnType<typeof createAdmissionsPipelineStore>;
+    }
+  | undefined;
+/**
+ * PRC-L142: one admissions pipeline store and one CRM store per gateway process, shared by
+ * the registration (staff) and parent-portal (guardian offers) mounts.
+ */
+export function sharedAdmissionsStores(): NonNullable<typeof admissionsStoresSingleton> {
+  admissionsStoresSingleton ??= {
+    crmStore: createAdmissionsCrmStore(),
+    pipelineStore: createAdmissionsPipelineStore(),
+  };
+  return admissionsStoresSingleton;
+}
+
 /** PRC-M299: LMS learner enrolment port over the shared teaching-scope directory. */
 function lmsLearnerMembership(): LmsLearnerMembership | null {
   const directory = sharedTeachingScopeDirectory();
@@ -1904,13 +1922,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const repository = createParentPortalRepository();
       // A2: same pipeline store + fee/enrol hooks as staff admissions so parent
       // accept enrols against durable offers (PG when DATABASE_URL).
+      // PRC-L142: the same pipeline + CRM store instances as the registration mount, so
+      // in-memory (no DATABASE_URL) parents see the offers staff make.
+      const shared = sharedAdmissionsStores();
       const pipelineService = new AdmissionsPipelineService(
-        createAdmissionsPipelineStore(),
+        shared.pipelineStore,
         createRegistrationRepository(),
         createAdmissionsEnrolOnAccept(),
         createOfferFeeInvoiceHook(),
         assertOfferFeePaidHook(),
-        undefined,
+        shared.crmStore,
         reconcileAdmissionsOfferResourcesHook(),
         verifyOfferFeeInvoiceOwnershipHook(),
       );
@@ -1940,8 +1961,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope, _config, dependencies) => {
       // Pg when DATABASE_URL (014 waitlist/interview + 034 enquiry/merit/offer); else in-memory.
       const repository = createRegistrationRepository();
-      const crmStore = createAdmissionsCrmStore();
-      const pipelineStore = createAdmissionsPipelineStore();
+      const { crmStore, pipelineStore } = sharedAdmissionsStores();
       // W1-SEC-05: Redis when REDIS_URL (shared across replicas); else in-memory
       // only when assertInMemoryFallbackAllowed permits (never production).
       const sessionStore = createRegistrationSessionStore();
