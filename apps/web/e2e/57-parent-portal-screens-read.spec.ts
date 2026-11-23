@@ -9,7 +9,9 @@
  * Each test builds its own family (fixtures/parent-portal-family.ts): new
  * children via `POST /students` with unique names, then the guardian identity
  * rows (household, member, custody, link) by psql, because no HTTP route
- * writes households or custody. Per-run children make every per-child read
+ * writes households or custody. The completed report-card job is also seeded
+ * by psql (no route completes a job in the harness; helper shared with the
+ * student portal specs). Per-run children make every per-child read
  * start empty, and assertions use per-run unique strings, so re-runs against
  * the same database are deterministic.
  *
@@ -32,9 +34,12 @@ import {
   type Family,
 } from './fixtures/parent-portal-family';
 import { createSignedJwt } from './fixtures/fake-session';
+import { seedCompletedReportCard } from './fixtures/student-portal-self';
 import { ensureSharedAcademicYear } from './fixtures/test-data';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/** E2E-AY, the academic period of SECTION_A (tools/e2e/seed-e2e-tenants.sql). */
+const E2E_AY_PERIOD = '00000000-0000-4000-8000-00000000ac01';
 
 type Json = Record<string, unknown>;
 
@@ -463,9 +468,51 @@ test.describe('Parent portal screens — read path (E2E_BACKEND_READY)', () => {
     await expect(row).toContainText(`${String(item?.bucket)} · Mathematics · mastery`);
   });
 
-  // The completed-card case is defect D1 (500 once a completed report card
-  // exists); it lives with the product fix PR. This covers the state that works
-  // today: linked children and no completed card yet.
+  // Seeded read path (D1, fixed on main by #728): a completed card shows with the
+  // card period's published grade as its subject line. The empty state is the next test.
+  test('/parent/report-cards shows a completed report card with its subject line', async ({
+    page,
+    request,
+  }) => {
+    test.slow();
+    const tag = newTag();
+    const family = await createFamily(request, { childCount: 1, tag });
+    const [c1] = family.children as [Family['children'][0]];
+    const code = `PP-${tag}`;
+    // publishGrade publishes in SECTION_A, whose period is E2E_AY_PERIOD; a card for
+    // that period lists the grade as a subject line (getReportCards, D1 fix).
+    await publishGrade(request, c1.id, code);
+    const jobId = seedCompletedReportCard({
+      tenantId: family.tenantId,
+      studentId: c1.id,
+      academicPeriodId: E2E_AY_PERIOD,
+      institutionId: INSTITUTION_A,
+      tag,
+    });
+
+    const api = await guardianGet(request, family, `/parent-portal/children/${c1.id}/report-cards`);
+    expect(api.data).toEqual([
+      expect.objectContaining({
+        id: jobId,
+        status: 'completed',
+        academicPeriodId: E2E_AY_PERIOD,
+        subjects: [expect.objectContaining({ subject: code, numericScore: 88 })],
+      }),
+    ]);
+
+    await openAsGuardian(page, family);
+    await page.goto(`/parent/report-cards?studentId=${c1.id}`, { waitUntil: 'domcontentloaded' });
+    const screen = page.getByTestId('parent-report-cards');
+    const card = screen.getByRole('region', { name: 'Report card Completed' });
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText('Report card · Completed');
+    await expect(card).toContainText(/Completed \d/);
+    await expect(card.getByRole('listitem')).toHaveText([`${code} · 88`]);
+    await expect(screen.getByText('Something went wrong loading this page.')).toHaveCount(0);
+    await expect(screen.getByText('No completed report cards yet.')).toHaveCount(0);
+  });
+
+  // Linked children and no completed card yet: the empty state, not an error frame.
   test('/parent/report-cards loads for linked children with no completed card', async ({
     page,
     request,

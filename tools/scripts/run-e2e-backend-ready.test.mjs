@@ -115,8 +115,10 @@ test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
 // Parent portal screen -> API -> DB coverage (57 read, 58 form saves, 59 privacy/tenancy).
 // All three always run nightly. PR membership follows the measured shard-time rule:
 // add in order 59, 58, 57 while max shard + (projected CI minutes of the added specs / 4)
-// x 1.25 stays <= 22.5 (half of timeout-minutes 45). Measured: 13.50 + 2.753 / 4 x 1.25
-// = 14.36 min with all three, so all three are in PR_SPECS. Removing one is a visible change here.
+// x 1.25 stays within the budget. These specs are the "0.86 pending parent specs" in the
+// student budget below: 14.83 max PR shard + 0.86 + 0.854 / 4 x 1.25 = 15.96 min with the
+// parent and student specs, inside that 16.0-min budget and timeout-minutes 45. So all
+// three are in PR_SPECS. Removing one is a visible change here.
 const PARENT_SCREEN_SPECS = [
   '57-parent-portal-screens-read.spec.ts',
   '58-parent-portal-screens-write.spec.ts',
