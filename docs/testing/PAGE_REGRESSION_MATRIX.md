@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **118**
+- Playwright specs: **121**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -44,13 +44,13 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/admissions/enquiries` | a11y, dark, functional, touch | `41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admissions/merit` | a11y, dark, functional, touch | `41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admissions/seat-matrix` | a11y, dark, functional, touch | `41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/assessments` | a11y, dark, functional, smoke, touch | `09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/assessments/items` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/assessments/outcomes` | a11y, dark, functional, touch | `42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/assessments/report-cards` | a11y, dark, functional, touch | `42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/assessments/results` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/assessments/schemes/[id]/edit` | functional | `21-assessments-inventory-smoke.spec.ts` |
-| `/assessments/schemes/new` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`21b-assessments-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/assessments` | a11y, dark, functional, smoke, touch | `09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`112-assessments-gradebook-screens-read.spec.ts`<br>`113-assessments-gradebook-screens-write.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/assessments/items` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`112-assessments-gradebook-screens-read.spec.ts`<br>`113-assessments-gradebook-screens-write.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/assessments/outcomes` | a11y, dark, functional, touch | `112-assessments-gradebook-screens-read.spec.ts`<br>`113-assessments-gradebook-screens-write.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/assessments/report-cards` | a11y, dark, functional, touch | `112-assessments-gradebook-screens-read.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/assessments/results` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`112-assessments-gradebook-screens-read.spec.ts`<br>`113-assessments-gradebook-screens-write.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/assessments/schemes/[id]/edit` | functional | `112-assessments-gradebook-screens-read.spec.ts`<br>`113-assessments-gradebook-screens-write.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts` |
+| `/assessments/schemes/new` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`113-assessments-gradebook-screens-write.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`21b-assessments-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/attendance` | a11y, dark, functional, smoke, touch | `02-attendance.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`20-attendance-inventory-smoke.spec.ts`<br>`20b-attendance-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/attendance/ops` | a11y, dark, functional, touch | `51-attendance-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/attendance/reports` | a11y, functional | `02-attendance.spec.ts`<br>`20-attendance-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
@@ -114,8 +114,8 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/institutions/[id]/classes` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16d-institutions-detail-live.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
 | `/institutions/[id]/curriculum` | functional, smoke | `16e-institutions-tabs-live.spec.ts`<br>`43-curriculum-coverage-write-smoke.spec.ts` |
 | `/institutions/[id]/edit` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16f-institutions-profile-write.spec.ts` |
-| `/institutions/[id]/gradebook` | functional, smoke | `16e-institutions-tabs-live.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts` |
-| `/institutions/[id]/gradebook/report-cards/[jobId]` | smoke | `16e-institutions-tabs-live.spec.ts` |
+| `/institutions/[id]/gradebook` | functional, smoke | `112-assessments-gradebook-screens-read.spec.ts`<br>`113-assessments-gradebook-screens-write.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`16e-institutions-tabs-live.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts` |
+| `/institutions/[id]/gradebook/report-cards/[jobId]` | functional, smoke | `112-assessments-gradebook-screens-read.spec.ts`<br>`114-assessments-gradebook-privacy-tenancy.spec.ts`<br>`16e-institutions-tabs-live.spec.ts` |
 | `/institutions/[id]/grades` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16d-institutions-detail-live.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
 | `/institutions/[id]/infrastructure` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16e-institutions-tabs-live.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
 | `/institutions/[id]/overview` | smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16d-institutions-detail-live.spec.ts`<br>`16d-institutions-reactivate-live.spec.ts` |
