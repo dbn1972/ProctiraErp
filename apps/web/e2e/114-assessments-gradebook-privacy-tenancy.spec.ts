@@ -433,6 +433,28 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
     expect(rowsOf(bResults), 'tenant B recorded no result').toEqual([]);
   });
 
+  test('P3 tenant B cannot define items or outcomes on a tenant-A subject or period', async ({
+    request,
+  }) => {
+    const items = await probe(request, adminB, 'POST', '/assessment-items', {
+      subjectId: a.subject.id,
+      academicPeriodId: PERIOD_A,
+      gradingSchemeId: b.scheme.id,
+      items: [{ name: `AS ${tagB} P3`, weight: 100, minScore: 0, maxScore: 100 }],
+    });
+    expect
+      .soft([404, 422], `tenant B POST /assessment-items: ${items.status} ${items.body}`)
+      .toContain(items.status);
+    const outcome = await probe(request, adminB, 'POST', '/outcomes', {
+      subjectId: a.subject.id,
+      code: `AS${tagB}P3`,
+      name: `AS ${tagB} P3`,
+    });
+    expect
+      .soft([404, 422], `tenant B POST /outcomes: ${outcome.status} ${outcome.body}`)
+      .toContain(outcome.status);
+  });
+
   test('N5 a forged X-Tenant-ID header is ignored in both directions', async ({ request }) => {
     const views: Array<[Persona, string, string, string, string]> = [
       [a.admin, TENANT_B, tag, a.scheme.id, b.scheme.id],
@@ -474,6 +496,23 @@ test.describe('Assessments + gradebook privacy and tenancy — live (E2E_BACKEND
     );
     expect(forgedEntries.status).toBe(200);
     expect(rowsOf(forgedEntries)).toEqual([]);
+  });
+
+  test('P2 tenant B cannot queue a report card for a tenant-A student or institution', async ({
+    request,
+  }) => {
+    const fx = await import('./fixtures/assessments-gradebook-screens');
+    const boardB = fx.ensureTenantBBoard();
+    for (const body of [
+      { studentId: a.l1.id, boardId: boardB, institutionId: null },
+      { studentId: a.l1.id, boardId: boardB, institutionId: a.institution.id },
+    ]) {
+      const r = await probe(request, adminB, 'POST', '/gradebook/report-cards', body);
+      expect
+        .soft([404, 422], `tenant B POST /gradebook/report-cards ${JSON.stringify(body)}: ${r.body}`)
+        .toContain(r.status);
+    }
+    expect(await fx.reportCardJobsFor(request, adminB, a.l1.id), 'no tenant-B card').toEqual([]);
   });
 
   test('N6 student pickers and labels carry no date of birth or guardian phone (S5, S8); S5 no national id', async ({

@@ -792,3 +792,24 @@ export async function chooseRadixOption(page: Page, triggerId: string, text: str
 
 export const PERMISSION_DENIED_COPY =
   'You do not have permission to make this change. Contact your administrator if you need access.';
+
+/** P2 patch: the same board + default scale in tenant B (fixed ids, idempotent). */
+export function ensureTenantBBoard(): string {
+  const board = '00000000-0000-4000-8000-0000000a5c01';
+  const vars: Record<string, string> = {
+    tenant: TENANT_B_ID,
+    board,
+    scale: '00000000-0000-4000-8000-0000000a5c02',
+  };
+  SCALE_A_BANDS.forEach((b, i) => {
+    vars[`band${i + 1}`] = `00000000-0000-4000-8000-0000000a5c1${i + 1}`;
+    vars[`label${i + 1}`] = b.label;
+    vars[`min${i + 1}`] = String(b.min);
+    vars[`max${i + 1}`] = String(b.max);
+    vars[`gp${i + 1}`] = String(b.points);
+  });
+  const lines = psql(BOARD_SQL, vars);
+  if (!lines.includes(`board:${board}`)) throw new Error(`Board seed failed: ${lines.join('|')}`);
+  return board;
+}
+const TENANT_B_ID = '00000000-0000-4000-8000-0000000000bb';
