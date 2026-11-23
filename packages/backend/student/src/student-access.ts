@@ -4,7 +4,13 @@
  */
 import { AppError } from '@proctira/common';
 
-export type StudentWriteAction = 'student.create' | 'student.update' | 'student.delete';
+export type StudentWriteAction =
+  | 'student.create'
+  | 'student.update'
+  | 'student.delete'
+  // PRC-M545: enrollment create/status/bulk-status/transfer and certificate issue/revoke.
+  | 'enrollment.write'
+  | 'certificate.write';
 
 /**
  * Staff roles that may list/read the student roster.
@@ -53,7 +59,29 @@ const ACTION_ROLES: Record<StudentWriteAction, readonly string[]> = {
   'student.create': REGISTRAR_ROLES,
   'student.update': REGISTRAR_ROLES,
   'student.delete': ['registrar', ...ADMIN_ROLES],
+  'enrollment.write': REGISTRAR_ROLES,
+  'certificate.write': REGISTRAR_ROLES,
 };
+
+/**
+ * PRC-M545: in-plugin role gate for enrollment and certificate mutations
+ * (defence in depth behind the gateway RBAC). Sends 403 and returns false when
+ * the caller's roles cannot perform `action`.
+ */
+export function denyUnlessStudentWriter(
+  request: object,
+  reply: { status: (code: number) => { send: (body: unknown) => unknown } },
+  action: StudentWriteAction,
+): boolean {
+  const user = (request as { user?: { roles?: unknown } }).user;
+  if (hasStudentWriteAccess(user?.roles ?? [], action)) return true;
+  void reply.status(403).send({
+    code: 'FORBIDDEN',
+    message: `Forbidden: role cannot perform ${action}`,
+    statusCode: 403,
+  });
+  return false;
+}
 
 export function normalizeStudentRoles(roles: unknown): string[] {
   if (!Array.isArray(roles)) return [];
