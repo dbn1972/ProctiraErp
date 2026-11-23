@@ -4,6 +4,7 @@ import { defaultLocale, isValidLocale, getDirection } from './i18n/config';
 import { isSecureCookieContext } from './lib/auth/cookies';
 import { resolveTenantFromSubdomain, resolveTenantForRequest } from './lib/api/request-tenant';
 import { readSessionToken, tenantIdFromClaims } from './lib/auth/verified-token';
+import { normaliseTokenClaims } from './lib/auth/token-claims';
 import {
   CSRF_COOKIE,
   CSRF_HEADER,
@@ -256,28 +257,17 @@ function isAccessTokenFresh(claims: { exp?: unknown }): boolean {
   return claims.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
 }
 
-/** Normalised role ids from a JWT payload (`roleId` preferred over `roleName`). */
+/**
+ * Normalised role ids from a JWT payload (`roleId` preferred over `roleName`).
+ * UATENV-D06: Keycloak payloads (`realm_access.roles`) are read through the same
+ * `normaliseTokenClaims` the server session uses.
+ */
 export function jwtRoleIds(payload: unknown): string[] {
-  if (!payload || typeof payload !== 'object') return [];
-  const roles = (payload as { roles?: unknown }).roles;
-  if (!Array.isArray(roles)) return [];
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
   const ids: string[] = [];
-  for (const role of roles) {
-    if (typeof role === 'string') {
-      const normalised = role.toLowerCase().replace(/_/g, '-').trim();
-      if (normalised) ids.push(normalised);
-      continue;
-    }
-    if (role && typeof role === 'object') {
-      const rec = role as Record<string, unknown>;
-      const raw =
-        (typeof rec.roleId === 'string' && rec.roleId) ||
-        (typeof rec.roleName === 'string' && rec.roleName) ||
-        (typeof rec.id === 'string' && rec.id) ||
-        '';
-      const normalised = raw.toLowerCase().replace(/_/g, '-').trim();
-      if (normalised) ids.push(normalised);
-    }
+  for (const role of normaliseTokenClaims(payload as Record<string, unknown>).roles) {
+    const normalised = role.roleId.toLowerCase().replace(/_/g, '-').trim();
+    if (normalised) ids.push(normalised);
   }
   return ids;
 }
@@ -293,11 +283,18 @@ export function isParentOnlyRoles(roles: readonly string[]): boolean {
 /**
  * Bounce student-only actors off `/parent` and parent-only actors off `/student`.
  * Staff/admin (any non-portal-only role) keep access so a11y sessions still work.
+ * UATENV-D13: portal-only actors landing on the staff dashboard home (`/`, the
+ * default login `returnTo`) go to their own portal.
  */
 export function portalRoleRedirect(
   pathname: string,
   roles: readonly string[],
 ): '/parent' | '/student' | null {
+  if (pathname === '/') {
+    if (isStudentOnlyRoles(roles)) return '/student';
+    if (isParentOnlyRoles(roles)) return '/parent';
+    return null;
+  }
   const onParent = pathname === '/parent' || pathname.startsWith('/parent/');
   const onStudent = pathname === '/student' || pathname.startsWith('/student/');
   if (onParent && isStudentOnlyRoles(roles)) return '/student';
@@ -455,6 +452,7 @@ export async function middleware(request: NextRequest) {
 
     // Forward tenant from the verified JWT claim when present (takes precedence
     // over subdomain/header for authenticated requests — Design §M priority 3).
+    // UATENV-D06: platform `tenantId` or Keycloak `tenant_id`; PRC-L213: single-valued only.
     const claimTenant = tenantIdFromClaims(claims);
     if (claimTenant) {
       response.headers.set('X-Tenant-ID', claimTenant);
@@ -463,6 +461,7 @@ export async function middleware(request: NextRequest) {
     if (bounce) {
       return NextResponse.redirect(new URL(bounce, request.url));
     }
+    // A payload that does not decode keeps the subdomain-resolved tenant.
   }
 
   return response;
