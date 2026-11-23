@@ -205,6 +205,34 @@ export class TimetableService {
       throw new ValidationError('Staff member is not assigned to this institution');
     }
   }
+  /**
+   * FKB-091..094: every parent a meeting names must belong to this tenant. Another tenant's
+   * row and an unknown id give the same 404 (the id-only FKs would accept another tenant's
+   * bell period, room, section or subject). Only fields present in `refs` are checked.
+   */
+  private async assertMeetingParentsInTenant(
+    tenantId: string,
+    refs: Partial<Pick<MeetingInput, 'sectionId' | 'periodId' | 'roomId' | 'subjectId'>>,
+  ): Promise<void> {
+    if (refs.sectionId !== undefined && !(await this.repo.getSection(tenantId, refs.sectionId))) {
+      throw new NotFoundError(`Section with id '${refs.sectionId}' not found`);
+    }
+    if (refs.periodId !== undefined && !(await this.repo.getPeriod(tenantId, refs.periodId))) {
+      throw new NotFoundError(`Bell period with id '${refs.periodId}' not found`);
+    }
+    if (refs.roomId) await this.assertRoomInTenant(tenantId, refs.roomId);
+    if (refs.subjectId && !(await this.repo.subjectExists(tenantId, refs.subjectId))) {
+      throw new NotFoundError(`Subject with id '${refs.subjectId}' not found`);
+    }
+  }
+
+  /** FKB-092/FKB-096: a meeting room or section default room must be this tenant's. */
+  private async assertRoomInTenant(tenantId: string, roomId: string): Promise<void> {
+    if (!(await this.repo.getRoom(tenantId, roomId))) {
+      throw new NotFoundError(`Room with id '${roomId}' not found`);
+    }
+  }
+
   private async localDate(tenantId: string, institutionId?: string): Promise<string> {
     const configured = this.options.timeZone;
     let zone =
@@ -497,6 +525,7 @@ export class TimetableService {
   }
 
   async createSection(tenantId: string, input: SectionInput, actorId: string | null = null) {
+    if (input.defaultRoomId) await this.assertRoomInTenant(tenantId, input.defaultRoomId);
     const now = nowIso();
     const code = input.code?.trim() || slugCode(input.name, 'SEC');
     const row = await this.repo.createSection({
@@ -538,6 +567,7 @@ export class TimetableService {
     if (existing.status === 'PUBLISHED') {
       throw new ValidationError('Published sections are locked; unpublish before editing');
     }
+    if (patch.defaultRoomId) await this.assertRoomInTenant(tenantId, patch.defaultRoomId);
     const row = await this.repo.updateSection(tenantId, id, patch, opts);
     if (row) {
       await this.recordAudit({
@@ -884,6 +914,7 @@ export class TimetableService {
   }
 
   async createMeeting(tenantId: string, input: MeetingInput, actorId: string | null = null) {
+    await this.assertMeetingParentsInTenant(tenantId, input);
     await this.assertSectionEditable(tenantId, input.sectionId);
     // PRC-M396(a): the section's real institution is authoritative; a client-supplied
     // institutionId that disagrees could otherwise scope the clash scan (below) at a
@@ -1005,6 +1036,12 @@ export class TimetableService {
   ) {
     const existing = await this.repo.getMeeting(tenantId, id);
     if (!existing) return null;
+    await this.assertMeetingParentsInTenant(tenantId, {
+      sectionId: patch.sectionId,
+      periodId: patch.periodId,
+      roomId: patch.roomId,
+      subjectId: patch.subjectId,
+    });
     // PRC-M405: moving a meeting must not touch a locked schedule on either side.
     await this.assertSectionEditable(tenantId, existing.sectionId);
     if (patch.sectionId && patch.sectionId !== existing.sectionId) {
