@@ -30,6 +30,9 @@ export function setupGradebook(): { repo: InMemoryGradebookRepository; service: 
     status: 'PUBLISHED',
   });
   repo.seedBoard({ id: BOARD, tenantId: TENANT, code: 'CBSE', name: 'CBSE' });
+  // M4-P2: report cards check that the student exists in the tenant.
+  repo.seedStudent(TENANT, STUDENT);
+  repo.seedStudent(TENANT, STUDENT_B);
   repo.seedScale({
     id: SCALE,
     tenantId: TENANT,

@@ -15,6 +15,7 @@ import { clearSyncQueue } from '@/lib/sync/syncQueue';
 
 import type { AuthUserFromToken } from './auth-user';
 import { decodeJwtPayload } from './jwt-payload';
+import { normaliseTokenClaims } from './token-claims';
 
 /** Cookie names used for authentication. */
 export const AUTH_COOKIES = {
@@ -73,6 +74,8 @@ export interface TokenPayload {
   }>;
   iat: number;
   exp: number;
+  /** Set for Keycloak-issued tokens (UATENV-D06); `sub` is then the Keycloak subject. */
+  idp?: 'keycloak';
 }
 
 /** Result returned by the login endpoint. */
@@ -90,9 +93,13 @@ export interface SignInResult {
  * Decodes a JWT token payload (base64url + UTF-8) WITHOUT verifying the
  * signature. Claims are for UX gating only; the API gateway verifies the
  * token on every forwarded call and is the authorization enforcement point.
+ *
+ * UATENV-D06: platform and Keycloak tokens are normalised to one shape
+ * (`tenantId`, `roles[]` always an array) by `normaliseTokenClaims`.
  */
 export function decodeTokenPayload(token: string): TokenPayload | null {
-  return decodeJwtPayload<TokenPayload>(token);
+  const raw = decodeJwtPayload<Record<string, unknown>>(token);
+  return raw ? normaliseTokenClaims(raw) : null;
 }
 
 /**

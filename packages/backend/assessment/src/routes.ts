@@ -25,7 +25,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { assessmentAuditContextOf } from './assessment-audit.js';
 import { installAssessmentRouteGuard } from './assessment-http-guard.js';
-import type { AssessmentService } from './assessment-service.js';
+import { ReferenceNotFoundError, type AssessmentService } from './assessment-service.js';
 import {
   CreateGradingSchemeSchema,
   UpdateGradingSchemeSchema,
@@ -44,6 +44,11 @@ import {
   type CreateOutcomeInput,
   type OutcomeParams,
 } from './schemas.js';
+
+/** M4-P3 / #739: fixed copy plus the request's correlation id, as the gateway's FK mapping. */
+function sendReferenceNotFound(reply: FastifyReply, error: ReferenceNotFoundError) {
+  return reply.status(422).send({ ...error.toJSON(), correlationId: String(reply.request.id) });
+}
 
 /**
  * Options for registering assessment routes.
@@ -448,6 +453,7 @@ export async function registerAssessmentRoutes(
           items: items.map(formatAssessmentItemResponse),
         });
       } catch (error: unknown) {
+        if (error instanceof ReferenceNotFoundError) return sendReferenceNotFound(reply, error);
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -541,6 +547,7 @@ export async function registerAssessmentRoutes(
         const outcome = await assessmentService.createOutcome(tenantId, result.data);
         return reply.status(201).send(formatOutcomeResponse(outcome));
       } catch (error: unknown) {
+        if (error instanceof ReferenceNotFoundError) return sendReferenceNotFound(reply, error);
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
