@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { defaultLocale, isValidLocale, getDirection } from './i18n/config';
 import { isSecureCookieContext } from './lib/auth/cookies';
 import { resolveTenantFromSubdomain, resolveTenantForRequest } from './lib/api/request-tenant';
-import { decodeBase64Url, decodeJwtPayload } from './lib/auth/jwt-payload';
+import { readSessionToken, tenantIdFromClaims } from './lib/auth/verified-token';
 import { normaliseTokenClaims } from './lib/auth/token-claims';
 import {
   CSRF_COOKIE,
@@ -246,36 +246,15 @@ export async function getTenantConfig(slug: string): Promise<TenantConfig> {
 // ─── Token Helpers ───────────────────────────────────────────────────────────
 
 /**
- * Returns true when the JWT looks structurally valid AND its `exp` claim is
- * still in the future (with a small buffer).
+ * True when the claims' `exp` is still in the future (with a small buffer).
+ * A missing `exp` can only reach here in decode-only mode (the JWKS verifier
+ * refuses it) and keeps the previous behaviour: treated as fresh.
  */
-function isAccessTokenFresh(token: string): boolean {
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-
-  try {
-    const payload = JSON.parse(decodeBase64Url(parts[1]!)) as { exp?: number };
-    if (!payload.exp) return true;
-    const now = Math.floor(Date.now() / 1000);
-    return payload.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Returns true when a token is structurally valid (regardless of expiry).
- * Used to decide whether we should attempt a refresh vs. force a re-login.
- */
-function isStructurallyValid(token: string): boolean {
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-  try {
-    JSON.parse(decodeBase64Url(parts[1]!));
-    return true;
-  } catch {
-    return false;
-  }
+function isAccessTokenFresh(claims: { exp?: unknown }): boolean {
+  if (!claims.exp) return true;
+  if (typeof claims.exp !== 'number') return false;
+  const now = Math.floor(Date.now() / 1000);
+  return claims.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
 }
 
 /**
@@ -433,13 +412,17 @@ export async function middleware(request: NextRequest) {
     const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
-    if (!accessToken || !isStructurallyValid(accessToken)) {
+    // PRC-L254: the session gate trusts only a token whose signature, issuer
+    // and audience verify against the IdP JWKS. Expiry is checked separately so
+    // an authentic expired token can still take the refresh path.
+    const claims = accessToken ? await readSessionToken(accessToken, { ignoreExpiry: true }) : null;
+    if (!accessToken || !claims) {
       return redirectToLogin(request, pathname);
     }
 
     // If the access token is expired but a refresh token is present, attempt
     // a transparent refresh by calling our own /api/auth/refresh route.
-    if (!isAccessTokenFresh(accessToken)) {
+    if (!isAccessTokenFresh(claims)) {
       if (!refreshToken) {
         return redirectToLogin(request, pathname);
       }
@@ -467,19 +450,16 @@ export async function middleware(request: NextRequest) {
       return replay;
     }
 
-    // Forward tenant from the JWT claim when present (takes precedence over
-    // subdomain/header for authenticated requests — Design §M priority 3).
-    // UATENV-D06: platform `tenantId` or Keycloak `tenant_id`, via normaliseTokenClaims.
-    const payload = decodeJwtPayload<Record<string, unknown>>(accessToken);
-    if (payload) {
-      const { tenantId } = normaliseTokenClaims(payload);
-      if (tenantId) {
-        response.headers.set('X-Tenant-ID', tenantId);
-      }
-      const bounce = portalRoleRedirect(pathname, jwtRoleIds(payload));
-      if (bounce) {
-        return NextResponse.redirect(new URL(bounce, request.url));
-      }
+    // Forward tenant from the verified JWT claim when present (takes precedence
+    // over subdomain/header for authenticated requests — Design §M priority 3).
+    // UATENV-D06: platform `tenantId` or Keycloak `tenant_id`; PRC-L213: single-valued only.
+    const claimTenant = tenantIdFromClaims(claims);
+    if (claimTenant) {
+      response.headers.set('X-Tenant-ID', claimTenant);
+    }
+    const bounce = portalRoleRedirect(pathname, jwtRoleIds(claims));
+    if (bounce) {
+      return NextResponse.redirect(new URL(bounce, request.url));
     }
     // A payload that does not decode keeps the subdomain-resolved tenant.
   }
