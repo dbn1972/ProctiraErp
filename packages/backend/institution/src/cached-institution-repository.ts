@@ -65,6 +65,10 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     return reviveDates(cached);
   }
 
+  async areaExists(areaId: string, tenantId: string): Promise<boolean> {
+    // Parent checks run on the write path; never answer them from cache.
+    return this.delegate.areaExists(areaId, tenantId);
+  }
   async findByCode(code: string, tenantId: string): Promise<InstitutionEntity | null> {
     // Code lookups are not cached (used for uniqueness checks during writes)
     return this.delegate.findByCode(code, tenantId);
