@@ -4,6 +4,9 @@
  * PRC-M133: the login, callback and MFA-verify BFF proxies, driven with the
  * gateway's real `/auth` response shapes:
  *
+ * - `POST /api/v1/auth/password` (keycloak/routes.ts) is tried first; a gateway
+ *   without Keycloak answers 404/405/501/502 and the platform login is used
+ *   (UATENV-D08). Callback redirects carry a relative Location (UATENV-D05).
  * - `POST /auth/login` (packages/backend/auth/src/routes.ts): 200
  *   `{ tokens: { accessToken, refreshToken, expiresIn }, session: { id, expiresAt }, user }`;
  *   401 `INVALID_CREDENTIALS`; 200 `{ status: 'mfa_required', preMfaTicket, expiresIn }`
@@ -56,7 +59,8 @@ describe('POST /api/auth/login against the gateway contract (PRC-M133)', () => {
   }
 
   it('forwards username/password with the Host tenant and stores the issued tokens', async () => {
-    fetchMock.mockResolvedValue(
+    fetchMock.mockResolvedValueOnce(json({ message: 'Not Found' }, 404));
+    fetchMock.mockResolvedValueOnce(
       json({
         tokens: TOKENS,
         session: { id: 'sess-1', expiresAt: '2026-10-29T00:00:00.000Z' },
@@ -66,7 +70,10 @@ describe('POST /api/auth/login against the gateway contract (PRC-M133)', () => {
     const { POST } = await import('./login/route');
     const res = await POST(login({ email: 'a@acme.test', password: 'pw' }));
     expect(res.status).toBe(200);
-    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(
+      'http://gateway.internal/api/v1/auth/password',
+    );
+    const [url, init] = fetchMock.mock.calls[1]!;
     expect(String(url)).toBe('http://gateway.internal/auth/login');
     expect(new Headers(init?.headers).get('X-Tenant-ID')).toBe('acme');
     expect(JSON.parse(String(init?.body))).toEqual({ username: 'a@acme.test', password: 'pw' });
@@ -121,6 +128,10 @@ describe('GET /api/auth/callback against the gateway ticket contract (PRC-M133)'
   function callback(query: string): Request {
     return new Request(`https://acme.proctira.io/api/auth/callback?${query}`);
   }
+  /** Resolves the relative Location the way the browser on acme.proctira.io does. */
+  function location(res: Response): URL {
+    return new URL(res.headers.get('location')!, 'https://acme.proctira.io');
+  }
 
   it('redeems the one-time ticket and stores the issued tokens', async () => {
     fetchMock.mockResolvedValue(json({ ...TOKENS, idToken: 'id-1', tokenType: 'Bearer' }));
@@ -128,7 +139,7 @@ describe('GET /api/auth/callback against the gateway ticket contract (PRC-M133)'
     const res = await GET(callback('ticket=t-123&returnTo=%2Fstudents'));
     const [url] = fetchMock.mock.calls[0]!;
     expect(String(url)).toBe('http://gateway.internal/api/v1/auth/ticket?ticket=t-123');
-    expect(new URL(res.headers.get('location')!).pathname).toBe('/students');
+    expect(location(res).pathname).toBe('/students');
     expect(cookieValue(res, AUTH_COOKIES.ACCESS_TOKEN)).toBe('at-1');
     expect(cookieValue(res, AUTH_COOKIES.REFRESH_TOKEN)).toBe('rt-1');
   });
@@ -139,9 +150,9 @@ describe('GET /api/auth/callback against the gateway ticket contract (PRC-M133)'
     );
     const { GET } = await import('./callback/route');
     const res = await GET(callback('ticket=t-x'));
-    const location = new URL(res.headers.get('location')!);
-    expect(location.pathname).toBe('/login');
-    expect(location.searchParams.get('error')).toBe('ticket_invalid');
+    const target = location(res);
+    expect(target.pathname).toBe('/login');
+    expect(target.searchParams.get('error')).toBe('ticket_invalid');
     expect(cookieValue(res, AUTH_COOKIES.ACCESS_TOKEN)).toBeUndefined();
   });
 
@@ -149,13 +160,13 @@ describe('GET /api/auth/callback against the gateway ticket contract (PRC-M133)'
     fetchMock.mockResolvedValue(json(TOKENS));
     const { GET } = await import('./callback/route');
     const res = await GET(callback('ticket=t-1&returnTo=%2F%2Fevil.example%2Fx'));
-    expect(new URL(res.headers.get('location')!).host).toBe('acme.proctira.io');
+    expect(location(res).host).toBe('acme.proctira.io');
   });
 
   it('a missing ticket never calls the gateway', async () => {
     const { GET } = await import('./callback/route');
     const res = await GET(callback('returnTo=%2F'));
-    expect(new URL(res.headers.get('location')!).searchParams.get('error')).toBe('missing_ticket');
+    expect(location(res).searchParams.get('error')).toBe('missing_ticket');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
