@@ -54,7 +54,7 @@ async function buildApp(
   app.addHook('onRequest', async (request) => {
     const ctx = request as { tenantId?: string; user?: { sub: string; roles: string[] } };
     ctx.tenantId = TENANT_ID;
-    ctx.user = { sub: 'teacher-1', roles: ['teacher'] };
+    ctx.user = { sub: 'teacher-1', roles: ['academic_coordinator'] }; // PRC-M160: templates
   });
   await app.register(assessmentPlugin, {
     gradingSchemeRepository: new InMemoryGradingSchemeRepository(),

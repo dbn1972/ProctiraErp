@@ -25,7 +25,11 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { isAssessmentAdmin, isReportCardOperator } from './assessment-access.js';
 import { assessmentAuditContextOf } from './assessment-audit.js';
-import { installAssessmentRouteGuard } from './assessment-http-guard.js';
+import { installAssessmentRouteGuard, requireAssessmentAction } from './assessment-http-guard.js';
+import {
+  requireAssessmentOwnership,
+  type AssessmentTeachingScope,
+} from './assessment-ownership.js';
 import {
   CreateReportCardTemplateSchema,
   UpdateReportCardTemplateSchema,
@@ -53,6 +57,8 @@ export interface ReportCardRoutesOptions {
   reportCardService: ReportCardService;
   /** Route prefix (default: '/report-cards') */
   prefix?: string;
+  /** PRC-M160 / PRC-L274: teacher -> subject / student ownership lookup. */
+  teachingScope?: AssessmentTeachingScope | null;
 }
 
 /**
@@ -165,7 +171,7 @@ export async function registerReportCardRoutes(
 ): Promise<void> {
   // W1-SEC-02: package-level RBAC; PRC-L083: installed once per instance.
   installAssessmentRouteGuard(fastify);
-  const { reportCardService, prefix = '/report-cards' } = options;
+  const { reportCardService, prefix = '/report-cards', teachingScope = null } = options;
 
   // ─── Template Routes ───────────────────────────────────────────────────
 
@@ -179,6 +185,7 @@ export async function registerReportCardRoutes(
       request: FastifyRequest<{ Body: CreateReportCardTemplateInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireAssessmentAction(request, reply, 'assessment.configure')) return;
       const result = validate(CreateReportCardTemplateSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -287,6 +294,7 @@ export async function registerReportCardRoutes(
       }>,
       reply: FastifyReply,
     ) {
+      if (!requireAssessmentAction(request, reply, 'assessment.configure')) return;
       const paramsResult = validate(ReportCardTemplateParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -342,6 +350,7 @@ export async function registerReportCardRoutes(
       request: FastifyRequest<{ Params: ReportCardTemplateParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireAssessmentAction(request, reply, 'assessment.configure')) return;
       const paramsResult = validate(ReportCardTemplateParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -403,6 +412,12 @@ export async function registerReportCardRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          subjectIds: [result.data.subjectId],
+        }))
+      )
+        return;
 
       // PRC-M163: the author is the JWT subject; fail closed without a UUID subject.
       const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } }).user;

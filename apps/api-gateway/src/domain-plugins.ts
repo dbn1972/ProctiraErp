@@ -207,6 +207,7 @@ import { buildStorageAdapterConfig, readStorageEnv } from './plugins/storage-hea
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
 import { createScholarshipDownloadReplayGuard } from './scholarship-download-controls.js';
+import { sharedTeachingScopeDirectory } from './teaching-scope.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { invalidateTenantCustomRoles } from './tenant-custom-roles.js';
 import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
@@ -1309,6 +1310,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         reportCardWorkerQueue: reportCardQueueHandle?.createConsumerAdapter(),
         // PRC-M495: score before/after, scheme/item changes, report-card generate/download.
         auditSink: domainAuditSink('assessment'),
+        // PRC-M160 / PRC-L274: teacher-only roles write only for subjects they teach and read
+        // a student's assessment data only when they teach that student (staff.user_id ->
+        // section_meetings / sections -> section_enrollments). No pool: production fails closed.
+        teachingScope: sharedTeachingScopeDirectory(),
       });
     },
   },
