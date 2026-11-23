@@ -192,6 +192,7 @@ env:
     e2e/93-staff-screens-read.spec.ts
     e2e/94-staff-screens-write.spec.ts
     e2e/95-staff-privacy-tenancy.spec.ts
+    e2e/115-assessments-gradebook-defect-fixes.spec.ts
 
 permissions:
   contents: read

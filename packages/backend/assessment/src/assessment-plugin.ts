@@ -138,6 +138,10 @@ export const assessmentPlugin = fp(
       reportCardsPrefix = '/report-cards',
     } = options;
 
+    // PRC-M161: one directory instance backs report-card names and result student checks;
+    // M4-P3: it also backs the subject / period tenant checks on items and outcomes.
+    const resolvedDirectory =
+      reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory;
     // Create assessment service instance
     const assessmentService = new AssessmentService(
       gradingSchemeRepository,
@@ -146,7 +150,7 @@ export const assessmentPlugin = fp(
       // PRC-H037/H038: enables the in-use guards (block item replace / scheme
       // edit-delete once results exist).
       resultRepository,
-      { auditSink },
+      { auditSink, referenceDirectory: resolvedDirectory },
     );
 
     // Decorate fastify with the assessment service
@@ -162,9 +166,6 @@ export const assessmentPlugin = fp(
 
     // Register result routes if result repository is provided
     let resultService: ResultService | undefined;
-    // PRC-M161: one directory instance backs report-card names and result student checks.
-    const resolvedDirectory =
-      reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory;
     if (resultRepository) {
       resultService = new ResultService(
         resultRepository,
