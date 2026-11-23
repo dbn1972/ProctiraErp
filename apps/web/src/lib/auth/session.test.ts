@@ -127,3 +127,63 @@ describe('refreshAccessToken single-flight (PRC-M493)', () => {
     }
   });
 });
+
+describe('decodeTokenPayload: Keycloak access tokens (UATENV-D06)', () => {
+  const keycloakClaims = {
+    sub: 'kc-subject-1',
+    iss: 'https://keycloak.test/realms/proctira',
+    azp: 'proctira-gateway',
+    exp: 2_000_000_000,
+    iat: 1_999_999_000,
+    sid: 'kc-session-1',
+    email: 'warden@school.test',
+    name: 'Wanda Warden',
+    tenant_id: 'tenant-kc-1',
+    tenant_slug: 'sunrise',
+    roles: ['super-admin'],
+    realm_access: {
+      roles: ['warden', 'offline_access', 'uma_authorization', 'default-roles-proctira'],
+    },
+    resource_access: {
+      'proctira-gateway': { roles: ['registrar'] },
+      'other-client': { roles: ['admin'] },
+    },
+  };
+
+  it('maps realm and own-client roles and the tenant_id claim', () => {
+    const payload = decodeTokenPayload(makeJwt(keycloakClaims));
+    expect(payload?.tenantId).toBe('tenant-kc-1');
+    expect(payload?.roles.map((role) => role.roleId)).toEqual(['warden', 'registrar']);
+    expect(payload?.displayName).toBe('Wanda Warden');
+    expect(payload?.sessionId).toBe('kc-session-1');
+  });
+
+  it('ignores the top-level roles claim and other clients (PRC-M178)', () => {
+    const payload = decodeTokenPayload(
+      makeJwt({ ...keycloakClaims, realm_access: { roles: [] }, resource_access: {} }),
+    );
+    expect(payload?.roles).toEqual([]);
+  });
+
+  it('always returns a roles array, even when the token has none', () => {
+    expect(decodeTokenPayload(makeJwt({ sub: 'u', exp: 1 }))?.roles).toEqual([]);
+  });
+
+  it('leaves platform tokens unchanged', () => {
+    const payload = decodeTokenPayload(
+      makeJwt({
+        sub: 'local-user-1',
+        tenantId: 'tenant-a',
+        email: 'a@b.test',
+        roles: [{ roleId: 'teacher', roleName: 'Teacher', areaId: 'area-1' }],
+        iat: 1,
+        exp: 2,
+      }),
+    );
+    expect(payload).toMatchObject({
+      sub: 'local-user-1',
+      tenantId: 'tenant-a',
+      roles: [{ roleId: 'teacher', roleName: 'Teacher', areaId: 'area-1' }],
+    });
+  });
+});
