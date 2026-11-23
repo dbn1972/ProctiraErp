@@ -55,6 +55,25 @@ export type {
   AreaHierarchyResolver,
 } from './rbac.js';
 
+// JWKS access-token verification for BFF/console shells (PRC-L254, PRC-L202)
+export {
+  createJwksVerifier,
+  decodeJwtUnverified,
+  loadJwksVerifierConfig,
+  resolveShellTokenVerification,
+  verifyShellAccessToken,
+  JwksTokenError,
+  __resetShellTokenVerifierCache,
+} from './jwks-verifier.js';
+export type {
+  JwksVerifier,
+  JwksVerifierConfig,
+  JwksTokenErrorCode,
+  ShellTokenResult,
+  ShellTokenVerification,
+  VerifiedJwtClaims,
+  VerifyOptions,
+} from './jwks-verifier.js';
 // Hostel / transport staff grants shared by the gateway and web registries (H-D2, T-O1)
 export {
   applyCampusDomainRoleGrants,
