@@ -6,8 +6,10 @@ import {
   clearCookieOptions,
   clearRefreshTokenCookieOptions,
   getAuthServiceUrl,
+  getGatewayUrl,
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
+import { decodeJwtPayload } from '@/lib/auth/jwt-payload';
 import { AUTH_COOKIES } from '@/lib/auth/session';
 import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
 
@@ -18,6 +20,12 @@ import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/reque
  * auth-service `/auth/refresh` endpoint, and rotates both cookies on
  * success. On failure, all auth cookies are cleared and a 401 is returned
  * so the caller can redirect to /login.
+ *
+ * UATENV-D16: a Keycloak session (its refresh token is a JWT; platform refresh
+ * tokens are opaque) refreshes through the gateway Keycloak route
+ * `/api/v1/auth/refresh`, which returns the tokens at the top level. Posting it
+ * to the platform `/auth/refresh` got 401, so users were signed out when the
+ * 5-minute Keycloak access token expired.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const jar = await cookies();
@@ -33,9 +41,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
   }
 
+  const keycloakSession = decodeJwtPayload(refreshToken) !== null;
+  const refreshUrl = keycloakSession
+    ? new URL('/api/v1/auth/refresh', getGatewayUrl()).toString()
+    : `${getAuthServiceUrl()}/auth/refresh`;
+
   let upstream: Response;
   try {
-    upstream = await fetch(`${getAuthServiceUrl()}/auth/refresh`, {
+    upstream = await fetch(refreshUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -53,10 +66,23 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const data = (await safeJson(upstream)) as {
     tokens?: { accessToken: string; refreshToken: string; expiresIn: number };
+    accessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
     message?: string;
   };
+  const tokens = keycloakSession
+    ? data.accessToken
+      ? {
+          accessToken: data.accessToken,
+          // Keycloak always rotates it; keep the presented one if it did not.
+          refreshToken: data.refreshToken || refreshToken,
+          expiresIn: data.expiresIn,
+        }
+      : undefined
+    : data.tokens;
 
-  if (!upstream.ok || !data.tokens) {
+  if (!upstream.ok || !tokens) {
     const failure = NextResponse.json(
       { message: data.message || 'Refresh failed.' },
       { status: 401 },
@@ -70,12 +96,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   const response = NextResponse.json({ success: true });
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
-    data.tokens.accessToken,
-    accessTokenCookieOptions(data.tokens.expiresIn, request),
+    tokens.accessToken,
+    accessTokenCookieOptions(tokens.expiresIn, request),
   );
   response.cookies.set(
     AUTH_COOKIES.REFRESH_TOKEN,
-    data.tokens.refreshToken,
+    tokens.refreshToken,
     refreshTokenCookieOptions(undefined, request),
   );
   return response;
