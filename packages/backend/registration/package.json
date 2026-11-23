@@ -20,6 +20,7 @@
     "@proctira/database": "workspace:*",
     "@proctira/i18n": "workspace:*",
     "@proctira/logging": "workspace:*",
+    "@proctira/storage": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.34.52",
     "fastify-plugin": "^4.5.0",

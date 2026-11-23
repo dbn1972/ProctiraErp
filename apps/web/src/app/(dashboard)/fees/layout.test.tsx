@@ -31,12 +31,13 @@ describe('fees layout guard (A-batch)', () => {
   it.each([
     ['teacher'],
     ['staff'],
-    ['registrar'],
     ['platform_admin'],
+    ['fees_clerk'],
+    ['school_admin'],
     ['student'],
     ['guardian'],
     ['parent'],
-    ['teacher', 'bursar'],
+    ['teacher', 'staff'],
     [],
   ])('replaces every fees screen with access denied for roles %j', async (...roles) => {
     auth.roles = roles;
@@ -45,13 +46,23 @@ describe('fees layout guard (A-batch)', () => {
     expect(screen.queryByTestId('fees-child')).toBeNull();
   });
 
-  it.each([['admin'], ['principal'], ['super-admin'], ['teacher', 'principal']])(
-    'renders the fees screen for roles %j',
-    async (...roles) => {
-      auth.roles = roles;
-      render(<>{await FeesLayout({ children: child })}</>);
-      expect(screen.getByTestId('fees-child')).toBeInTheDocument();
-      expect(screen.queryByTestId('route-access-denied')).toBeNull();
-    },
-  );
+  it.each([
+    ['admin'],
+    ['principal'],
+    ['super-admin'],
+    ['teacher', 'principal'],
+    // F-D3: finance roles and the read-only registrar (gateway grant + fees-access.ts).
+    ['finance_officer'],
+    ['bursar'],
+    ['accountant'],
+    ['registrar'],
+    // Gateway multi-role rule: one role holds the gateway grant, another the package role.
+    ['teacher', 'bursar'],
+    ['teacher', 'school_admin'],
+  ])('renders the fees screen for roles %j', async (...roles) => {
+    auth.roles = roles;
+    render(<>{await FeesLayout({ children: child })}</>);
+    expect(screen.getByTestId('fees-child')).toBeInTheDocument();
+    expect(screen.queryByTestId('route-access-denied')).toBeNull();
+  });
 });

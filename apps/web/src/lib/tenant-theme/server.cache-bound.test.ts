@@ -40,7 +40,7 @@ describe('SSR tenant-theme cache bounds (PRC-M066)', () => {
       expect(theme.tenantSlug).toBe('default');
     }
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher).toHaveBeenCalledWith('default');
+    expect(fetcher).toHaveBeenCalledWith('default', undefined);
     expect(normalizeTenantSlug('Acme-1')).toBe('acme-1');
   });
 });

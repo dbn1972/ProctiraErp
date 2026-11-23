@@ -188,6 +188,30 @@ describe('NEW-g4_apps_auth-006 RegistrationService document storage', () => {
     expect(storage.puts).toHaveLength(0);
   });
 
+  it('PRC-M330: rejects an optional document submitted as metadata only', async () => {
+    seed(repository, false); // birth_certificate optional
+    const service = new RegistrationService(repository, undefined, storage);
+    await expect(
+      service.submitRegistration(
+        tenantId,
+        {
+          ...baseInput,
+          documents: [
+            {
+              fileName: 'birth.png',
+              fileType: 'image/png',
+              fileSize: 1024,
+              documentType: 'birth_certificate',
+            },
+          ],
+        },
+        'submit-optional-nofile-1',
+      ),
+    ).rejects.toThrow(ValidationError);
+    expect(storage.puts).toHaveLength(0);
+    expect(repository.getAll()).toHaveLength(0);
+  });
+
   it('accepts a mandatory document when the file bytes are provided', async () => {
     seed(repository, true);
     const service = new RegistrationService(repository, undefined, storage);

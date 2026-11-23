@@ -92,3 +92,67 @@ describe('POST /api/auth/refresh (PRC-M133)', () => {
     expect(setCookie).toContain(`${AUTH_COOKIES.REFRESH_TOKEN}=R`);
   });
 });
+
+describe('POST /api/auth/refresh: Keycloak sessions (UATENV-D16)', () => {
+  // Keycloak refresh tokens are JWTs; platform refresh tokens are opaque UUIDs.
+  const enc = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const keycloakRefresh = `${enc({ alg: 'HS512', typ: 'JWT' })}.${enc({
+    typ: 'Refresh',
+    iss: 'https://keycloak.test/realms/proctira',
+    sid: 'kc-session-1',
+  })}.sig`;
+
+  beforeEach(() => {
+    vi.stubEnv('GATEWAY_URL', 'http://gateway.test');
+    vi.stubEnv('AUTH_SERVICE_URL', 'http://gateway.test');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('refreshes through the gateway Keycloak route and reads its top-level tokens', async () => {
+    cookieStore.set(AUTH_COOKIES.REFRESH_TOKEN, { value: keycloakRefresh });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          provider: 'keycloak',
+          accessToken: 'KC-A',
+          refreshToken: 'KC-R',
+          expiresIn: 300,
+        }),
+        { status: 200 },
+      ),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const res = await POST(req());
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('http://gateway.test/api/v1/auth/refresh');
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toEqual({
+      refreshToken: keycloakRefresh,
+    });
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain(`${AUTH_COOKIES.ACCESS_TOKEN}=KC-A`);
+    expect(setCookie).toContain(`${AUTH_COOKIES.REFRESH_TOKEN}=KC-R`);
+  });
+
+  it('keeps the platform /auth/refresh route for opaque refresh tokens', async () => {
+    cookieStore.set(AUTH_COOKIES.REFRESH_TOKEN, { value: 'r-tok' });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ tokens: { accessToken: 'A', refreshToken: 'R', expiresIn: 900 } }),
+          { status: 200 },
+        ),
+      );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const res = await POST(req());
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('http://gateway.test/auth/refresh');
+    expect(res.status).toBe(200);
+  });
+});

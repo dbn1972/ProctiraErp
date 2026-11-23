@@ -77,6 +77,12 @@ export class InMemoryTenantRepository implements TenantRepository {
           ? data.dataRetentionUntil
           : existing.dataRetentionUntil,
       legalHold: data.legalHold !== undefined ? data.legalHold : (existing.legalHold ?? false),
+      // PRC-M218: the sandbox flag is immutable once set.
+      ...(existing.sandbox ? { sandbox: true } : {}),
+      // PRC-L372: carry the decommission export obligation (only when one exists).
+      ...((data.dataExport ?? existing.dataExport)
+        ? { dataExport: data.dataExport !== undefined ? data.dataExport : existing.dataExport }
+        : {}),
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
@@ -170,6 +176,129 @@ export class InMemoryTenantRepository implements TenantRepository {
 
   async findDomainByName(domain: string): Promise<DomainEntity | null> {
     return this.domains.find((d) => d.domain.toLowerCase() === domain.toLowerCase()) ?? null;
+  }
+
+  /** PRC-L369: exact-name lookup (counts calls so tests can prove the resolver caches). */
+  hostnameLookups = 0;
+  async findDomainsByHostname(hostname: string): Promise<DomainEntity[]> {
+    this.hostnameLookups += 1;
+    return this.domains.filter((d) => d.domain === hostname).map((d) => ({ ...d }));
+  }
+
+  async findTenantBySlugExact(slug: string): Promise<TenantEntity | null> {
+    return this.tenants.find((t) => t.slug === slug) ?? null;
+  }
+
+  // ─── PRC-L169 domain verification ────────────────────────────────────────
+
+  private hostLocks = new Map<string, Promise<unknown>>();
+  private recheckLocked = false;
+
+  /** Serialise per key, like `pg_advisory_xact_lock`. */
+  private async withHostLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.hostLocks.get(key) ?? Promise.resolve();
+    const run = previous.then(fn, fn);
+    this.hostLocks.set(
+      key,
+      run.catch(() => undefined),
+    );
+    return run;
+  }
+
+  async setDomainVerificationToken(domainId: string, token: string): Promise<DomainEntity | null> {
+    const row = this.domains.find((d) => d.id === domainId);
+    if (!row) return null;
+    row.verificationToken = token;
+    return { ...row };
+  }
+
+  async verifyDomainExclusive(
+    tenantId: string,
+    domainId: string,
+    verifiedAt: Date,
+    verificationExpiresAt: Date,
+  ): Promise<
+    { status: 'verified'; domain: DomainEntity } | { status: 'conflict' } | { status: 'not_found' }
+  > {
+    const target = this.domains.find((d) => d.id === domainId);
+    if (!target || target.tenantId !== tenantId) return { status: 'not_found' };
+    const hostname = target.domain.toLowerCase();
+    return this.withHostLock(`tenant.domains:${hostname}`, async () => {
+      const row = this.domains.find((d) => d.id === domainId);
+      if (!row || row.tenantId !== tenantId) return { status: 'not_found' as const };
+      for (const other of this.domains) {
+        if (other.id === domainId || other.domain.toLowerCase() !== hostname || !other.verified) {
+          continue;
+        }
+        const expires = other.verificationExpiresAt ? new Date(other.verificationExpiresAt) : null;
+        if (expires && expires.getTime() > verifiedAt.getTime())
+          return { status: 'conflict' as const };
+        other.verified = false; // stale verification no longer blocks (or resolves)
+      }
+      row.domain = hostname;
+      row.verified = true;
+      row.verifiedAt = verifiedAt;
+      row.verificationExpiresAt = verificationExpiresAt;
+      row.lastCheckedAt = verifiedAt;
+      row.recheckClaimedAt = null;
+      return { status: 'verified' as const, domain: { ...row } };
+    });
+  }
+
+  async unverifyTenantDomains(tenantId: string): Promise<DomainEntity[]> {
+    const changed: DomainEntity[] = [];
+    for (const row of this.domains) {
+      if (row.tenantId === tenantId && row.verified) {
+        row.verified = false;
+        row.verificationExpiresAt = null;
+        changed.push({ ...row });
+      }
+    }
+    return changed;
+  }
+
+  async claimDomainsForRecheck(params: {
+    now: Date;
+    recheckBefore: Date;
+    claimLeaseBefore: Date;
+    limit: number;
+    onLocked?: () => Promise<void>;
+  }): Promise<DomainEntity[] | null> {
+    if (this.recheckLocked) return null;
+    this.recheckLocked = true;
+    try {
+      await params.onLocked?.();
+      const due = this.domains
+        .filter((d) => {
+          if (!d.verified) return false;
+          const last = new Date(d.lastCheckedAt ?? d.verifiedAt ?? 0);
+          if (last.getTime() >= params.recheckBefore.getTime()) return false;
+          const claimed = d.recheckClaimedAt ? new Date(d.recheckClaimedAt) : null;
+          return !claimed || claimed.getTime() < params.claimLeaseBefore.getTime();
+        })
+        .slice(0, params.limit);
+      for (const d of due) d.recheckClaimedAt = params.now;
+      return due.map((d) => ({ ...d }));
+    } finally {
+      this.recheckLocked = false;
+    }
+  }
+
+  async recordDomainRecheck(
+    domainId: string,
+    result: { passed: boolean; now: Date; verificationExpiresAt: Date },
+  ): Promise<DomainEntity | null> {
+    const row = this.domains.find((d) => d.id === domainId);
+    if (!row) return null;
+    row.lastCheckedAt = result.now;
+    row.recheckClaimedAt = null;
+    if (result.passed) {
+      row.verificationExpiresAt = result.verificationExpiresAt;
+    } else {
+      row.verified = false;
+      row.verificationExpiresAt = null;
+    }
+    return { ...row };
   }
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────

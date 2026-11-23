@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **111**
+- Playwright specs: **117**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -77,15 +77,15 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/examinations/[id]/results` | functional, smoke | `19-examinations-inventory-smoke.spec.ts`<br>`34-examinations-write-smoke.spec.ts` |
 | `/examinations/board-exports` | a11y, smoke | `09-route-permission-coupling.spec.ts`<br>`19-examinations-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/examinations/new` | a11y, smoke | `19-examinations-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/fees` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/dunning` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/invoices` | a11y | `a11y-axe.spec.ts` |
-| `/fees/plans` | a11y | `a11y-axe.spec.ts` |
-| `/fees/receipts` | a11y | `a11y-axe.spec.ts` |
-| `/fees/reconciliation` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/reports` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/fees/scholarship-netting` | a11y, functional | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/fees/structures` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/dunning` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/invoices` | a11y, functional, smoke | `90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/plans` | a11y, functional, smoke | `90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/receipts` | a11y, functional, smoke | `90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/reconciliation` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/reports` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/fees/scholarship-netting` | a11y, functional, smoke | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/structures` | a11y, dark, functional, smoke, touch | `39-fees-structures-write-smoke.spec.ts`<br>`90-fees-screens-read.spec.ts`<br>`91-fees-screens-write.spec.ts`<br>`92-fees-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`41-admissions-crm-write-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/[studentId]` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`64-health-screens-write.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`74-health-defect-fixes.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/allergies` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`63-health-screens-read.spec.ts`<br>`65-health-privacy-phi.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
@@ -160,18 +160,18 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/scholarships/programs/[id]` | a11y, dark, functional, touch | `10-scholarships.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/scholarships/programs/[id]/edit` | functional | `10-scholarships.spec.ts` |
 | `/scholarships/programs/new` | a11y, dark, functional, touch | `10-scholarships.spec.ts`<br>`19-services-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/staff` | a11y, dark, functional, smoke, touch | `09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`45-exam-ops-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`52-staff-hr-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/staff/[id]` | a11y, dark, functional, smoke, touch | `15-overview-people-inventory-smoke.spec.ts`<br>`15b-staff-write-validation-smoke.spec.ts`<br>`22-timetable-inventory-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`52-staff-hr-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/staff/[id]/appraisals/new` | smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`15c-staff-assignment-appraisal-validation-smoke.spec.ts` |
-| `/staff/[id]/assignments/new` | smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`15c-staff-assignment-appraisal-validation-smoke.spec.ts` |
-| `/staff/[id]/edit` | smoke | `15-overview-people-inventory-smoke.spec.ts` |
-| `/staff/attendance` | a11y, dark, functional, touch | `52-staff-hr-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/staff/contracts` | a11y, dark, touch | `a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/staff/import` | a11y, dark, functional, touch | `52-staff-hr-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/staff/leaves` | a11y | `a11y-axe.spec.ts` |
-| `/staff/new` | a11y, functional, smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`15b-staff-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/staff/payroll` | a11y, dark, functional, touch | `52-staff-hr-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/staff/substitutions` | a11y, smoke | `22-timetable-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/staff` | a11y, dark, functional, smoke, touch | `09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`45-exam-ops-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`52-staff-hr-write-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`95-staff-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/staff/[id]` | a11y, dark, functional, smoke, touch | `15-overview-people-inventory-smoke.spec.ts`<br>`15b-staff-write-validation-smoke.spec.ts`<br>`22-timetable-inventory-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`52-staff-hr-write-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`95-staff-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/staff/[id]/appraisals/new` | functional, smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`15c-staff-assignment-appraisal-validation-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts` |
+| `/staff/[id]/assignments/new` | functional, smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`15c-staff-assignment-appraisal-validation-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts` |
+| `/staff/[id]/edit` | functional, smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts` |
+| `/staff/attendance` | a11y, dark, functional, smoke, touch | `52-staff-hr-write-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`95-staff-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/staff/contracts` | a11y, dark, functional, smoke, touch | `93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`95-staff-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/staff/import` | a11y, dark, functional, smoke, touch | `52-staff-hr-write-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/staff/leaves` | a11y, functional, smoke | `93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`95-staff-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/staff/new` | a11y, functional, smoke | `15-overview-people-inventory-smoke.spec.ts`<br>`15b-staff-write-validation-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/staff/payroll` | a11y, dark, functional, smoke, touch | `52-staff-hr-write-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`95-staff-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/staff/substitutions` | a11y, functional, smoke | `22-timetable-inventory-smoke.spec.ts`<br>`93-staff-screens-read.spec.ts`<br>`94-staff-screens-write.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students` | a11y, dark, functional, rtl, smoke, touch | `04-transfer-and-workflow.spec.ts`<br>`05-bulk-import.spec.ts`<br>`06-language-and-rtl.spec.ts`<br>`07-tenant-isolation.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`34-examinations-write-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`45-exam-ops-write-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/students/[id]` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`05-bulk-import.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`44-students-360-write-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`61-student-portal-privacy-tenancy.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students/[id]/edit` | smoke | `15-overview-people-inventory-smoke.spec.ts` |
