@@ -25,9 +25,39 @@
 -- table lock cannot run inside a transaction, so apply-sql.sh applies this file
 -- statement-by-statement through the schema_migration_phases ledger. Every
 -- statement is idempotent compensating-forward DDL: (1) drop an INVALID
--- leftover from an interrupted build, (2) build, (3) assert present + valid +
--- unique. Lock: SHARE UPDATE EXCLUSIVE per parent for the build only (reads and
--- writes continue). apply-sql.sh's lock_timeout / statement_timeout apply.
+-- leftover that is already present when that parent's drop phase runs (for
+-- example from a manual build attempt before this file), (2) build, (3) assert
+-- present + valid + unique. Lock: SHARE UPDATE EXCLUSIVE per parent for the
+-- build only (reads and writes continue). apply-sql.sh's lock_timeout /
+-- statement_timeout apply.
+--
+-- Interrupted build / operator remediation. Step (1) does not cover a build
+-- that this run interrupts. If CREATE INDEX CONCURRENTLY fails part-way
+-- (lock_timeout while it waits for in-flight transactions, statement_timeout,
+-- a cancel or a disconnect), it leaves an INVALID <parent>_tenant_id_id_uidx.
+-- On the next apply-sql.sh run the drop phase is skipped as ledgered, the build
+-- phase is a no-op (IF NOT EXISTS checks only the name) and is ledgered, and the
+-- assert fails on every run with
+--   B1: <parent>_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY) ...
+-- and a HINT that names the recovery. Hot parents (sections, enrollments,
+-- section_meetings, grade_entries) are the most likely to hit this. It fails
+-- closed: 307 refuses to run without valid parent keys and no data is at risk.
+-- Recovery, outside a transaction, as the table owner, for the named parent:
+--   DROP INDEX CONCURRENTLY IF EXISTS public.<parent>_tenant_id_id_uidx;
+--   CREATE UNIQUE INDEX CONCURRENTLY <parent>_tenant_id_id_uidx
+--     ON public.<parent> (tenant_id, id);
+--   then re-run tools/scripts/apply-sql.sh (the assert passes and 307 runs).
+-- Alternative: delete that parent's drop and build phase rows so apply-sql.sh
+-- re-runs them. apply-sql.sh prints "Applying phase N of
+-- db/sql/306_academic_tenant_parent_uidx.sql" for the failing assert; its drop
+-- and build phases are N-2 and N-1:
+--   DELETE FROM schema_migration_phases
+--    WHERE filename = '306_academic_tenant_parent_uidx.sql'
+--      AND phase_idx IN (N-2, N-1);
+--   then re-run tools/scripts/apply-sql.sh (the drop phase removes the INVALID
+--   index and the build phase rebuilds it).
+-- If the build fails again on lock_timeout, re-run in a quieter window or with
+-- a larger APPLY_SQL_LOCK_TIMEOUT for this run.
 --
 -- Rollback (forward-only repo; body of a future revert migration, after the
 -- db/sql/307 composite FKs that depend on these indexes are dropped):
@@ -54,6 +84,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS assessment_items_tenant_id_id_uid
   ON assessment_items (tenant_id, id);
 DO $assert_assessment_items_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'assessment_items_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: assessment_items_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.assessment_items_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY assessment_items_tenant_id_id_uidx ON public.assessment_items (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -91,6 +137,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS bell_periods_tenant_id_id_uidx
   ON bell_periods (tenant_id, id);
 DO $assert_bell_periods_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'bell_periods_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: bell_periods_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.bell_periods_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY bell_periods_tenant_id_id_uidx ON public.bell_periods (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -128,6 +190,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS bell_schedules_tenant_id_id_uidx
   ON bell_schedules (tenant_id, id);
 DO $assert_bell_schedules_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'bell_schedules_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: bell_schedules_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.bell_schedules_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY bell_schedules_tenant_id_id_uidx ON public.bell_schedules (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -165,6 +243,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS boards_tenant_id_id_uidx
   ON boards (tenant_id, id);
 DO $assert_boards_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'boards_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: boards_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.boards_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY boards_tenant_id_id_uidx ON public.boards (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -202,6 +296,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS enrollments_tenant_id_id_uidx
   ON enrollments (tenant_id, id);
 DO $assert_enrollments_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'enrollments_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: enrollments_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.enrollments_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY enrollments_tenant_id_id_uidx ON public.enrollments (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -239,6 +349,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS exam_sessions_tenant_id_id_uidx
   ON exam_sessions (tenant_id, id);
 DO $assert_exam_sessions_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'exam_sessions_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: exam_sessions_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.exam_sessions_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY exam_sessions_tenant_id_id_uidx ON public.exam_sessions (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -276,6 +402,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS examinations_tenant_id_id_uidx
   ON examinations (tenant_id, id);
 DO $assert_examinations_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'examinations_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: examinations_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.examinations_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY examinations_tenant_id_id_uidx ON public.examinations (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -313,6 +455,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS geographic_areas_tenant_id_id_uid
   ON geographic_areas (tenant_id, id);
 DO $assert_geographic_areas_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'geographic_areas_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: geographic_areas_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.geographic_areas_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY geographic_areas_tenant_id_id_uidx ON public.geographic_areas (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -350,6 +508,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS grade_entries_tenant_id_id_uidx
   ON grade_entries (tenant_id, id);
 DO $assert_grade_entries_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'grade_entries_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: grade_entries_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.grade_entries_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY grade_entries_tenant_id_id_uidx ON public.grade_entries (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -387,6 +561,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS grading_scales_tenant_id_id_uidx
   ON grading_scales (tenant_id, id);
 DO $assert_grading_scales_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'grading_scales_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: grading_scales_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.grading_scales_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY grading_scales_tenant_id_id_uidx ON public.grading_scales (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -424,6 +614,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS grading_schemes_tenant_id_id_uidx
   ON grading_schemes (tenant_id, id);
 DO $assert_grading_schemes_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'grading_schemes_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: grading_schemes_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.grading_schemes_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY grading_schemes_tenant_id_id_uidx ON public.grading_schemes (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -461,6 +667,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS institution_infrastructure_tenant
   ON institution_infrastructure (tenant_id, id);
 DO $assert_institution_infrastructure_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'institution_infrastructure_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: institution_infrastructure_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.institution_infrastructure_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY institution_infrastructure_tenant_id_id_uidx ON public.institution_infrastructure (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -498,6 +720,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS report_card_templates_tenant_id_i
   ON report_card_templates (tenant_id, id);
 DO $assert_report_card_templates_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'report_card_templates_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: report_card_templates_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.report_card_templates_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY report_card_templates_tenant_id_id_uidx ON public.report_card_templates (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -535,6 +773,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS rooms_tenant_id_id_uidx
   ON rooms (tenant_id, id);
 DO $assert_rooms_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'rooms_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: rooms_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.rooms_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY rooms_tenant_id_id_uidx ON public.rooms (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -572,6 +826,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS section_meetings_tenant_id_id_uid
   ON section_meetings (tenant_id, id);
 DO $assert_section_meetings_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'section_meetings_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: section_meetings_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.section_meetings_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY section_meetings_tenant_id_id_uidx ON public.section_meetings (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -609,6 +879,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS sections_tenant_id_id_uidx
   ON sections (tenant_id, id);
 DO $assert_sections_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'sections_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: sections_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.sections_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY sections_tenant_id_id_uidx ON public.sections (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -646,6 +932,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS student_consents_tenant_id_id_uid
   ON student_consents (tenant_id, id);
 DO $assert_student_consents_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'student_consents_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: student_consents_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.student_consents_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY student_consents_tenant_id_id_uidx ON public.student_consents (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c
@@ -683,6 +985,22 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS transcript_signing_keys_tenant_id
   ON transcript_signing_keys (tenant_id, id);
 DO $assert_transcript_signing_keys_tenant_id_id_uidx$
 BEGIN
+  -- An interrupted build (lock_timeout, statement_timeout, cancel,
+  -- disconnect) leaves an INVALID index under this name. The ledgered
+  -- build phase (IF NOT EXISTS checks only the name) does not rebuild it on
+  -- resume, so name the manual recovery.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_index i ON i.indexrelid = c.oid
+     WHERE n.nspname = 'public'
+       AND c.relname = 'transcript_signing_keys_tenant_id_id_uidx'
+       AND NOT i.indisvalid
+  ) THEN
+    RAISE EXCEPTION 'B1: transcript_signing_keys_tenant_id_id_uidx is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it'
+      USING HINT = 'Run DROP INDEX CONCURRENTLY IF EXISTS public.transcript_signing_keys_tenant_id_id_uidx; then CREATE UNIQUE INDEX CONCURRENTLY transcript_signing_keys_tenant_id_id_uidx ON public.transcript_signing_keys (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_class c

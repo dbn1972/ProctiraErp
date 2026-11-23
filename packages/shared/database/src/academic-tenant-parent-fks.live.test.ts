@@ -16,7 +16,8 @@
  * on `<child>_<col>_tenant_fk`, own parents are accepted, the cascade cannot
  * reach another tenant, every edge has a validated twin with the id-only FK's
  * ON DELETE, FORCE RLS is back, and 307 is idempotent, fails closed on a
- * violating row and refuses unbounded timeouts.
+ * violating row and refuses unbounded timeouts. The 306 assert names the manual
+ * recovery when an interrupted build left an INVALID parent key (MIG-B1-001).
  */
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -543,6 +544,79 @@ describe.skipIf(!DATABASE_URL || !MIGRATOR_DATABASE_URL)(
       });
     });
 
+    describe('migration 306 (owner)', () => {
+      it('an INVALID leftover from an interrupted build fails the assert with the recovery HINT', async () => {
+        const parent = 'transcript_signing_keys';
+        const uidx = `${parent}_tenant_id_id_uidx`;
+        const scratch = 'b1_test_interrupted_uidx';
+        const tag = `$assert_${uidx}$`;
+        const sql306 = loadMigration(MIGRATION_306);
+        const start = sql306.indexOf(`DO ${tag}`);
+        const end = sql306.indexOf(`${tag};`, start + tag.length + 3);
+        expect(start, `306 assert phase for ${parent}`).toBeGreaterThanOrEqual(0);
+        const assertPhase = sql306.slice(start, end + tag.length + 1);
+        // Interrupt a real CREATE INDEX CONCURRENTLY: it waits for the open
+        // ROW EXCLUSIVE holder, lock_timeout fires and an INVALID index is left.
+        const holder = await migrator.connect();
+        const builder = await migrator.connect();
+        let error: (Error & { hint?: string }) | null = null;
+        try {
+          await holder.query('BEGIN');
+          await holder.query(`LOCK TABLE public.${parent} IN ROW EXCLUSIVE MODE`);
+          await builder.query(`SET lock_timeout = '300ms'`);
+          await builder.query(`SET statement_timeout = '10s'`);
+          const buildErr = await builder
+            .query(
+              `CREATE UNIQUE INDEX CONCURRENTLY ${scratch} ON public.${parent} (tenant_id, id)`,
+            )
+            .then(
+              () => null,
+              (e: unknown) => e,
+            );
+          expect(buildErr, 'the build must be interrupted').toMatchObject({ code: '55P03' });
+          await holder.query('ROLLBACK');
+          const left = await migrator.query<{ indisvalid: boolean }>(
+            `SELECT i.indisvalid FROM pg_index i
+               JOIN pg_class c ON c.oid = i.indexrelid
+              WHERE c.relnamespace = 'public'::regnamespace AND c.relname = $1`,
+            [scratch],
+          );
+          expect(left.rows).toEqual([{ indisvalid: false }]);
+          // Put the INVALID index under the 306 name (rolled back), as a resumed
+          // apply-sql.sh run sees it after the build phase no-ops and is ledgered.
+          await inMigratorTx(async (client) => {
+            await client.query(`ALTER INDEX public.${uidx} RENAME TO b1_test_valid_uidx`);
+            await client.query(`ALTER INDEX public.${scratch} RENAME TO ${uidx}`);
+            await client.query('SAVEPOINT run_assert');
+            error = await client.query(assertPhase).then(
+              () => null,
+              (e: Error & { hint?: string }) => e,
+            );
+          });
+        } finally {
+          await holder.query('ROLLBACK').catch(() => undefined);
+          holder.release();
+          await builder.query(`DROP INDEX CONCURRENTLY IF EXISTS public.${scratch}`);
+          builder.release();
+        }
+        const failure = error as (Error & { hint?: string }) | null;
+        expect(failure, 'the assert must refuse an INVALID index').not.toBeNull();
+        expect(String(failure?.message)).toBe(
+          `B1: ${uidx} is INVALID (interrupted CREATE INDEX CONCURRENTLY); the ledgered build phase will not rebuild it`,
+        );
+        expect(String(failure?.hint)).toBe(
+          `Run DROP INDEX CONCURRENTLY IF EXISTS public.${uidx}; then CREATE UNIQUE INDEX CONCURRENTLY ${uidx} ON public.${parent} (tenant_id, id); then re-run tools/scripts/apply-sql.sh. See "Interrupted build / operator remediation" in the db/sql/306 header.`,
+        );
+        // The rename was rolled back: the valid 306 key is in place again.
+        const kept = await migrator.query<{ indisvalid: boolean }>(
+          `SELECT i.indisvalid FROM pg_index i
+             JOIN pg_class c ON c.oid = i.indexrelid
+            WHERE c.relnamespace = 'public'::regnamespace AND c.relname = ANY ($1::text[])`,
+          [[uidx, scratch, 'b1_test_valid_uidx']],
+        );
+        expect(kept.rows).toEqual([{ indisvalid: true }]);
+      });
+    });
     describe('migration 307 (owner, rolled back)', () => {
       it('re-running 307 is a no-op', async () => {
         const sql = loadMigration(MIGRATION_307);
