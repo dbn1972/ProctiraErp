@@ -242,6 +242,10 @@ export class InMemoryHostelRepository implements HostelRepository {
     );
   }
 
+  async findBlockById(id: string, tenantId: string): Promise<HostelBlockEntity | null> {
+    return this.blocks.find((b) => b.id === id && b.tenantId === tenantId) ?? null;
+  }
+
   async createRoom(
     data: Omit<HostelRoomEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelRoomEntity> {
@@ -255,6 +259,10 @@ export class InMemoryHostelRepository implements HostelRepository {
     return this.rooms.filter(
       (r) => r.tenantId === tenantId && (blockId === undefined || r.blockId === blockId),
     );
+  }
+
+  async findRoomById(id: string, tenantId: string): Promise<HostelRoomEntity | null> {
+    return this.rooms.find((r) => r.id === id && r.tenantId === tenantId) ?? null;
   }
 
   async createBed(
