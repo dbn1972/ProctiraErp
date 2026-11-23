@@ -9,7 +9,7 @@
  * These tests FAIL without the fix: before, InProcessSandbox executed any code and the allow-list
  * matched '*' / hostname-only with no SSRF/metadata blocking.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   SandboxEgressError,
@@ -78,5 +78,42 @@ describe('NEW-g7_platform-011 egress allow-list is fail-closed', () => {
     await expect(
       assertEgressAllowed('https://evil.example.com/', ['api.example.com']),
     ).rejects.toBeInstanceOf(SandboxEgressError);
+  });
+});
+
+describe('PRC-M628 in-process sandbox never follows egress redirects', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns the 3xx to the plugin instead of following it to a metadata host', async () => {
+    // Stand-in for undici: follows the Location unless redirect is 'manual' or 'error',
+    // exactly like the real fetch default ('follow').
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((_input: unknown, init?: RequestInit) => {
+        if (init?.redirect === 'manual' || init?.redirect === 'error') {
+          return Promise.resolve(
+            new Response(null, {
+              status: 302,
+              headers: { location: 'http://169.254.169.254/latest/meta-data/' },
+            }),
+          );
+        }
+        return Promise.resolve(new Response('metadata-secret', { status: 200 }));
+      });
+    const sandbox = new InProcessSandbox({
+      allowUntrustedInProcess: true,
+      quota: { allowedNetworkHosts: ['93.184.215.14'] },
+    });
+    const code = `exports.h = async function(){
+      var r = await fetch('https://93.184.215.14/start', { redirect: 'follow' });
+      return { status: r.status, body: await r.text() };
+    };`;
+    const result = await sandbox.execute(code, 'h', [], ctx());
+    expect(result.success).toBe(true);
+    expect(result.result).toEqual({ status: 302, body: '' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]?.redirect).toBe('manual');
   });
 });
