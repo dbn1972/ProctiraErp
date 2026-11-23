@@ -122,3 +122,39 @@ describe('PRC-M608 fail-closed when no verified actor is present', () => {
     expect(port.events).toHaveLength(0);
   });
 });
+
+describe('PRC-M608 policy versions record the authoring actor', () => {
+  it('sets createdBy on v1 at create and on v2 when rules change', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/policies',
+      headers: { 'x-sub': 'alice', 'x-roles': 'tenant_admin' },
+      payload: tenantPolicyBody,
+    });
+    expect(createRes.statusCode).toBe(201);
+    const policyId = createRes.json().id;
+
+    const updateRes = await app.inject({
+      method: 'PUT',
+      url: `/policies/${policyId}`,
+      headers: { 'x-sub': 'bob', 'x-roles': 'tenant_admin' },
+      payload: { rules: { ...tenantPolicyBody.rules, minLength: 12 } },
+    });
+    expect(updateRes.statusCode).toBe(200);
+
+    const versionsRes = await app.inject({
+      method: 'GET',
+      url: `/policies/${policyId}/versions`,
+      headers: { 'x-sub': 'carol', 'x-roles': 'tenant_admin' },
+    });
+    expect(versionsRes.statusCode).toBe(200);
+    const body = versionsRes.json();
+    const versions = (Array.isArray(body) ? body : body.data) as {
+      version: number;
+      createdBy: string | null;
+    }[];
+    const byVersion = new Map(versions.map((v) => [v.version, v.createdBy]));
+    expect(byVersion.get(1)).toBe('alice');
+    expect(byVersion.get(2)).toBe('bob');
+  });
+});

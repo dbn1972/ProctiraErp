@@ -108,7 +108,8 @@ export class PolicyService {
       rules: input.rules as Record<string, unknown>,
       effectiveFrom: created.effectiveFrom,
       effectiveUntil: created.effectiveUntil,
-      createdBy: null,
+      // PRC-M608: the version records who authored it.
+      createdBy: actor ?? null,
     });
 
     if (actor) {
@@ -134,7 +135,7 @@ export class PolicyService {
     // Read, name check, version record and write happen as one repository
     // step so concurrent edits cannot mint duplicate versions or names (PRC-L478).
     const result = await this.repository.updateAtomically(id, tenantId, (existing) =>
-      this.buildUpdate(id, existing, input),
+      this.buildUpdate(id, existing, input, actor),
     );
     if (result.status === 'not_found') {
       throw new NotFoundError(`Policy with id '${id}' not found`);
@@ -152,6 +153,7 @@ export class PolicyService {
     id: string,
     existing: PolicyEntity,
     input: UpdatePolicyInput,
+    actor?: string,
   ): { data: Partial<PolicyEntity>; version?: Omit<PolicyVersionEntity, 'createdAt'> } {
     const updateData: Partial<PolicyEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
@@ -180,7 +182,7 @@ export class PolicyService {
           effectiveUntil: input.effectiveUntil
             ? new Date(input.effectiveUntil)
             : existing.effectiveUntil,
-          createdBy: null,
+          createdBy: actor ?? null,
         },
       };
     }
