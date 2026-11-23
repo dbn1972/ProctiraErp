@@ -1391,6 +1391,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(curriculumPlugin, {
         store: createCurriculumStore(),
         prefix: '/curriculum',
+        // PRC-M194: teacher-only roles write units / lesson plans / coverage / outcomes only
+        // for subjects they teach (active section_meetings.subject_id). No pool: production
+        // fails closed.
+        teachingScope: sharedTeachingScopeDirectory(),
       });
     },
   },
