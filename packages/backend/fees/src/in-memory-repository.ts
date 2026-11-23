@@ -131,6 +131,18 @@ export class InMemoryFeesRepository implements FeesRepository {
     );
   }
 
+  async withScholarshipDisbursementLock<T>(
+    tenantId: string,
+    disbursementId: string,
+    fn: (tx: FeesRepository) => Promise<T>,
+  ): Promise<T> {
+    // Same serialization chain as invoice locks, under a key that cannot clash with an
+    // invoice id.
+    return this.runSerializedOnInvoice(tenantId, `scholarship-disbursement:${disbursementId}`, () =>
+      this.runAtomically(() => fn(this)),
+    );
+  }
+
   /** Test helper — students billed when bulk-invoicing a class/grade. */
   seedClassRoster(
     tenantId: string,
@@ -486,6 +498,15 @@ export class InMemoryFeesRepository implements FeesRepository {
       this.concessions.find(
         (row) => row.tenantId === tenantId && row.sourceDisbursementId === sourceDisbursementId,
       ) ?? null
+    );
+  }
+
+  async listConcessionsBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity[]> {
+    return this.concessions.filter(
+      (row) => row.tenantId === tenantId && row.sourceDisbursementId === sourceDisbursementId,
     );
   }
 
