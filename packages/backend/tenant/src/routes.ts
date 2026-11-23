@@ -21,6 +21,7 @@
  * GET    /tenants/:id/domains              - List tenant domains
  * POST   /tenants/:id/domains              - Add a domain
  * DELETE /tenants/:id/domains/:domainId    - Remove a domain
+ * POST   /tenants/:id/domains/:domainId/verify - Verify domain ownership (PRC-L169)
  *
  * Usage:
  * GET    /tenants/:id/usage                - Get tenant usage dashboard
@@ -569,6 +570,47 @@ export async function registerTenantRoutes(
       try {
         await tenantService.removeDomain(paramsResult.data.id, domainId);
         return reply.status(204).send();
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /tenants/:id/domains/:domainId/verify
+   * PRC-L169: check the DNS TXT / HTTPS ownership proof and bind the hostname exclusively.
+   * Mounted beside add-domain, so the gateway applies the same guard (segment default).
+   */
+  fastify.post(
+    `${prefix}/:id/domains/:domainId/verify`,
+    async function verifyDomainHandler(
+      request: FastifyRequest<{ Params: TenantParams & { domainId: string } }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(TenantParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid tenant ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const domainId = (request.params as { domainId?: string }).domainId;
+      if (!domainId) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Domain ID is required',
+          statusCode: 400,
+          errors: [],
+        });
+      }
+      try {
+        const domain = await tenantService.verifyDomain(paramsResult.data.id, domainId);
+        return reply.status(200).send(tenantService.formatDomainResponse(domain));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

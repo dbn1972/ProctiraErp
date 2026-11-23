@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { isInstallLocked } from '@/lib/bootstrap-lock';
 import { assertInstallSecurity } from '@/lib/install-security';
 
 export const runtime = 'nodejs';
@@ -18,7 +19,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  if (security.session.locked) {
+  // PRC-M467: the lock is global, not per session.
+  if (security.session.locked || isInstallLocked()) {
     return NextResponse.json(
       { success: false, error: 'Bootstrap already finalized; install endpoints are locked.' },
       { status: 409 },

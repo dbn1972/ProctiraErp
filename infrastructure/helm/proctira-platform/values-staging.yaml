@@ -109,23 +109,7 @@ developerPortal:
     tag: sha-pending
 
 # -- Backend domain services (staging overrides)
-institutionService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 6
-
 studentService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 6
-
-staffService:
   enabled: false
   replicaCount: 2
   autoscaling:
@@ -141,31 +125,7 @@ assessmentService:
     minReplicas: 2
     maxReplicas: 4
 
-attendanceService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 6
-
 examinationService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 4
-
-workflowService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 4
-
-notificationService:
   enabled: false
   replicaCount: 2
   autoscaling:

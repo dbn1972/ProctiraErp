@@ -15,6 +15,10 @@ export default defineConfig({
     include: [
       'packages/**/*.live.test.ts',
       'apps/**/*.live.test.ts',
+      // PRC-M419: tools/migrations DB-backed suites (generate-uuids, and future
+      // assign-tenant / CDC apply suites) run against the CI Postgres service so
+      // the migration tooling is covered by the same no-silent-skip live gate.
+      'tools/**/*.live.test.ts',
       'tools/tenant-isolation-tests/src/integration/rls-live.test.ts',
     ],
     exclude: ['**/node_modules/**', '**/dist/**'],

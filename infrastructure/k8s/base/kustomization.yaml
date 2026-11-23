@@ -40,7 +40,7 @@ resources:
   # Ingress
   - ingress.yaml
 
-# Split-domain Deployments (institution/student/…) live under
+# Split-domain Deployments (student/assessment/…) live under
 # ../components/split-domain-services — NON-PROD / lab only (W1-OPS-16).
 
 commonLabels:

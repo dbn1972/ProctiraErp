@@ -287,6 +287,8 @@ export interface GradebookRepository {
   getBoardByCode(tenantId: string, code: string): Promise<BoardSummary | null>;
   listBoards(tenantId: string): Promise<BoardSummary[]>;
   getInstitution(tenantId: string, id: string): Promise<InstitutionSummary | null>;
+  /** M4-P2: true when a non-deleted student with this id exists in the tenant. */
+  studentExists(tenantId: string, studentId: string): Promise<boolean>;
   listInstitutionsByBoard(tenantId: string, boardId: string): Promise<InstitutionSummary[]>;
   listBoardCodes(
     tenantId: string,

@@ -31,7 +31,7 @@ export function RouteErrorPanel({
         An unexpected error occurred while loading this page.
       </p>
       {error.digest ? (
-        <p className="text-xs text-muted-foreground/70" data-testid="route-error-digest">
+        <p className="text-xs text-muted-foreground" data-testid="route-error-digest">
           Reference: {error.digest}
         </p>
       ) : null}
