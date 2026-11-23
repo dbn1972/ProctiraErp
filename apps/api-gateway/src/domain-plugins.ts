@@ -194,6 +194,7 @@ import {
   offerFeeAmountCents,
   tenantLocalDate,
 } from './admissions-offer-policy.js';
+import { createAssessmentPortalBinding } from './assessment-portal-binding.js';
 import { createAttendanceHolidayLookup } from './attendance-holiday-lookup.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
@@ -1352,16 +1353,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         // section_meetings / sections -> section_enrollments). No pool: production fails closed.
         teachingScope: sharedTeachingScopeDirectory(),
         // PRC-L274: families download only their own cards — guardians/parents through the
-        // child-link table (as gradebook), a student through their own student record.
-        portalBinding: {
-          listReadableStudentIds: async (tenantId, actorUserId) => {
-            const links = await assessmentParentRepo.listChildLinksForParent(tenantId, actorUserId);
-            const own =
-              (await sharedTeachingScopeDirectory()?.studentIdsForLearner(tenantId, actorUserId)) ??
-              [];
-            return [...links.map((link) => link.studentId), ...own];
-          },
-        },
+        // parent portal's custody-filtered children (active link + household custody, no
+        // blocks_all_access restriction), a student through their own student record.
+        portalBinding: createAssessmentPortalBinding(
+          assessmentParentRepo,
+          async (tenantId, learnerUserId) =>
+            (await sharedTeachingScopeDirectory()?.studentIdsForLearner(tenantId, learnerUserId)) ??
+            [],
+        ),
       });
     },
   },
