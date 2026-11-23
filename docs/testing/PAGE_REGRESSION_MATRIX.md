@@ -5,7 +5,7 @@
 > Coverage means navigation: a literal `goto` / `gotoDashboardRoute`, or a table entry in a spec that navigates, excluding assertion and link contexts (PRC-L187).
 
 - App Router pages: **209**
-- Playwright specs: **117**
+- Playwright specs: **118**
 - Pages without any e2e navigation: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
