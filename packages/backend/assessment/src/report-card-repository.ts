@@ -203,4 +203,10 @@ export interface ReportCardJobRepository {
     tenantId: string,
     staleBefore: Date,
   ): Promise<ReportCardJobEntity | null>;
+
+  /**
+   * FKB-082: the subset of `studentIds` that are live students of this tenant. Another
+   * tenant's student and an unknown id are both absent.
+   */
+  findExistingStudentIds(tenantId: string, studentIds: readonly string[]): Promise<Set<string>>;
 }

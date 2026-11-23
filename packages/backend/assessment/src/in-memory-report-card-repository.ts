@@ -189,6 +189,21 @@ export class InMemoryInstitutionBrandingRepository implements InstitutionBrandin
  */
 export class InMemoryReportCardJobRepository implements ReportCardJobRepository {
   private jobs: ReportCardJobEntity[] = [];
+  /** FKB-082: `${tenantId}:${studentId}`; when empty every student id is accepted. */
+  private students = new Set<string>();
+
+  /** Register a student for {@link findExistingStudentIds}; unknown ids are then rejected. */
+  seedStudent(tenantId: string, studentId: string): void {
+    this.students.add(`${tenantId}:${studentId}`);
+  }
+
+  async findExistingStudentIds(
+    tenantId: string,
+    studentIds: readonly string[],
+  ): Promise<Set<string>> {
+    if (this.students.size === 0) return new Set(studentIds);
+    return new Set(studentIds.filter((id) => this.students.has(`${tenantId}:${id}`)));
+  }
 
   async create(
     data: Omit<ReportCardJobEntity, 'createdAt' | 'updatedAt' | 'completedAt'>,
@@ -279,5 +294,6 @@ export class InMemoryReportCardJobRepository implements ReportCardJobRepository 
   /** Reset for testing */
   clear(): void {
     this.jobs = [];
+    this.students.clear();
   }
 }
