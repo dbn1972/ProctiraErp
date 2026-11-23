@@ -138,6 +138,64 @@ test('parent portal screen specs are in the nightly set (and the measured PR sub
   }
 });
 
+// Student portal screen -> API -> DB coverage (60 read, 61 privacy/tenancy).
+// Both always run nightly. PR membership follows the measured shard-time rule: add 61,
+// then 60, only while baseline + pending + (projected CI minutes of the added specs / 4)
+// x 1.25 stays <= 16.0 at one worker. Measured: 14.83 max PR shard + 0.86 pending parent
+// specs + 0.854 / 4 x 1.25 = 15.96 min with both, so both are in PR_SPECS. Removing one is
+// a visible change here.
+const STUDENT_SCREEN_SPECS = [
+  '60-student-portal-screens-read.spec.ts',
+  '61-student-portal-privacy-tenancy.spec.ts',
+];
+const STUDENT_SCREEN_PR_SUBSET = STUDENT_SCREEN_SPECS;
+test('student portal screen specs are in the nightly set (and the measured PR subset)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of STUDENT_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.equal(
+      pr.includes(`e2e/${file}`),
+      STUDENT_SCREEN_PR_SUBSET.includes(file),
+      `PR_SPECS membership of e2e/${file} matches the measured subset`,
+    );
+  }
+});
+
+// Transport screen -> API -> DB coverage (66 read, 67 form saves, 68 privacy/tenancy).
+// Nightly only: the PR shard time budget is used by the parent and student portal
+// screen specs. Moving one into PR_SPECS is a visible change here.
+const TRANSPORT_SCREEN_SPECS = [
+  '66-transport-screens-read.spec.ts',
+  '67-transport-screens-write.spec.ts',
+  '68-transport-privacy-tenancy.spec.ts',
+];
+test('transport screen specs run nightly and are not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of TRANSPORT_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+});
+
+// Campus staff roles (H-D2, T-O1, MR-1, T-D3): warden / transport officer / registrar
+// allowed paths and teacher / parent / student denials, live. Nightly only: the PR
+// shard time budget is used up. Moving it into PR_SPECS is a visible change here.
+test('campus staff roles spec 72 runs nightly and is not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  const file = '72-campus-staff-roles.spec.ts';
+  assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+  assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+  assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+});
+
 // UAT-ENV-015: upload-artifact skips hidden files by default, so a step that lists a
 // dotfile (gateway / portal logs) must set include-hidden-files or the log is dropped.
 test('upload steps that list a dotfile set include-hidden-files (UAT-ENV-015)', () => {
@@ -618,4 +676,144 @@ test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=o
       /PGOPTIONS=["']?-c proctira\.allow_demo_seed=on/.test(s.run);
     assert.ok(bound, `${s.file} step "${s.name}" applies 006 without proctira.allow_demo_seed=on`);
   }
+});
+test('safe error responses spec 73 exists and runs nightly only (PR-4)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const file = '73-safe-error-responses.spec.ts';
+  // Nightly only: the PR shard budget is used up (see the health specs below).
+  assert.ok(readdirSync(e2eDir).includes(file), `apps/web/e2e/${file} exists`);
+  assert.ok(
+    wf.env.NIGHTLY_SPECS.split(/\s+/).includes(`e2e/${file}`),
+    `NIGHTLY_SPECS has e2e/${file}`,
+  );
+  assert.ok(!wf.env.PR_SPECS.split(/\s+/).includes(`e2e/${file}`), `PR_SPECS lacks e2e/${file}`);
+});
+test('health screen specs 63-65 and 74 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const HEALTH_SPECS = [
+    '63-health-screens-read.spec.ts',
+    '64-health-screens-write.spec.ts',
+    '65-health-privacy-phi.spec.ts',
+    // FEAT-003 / PR-3 (HL-O1, HL-O3, HL-O4): new specs 72-79 are nightly-only.
+    '74-health-defect-fixes.spec.ts',
+  ];
+  // Nightly only: the worst PR shard job already takes 17.17 min (CI run 44258213737,
+  // shard 3/4), above the 16-min budget, so any of 63-65 would push it further over.
+  // Move a spec here only together with PR_SPECS.
+  const HEALTH_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of HEALTH_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    HEALTH_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    HEALTH_SPECS_IN_PR,
+  );
+});
+test('the shared E2E academic year is a rolling window around today (SP-R2)', () => {
+  // A fixed 2026-04-01..2027-03-31 year made every date-relative spec (attendance
+  // pastWeekdays(), calendar) fail from 2027-04-01. The seed and the fixture
+  // fallback must both derive the same window from today.
+  const seed = readFileSync(resolve(here, '../../tools/e2e/seed-e2e-tenants.sql'), 'utf8');
+  const insert = seed.match(/INSERT INTO academic_periods[\s\S]*?'E2E-AY'[\s\S]*?;/);
+  assert.ok(insert, 'seed-e2e-tenants.sql inserts the E2E-AY academic year');
+  const before = insert[0].match(/CURRENT_DATE\s*-\s*(\d+)/);
+  const after = insert[0].match(/CURRENT_DATE\s*\+\s*(\d+)/);
+  assert.ok(before && after, 'E2E-AY start_date/end_date derive from CURRENT_DATE');
+  assert.doesNotMatch(insert[0], /DATE\s*'\d{4}-\d{2}-\d{2}'/, 'E2E-AY has no fixed date literal');
+  // Dates are immutable after insert (trg_academic_periods_dates_immutable, db/sql/083),
+  // so the rerun path must not try to move them, and must fail loudly once a reused
+  // database's window no longer covers today.
+  const onConflict = insert[0].split(/ON CONFLICT/)[1] ?? '';
+  assert.doesNotMatch(onConflict, /start_date|end_date/, 'ON CONFLICT leaves the dates alone');
+  assert.match(
+    seed,
+    /start_date <= CURRENT_DATE[\s\S]*end_date >= CURRENT_DATE[\s\S]*RAISE EXCEPTION/,
+    'seed fails when an existing E2E-AY no longer covers CURRENT_DATE',
+  );
+
+  const fixture = readFileSync(resolve(e2eDir, 'fixtures/test-data.ts'), 'utf8');
+  const fn = fixture.match(/export async function ensureSharedAcademicYear[\s\S]*?\n}\n/);
+  assert.ok(fn, 'fixtures/test-data.ts defines ensureSharedAcademicYear');
+  assert.doesNotMatch(fn[0], /'\d{4}-\d{2}-\d{2}'/, 'fallback year has no fixed date literal');
+  assert.match(fn[0], /rollingAcademicYearWindow\(\)/, 'fallback uses rollingAcademicYearWindow()');
+  assert.equal(
+    fixture.match(/E2E_AY_DAYS_BEFORE = (\d+);/)?.[1],
+    before[1],
+    'fixture window starts the same number of days before today as the seed',
+  );
+  assert.equal(
+    fixture.match(/E2E_AY_DAYS_AFTER = (\d+);/)?.[1],
+    after[1],
+    'fixture window ends the same number of days after today as the seed',
+  );
+});
+test('hostel screen specs 69-71 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const HOSTEL_SPECS = [
+    '69-hostel-screens-read.spec.ts',
+    '70-hostel-screens-write.spec.ts',
+    '71-hostel-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only: the PR shard budget is used up (the health PR measured 21.3 min with
+  // 63-65 in the PR set, against a 16-min budget). Move a spec here only together with
+  // PR_SPECS.
+  const HOSTEL_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of HOSTEL_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    HOSTEL_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    HOSTEL_SPECS_IN_PR,
+  );
+});
+
+test('fees screen specs 90-92 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const FEES_SPECS = [
+    '90-fees-screens-read.spec.ts',
+    '91-fees-screens-write.spec.ts',
+    '92-fees-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only: the PR shard budget is used up (the health PR measured 21.3 min with
+  // 63-65 in the PR set, against a 16-min budget). Move a spec here only together with
+  // PR_SPECS.
+  const FEES_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of FEES_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    FEES_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    FEES_SPECS_IN_PR,
+  );
+});
+
+test('staff screen specs 93-95 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const STAFF_SPECS = [
+    '93-staff-screens-read.spec.ts',
+    '94-staff-screens-write.spec.ts',
+    '95-staff-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only, like the other screen-coverage specs: the PR shard budget is used up.
+  // Move a spec here only together with PR_SPECS.
+  const STAFF_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of STAFF_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    STAFF_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    STAFF_SPECS_IN_PR,
+  );
 });

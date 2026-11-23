@@ -65,6 +65,7 @@ export default async function ParentTimetablePage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No published class meetings yet."
       hasRows={slots.length > 0}
     >

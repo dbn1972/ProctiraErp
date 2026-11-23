@@ -916,6 +916,7 @@ jobs:
           tools/scripts/assert-dod-evidence.test.ts
           tools/scripts/assert-live-test-execution.test.ts
           tools/scripts/assert-vitest-skips.test.ts
+          tools/scripts/__tests__/check-contrast.test.ts
 
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
@@ -979,7 +980,8 @@ jobs:
             packages/shared/queue-abstraction/src/__tests__/rabbitmq-delay.live.test.ts,
             packages/shared/queue-abstraction/src/__tests__/rabbitmq-reconnect.live.test.ts,
             packages/shared/queue-abstraction/src/__tests__/sqs-localstack.live.test.ts,
-            packages/shared/tenant/src/__tests__/tenant-guc-scope.live.test.ts
+            packages/shared/tenant/src/__tests__/tenant-guc-scope.live.test.ts,
+            tools/migrations/src/generate-uuids.live.test.ts
           NODE_ENV: test
 
       - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)
@@ -1595,6 +1597,7 @@ jobs:
           tools/scripts/check-dod-evidence.test.mjs
           tools/scripts/check-i18n.test.mjs
           tools/scripts/check-icon-only-button.test.mjs
+          tools/scripts/check-gitleaks-allowlist.test.mjs
 
       - name: Unit-test runtime/deploy workflow contracts
         run: node --test tools/scripts/check-runtime-role-gate.test.mjs
@@ -1762,10 +1765,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # pubspec environment.sdk: ^3.11.5 — Flutter stable ships a compatible Dart SDK.
+      # Pinned: Flutter 3.50.x deprecates package:flutter/material.dart and
+      # `flutter analyze` then fails on 73 infos in unchanged apps/mobile code.
+      # Unpin together with the material_ui migration.
       - name: Set up Flutter (stable)
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
+          flutter-version: 3.47.9
           cache: true
 
       - name: Flutter version

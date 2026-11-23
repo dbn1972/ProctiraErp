@@ -24,6 +24,7 @@ import {
   transitionGradeFormSchema,
   upsertGradeEntryActionSchema,
 } from '@/lib/validation/gradebook-workflow-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export type GradebookActionResult =
   | { ok: true; id: string; extra?: Record<string, unknown> }
@@ -40,18 +41,12 @@ function invalid(error: { issues: Array<{ path: PropertyKey[]; message: string }
   };
 }
 function fail(error: unknown): GradebookActionResult {
+  // RAW-WEB: fixed copy plus a reference; code/status stay for callers that branch on them.
+  const message = genericActionErrorMessage(error, 'The gradebook change could not be saved.');
   if (error instanceof GatewayError) {
-    return {
-      ok: false,
-      error: error.message,
-      code: error.code,
-      status: error.status,
-    };
+    return { ok: false, error: message, code: error.code, status: error.status };
   }
-  return {
-    ok: false,
-    error: error instanceof Error ? error.message : 'Unexpected error',
-  };
+  return { ok: false, error: message };
 }
 
 export async function upsertGradeEntryAction(input: {

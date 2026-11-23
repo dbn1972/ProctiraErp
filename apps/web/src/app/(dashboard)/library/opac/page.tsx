@@ -9,10 +9,11 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
 import { searchLibraryOpacResult } from '@/lib/api/library';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { OpacSearchForm } from '../_components/opac-search-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,10 @@ export default async function LibraryOpacPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requireSession();
+  // A-batch: check before any library read.
+  if (!(await hasDashboardDomainRouteAccess('library', '/library'))) {
+    return <RouteAccessDenied />;
+  }
   const { q = '' } = await searchParams;
   const query = q.trim();
   const result = query ? await searchLibraryOpacResult(query) : null;

@@ -45,6 +45,8 @@ import {
   institutionLabel,
 } from '../../_components/student-placement-label';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,6 +118,10 @@ function TransferChecklist({ items }: { items: TransferChecklistItem[] }) {
 /* ──────────────────────────────────────────────── Page ── */
 
 export default async function StudentTransferPage(props: PageProps) {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const studentId = params.id;
   const [student, enrollments, institutions, areas, invoicesResult, discipline, consents] =

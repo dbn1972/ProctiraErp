@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { getTenantSettings } from '@/lib/api/admin.server';
 import { formatDateTimeWithZone } from '@/lib/datetime/zoned';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
@@ -21,7 +22,10 @@ import { GatePassRequestForm } from '../_components/gate-pass-form';
 export const dynamic = 'force-dynamic';
 
 export default async function HostelGatePassesPage() {
-  await requireSession();
+  // H-D1: check before any hostel, student-directory or tenant-settings read.
+  if (!(await hasDashboardDomainRouteAccess('hostel', '/hostel'))) {
+    return <RouteAccessDenied />;
+  }
   const [hostels, passes, studentOptions, tenant] = await Promise.all([
     listHostels(),
     listHostelGatePasses(),

@@ -63,7 +63,7 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
   }
 
   async seedTenant(tenant: TenantDoc): Promise<void> {
-    await this.tenants.put(tenant.id, tenant);
+    await this.tenants.put(tenant.id, tenant, null);
   }
 
   /**
@@ -86,7 +86,7 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
   }
 
   async touchIdentity(id: string): Promise<void> {
-    const row = await this.identities.first({ id } as Partial<IdentityDoc>);
+    const row = await this.identities.first({ id } as Partial<IdentityDoc>, null);
     if (!row) return;
     await this.identities.put(row.externalId, { ...row, lastUsedAt: new Date() }, row.tenantId);
   }
@@ -116,7 +116,7 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
   }
 
   async findTenantBySlug(slug: string): Promise<{ id: string } | null> {
-    const seeded = await this.tenants.first({ slug } as Partial<TenantDoc>);
+    const seeded = await this.tenants.first({ slug } as Partial<TenantDoc>, null);
     if (seeded) return { id: seeded.id };
     return this.options.strictTenants ? null : { id: `slug:${slug}` };
   }

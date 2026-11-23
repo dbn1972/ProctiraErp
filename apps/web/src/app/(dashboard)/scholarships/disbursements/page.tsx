@@ -34,6 +34,8 @@ import { PaginationControls } from '@/components/institutions/pagination-control
 import { cn } from '@/lib/utils';
 
 import { RetryFailedTransfersButton } from '../_components/retry-failed-transfers-button';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +88,10 @@ function formatDate(iso: string): string {
 export default async function ScholarshipDisbursementsPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   const sp = (await props.searchParams) ?? {};
   // PRC-M114: paged server-side; KPI counts come from per-status totals.
   const page = Math.max(1, Number(typeof sp.page === 'string' ? sp.page : 1) || 1);

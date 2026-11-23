@@ -33,6 +33,8 @@ import { cn } from '@/lib/utils';
 
 import { ApplicationStatusTabs } from '../_components/application-status-tabs';
 import { ApplicationsExportButton } from '../_components/applications-export-button';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,6 +105,10 @@ function readStringParam(
 }
 
 export default async function ScholarshipApplicationsPage(props: PageProps) {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const status = readStringParam(searchParams, 'status', 'ALL');
   const programId = readStringParam(searchParams, 'programId');

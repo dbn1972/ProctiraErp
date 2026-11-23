@@ -56,7 +56,8 @@ describe('privacy anonymization worker restart-safe spine', () => {
       tenantId: TENANT_ID,
       subjectType: 'student',
       subjectId: 'stu-spine',
-      requestedBy: 'officer',
+      // PRC-L336: requester differs from the approver/executor.
+      requestedBy: 'parent-1',
       requestType: 'anonymization',
     });
     await service.transitionErasureRequest(req.id, TENANT_ID, 'under_review', 'officer');
@@ -128,7 +129,8 @@ describe('privacy anonymization worker restart-safe spine', () => {
       tenantId: TENANT_ID,
       subjectType: 'student',
       subjectId: 'stu-hold',
-      requestedBy: 'officer',
+      // PRC-L336: requester differs from the approver/executor.
+      requestedBy: 'parent-1',
     });
     await service.transitionErasureRequest(req.id, TENANT_ID, 'under_review', 'officer');
     await service.transitionErasureRequest(req.id, TENANT_ID, 'approved', 'officer');

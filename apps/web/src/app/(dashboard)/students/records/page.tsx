@@ -10,6 +10,8 @@ import { getStudent, listStudents } from '@/lib/api/students';
 
 import { IssueTranscriptByName } from '../_components/issue-transcript-by-name';
 import { studentDisplayName } from '../_components/student-placement-label';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +20,10 @@ interface PageProps {
 }
 
 export default async function StudentRecordsPage(props: PageProps) {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const studentId = searchParams?.studentId?.trim() || '';
 

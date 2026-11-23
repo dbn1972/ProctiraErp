@@ -4,6 +4,7 @@ import {
   evaluateLiveReport,
   executedByLiveFile,
   isLiveTestFile,
+  parseRequiredLiveFiles,
   summarizeLiveTests,
 } from './assert-live-test-execution.mjs';
 
@@ -166,5 +167,50 @@ describe('PRC-L499 LIVE_TEST_REQUIRED_FILES', () => {
     expect(result.ok).toBe(false);
     expect(result.errors.join(' ')).toMatch(/hr-pg-and-routes\.live\.test\.ts' executed 0/);
     expect(result.errors.join(' ')).toMatch(/staff-import-transaction\.live\.test\.ts' is missing/);
+  });
+});
+
+describe('PRC-M419 tools/migrations DB-backed suites are wired into the live gate', () => {
+  it('the live-gate config collects tools/**/*.live.test.ts', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+    const config = readFileSync(join(root, 'vitest.live-gate.config.ts'), 'utf8');
+    // Without this glob the generate-uuids (and future assign-tenant / CDC apply)
+    // live suites are never collected, so the gate cannot require them.
+    expect(config).toContain("'tools/**/*.live.test.ts'");
+  });
+
+  it('ci.yml requires the generate-uuids migrations live suite to execute', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const root = join(fileURLToPath(new URL('.', import.meta.url)), '../..');
+    const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
+    const required = parseRequiredLiveFiles(
+      (ci.match(/LIVE_TEST_REQUIRED_FILES:\s*>-\s*([\s\S]*?)\n\s*NODE_ENV:/)?.[1] ?? '').replace(
+        /\s+/g,
+        ',',
+      ),
+    );
+    expect(required).toContain('tools/migrations/src/generate-uuids.live.test.ts');
+  });
+
+  it('a report with the migrations suite satisfies the required-files check', () => {
+    const report = {
+      testResults: [
+        {
+          name: '/repo/tools/migrations/src/generate-uuids.live.test.ts',
+          assertionResults: [{ status: 'passed' }, { status: 'passed' }, { status: 'passed' }],
+        },
+      ],
+    };
+    const result = evaluateLiveReport(
+      report,
+      { LIVE_TEST_REQUIRED_FILES: 'tools/migrations/src/generate-uuids.live.test.ts' },
+      0,
+    );
+    expect(result.ok).toBe(true);
   });
 });

@@ -73,6 +73,8 @@ export function reportCatalogueAuditPort(): ReportAuditPort | undefined {
       if (event.format !== undefined) metadata.format = event.format;
       if (event.runId !== undefined) metadata.runId = event.runId;
       if (event.reason !== undefined) metadata.reason = event.reason;
+      // UAT-9d: repeats of this denial key that were coalesced into this row.
+      if (event.suppressedCount !== undefined) metadata.suppressedCount = event.suppressedCount;
       if (event.action === 'report.download' || event.action === 'report.download.denied') {
         metadata.read = true;
       }

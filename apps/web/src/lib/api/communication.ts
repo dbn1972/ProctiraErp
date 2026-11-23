@@ -78,7 +78,10 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Commun
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'CREATE_FAILED',
-      message: result.error?.message ?? 'Failed to create campaign',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to create campaign',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -95,7 +98,10 @@ export async function previewCampaignAudience(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'PREVIEW_FAILED',
-      message: result.error?.message ?? 'Failed to preview audience',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to preview audience',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -120,7 +126,10 @@ export async function sendCampaign(id: string): Promise<SendCampaignResult> {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'SEND_FAILED',
-      message: result.error?.message ?? 'Failed to send campaign',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to send campaign',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -142,7 +151,10 @@ export async function createEmergencyBlast(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'CREATE_FAILED',
-      message: result.error?.message ?? 'Failed to create emergency blast',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to create emergency blast',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -160,7 +172,10 @@ export async function confirmEmergencyBlast(id: string, actorId: string): Promis
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'CONFIRM_FAILED',
-      message: result.error?.message ?? 'Failed to confirm emergency blast',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to confirm emergency blast',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -182,7 +197,10 @@ export async function dispatchEmergencyBlast(id: string): Promise<DispatchEmerge
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'DISPATCH_FAILED',
-      message: result.error?.message ?? 'Failed to dispatch emergency blast',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to dispatch emergency blast',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -286,7 +304,10 @@ export async function createCircular(input: CreateCircularInput): Promise<Commun
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'CREATE_FAILED',
-      message: result.error?.message ?? 'Failed to create circular',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to create circular',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -303,7 +324,10 @@ export async function sendCircular(id: string): Promise<CommunicationCircular> {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'SEND_FAILED',
-      message: result.error?.message ?? 'Failed to send circular',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to send circular',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -330,7 +354,10 @@ export async function ackCircularOnBehalf(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'ACK_FAILED',
-      message: result.error?.message ?? 'Failed to record acknowledgement',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to record acknowledgement',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -365,7 +392,10 @@ export async function retryDeliveryLog(id: string): Promise<DeliveryLogEntry> {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'RETRY_FAILED',
-      message: result.error?.message ?? 'Failed to retry delivery',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to retry delivery',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;

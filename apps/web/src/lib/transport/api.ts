@@ -68,6 +68,7 @@ export async function deleteRouteStop(id: string): Promise<void> {
       status: result.status,
       code: result.error?.code ?? 'DELETE_FAILED',
       message: result.error?.message ?? 'Failed to delete stop',
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
 }

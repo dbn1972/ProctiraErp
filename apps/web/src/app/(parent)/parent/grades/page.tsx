@@ -66,6 +66,7 @@ export default async function ParentGradesPage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No published grades or report cards yet."
       hasRows={grades.length + reportCards.length > 0}
     >

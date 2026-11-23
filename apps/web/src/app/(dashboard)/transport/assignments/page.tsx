@@ -1,8 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import {
-  listDriverAssignments,
-  listStudentAssignments,
+  listDriverAssignmentsWithTotal,
+  listStudentAssignmentsWithTotal,
   listTransportRoutes,
   listTransportVehicles,
 } from '@/lib/api/transport';
@@ -10,21 +11,29 @@ import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
 import { listAllStops } from '@/lib/transport/api';
 import { AssignmentForms } from '../_components/assignment-forms';
+import { listCountCopy } from '../_components/list-count';
 
 export const dynamic = 'force-dynamic';
 
+const ASSIGNMENT_NOUN = { one: 'assignment', many: 'assignments' };
+
 export default async function TransportAssignmentsPage() {
-  await requireSession();
-  const [drivers, students, routes, vehicles, stops, studentOptions, staffOptions] =
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
+  const [driverList, studentList, routes, vehicles, stops, studentOptions, staffOptions] =
     await Promise.all([
-      listDriverAssignments(),
-      listStudentAssignments(),
+      listDriverAssignmentsWithTotal(),
+      listStudentAssignmentsWithTotal(),
       listTransportRoutes(),
       listTransportVehicles(),
       listAllStops(),
       loadStudentOptions(),
       loadStaffOptions(),
     ]);
+  const drivers = driverList.items;
+  const students = studentList.items;
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const staffLabels = new Map(staffOptions.map((option) => [option.id, option.label]));
   const routeLabels = new Map(routes.map((route) => [route.id, route.name]));
@@ -56,7 +65,7 @@ export default async function TransportAssignmentsPage() {
             <CardDescription>
               {drivers.length === 0
                 ? 'No driver assignments yet.'
-                : `${drivers.length} assignment${drivers.length === 1 ? '' : 's'}.`}
+                : listCountCopy(driverList, ASSIGNMENT_NOUN)}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -89,7 +98,7 @@ export default async function TransportAssignmentsPage() {
             <CardDescription>
               {students.length === 0
                 ? 'No student assignments yet.'
-                : `${students.length} assignment${students.length === 1 ? '' : 's'}.`}
+                : listCountCopy(studentList, ASSIGNMENT_NOUN)}
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -39,8 +39,13 @@ const SRC = join(__dirname, '../..');
  * The counter cannot see a page that calls a *wrapper* which collapses internally, so
  * converting a page without converting its data function leaves this number unchanged.
  * That is a known limit, not a silent one.
+ *
+ * T-D2: 87 → 83 when the transport list readers moved onto
+ * `gatewayFetchAllPagesWithTotal`. They were not converted to `fetchList`: a first-page
+ * failure still reads as an empty list inside that helper (documented there), which this
+ * counter cannot see.
  */
-const BASELINE = 91;
+const BASELINE = 83;
 
 /** How many lines after `throwOnError: false` a collapse still counts as the same read. */
 const WINDOW = 8;

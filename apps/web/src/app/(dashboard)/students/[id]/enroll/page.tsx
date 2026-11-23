@@ -21,6 +21,8 @@ import { getStudent, getStudentEnrollments } from '@/lib/api/students';
 
 import { EnrollForm } from './_components/enroll-form';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +31,10 @@ interface PageProps {
 }
 
 export default async function StudentEnrollPage(props: PageProps) {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const studentId = params.id;
   const [student, enrollments, institutions, areas] = await Promise.all([

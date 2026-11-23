@@ -14,12 +14,19 @@ import {
   type BrandingPermissionResolver,
   type TenantIdResolver,
 } from './branding-routes.js';
+import {
+  createDomainProofChecker,
+  DEFAULT_DOMAIN_RECHECK_INTERVAL_MS,
+  startDomainRecheckTicker,
+  type DomainProofChecker,
+} from './custom-domain-verification.js';
 import { registerTenantRoutes } from './routes.js';
 import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type { TenantRepository } from './tenant-repository.js';
 import {
   TenantService,
   type DestructiveDeleteGuard,
+  type TenantDataExporter,
   type TenantAdminProvisioner,
 } from './tenant-service.js';
 
@@ -40,6 +47,18 @@ export interface TenantPluginOptions {
   adminProvisioner?: TenantAdminProvisioner;
   /** PRC-H099: seeds roles/settings for a new tenant before the admin. */
   defaultsSeeder?: TenantDefaultsSeeder;
+  /**
+   * PRC-L169: custom-domain verification. The proof checker defaults to DNS TXT + HTTPS; the
+   * re-check ticker runs every `TENANT_DOMAIN_RECHECK_INTERVAL_MS` (default 6 h).
+   */
+  /** PRC-L372: decommission data exporter (honours `exportData`). */
+  dataExporter?: TenantDataExporter;
+  domainVerification?: {
+    checker?: DomainProofChecker;
+    recheckIntervalMs?: number;
+    /** Do not start the re-check ticker (tests). */
+    disableRecheck?: boolean;
+  };
   /**
    * Branding route configuration (Tasks 58.2 + 58.3). When omitted, the
    * branding endpoints are still registered at `/tenant/branding` and rely
@@ -81,7 +100,10 @@ export const tenantLifecyclePlugin = fp(
       destructiveDeleteGuard,
       adminProvisioner,
       defaultsSeeder,
+      domainVerification,
+      dataExporter,
     } = options;
+    const domainProofChecker = domainVerification?.checker ?? createDomainProofChecker();
 
     // Create tenant service instance
     const tenantService = new TenantService(
@@ -89,6 +111,7 @@ export const tenantLifecyclePlugin = fp(
       destructiveDeleteGuard,
       adminProvisioner,
       defaultsSeeder,
+      { domainProofChecker, dataExporter },
     );
 
     // Decorate fastify with the tenant service
@@ -99,6 +122,24 @@ export const tenantLifecyclePlugin = fp(
       tenantService,
       prefix,
     });
+
+    // PRC-L169: periodic re-verification of verified custom domains (unref'd; stopped on close).
+    if (!domainVerification?.disableRecheck && repository.claimDomainsForRecheck) {
+      const envInterval = Number(process.env['TENANT_DOMAIN_RECHECK_INTERVAL_MS']);
+      const stopRecheck = startDomainRecheckTicker({
+        repository,
+        checker: domainProofChecker,
+        intervalMs:
+          domainVerification?.recheckIntervalMs ??
+          (Number.isFinite(envInterval) && envInterval > 0
+            ? envInterval
+            : DEFAULT_DOMAIN_RECHECK_INTERVAL_MS),
+        onError: (error) => fastify.log.error({ err: error }, 'custom-domain re-check failed'),
+      });
+      fastify.addHook('onClose', async () => {
+        stopRecheck();
+      });
+    }
 
     // Register branding routes (Tasks 58.2 + 58.3) unless explicitly disabled.
     if (!branding?.disabled) {

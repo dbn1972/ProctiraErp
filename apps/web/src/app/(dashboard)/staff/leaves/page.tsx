@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { listStaffLeaves } from '@/lib/api/staff';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStaffOptions } from '@/lib/load-entity-labels';
@@ -21,6 +20,8 @@ import {
   StaffLeaveStatusBadge,
 } from './_components/leave-decision-buttons';
 import { inclusiveLeaveDays } from './_components/leave-days';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export default async function StaffLeavesPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireSession();
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   // PRC-M117: the staff profile links here with ?staffId= to preselect the requester.
   const sp = (await props.searchParams) ?? {};
   const defaultStaffId =

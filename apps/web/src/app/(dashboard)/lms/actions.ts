@@ -5,7 +5,7 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError, gatewayFetch } from '@/lib/api/gateway';
+import { gatewayFetch } from '@/lib/api/gateway';
 import { toTenantUtcIso } from '@/lib/datetime/tenant-timezone.server';
 import {
   closeAssignment,
@@ -29,6 +29,7 @@ import {
   lmsIdSchema,
   palLookupQuerySchema,
 } from '@/lib/validation/lms-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface LmsActionState {
   status: 'idle' | 'success' | 'error';
@@ -37,9 +38,8 @@ export interface LmsActionState {
 }
 
 function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof GatewayError) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
+  return genericActionErrorMessage(error, fallback);
 }
 function emptyToUndefined(value?: string): string | undefined {
   return value && value.length > 0 ? value : undefined;

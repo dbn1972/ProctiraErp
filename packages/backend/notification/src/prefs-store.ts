@@ -15,11 +15,7 @@ import {
 
 export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook' | 'sms';
 export type NotificationCategory =
-  | 'academic'
-  | 'attendance'
-  | 'examination'
-  | 'workflow'
-  | 'system';
+  'academic' | 'attendance' | 'examination' | 'workflow' | 'system';
 export type DigestFrequency = 'immediate' | 'daily' | 'weekly';
 
 export interface CategoryPreference {
@@ -104,7 +100,8 @@ export interface NotificationPrefsStore {
     input: Omit<NotificationDevice, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
   ): Promise<NotificationDevice>;
   listDevices(tenantId: string, userId: string): Promise<NotificationDevice[]>;
-  deleteDevice(tenantId: string, deviceId: string): Promise<boolean>;
+  /** PRC-L332: deletes the device only when it belongs to `userId` in `tenantId`. */
+  deleteDevice(tenantId: string, userId: string, deviceId: string): Promise<boolean>;
 }
 
 export class InMemoryNotificationPrefsStore implements NotificationPrefsStore {
@@ -165,9 +162,9 @@ export class InMemoryNotificationPrefsStore implements NotificationPrefsStore {
       .map((d) => ({ ...d }));
   }
 
-  async deleteDevice(tenantId: string, deviceId: string): Promise<boolean> {
+  async deleteDevice(tenantId: string, userId: string, deviceId: string): Promise<boolean> {
     const existing = this.devices.get(deviceId);
-    if (!existing || existing.tenantId !== tenantId) return false;
+    if (!existing || existing.tenantId !== tenantId || existing.userId !== userId) return false;
     this.devices.delete(deviceId);
     return true;
   }
@@ -305,12 +302,12 @@ export function createPgNotificationPrefsStore(
       }));
     },
 
-    async deleteDevice(tenantId, deviceId) {
+    async deleteDevice(tenantId, userId, deviceId) {
       const result = await scoped(tenantId, (client) =>
-        client.query(`DELETE FROM notification_devices WHERE tenant_id = $1 AND id = $2`, [
-          tenantId,
-          deviceId,
-        ]),
+        client.query(
+          `DELETE FROM notification_devices WHERE tenant_id = $1 AND user_id = $2 AND id = $3`,
+          [tenantId, userId, deviceId],
+        ),
       );
       return ((result.rowCount as number | null | undefined) ?? 0) > 0;
     },

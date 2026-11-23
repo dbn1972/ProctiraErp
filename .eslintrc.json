@@ -61,7 +61,8 @@
     "import/no-named-as-default-member": "off",
     "import/no-duplicates": "error",
     "import/no-unresolved": "off",
-    "no-console": "warn"
+    "no-console": "warn",
+    "proctira/no-unscoped-document-collection": "error"
   },
   "overrides": [
     {
