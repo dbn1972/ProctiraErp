@@ -407,11 +407,15 @@ export class PrismaStaffRepository implements StaffRepository {
       if (filter.search) {
         const terms = filter.search.trim().split(/\s+/).filter(Boolean);
         if (terms.length > 0) {
+          // HN-F4-R4: identity numbers match only for callers allowed to see them.
+          const matchIdentity = filter.matchIdentityNumber === true;
           where.AND = terms.map((term) => ({
             OR: [
               { firstName: { contains: term, mode: 'insensitive' } },
               { lastName: { contains: term, mode: 'insensitive' } },
-              { identityNumber: { contains: term, mode: 'insensitive' } },
+              ...(matchIdentity
+                ? [{ identityNumber: { contains: term, mode: 'insensitive' } }]
+                : []),
             ],
           }));
         }

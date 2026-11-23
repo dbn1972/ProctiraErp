@@ -36,7 +36,16 @@ export function disbursementOptionLabel(
     locale,
   );
   const paid = disbursement.paidDate ? ` · paid ${disbursement.paidDate.slice(0, 10)}` : '';
-  return `${student} · ${money}${paid}`;
+  // F-D2: a partly netted disbursement shows what is still to be credited.
+  const remaining =
+    disbursement.nettedCents && disbursement.remainingCents != null
+      ? ` · ${formatAmount(
+          disbursement.remainingCents,
+          disbursement.currency ?? DEFAULT_FEE_CURRENCY,
+          locale,
+        )} remaining`
+      : '';
+  return `${student} · ${money}${remaining}${paid}`;
 }
 
 export function ScholarshipNettingForm({
@@ -122,8 +131,9 @@ export function ScholarshipNettingForm({
           <CardDescription>
             Credits an open fee invoice from a paid scholarship disbursement (
             <code className="text-xs">POST /fees/scholarships/net</code>). The credited amount is
-            the verified disbursement amount. Idempotent on disbursement. Sandbox ledger only — not
-            a live PSP claim.
+            the verified disbursement amount, up to the invoice&apos;s open balance. Any remainder
+            stays on the disbursement for the student&apos;s next open invoice. Idempotent on
+            disbursement. Sandbox ledger only — not a live PSP claim.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -200,7 +210,7 @@ export function ScholarshipNettingForm({
                 ? 'Already applied for this disbursement (idempotent replay).'
                 : result.invoice
                   ? 'Credit applied to invoice.'
-                  : 'No open invoice — credit reserved on scholarship netting structure.'}
+                  : 'No open invoice — nothing was credited. The disbursement stays available for netting.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
@@ -212,6 +222,19 @@ export function ScholarshipNettingForm({
                 locale,
               )}
             </p>
+            {result.remainingCents ? (
+              <p data-testid="netting-remaining">
+                <span className="text-muted-foreground">Remaining to net: </span>
+                {formatAmount(
+                  result.remainingCents,
+                  result.invoice?.currency ?? DEFAULT_FEE_CURRENCY,
+                  locale,
+                )}
+                <span className="block mt-1 text-muted-foreground">
+                  Stays on the disbursement for the student&apos;s next open invoice.
+                </span>
+              </p>
+            ) : null}
             {result.concession ? (
               <p>
                 <span className="text-muted-foreground">Concession: </span>
@@ -243,7 +266,7 @@ export function ScholarshipNettingForm({
               </p>
             ) : (
               <p className="text-muted-foreground" data-testid="netting-empty-invoice">
-                No invoice linked — reserved credit only.
+                No invoice linked.
               </p>
             )}
           </CardContent>

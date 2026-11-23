@@ -150,7 +150,11 @@ export const StudentListQuerySchema = Type.Object({
     Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
   ),
   gender: Type.Optional(Type.String({ description: 'Filter by gender' })),
-  search: Type.Optional(Type.String({ description: 'Search by name or national ID' })),
+  search: Type.Optional(
+    Type.String({
+      description: 'Search by name; national ID matches only for registrar/admin roles',
+    }),
+  ),
   sortBy: Type.Optional(
     Type.String({
       enum: ['firstName', 'lastName', 'dateOfBirth', 'createdAt'],
@@ -182,7 +186,7 @@ export type StudentListQuery = Static<typeof StudentListQuerySchema>;
 export const StudentSearchQuerySchema = Type.Object({
   q: Type.String({
     minLength: 1,
-    description: 'Search query (matches student name and national ID)',
+    description: 'Search query (matches student name; national ID only for registrar/admin roles)',
   }),
   page: Type.Optional(
     Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
