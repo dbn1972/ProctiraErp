@@ -1,6 +1,6 @@
 # UAT environment on the EC2 host
 
-Status: **draft** (deploy step of release-plan E3). The smoke results and the E3 status are added by the smoke step; see `docs/testing/uat/UAT_RELEASE_PLAN.md` row E3.
+Status: deployed and smoke-tested on commit `219093a4` (21 Nov 2026). Release-plan row E3 is **PARTIAL**; the unmet items are listed in "Smoke results (E3 evidence)" and in `docs/testing/uat/UAT_RELEASE_PLAN.md` row E3.
 
 This page describes the ProctiraERP UAT stack that runs on the shared EC2 build host: what is deployed, how to reach it, the role users, and how to redeploy, reset, back up, restore and tear it down. It names secrets only. Every value lives in the host-only secrets folder.
 
@@ -215,7 +215,7 @@ bash $UATENV/uatenv-restore-drill.sh
 systemctl --user list-timers proctira-uatenv-backup.timer
 ```
 
-Drill result: see "Deploy evidence" below.
+Drill result: see "Deploy evidence" below. The timer has also run unattended on 22 and 23 Nov 2026 (`Result=success`, two encrypted artifacts each night).
 
 ## Logs
 
@@ -250,8 +250,10 @@ Payments cannot be exercised: with `NODE_ENV=production` the web refuses the san
 - The migrator URL is visible in the host process list while migrations run (see "Secrets").
 - No host reboot was exercised (shared host); restart behaviour is proven with `docker compose restart` and the restart policy.
 - The Keycloak bootstrap admin (`KEYCLOAK_ADMIN`) is Keycloak's temporary admin account; replace it with a permanent admin before any wider use.
-- The backend images carry the UATENV-D01 stop-gap layer until the Release Dockerfiles are fixed on `main`.
-- The proxy rewrites `Location: http://0.0.0.0:<port>/...` redirects to the public host (UATENV-D05).
+- The deployed backend images carry the UATENV-D01 stop-gap layer. The Release Dockerfile fix is on `main` (#757); the layer is skipped automatically once a redeployed image already has the OpenSSL 3 engine.
+- The proxy rewrites `Location: http://0.0.0.0:<port>/...` redirects to the public host (UATENV-D05). The web fix is on `main` (#755); the rewrite is harmless after the redeploy and can then be removed.
+- Secondary apps (public-website, admin-console, developer-portal, install-wizard) are not deployed until PR #735 is on `main`.
+- Playwright specs that sign HS256 session cookies or open the database directly cannot run against this Keycloak-mode stack (see "Smoke results").
 
 ## Public exposure (not enabled)
 
@@ -276,18 +278,54 @@ export UATENV_TLS_CERT=/path/fullchain.pem UATENV_TLS_KEY=/path/privkey.pem
 
 Delete the derived keys (`KEYCLOAK_ISSUER`, `KEYCLOAK_REDIRECT_URI`, `NEXT_PUBLIC_WEB_URL`, `CORS_ORIGINS`, `GATEWAY_URL`, `NEXT_PUBLIC_API_URL`) from `secrets/uatenv.env` so `uatenv-secrets.sh` regenerates them for the new names, then run `uatenv-redeploy.sh <current sha>`. The renderer adds a `listen 29090 ssl` server block, `infrastructure/uat-ec2/docker-compose.uatenv-public.yml` publishes it on `UATENV_PUBLIC_BIND:443` and mounts the certificate (readable by uid 101), and the realm redirect URIs and web origins follow the new names. No image rebuild is needed, because no `NEXT_PUBLIC_*` host name is baked into the builds.
 
-## Defects found while deploying
+## Smoke results (E3 evidence)
 
-The smoke step adds its own defects to the ledger. These came up while bringing the stack up on 21 Nov 2026:
+Smoke run on the deployed commit `219093a4`, 21 Nov 2026, 18:51-21:58 UTC. Evidence files are in `UATENV_HOME/evidence/` (summary: `smoke-summary.md`); the defect ledger is `UATENV_HOME/defects.md`.
 
-| Id         | Class                      | Finding                                                                                                                                                                                                                                                                                                                                                 | Handling in UAT                                                                                                                                    |
-| ---------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| UATENV-D01 | code (Release Dockerfiles) | `infrastructure/docker/Dockerfile.api-gateway`, `Dockerfile.etl-worker` and `workers/exam-document/Dockerfile` run `prisma generate` without the `openssl` package, so the images carry only the OpenSSL 1.1 musl engine; the Alpine runner has only `libssl.so.3` and all three services crash at boot (`Error loading shared library libssl.so.1.1`). | Stop-gap layer `infrastructure/uat-ec2/Dockerfile.prisma-openssl3`, applied only while the image still has the 1.1 engine. Needs a fix PR.         |
-| UATENV-D02 | config (Helm allowlist)    | The gateway refuses to boot in production without `SCIM_TOKEN_PEPPER` (PRC-M027), and `MFA_PRE_TICKET_SECRET` enables SMS OTP; neither is in `externalSecret.serviceKeys.api-gateway`, and `check-gateway-secret-allowlist.mjs` does not match `PEPPER` / `TICKET_SECRET` names.                                                                        | Generated into `secrets/gateway.env`. Helm values and the allowlist check need a fix PR.                                                           |
-| UATENV-D03 | config (compose)           | With `QUEUE_BACKEND=rabbitmq` (needed for the exam-document worker, PRC-H051) the gateway also needs `RABBITMQ_EXCHANGE`; `docker-compose.yml` passes neither to the gateway.                                                                                                                                                                           | Both set in `secrets/gateway.env`.                                                                                                                 |
-| UATENV-D04 | config (compose, Helm)     | etl-worker refuses to start in production without `JWT_SECRET` (PRC-M030); `docker-compose.yml` does not pass it and Helm `serviceKeys.etl-worker` does not list it.                                                                                                                                                                                    | Overlay passes `JWT_SECRET` to etl-worker. Compose and Helm need a fix PR.                                                                         |
-| UATENV-D05 | code (web)                 | `apps/web/src/app/api/auth/callback/route.ts` builds its redirect with `new URL(returnTo, request.url)`; in the standalone server `request.url` carries the bind address, so users land on `http://0.0.0.0:3001/` after login.                                                                                                                          | The proxy maps `http://0.0.0.0:<port>/` redirects back to the public host (`proxy_redirect`). Needs a fix PR (any ingress deployment is affected). |
-| (observed) | code (web), plan D2        | After a Keycloak login the web session is authenticated but has no roles and no tenant (`/api/auth/session`), as predicted by plan item D2.                                                                                                                                                                                                             | Left for the smoke step to confirm and the defects step to fix.                                                                                    |
+| #   | Smoke item                                                  | Result                         | Counts                                                                                                                                                                                                                                                                   | Evidence                                                  |
+| --- | ----------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| 1   | Every service healthy                                       | PASS                           | 34/34 probes; 34/34 again after `docker compose -p proctira-uatenv restart` (healthy 80 s later); all listeners on `127.0.0.1`; protected containers unchanged                                                                                                           | `smoke-services.md`, `restart-proof-smoke.md`             |
+| 2   | Each role user logs in through Keycloak via the proxy       | PARTIAL                        | Keycloak login via the proxy 15/15 (15/15 after the restart). Right home screen 0/15: no roles in the web session (D06), guarded homes show the error boundary (D12), portal users land on `/` (D13). Email/password form returns 401 (D08)                              | `logins.md`, `logins.json`, `logins/`                     |
+| 3   | Playwright nightly spec set                                 | PARTIAL                        | 59 specs: 6 compatible specs run and pass (19 tests), 53 incompatible; the run surfaced D14. 494 tests: 251 passed, 234 failed, 9 skipped. The 53 incompatible specs sign HS256 session JWTs (`e2e/fixtures/fake-session.ts` and portal fixtures); 5 also need DB access | `playwright/classification.md`, `playwright/nightly.json` |
+| 4   | Render pass (209 routes from the per-screen checklist)      | FAIL                           | 17 PASS, 177 FAIL, 15 SKIPPED (no fixture id, D17). Allow checks 20/180, deny checks 13/150, portal bounce 0/25, public 14/14. Raw server text on 0 pages. 274 of the 322 failed checks trace to D06 and D12                                                             | `render-pass.md`, `render-pass.json`, `render/shots/`     |
+| 5   | Cross-tenant spot checks (5 screens each way, plus the API) | PASS on the API, PARTIAL on UI | 13 PASS, 0 FAIL, 13 INCONCLUSIVE. No tenant-B row reached tenant A (or the reverse) on any rendered screen or gateway call, including a spoofed `X-Tenant-ID`. Only the dashboard rendered data; the other screens showed the D06/D12 error boundary                     | `cross-tenant.md`, `cross-tenant.json`, `cross-tenant/`   |
+| 6   | Failures recorded as defects                                | DONE                           | 17 ledger rows (below); the 9 code defects are fixed on `main`                                                                                                                                                                                                           | `defects.md`                                              |
+
+The code fixes for every smoke failure above are merged to `main` (tip `45cf9c68`) but are not yet deployed. After a redeploy with `uatenv-redeploy.sh`, re-run smoke items 2, 3 (axe specs), 4 and 5 before E3 can move to PASSED.
+
+## Defects
+
+Full ledger with requests, responses and evidence: `UATENV_HOME/defects.md`. Code defects were fixed in separate PRs with failing-first tests, review and green required checks.
+
+| Id         | Class                      | Finding                                                                                                                                | Status                                                                                                      |
+| ---------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| UATENV-D01 | code (Release Dockerfiles) | api-gateway, etl-worker and exam-document-worker images carry only the OpenSSL 1.1 Prisma engine and crash at boot on Alpine           | merged #757 (`c3053045`); UAT uses the stop-gap layer `Dockerfile.prisma-openssl3` until redeploy           |
+| UATENV-D02 | config (Helm allowlist)    | `SCIM_TOKEN_PEPPER` and `MFA_PRE_TICKET_SECRET` are missing from Helm `serviceKeys.api-gateway` and from the allowlist check           | worked around in `secrets/gateway.env`; repo fix PR pending                                                 |
+| UATENV-D03 | config (compose)           | compose passes neither `RABBITMQ_URL` nor `RABBITMQ_EXCHANGE` to the gateway                                                           | fixed in the environment (`secrets/gateway.env`)                                                            |
+| UATENV-D04 | config (compose, Helm)     | etl-worker needs `JWT_SECRET` in production (PRC-M030); compose and Helm do not pass it                                                | worked around in the overlay; repo fix PR pending                                                           |
+| UATENV-D05 | code (web callback)        | the login callback redirects to the container bind address `http://0.0.0.0:3001/`                                                      | merged #755 (`45cf9c68`); UAT uses the nginx `proxy_redirect` workaround until redeploy                     |
+| UATENV-D06 | code (web session)         | Keycloak sessions carry no roles and no tenant in the web; the web uses the raw Keycloak `sub`                                         | merged #754 (`372dcf72`); UAT re-run pending redeploy                                                       |
+| UATENV-D07 | code (gateway Keycloak)    | the gateway drops every realm role outside the six built-ins (bursar, registrar, warden, transport_officer, nurse, librarian, student) | merged #753 (`de89a647`); `librarian` still maps to nothing (see D10); UAT re-run pending redeploy          |
+| UATENV-D08 | code (web password login)  | the email/password form posts to `/auth/login`, which returns 401 in Keycloak mode                                                     | merged #755 (`45cf9c68`); UAT re-run pending redeploy                                                       |
+| UATENV-D09 | product                    | one OIDC return origin, so tenant-B users return to the Sunrise host after login (no data leak)                                        | pending owner                                                                                               |
+| UATENV-D10 | product                    | bursar and librarian hold no gateway fees or library grant                                                                             | pending owner                                                                                               |
+| UATENV-D11 | config (Helm ingress)      | Helm ingress would route the web BFF `/api/auth/*` to the gateway on tenant hosts (code reading; not exercised on this host)           | pending owner                                                                                               |
+| UATENV-D12 | code (web route guards)    | guards throw `TypeError` on a missing `roles` array instead of showing access denied                                                   | merged #754 (`372dcf72`); UAT re-run pending redeploy                                                       |
+| UATENV-D13 | code (web portal landing)  | parent and student land on the staff dashboard `/`                                                                                     | merged #754 (`372dcf72`); UAT re-run pending redeploy                                                       |
+| UATENV-D14 | code (web a11y)            | error-state reference line has 2.75:1 contrast (WCAG AA needs 4.5:1)                                                                   | merged #756 (`33434736`); axe specs need a UAT re-run                                                       |
+| UATENV-D15 | config (environment)       | UAT parent and student accounts were not linked to any student                                                                         | fixed in the environment (`uatenv-link-portal-users.sh`)                                                    |
+| UATENV-D16 | code (web session refresh) | refresh posts to `/auth/refresh` and fails, so users are signed out after 5 minutes                                                    | merged #755 (`45cf9c68`); UAT re-run pending redeploy; residual: a user idle over 300 s returns to `/login` |
+| UATENV-D17 | product (demo seed)        | the Sunrise seed has no rows for 15 detail routes                                                                                      | pending owner                                                                                               |
+
+## Pending owner
+
+- Redeploy UAT to a green `main` commit that contains #753-#757 (tip `45cf9c68` once its push CI is green), then re-run smoke items 2-5.
+- PR #735 (admin-console and install-wizard builds), then `uatenv-redeploy.sh <sha> --with-secondary`.
+- Decisions: D09 (per-tenant OIDC return origin), D10 (bursar and librarian grants), D11 (Helm ingress routing), D17 (demo seed coverage).
+- Repo config fix PRs for D02 and D04 (Helm and compose).
+- External provider credentials: Razorpay test keys (payments cannot be exercised until then), MSG91, SES, FCM, AWS KMS keys, and a Keycloak service-account client if tenant onboarding is tested.
+- Public exposure inputs: DNS name, security-group rule and TLS (see "Public exposure").
+- A host reboot test, when the shared host can be rebooted.
 
 ## Deploy evidence
 
