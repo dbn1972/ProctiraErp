@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { PluginAuditPort, PluginAuditEvent } from './audit-port.js';
 import { validateCompatibility } from './compatibility.js';
+import { validatePluginConfiguration } from './config-validation.js';
 import type { ExtensionPointRegistry } from './extension-points/extension-point-registry.js';
 import type { PluginRepository, PluginEntity, PluginInstallEntity } from './plugin-repository.js';
 import type { RegisterPluginInput, InstallPluginInput } from './schemas.js';
@@ -37,9 +38,13 @@ export class PluginService {
     /**
      * PRC-M604: runtime registry of hooks, UI slot components and event
      * subscriptions. When provided, disable/uninstall remove the install's
-     * registrations so the plugin stops receiving payloads.
+     * registrations so the plugin stops receiving payloads. PRC-M627: install
+     * also checks that every required extension point exists in it.
      */
-    private readonly registry?: Pick<ExtensionPointRegistry, 'unregisterAllForInstall'>,
+    private readonly registry?: Pick<
+      ExtensionPointRegistry,
+      'unregisterAllForInstall' | 'getExtensionPoint'
+    >,
     /**
      * PRC-L477: injected audit sink carrying the real actor and tenant. When
      * provided, all lifecycle audit events are recorded through it (durable,
@@ -216,6 +221,24 @@ export class PluginService {
       );
     }
 
+    // PRC-M627: the configuration must satisfy the manifest's configSchema.
+    const configErrors = validatePluginConfiguration(plugin.configSchema, configuration);
+    if (configErrors.length > 0) {
+      throw new BusinessRuleError(`Invalid plugin configuration: ${configErrors.join('; ')}`);
+    }
+
+    // PRC-M627: every extension point the plugin requires must exist.
+    if (this.registry) {
+      const missingExtensionPoints = plugin.requiredExtensionPoints.filter(
+        (id) => !this.registry?.getExtensionPoint(id),
+      );
+      if (missingExtensionPoints.length > 0) {
+        throw new BusinessRuleError(
+          `Required extension points are not available: ${missingExtensionPoints.join(', ')}`,
+        );
+      }
+    }
+
     const installId = uuidv4();
 
     // Record permissions
@@ -281,6 +304,24 @@ export class PluginService {
     }
     if (install.status === 'enabled') {
       throw new BusinessRuleError('Plugin is already enabled');
+    }
+
+    // PRC-M627: the plugin must still be active and compatible when it is enabled.
+    const plugin = await this.repository.findPluginById(install.pluginId);
+    if (!plugin) {
+      throw new NotFoundError(`Plugin not found: ${install.pluginId}`);
+    }
+    if (plugin.status !== 'active') {
+      throw new BusinessRuleError(
+        `Plugin '${plugin.name}' cannot be enabled (status: ${plugin.status})`,
+      );
+    }
+    const compatibility = validateCompatibility(
+      this.config.productVersion,
+      plugin.supportedProductVersions,
+    );
+    if (!compatibility.compatible) {
+      throw new BusinessRuleError(compatibility.message);
     }
 
     const updated = await this.repository.updateInstall(installId, {
