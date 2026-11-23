@@ -10,6 +10,7 @@ import type {
   NettableScholarshipDisbursement,
   ScholarshipDisbursementLookup,
 } from './fees-service.js';
+import { FeesService } from './fees-service.js';
 import { InMemoryFeesRepository } from './in-memory-repository.js';
 
 const TENANT_A = '00000000-0000-4000-8000-00000000000a';
@@ -180,6 +181,12 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
   it('credits the disbursement amount and replays the stored amount idempotently', async () => {
     const built = await buildApp(['finance_officer']);
     app = built.app;
+    // F-D1: credit is only recorded against an open invoice (no "reserved" rows).
+    const invoice = await new FeesService(built.repo).createInvoice(TENANT_A, 'staff-user', {
+      studentId: STUDENT,
+      title: 'Ad-hoc',
+      amountCents: 10_000,
+    });
     const first = await app.inject({
       method: 'POST',
       url: '/fees/scholarships/net',
@@ -204,6 +211,68 @@ describe('PRC-H020 scholarship netting HTTP verification', () => {
     expect(replay.statusCode).toBe(200);
     expect(replay.json().idempotent).toBe(true);
     expect(replay.json().discountCents).toBe(2500);
+    expect(replay.json().remainingCents).toBe(0);
+    expect((await built.repo.findInvoiceById(invoice.id, TENANT_A))?.amountCents).toBe(7500);
+  });
+
+  it('F-D2: keeps a partly netted disbursement listed with its remaining amount', async () => {
+    const built = await buildApp(['finance_officer']);
+    app = built.app;
+    await new FeesService(built.repo).createInvoice(TENANT_A, 'staff-user', {
+      studentId: STUDENT,
+      title: 'Ad-hoc',
+      amountCents: 1_000,
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/fees/scholarships/net',
+      payload: { studentId: STUDENT, disbursementId: DISB_PAID },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      discountCents: 1_000,
+      appliedCents: 1_000,
+      amountCents: 2_500,
+      nettedCents: 1_000,
+      remainingCents: 1_500,
+      idempotent: false,
+    });
+    const list = await app.inject({
+      method: 'GET',
+      url: `/fees/scholarships/nettable-disbursements?studentId=${STUDENT}`,
+    });
+    expect(list.json().data).toEqual([
+      expect.objectContaining({
+        id: DISB_PAID,
+        amountCents: 2_500,
+        nettedCents: 1_000,
+        remainingCents: 1_500,
+      }),
+    ]);
+  });
+
+  it('F-D1: with no open invoice nothing is credited and the disbursement stays listed', async () => {
+    const built = await buildApp(['finance_officer']);
+    app = built.app;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/fees/scholarships/net',
+      payload: { studentId: STUDENT, disbursementId: DISB_PAID },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      concession: null,
+      invoice: null,
+      discountCents: 0,
+      remainingCents: 2_500,
+      idempotent: false,
+    });
+    expect(await concessionCount(built.repo)).toBe(0);
+    const list = await app.inject({
+      method: 'GET',
+      url: `/fees/scholarships/nettable-disbursements?studentId=${STUDENT}`,
+    });
+    expect(list.json().data.map((d: { id: string }) => d.id)).toEqual([DISB_PAID]);
   });
 
   it('lists only paid, un-netted disbursements in the caller tenant', async () => {

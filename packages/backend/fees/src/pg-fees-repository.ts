@@ -409,6 +409,22 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
+  async withScholarshipDisbursementLock<T>(
+    tenantId: string,
+    disbursementId: string,
+    fn: (tx: FeesRepository) => Promise<T>,
+  ): Promise<T> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      // Transaction-scoped: released on COMMIT/ROLLBACK. The key is tenant + disbursement,
+      // so different disbursements never wait on each other (hash collisions only add waits).
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+        `fees:scholarship-netting:${tenantId}:${disbursementId}`,
+      ]);
+      return fn(this.bindTx(client, tenantId));
+    });
+  }
+
   // ─── Double-entry ledger (G-718) ──────────────────────────────────────────
   // All legs of a journal are inserted in ONE transaction (withTenant opens
   // BEGIN/COMMIT); the deferred constraint trigger rejects the COMMIT when
@@ -1445,6 +1461,22 @@ export class PgFeesRepository implements FeesRepository {
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapConcession(row) : null;
+    });
+  }
+
+  async listConcessionsBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_concessions
+          WHERE tenant_id = $1 AND source_disbursement_id = $2
+          ORDER BY created_at ASC, id ASC`,
+        [tenantId, sourceDisbursementId],
+      );
+      return result.rows.map((row) => mapConcession(row as Record<string, unknown>));
     });
   }
 

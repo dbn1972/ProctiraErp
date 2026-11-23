@@ -437,6 +437,14 @@ export interface FeesRepository {
     tenantId: string,
     sourceDisbursementId: string,
   ): Promise<FeeConcessionEntity | null>;
+  /**
+   * F-D2: every netting row for one scholarship disbursement (one per credited invoice),
+   * oldest first, including reversed (`rejected`) rows.
+   */
+  listConcessionsBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity[]>;
 
   createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity>;
   listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]>;
@@ -523,6 +531,17 @@ export interface FeesRepository {
     tenantId: string,
     invoiceId: string,
     fn: (tx: FeesRepository, locked: LockedInvoiceBalance) => Promise<T>,
+  ): Promise<T>;
+  /**
+   * F-D1/F-D2: run `fn` in ONE tenant transaction holding an exclusive per-disbursement
+   * lock (Pg: transaction-scoped advisory lock), so concurrent nettings or reversals of
+   * the same scholarship disbursement serialize. `fn` may take invoice locks through
+   * `tx.withInvoiceLock` (always disbursement lock first, then invoice lock).
+   */
+  withScholarshipDisbursementLock<T>(
+    tenantId: string,
+    disbursementId: string,
+    fn: (tx: FeesRepository) => Promise<T>,
   ): Promise<T>;
 
   // PRC-M248: per-invoice / bounded reads (no tenant-wide scans on hot paths).
