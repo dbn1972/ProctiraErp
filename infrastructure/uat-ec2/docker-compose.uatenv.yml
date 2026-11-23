@@ -1,0 +1,380 @@
+# =============================================================================
+# ProctiraERP — UAT environment overlay for a single EC2 host (release-plan E3)
+# =============================================================================
+# Layered on the canonical single-host stack (docker-compose.yml, W1-OPS-16):
+#
+#   docker compose -p proctira-uatenv \
+#     --project-directory <release dir> \
+#     -f <release dir>/docker-compose.yml \
+#     -f infrastructure/uat-ec2/docker-compose.uatenv.yml \
+#     --env-file <secrets dir>/uatenv.env ...
+#
+# Always run it through tools/scripts/uatenv/uatenv-lib.sh (uatenv_compose),
+# which pins the project name and paths. See docs/testing/uat/UAT_ENVIRONMENT.md.
+#
+# What the overlay changes:
+#   - every published port binds to UATENV_BIND (127.0.0.1) inside 29000-29099;
+#     Redis, AMQP, Kafka and the MinIO API are not published at all;
+#   - images are built locally from the Release workflow Dockerfiles
+#     (tools/scripts/detect-affected-services.mjs docker-config) and tagged
+#     proctira/<service>:uatenv-<sha12>; nothing is pulled or pushed for them;
+#   - CPU / memory limits on every service so UAT cannot starve the host;
+#   - Keycloak runs in production mode (`start`) on its own Postgres database;
+#   - an nginx reverse proxy (`proxy`) fronts web, gateway, registration portal
+#     and Keycloak by host name on UATENV_PROXY_PORT;
+#   - json-file log rotation on every service;
+#   - the secondary apps sit behind the `secondary` profile.
+# No secret values live here: they come from the env files in the host-only
+# secrets directory (UATENV_SECRETS_DIR, mode 700).
+# =============================================================================
+
+x-uatenv-logging: &uatenv-logging
+  driver: json-file
+  options:
+    max-size: '20m'
+    max-file: '5'
+
+x-uatenv-build-labels: &uatenv-build-labels
+  org.opencontainers.image.revision: ${UATENV_SHA:-unknown}
+  com.proctira.uatenv: '1'
+
+services:
+  proxy:
+    image: ${UATENV_PROXY_IMAGE:?Set UATENV_PROXY_IMAGE (digest-pinned nginx-unprivileged)}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ${UATENV_RUNTIME_DIR:?Set UATENV_RUNTIME_DIR}/generated/nginx/uatenv.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - '${UATENV_PROXY_BIND:-127.0.0.1}:${UATENV_PROXY_PORT:-29080}:29080'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:29080/__uatenv_proxy_health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128m
+    logging: *uatenv-logging
+    networks:
+      proctira:
+        # Pinned so the gateway trusts forwarding headers from this address
+        # only (TRUSTED_PROXY_CIDRS=<UATENV_PROXY_IP>/32, uatenv-secrets.sh).
+        ipv4_address: ${UATENV_PROXY_IP:-172.29.90.250}
+        aliases:
+          # Browser and server-side calls share one host name (see the doc).
+          - api.${UATENV_PLATFORM_DOMAIN:-proctira-uat.localhost}
+          - auth.${UATENV_PLATFORM_DOMAIN:-proctira-uat.localhost}
+          - register.${UATENV_PLATFORM_DOMAIN:-proctira-uat.localhost}
+
+  postgres:
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29010:5432'
+    shm_size: 256m
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 3g
+    logging: *uatenv-logging
+
+  redis:
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256m
+    logging: *uatenv-logging
+
+  rabbitmq:
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29012:15672'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512m
+    logging: *uatenv-logging
+
+  kafka:
+    ports: !reset []
+    environment:
+      KAFKA_HEAP_OPTS: '-Xms256m -Xmx512m'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1g
+    logging: *uatenv-logging
+
+  minio:
+    # PRC-M542: the gateway's MinIO adapter requires TLS in production, so MinIO
+    # serves a certificate from the UAT-internal CA (uatenv-secrets.sh).
+    command: !override ['server', '/data', '--console-address', ':9001', '--certs-dir', '/certs']
+    volumes:
+      - ${UATENV_RUNTIME_DIR:?Set UATENV_RUNTIME_DIR}/generated/tls/minio.crt:/certs/public.crt:ro
+      - ${UATENV_SECRETS_DIR:?Set UATENV_SECRETS_DIR}/tls/minio.key:/certs/private.key:ro
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '-q',
+          '--no-check-certificate',
+          '-O',
+          '/dev/null',
+          'https://127.0.0.1:9000/minio/health/live',
+        ]
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29016:9001'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256m
+    logging: *uatenv-logging
+
+  keycloak:
+    # Production mode on Postgres instead of start-dev on H2.
+    command: !override ['start', '--import-realm']
+    environment: !override
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD}
+      KC_HTTP_ENABLED: 'true'
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME: ${UATENV_PUBLIC_SCHEME:-http}://auth.${UATENV_PLATFORM_DOMAIN:-proctira-uat.localhost}:${UATENV_PUBLIC_PORT:-29080}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'false'
+      JAVA_OPTS_KC_HEAP: '-XX:MaxRAMPercentage=60 -XX:InitialRAMPercentage=25'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29020:8080'
+      - '${UATENV_BIND:-127.0.0.1}:29021:9000'
+    volumes: !override
+      - ${UATENV_SECRETS_DIR:?Set UATENV_SECRETS_DIR}/generated/keycloak-realm.json:/opt/keycloak/data/import/proctira-realm.json:ro
+    healthcheck:
+      # The image has no curl/wget: plain bash /dev/tcp against the management port.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 &&
+          while IFS= read -r l <&3; do case "$$l" in *'"UP"'*) exit 0;; esac; done; exit 1
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 1280m
+    logging: *uatenv-logging
+
+  api-gateway:
+    image: proctira/api-gateway:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api-gateway
+      labels: *uatenv-build-labels
+    env_file:
+      - path: ${UATENV_SECRETS_DIR:?Set UATENV_SECRETS_DIR}/gateway.env
+        required: true
+    environment:
+      # Trust the UAT-internal CA for MinIO TLS (public certificate only).
+      NODE_EXTRA_CA_CERTS: /etc/uatenv/ca.crt
+    volumes:
+      - ${UATENV_RUNTIME_DIR:?Set UATENV_RUNTIME_DIR}/generated/tls/ca.crt:/etc/uatenv/ca.crt:ro
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29030:3000'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2g
+    logging: *uatenv-logging
+
+  etl-worker:
+    image: proctira/etl-worker:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.etl-worker
+      labels: *uatenv-build-labels
+    environment:
+      # PRC-M030: the worker verifies gateway-issued HS256 tokens and refuses to
+      # start in production without JWT_SECRET, which docker-compose.yml does
+      # not pass to it (UATENV-D04).
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29040:3010'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 384m
+    logging: *uatenv-logging
+
+  exam-document-worker:
+    image: proctira/exam-document-worker:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: workers/exam-document/Dockerfile
+      labels: *uatenv-build-labels
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29041:3025'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 384m
+    logging: *uatenv-logging
+
+  web:
+    image: proctira/web:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.web
+      labels: *uatenv-build-labels
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29031:3001'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1g
+    logging: *uatenv-logging
+
+  registration-portal:
+    image: proctira/registration-portal:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.nextjs-app
+      labels: *uatenv-build-labels
+      args:
+        APP_NAME: registration-portal
+        APP_PORT: '3002'
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29032:3002'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512m
+    logging: *uatenv-logging
+
+  # --- Secondary apps (profile `secondary`; built only with --with-secondary) --
+  public-website:
+    profiles: [secondary]
+    image: proctira/public-website:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.nextjs-app
+      labels: *uatenv-build-labels
+      args:
+        APP_NAME: public-website
+        APP_PORT: '3004'
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29033:3003'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 384m
+    logging: *uatenv-logging
+
+  admin-console:
+    profiles: [secondary]
+    image: proctira/admin-console:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.nextjs-app
+      labels: *uatenv-build-labels
+      args:
+        APP_NAME: admin-console
+        APP_PORT: '3014'
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29034:3004'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 384m
+    logging: *uatenv-logging
+
+  developer-portal:
+    profiles: [secondary]
+    image: proctira/developer-portal:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.nextjs-app
+      labels: *uatenv-build-labels
+      args:
+        APP_NAME: developer-portal
+        APP_PORT: '3005'
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29035:3005'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 384m
+    logging: *uatenv-logging
+
+  install-wizard:
+    profiles: [secondary]
+    image: proctira/install-wizard:uatenv-${UATENV_TAG:?Set UATENV_TAG}
+    pull_policy: never
+    build: !override
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.nextjs-app
+      labels: *uatenv-build-labels
+      args:
+        APP_NAME: install-wizard
+        APP_PORT: '3100'
+    ports: !override
+      - '${UATENV_BIND:-127.0.0.1}:29036:3100'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 384m
+    logging: *uatenv-logging
+
+networks:
+  proctira:
+    ipam:
+      config:
+        - subnet: ${UATENV_SUBNET:-172.29.90.0/24}
