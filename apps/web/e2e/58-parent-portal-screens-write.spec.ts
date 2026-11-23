@@ -515,7 +515,12 @@ test.describe('Parent portal screens — write path (E2E_BACKEND_READY)', () => 
     const [c1] = family.children as [Family['children'][0]];
     // The application's institution comes from the child's current enrolment (PRC-L345).
     await enrolInSharedYear(request, tag, [c1.id]);
-    const programName = `PP Sch ${tag}`;
+    // The parent picker lists the first 50 open programs by name ascending, and
+    // other specs leave open "E2E ..." programs behind. A zero-padded prefix
+    // that decreases with wall time sorts this run's program before every
+    // letter-led name and before programs from earlier runs.
+    const sortFirst = String(9_999_999_999_999 - Date.now()).padStart(13, '0');
+    const programName = `${sortFirst} PP Sch ${tag}`;
     const program = await send(
       request,
       'post',
