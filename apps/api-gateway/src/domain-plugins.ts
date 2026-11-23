@@ -111,6 +111,7 @@ import {
   createLmsRepository,
   LmsService,
   lmsPlugin,
+  type LmsLearnerMembership,
   type LmsRepository,
 } from '@proctira/backend-lms';
 import {
@@ -285,7 +286,12 @@ export function sharedLmsService(dependencies: DomainPluginDependencies): {
     entry.lms = {
       repository,
       // PRC-M527: grades, rubric scores, deletes, publish/close and file downloads are audited.
-      service: new LmsService(repository, { auditSink: domainAuditSink('lms') }),
+      service: new LmsService(repository, {
+        auditSink: domainAuditSink('lms'),
+        // PRC-M299: learners submit, upload and post only where they are ENROLLED
+        // (section_enrollments / enrollments). No pool: production refuses learner writes.
+        learnerMembership: lmsLearnerMembership(),
+      }),
     };
   }
   return entry.lms;
@@ -368,6 +374,18 @@ function scholarshipRepositoryForFees(): ScholarshipRepository {
  * see the same rows the staff routes wrote).
  */
 let assignmentRepositorySingleton: ReturnType<typeof createAssignmentRepository> | undefined;
+/** PRC-M299: LMS learner enrolment port over the shared teaching-scope directory. */
+function lmsLearnerMembership(): LmsLearnerMembership | null {
+  const directory = sharedTeachingScopeDirectory();
+  return directory
+    ? {
+        inSection: (tenantId, userId, sectionId) =>
+          directory.learnerInSection(tenantId, userId, sectionId),
+        inInstitution: (tenantId, userId, institutionId) =>
+          directory.learnerInInstitution(tenantId, userId, institutionId),
+      }
+    : null;
+}
 function sharedAssignmentRepository(): ReturnType<typeof createAssignmentRepository> {
   assignmentRepositorySingleton ??= createAssignmentRepository();
   return assignmentRepositorySingleton;
