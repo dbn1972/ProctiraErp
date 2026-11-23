@@ -192,6 +192,10 @@ env:
     e2e/93-staff-screens-read.spec.ts
     e2e/94-staff-screens-write.spec.ts
     e2e/95-staff-privacy-tenancy.spec.ts
+    e2e/107-admissions-defect-fixes.spec.ts
+    e2e/112-assessments-gradebook-screens-read.spec.ts
+    e2e/113-assessments-gradebook-screens-write.spec.ts
+    e2e/114-assessments-gradebook-privacy-tenancy.spec.ts
     e2e/115-assessments-gradebook-defect-fixes.spec.ts
 
 permissions:
@@ -287,7 +291,26 @@ jobs:
           APPLY_STRICT_FKS: '1'
 
       - name: Seed Sunrise Public School demo (institution detail tabs)
-        run: psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+        # PRC-L462: the demo seed must be idempotent (its header documents a
+        # teardown-before-reinsert for section_meetings and relies on fixed
+        # ids + ON CONFLICT everywhere else). Apply it twice and assert the
+        # per-tenant row counts of every tenant-scoped table are byte-for-byte
+        # identical across the re-apply — a single-use teardown that leaves
+        # stale rows on the second run would make the two snapshots diverge and
+        # fail this gate.
+        run: |
+          set -euo pipefail
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -q -t -A \
+            -f db/seeds/006_sunrise_demo_rowcounts.sql | grep -E '=[0-9]+$' | sort > /tmp/sunrise-rowcounts-1.txt
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+          psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -q -t -A \
+            -f db/seeds/006_sunrise_demo_rowcounts.sql | grep -E '=[0-9]+$' | sort > /tmp/sunrise-rowcounts-2.txt
+          if ! diff -u /tmp/sunrise-rowcounts-1.txt /tmp/sunrise-rowcounts-2.txt; then
+            echo "PRC-L462: sunrise demo seed is NOT idempotent — re-apply changed tenant row counts (see diff above)" >&2
+            exit 1
+          fi
+          echo "PRC-L462: sunrise demo seed idempotent across re-apply ($(wc -l < /tmp/sunrise-rowcounts-1.txt) tenant tables, no drift)"
         env:
           MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
           # PRC-L461: 006 raises unless proctira.allow_demo_seed=on. Bound for
@@ -368,6 +391,10 @@ jobs:
           JWT_SECRET: ${{ env.JWT_SECRET }}
           E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
           NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
+          # Gradebook report-card artifacts (specs 112-114): a known per-run directory,
+          # so the cards do not depend on an earlier step having created the code
+          # default under /opt/cursor/artifacts (PRC-M514 owns that default).
+          SIS_REPORT_CARD_DIR: ${{ runner.temp }}/proctira-report-cards
           E2E_SPECS: ${{ steps.mode.outputs.specs }}
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
           # Harness is fail-closed unless E2E_ALLOW_SKIP=1 (PRC-L389).

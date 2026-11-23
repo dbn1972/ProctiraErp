@@ -42,13 +42,18 @@ export interface StaffOffboardRecord {
 export interface StaffFilter {
   status?: 'ACTIVE' | 'INACTIVE';
   position?: string;
-  search?: string; // Full-text search on name and identity number
+  search?: string; // Search on name (and identity number when matchIdentityNumber)
   /** When set, only staff with an assignment at this institution are returned. */
   institutionId?: string;
   /** PRC-M120: teaching vs non-teaching, derived from position. */
   staffType?: StaffTypeFilter;
   /** PRC-M120: restrict to these staff ids (e.g. on approved leave today). */
   ids?: ReadonlySet<string>;
+  /**
+   * HN-F4-R4: let `search` also match `identityNumber`. Off by default (fail closed);
+   * routes set it only for roles that may view identity numbers (`staff.update`).
+   */
+  matchIdentityNumber?: boolean;
 }
 
 /**

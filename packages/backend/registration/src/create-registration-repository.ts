@@ -21,6 +21,11 @@ import {
   type AdmissionsPipelineStore,
 } from './pipeline/pipeline-store.js';
 import type { RegistrationRepository } from './registration-repository.js';
+import {
+  InMemoryTenantReferenceChecker,
+  PgTenantReferenceChecker,
+  type TenantReferenceChecker,
+} from './tenant-references.js';
 
 export function isPgRegistrationEnabled(): boolean {
   const url = process.env.DATABASE_URL?.trim();
@@ -57,4 +62,15 @@ export function createAdmissionsPipelineStore(): AdmissionsPipelineStore {
   }
   assertInMemoryFallbackAllowed('registration-pipeline');
   return new InMemoryAdmissionsPipelineStore();
+}
+
+/** AD-T1: institution / period / grade ownership for staff admissions writes. */
+export function createTenantReferenceChecker(): TenantReferenceChecker {
+  if (isPgRegistrationEnabled()) {
+    const pool = getSharedRegistrationPool();
+    assertPostgresRepositoryAvailable('registration-references', pool);
+    return new PgTenantReferenceChecker(pool);
+  }
+  assertInMemoryFallbackAllowed('registration-references');
+  return new InMemoryTenantReferenceChecker();
 }

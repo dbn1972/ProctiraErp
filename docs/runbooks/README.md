@@ -19,6 +19,7 @@ annotation in `infra/observability/alerts/*.yml`.
 
 - [database-migration-rollback](./database-migration-rollback.md) — both schema tracks, forward reverts, point-in-time restore
 - [deploy-rollback](./deploy-rollback.md) — W1-OPS-09 single-wave Helm atomic deploy + workflow rollback
+- [fees-scholarship-netting-remediation](./fees-scholarship-netting-remediation.md) — F-D1/F-D2 detection report and owner-approved data correction
 
 - [api-gateway](./api-gateway.md)
 - [auth](./auth.md)

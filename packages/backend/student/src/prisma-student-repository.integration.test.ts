@@ -112,6 +112,20 @@ describe.skipIf(!TEST_DATABASE_URL)('PrismaStudentRepository (RLS integration)',
     expect(page.data.every((s) => s.tenantId === tenantB)).toBe(true);
   });
 
+  it('national ID matches only when the caller opts in (HN-F4-R3)', async () => {
+    const nid = studentA.nationalId!;
+    const page = { page: 1, pageSize: 20 };
+    expect((await repo.list(tenantA, { search: nid }, page)).data).toEqual([]);
+    expect((await repo.search(tenantA, nid, page)).data).toEqual([]);
+    const listed = await repo.list(tenantA, { search: nid, matchNationalId: true }, page);
+    expect(listed.data.map((s) => s.id)).toEqual([studentA.id]);
+    const searched = await repo.search(tenantA, nid, page, { matchNationalId: true });
+    expect(searched.data.map((s) => s.id)).toEqual([studentA.id]);
+    // Name matching is unaffected by the flag.
+    expect((await repo.search(tenantA, 'alice', page)).data.map((s) => s.id)).toEqual([
+      studentA.id,
+    ]);
+  });
   it('soft delete is tenant-scoped and hides the row from reads', async () => {
     const victim = await repo.create(sampleStudent(tenantA, { firstName: 'Carol' }));
     // Wrong tenant cannot delete it.

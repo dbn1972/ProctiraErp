@@ -340,7 +340,10 @@ export class InProcessSandbox {
       // private/loopback/metadata targets (SSRF), https-only, host must be allow-listed.
       await assertEgressAllowed(urlStr, quota.allowedNetworkHosts);
 
-      return globalThis.fetch(input as string | Request, init);
+      // PRC-M628: only the first URL is validated, so never follow a redirect (it could
+      // leave the allow-list or reach a metadata/private host). The caller's init cannot
+      // re-enable following; a 3xx is returned to the plugin as-is.
+      return globalThis.fetch(input as string | Request, { ...init, redirect: 'manual' });
     };
 
     return {

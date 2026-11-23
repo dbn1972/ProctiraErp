@@ -20,8 +20,20 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   poweredByHeader: false,
+  // PRC-L202: the shared JWKS verifier ships as TypeScript source.
+  transpilePackages: ['@proctira/auth', '@proctira/common'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
+  },
+  webpack: (config) => {
+    // `@proctira/auth` imports its own modules with explicit `.js` extensions
+    // (Node ESM); map them to the `.ts` sources, as apps/web does.
+    config.resolve = config.resolve || {};
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias || {}),
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+    };
+    return config;
   },
 };
 

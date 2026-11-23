@@ -7,10 +7,13 @@
  *
  * Charter: Section 27 (Security and Compliance)
  */
-import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { validate } from '@proctira/validation';
+import { Type, type TSchema } from '@sinclair/typebox';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { PolicyAuditEvent, PolicyAuditPort } from './audit-port.js';
 import {
   PolicyEvaluationEngine,
   type PolicyEvaluationContext,
@@ -22,12 +25,39 @@ import type {
   PolicyFilter,
   PolicyRepository,
 } from './policy-repository.js';
-import type {
-  CreatePolicyInput,
-  UpdatePolicyInput,
-  PolicyEvaluationResponse,
-  CreatePolicyAssignmentInput,
+import {
+  DataRetentionRulesSchema,
+  PasswordComplexityRulesSchema,
+  RateLimitingRulesSchema,
+  SessionTimeoutRulesSchema,
+  type CreatePolicyInput,
+  type UpdatePolicyInput,
+  type PolicyEvaluationResponse,
+  type CreatePolicyAssignmentInput,
+  type PolicyType,
 } from './schemas.js';
+
+/**
+ * PRC-M609: per-type rule schemas. A policy at a more specific scope may set
+ * only the keys it overrides (rules are merged down the inheritance chain), so
+ * every key is optional, but each key must belong to the policy type and hold
+ * a value of the declared type and range.
+ */
+const RULE_SCHEMAS: Record<PolicyType, TSchema> = {
+  data_retention: Type.Partial(DataRetentionRulesSchema, { additionalProperties: false }),
+  password_complexity: Type.Partial(PasswordComplexityRulesSchema, {
+    additionalProperties: false,
+  }),
+  session_timeout: Type.Partial(SessionTimeoutRulesSchema, { additionalProperties: false }),
+  rate_limiting: Type.Partial(RateLimitingRulesSchema, { additionalProperties: false }),
+};
+
+function assertRulesMatchType(type: PolicyType, rules: unknown): void {
+  const result = validate(RULE_SCHEMAS[type], rules);
+  if (!result.success) {
+    throw new ValidationError(`Policy rules are not valid for type '${type}'`, result.errors);
+  }
+}
 
 /**
  * Service handling policy business logic.
@@ -35,8 +65,30 @@ import type {
 export class PolicyService {
   private readonly evaluationEngine: PolicyEvaluationEngine;
 
-  constructor(private readonly repository: PolicyRepository) {
+  constructor(
+    private readonly repository: PolicyRepository,
+    /**
+     * PRC-M608: injected audit sink carrying the real actor and tenant. When
+     * provided, every policy lifecycle mutation (create/update/activate/
+     * deactivate/assign/removeAssignment) is recorded through it (durable,
+     * tenant-aware). When omitted, the service does not emit, so a parked
+     * package never writes a `'system'`-attributed or tenant-less audit row.
+     */
+    private readonly auditPort?: PolicyAuditPort,
+  ) {
     this.evaluationEngine = new PolicyEvaluationEngine(repository);
+  }
+
+  /**
+   * PRC-M608: record a policy audit event through the injected port when one is
+   * configured. The caller always supplies the real `actor` and `tenantId`;
+   * this method never substitutes a `'system'` actor. When no port and/or no
+   * actor is provided, nothing is emitted (behaviour-preserving for callers
+   * that have not wired an audit sink, e.g. the parked package's own tests).
+   */
+  private async audit(event: PolicyAuditEvent | undefined): Promise<void> {
+    if (!event || !this.auditPort) return;
+    await this.auditPort.record(event);
   }
 
   // ─── Policy CRUD ─────────────────────────────────────────────────────────
@@ -52,7 +104,9 @@ export class PolicyService {
    *
    * @throws ConflictError if name already exists
    */
-  async create(tenantId: string, input: CreatePolicyInput): Promise<PolicyEntity> {
+  async create(tenantId: string, input: CreatePolicyInput, actor?: string): Promise<PolicyEntity> {
+    assertRulesMatchType(input.type, input.rules);
+
     // Check name uniqueness within tenant
     const existingByName = await this.repository.findByName(input.name, tenantId);
     if (existingByName) {
@@ -85,9 +139,13 @@ export class PolicyService {
       rules: input.rules as Record<string, unknown>,
       effectiveFrom: created.effectiveFrom,
       effectiveUntil: created.effectiveUntil,
-      createdBy: null,
+      // PRC-M608: the version records who authored it.
+      createdBy: actor ?? null,
     });
 
+    if (actor) {
+      await this.audit({ action: 'create', actor, tenantId, policyId });
+    }
     return created;
   }
 
@@ -99,17 +157,25 @@ export class PolicyService {
    * @throws NotFoundError if policy not found
    * @throws ConflictError if name conflicts with another policy
    */
-  async update(tenantId: string, id: string, input: UpdatePolicyInput): Promise<PolicyEntity> {
+  async update(
+    tenantId: string,
+    id: string,
+    input: UpdatePolicyInput,
+    actor?: string,
+  ): Promise<PolicyEntity> {
     // Read, name check, version record and write happen as one repository
     // step so concurrent edits cannot mint duplicate versions or names (PRC-L478).
     const result = await this.repository.updateAtomically(id, tenantId, (existing) =>
-      this.buildUpdate(id, existing, input),
+      this.buildUpdate(id, existing, input, actor),
     );
     if (result.status === 'not_found') {
       throw new NotFoundError(`Policy with id '${id}' not found`);
     }
     if (result.status === 'name_conflict') {
       throw new ConflictError(`Policy with name '${input.name ?? ''}' already exists`);
+    }
+    if (actor) {
+      await this.audit({ action: 'update', actor, tenantId, policyId: id });
     }
     return result.entity;
   }
@@ -118,6 +184,7 @@ export class PolicyService {
     id: string,
     existing: PolicyEntity,
     input: UpdatePolicyInput,
+    actor?: string,
   ): { data: Partial<PolicyEntity>; version?: Omit<PolicyVersionEntity, 'createdAt'> } {
     const updateData: Partial<PolicyEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
@@ -129,6 +196,8 @@ export class PolicyService {
 
     // If rules are changed, bump version and record the new version row
     if (input.rules !== undefined) {
+      // PRC-M609: new rules must match the stored policy's type (type is immutable).
+      assertRulesMatchType(existing.type, input.rules);
       const newVersion = existing.version + 1;
       updateData.rules = input.rules as Record<string, unknown>;
       updateData.version = newVersion;
@@ -146,7 +215,7 @@ export class PolicyService {
           effectiveUntil: input.effectiveUntil
             ? new Date(input.effectiveUntil)
             : existing.effectiveUntil,
-          createdBy: null,
+          createdBy: actor ?? null,
         },
       };
     }
@@ -160,7 +229,7 @@ export class PolicyService {
    * @throws NotFoundError if policy not found
    * @throws BusinessRuleError if policy is already active
    */
-  async activate(tenantId: string, id: string): Promise<PolicyEntity> {
+  async activate(tenantId: string, id: string, actor?: string): Promise<PolicyEntity> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Policy with id '${id}' not found`);
@@ -175,6 +244,9 @@ export class PolicyService {
       throw new NotFoundError(`Policy with id '${id}' not found`);
     }
 
+    if (actor) {
+      await this.audit({ action: 'activate', actor, tenantId, policyId: id });
+    }
     return updated;
   }
 
@@ -184,7 +256,7 @@ export class PolicyService {
    * @throws NotFoundError if policy not found
    * @throws BusinessRuleError if policy is already inactive
    */
-  async deactivate(tenantId: string, id: string): Promise<PolicyEntity> {
+  async deactivate(tenantId: string, id: string, actor?: string): Promise<PolicyEntity> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Policy with id '${id}' not found`);
@@ -199,6 +271,9 @@ export class PolicyService {
       throw new NotFoundError(`Policy with id '${id}' not found`);
     }
 
+    if (actor) {
+      await this.audit({ action: 'deactivate', actor, tenantId, policyId: id });
+    }
     return updated;
   }
 
@@ -276,6 +351,7 @@ export class PolicyService {
   async assignPolicy(
     tenantId: string,
     input: CreatePolicyAssignmentInput,
+    actor?: string,
   ): Promise<PolicyAssignmentEntity> {
     const policy = await this.repository.findById(input.policyId, tenantId);
     if (!policy) {
@@ -286,13 +362,42 @@ export class PolicyService {
       throw new BusinessRuleError('Only active policies can be assigned');
     }
 
-    return this.repository.createAssignment({
+    // PRC-M609: the assignment target must match the policy scope, and the
+    // target id must fit that scope (the evaluator looks tenant assignments up
+    // by the tenant id and institution assignments by the institution id).
+    if (input.targetType !== policy.scope) {
+      throw new BusinessRuleError(
+        `A ${policy.scope}-scope policy cannot be assigned to a ${input.targetType} target`,
+      );
+    }
+    if (input.targetType === 'platform' && input.targetId) {
+      throw new BusinessRuleError('A platform assignment takes no targetId');
+    }
+    if (input.targetType === 'tenant' && input.targetId !== tenantId) {
+      throw new BusinessRuleError('A tenant assignment must target the current tenant');
+    }
+    if (input.targetType === 'institution' && !input.targetId) {
+      throw new BusinessRuleError('An institution assignment needs a targetId');
+    }
+
+    const assignment = await this.repository.createAssignment({
       id: uuidv4(),
       policyId: input.policyId,
       targetType: input.targetType,
       targetId: input.targetId ?? null,
       tenantId,
     });
+
+    if (actor) {
+      await this.audit({
+        action: 'assign',
+        actor,
+        tenantId,
+        policyId: input.policyId,
+        assignmentId: assignment.id,
+      });
+    }
+    return assignment;
   }
 
   /**
@@ -300,7 +405,12 @@ export class PolicyService {
    *
    * @throws NotFoundError if assignment not found
    */
-  async removeAssignment(tenantId: string, policyId: string, assignmentId: string): Promise<void> {
+  async removeAssignment(
+    tenantId: string,
+    policyId: string,
+    assignmentId: string,
+    actor?: string,
+  ): Promise<void> {
     // PRC-L487: the assignment must belong to the policy named in the URL path,
     // so a caller cannot delete an assignment of a different policy by guessing
     // an assignment id under an unrelated :id.
@@ -313,6 +423,10 @@ export class PolicyService {
     const removed = await this.repository.removeAssignment(assignmentId, tenantId);
     if (!removed) {
       throw new NotFoundError(`Assignment with id '${assignmentId}' not found`);
+    }
+
+    if (actor) {
+      await this.audit({ action: 'remove_assignment', actor, tenantId, policyId, assignmentId });
     }
   }
 
