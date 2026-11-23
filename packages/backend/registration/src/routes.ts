@@ -30,6 +30,11 @@ import {
   verifyRegistrationChallenge,
 } from './bot-challenge.js';
 import { parseListPage, toPageResult } from './pagination.js';
+import {
+  brandingSourceFromDecorator,
+  toPublicBranding,
+  type PublicBrandingSource,
+} from './public-branding.js';
 import { PublicRegistrationThrottle } from './public-throttle.js';
 import { isPublicRegistrationPath } from './registration-access.js';
 import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
@@ -53,6 +58,7 @@ import {
   type CreateInterviewSlotInput,
   type BookInterviewInput,
 } from './schemas.js';
+import { ReferenceNotFoundError, referenceNotFoundBody } from './tenant-references.js';
 
 /**
  * Options for registering registration routes.
@@ -102,6 +108,11 @@ export interface RegistrationRoutesOptions {
   sessionStore?: RegistrationSessionStore;
   /** Session TTL ms (default 8h). */
   sessionTtlMs?: number;
+  /**
+   * PRC-M132: branding reader for `GET /registrations/branding`. Defaults to the gateway's
+   * root `tenantService` decorator; absent -> 404.
+   */
+  brandingSource?: PublicBrandingSource;
 }
 
 /** Trusted public host lookup injected by gateway composition. */
@@ -177,6 +188,8 @@ function clientBindingFromRequest(request: FastifyRequest): string {
 declare module 'fastify' {
   interface FastifyRequest {
     publicRegistrationTenantId?: string;
+    /** PRC-M132: true only when the tenant came from the verified Host mapping. */
+    publicRegistrationTenantFromHost?: boolean;
   }
 }
 
@@ -358,6 +371,10 @@ export async function registerRegistrationRoutes(
   if (!fastify.hasRequestDecorator('publicRegistrationTenantId')) {
     fastify.decorateRequest('publicRegistrationTenantId', undefined);
   }
+  if (!fastify.hasRequestDecorator('publicRegistrationTenantFromHost')) {
+    fastify.decorateRequest('publicRegistrationTenantFromHost', false);
+  }
+  const brandingSource = options.brandingSource ?? brandingSourceFromDecorator(fastify);
 
   // Public routes resolve tenant exclusively from raw Host through trusted DI.
   // Caller tenant and forwarding headers are deliberately ignored. Staff paths
@@ -381,6 +398,7 @@ export async function registerRegistrationRoutes(
         });
       }
       request.publicRegistrationTenantId = tenantId;
+      request.publicRegistrationTenantFromHost = Boolean(resolved);
     } catch {
       return reply.status(503).send({
         code: 'PUBLIC_REGISTRATION_CONTEXT_UNAVAILABLE',
@@ -827,23 +845,59 @@ export async function registerRegistrationRoutes(
    * GET /registrations/language
    * Get current language preference from session.
    * Requirement 16.5
+   *
+   * PRC-L139: a read never mints or writes a session. Without a valid, bound session the default
+   * language is returned and no session id is issued; sessions are created only by the
+   * state-changing POST.
    */
   fastify.get(
     `${prefix}/language`,
     async function getLanguageHandler(request: FastifyRequest, reply: FastifyReply) {
       const binding = clientBindingFromRequest(request);
       const { sessionId, existing } = await resolveOrMintSessionId(request, sessionStore, binding);
-      const language = existing?.data.language ?? 'en';
       if (!existing) {
-        // Mint empty session so client receives a server-issued id (not client-chosen).
-        await sessionStore.set(sessionId, {
-          data: {},
-          clientBinding: binding,
-          expiresAtMs: Date.now() + sessionTtlMs,
-        });
+        return reply.status(200).send({ language: 'en' });
       }
-
+      const language = existing.data.language ?? 'en';
       return reply.status(200).header('x-session-id', sessionId).send({ language, sessionId });
+    },
+  );
+
+  /**
+   * GET /registrations/branding
+   * PRC-M132: published tenant branding for SSR first paint. The tenant comes ONLY from the
+   * request Host through the verified host mapping (never a header, never the test fallback);
+   * an optional `slug` must equal that tenant's slug; only allow-listed brand fields are
+   * returned; reads are throttled per client.
+   */
+  fastify.get(
+    `${prefix}/branding`,
+    async function publicBrandingHandler(request: FastifyRequest, reply: FastifyReply) {
+      const notFound = () =>
+        reply.status(404).send({
+          code: 'PUBLIC_BRANDING_NOT_FOUND',
+          message: 'Branding is unavailable for this request',
+          statusCode: 404,
+        });
+      const decision = throttle.brandingPerClient.hit(request.ip || 'unknown');
+      if (!decision.allowed) return tooManyRequests(reply, decision.retryAfterSeconds);
+      if (!request.publicRegistrationTenantFromHost || !request.publicRegistrationTenantId) {
+        return notFound();
+      }
+      const record = await brandingSource(request.publicRegistrationTenantId);
+      if (!record) return notFound();
+      const slug = (request.query as { slug?: unknown } | undefined)?.slug;
+      if (
+        slug !== undefined &&
+        (typeof slug !== 'string' || slug.trim().toLowerCase() !== record.slug.toLowerCase())
+      ) {
+        return notFound();
+      }
+      return reply
+        .status(200)
+        .header('cache-control', 'public, max-age=60')
+        .header('vary', 'Host')
+        .send(toPublicBranding(record));
     },
   );
 
@@ -1005,6 +1059,10 @@ export async function registerRegistrationRoutes(
           status: slot.status,
         });
       } catch (error: unknown) {
+        if (error instanceof ReferenceNotFoundError) {
+          // AD-T1: #739 safe form (fixed copy + correlation id).
+          return reply.status(error.statusCode).send(referenceNotFoundBody(error, request));
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }

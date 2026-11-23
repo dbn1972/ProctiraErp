@@ -552,13 +552,24 @@ export interface ApplyScholarshipNettingInput {
 }
 
 export interface ScholarshipNettingResult {
-  concession: FeeConcession;
+  /** Null when nothing has been credited yet (no open invoice). */
+  concession: FeeConcession | null;
   invoice: FeeInvoice | null;
+  /** Credit applied by this call; the stored credit on an idempotent replay. */
   discountCents: number;
+  /** F-D2: paise credited by this call. */
+  appliedCents?: number;
+  /** F-D2: disbursement amount, total credited so far, and paise still to net. */
+  amountCents?: number;
+  nettedCents?: number;
+  remainingCents?: number;
   idempotent: boolean;
 }
 
-/** PRC-H020 — paid scholarship disbursements not yet netted (verified server-side). */
+/**
+ * PRC-H020 — paid scholarship disbursements with paise still to net (verified server-side).
+ * F-D2: a partly netted disbursement carries `nettedCents` / `remainingCents`.
+ */
 export interface NettableScholarshipDisbursement {
   id: string;
   tenantId: string;
@@ -567,6 +578,8 @@ export interface NettableScholarshipDisbursement {
   paymentStatus: string;
   currency?: string | null;
   paidDate?: string | null;
+  nettedCents?: number;
+  remainingCents?: number;
 }
 
 export async function listNettableScholarshipDisbursementsResult(): Promise<

@@ -42,7 +42,7 @@ function outcome(results: PromiseSettledResult<unknown>[]) {
 describe('plugin lifecycle atomicity (PRC-L478)', () => {
   it('lets exactly one of two concurrent installs succeed', async () => {
     const { repository, service } = setup();
-    const plugin = await service.register({ manifest: manifest() }, 'admin');
+    const plugin = await service.register({ manifest: manifest() }, 'admin', 'platform-tenant');
     const input = { pluginId: plugin.id, consentedPermissions: ['read:students'] };
 
     const results = await Promise.allSettled([
@@ -59,7 +59,7 @@ describe('plugin lifecycle atomicity (PRC-L478)', () => {
 
   it('writes no permissions for the losing install', async () => {
     const { repository, service } = setup();
-    const plugin = await service.register({ manifest: manifest() }, 'admin');
+    const plugin = await service.register({ manifest: manifest() }, 'admin', 'platform-tenant');
     const input = { pluginId: plugin.id, consentedPermissions: ['read:students'] };
 
     await Promise.allSettled([
@@ -80,8 +80,8 @@ describe('plugin lifecycle atomicity (PRC-L478)', () => {
     const { repository, service } = setup();
 
     const results = await Promise.allSettled([
-      service.register({ manifest: manifest('dup-name') }, 'a'),
-      service.register({ manifest: manifest('dup-name') }, 'b'),
+      service.register({ manifest: manifest('dup-name') }, 'a', 'platform-tenant'),
+      service.register({ manifest: manifest('dup-name') }, 'b', 'platform-tenant'),
     ]);
 
     const { fulfilled, rejected } = outcome(results);
@@ -94,7 +94,7 @@ describe('plugin lifecycle atomicity (PRC-L478)', () => {
 
   it('lets exactly one of two concurrent uninstalls succeed', async () => {
     const { repository, service } = setup();
-    const plugin = await service.register({ manifest: manifest() }, 'admin');
+    const plugin = await service.register({ manifest: manifest() }, 'admin', 'platform-tenant');
     const install = await service.install(
       TENANT,
       { pluginId: plugin.id, consentedPermissions: ['read:students'] },

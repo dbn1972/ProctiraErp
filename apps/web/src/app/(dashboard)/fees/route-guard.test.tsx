@@ -186,15 +186,24 @@ afterEach(() => {
 const DENIED_ROLE_SETS = [
   ['teacher'],
   ['staff'],
-  ['registrar'],
   ['platform_admin'],
+  ['fees_clerk'],
   ['student'],
   ['guardian'],
   ['parent'],
   [],
 ];
 
-const ALLOWED_ROLE_SETS = [['admin'], ['principal']];
+/** F-D3: finance roles and the read-only registrar (gateway grant + fees-access.ts). */
+const ALLOWED_ROLE_SETS = [
+  ['admin'],
+  ['principal'],
+  ['finance_officer'],
+  ['bursar'],
+  ['accountant'],
+  ['registrar'],
+  ['teacher', 'bursar'],
+];
 
 describe('fees route guard (A-batch)', () => {
   it('covers every page under /fees', () => {

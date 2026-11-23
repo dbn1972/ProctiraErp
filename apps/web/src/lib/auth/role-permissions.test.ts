@@ -67,3 +67,24 @@ describe('campus nav permissions (H-D1-R3)', () => {
     expect(permissionsForRoles(['student', 'warden'])).toContain('hostel.read');
   });
 });
+
+describe('fees nav permissions (F-D3)', () => {
+  it('shows Fees to the finance roles and the registrar', () => {
+    for (const role of ['finance_officer', 'bursar', 'accountant', 'registrar']) {
+      expect(permissionsForRoles([role]), role).toContain('fees.read');
+    }
+  });
+
+  it('gives the registrar no fees write', () => {
+    const permissions = permissionsForRoles(['registrar']);
+    for (const write of ['create', 'update', 'delete', 'manage']) {
+      expect(permissions).not.toContain(`fees.${write}`);
+    }
+  });
+
+  it('hides Fees from teacher, staff and portal roles', () => {
+    for (const role of ['teacher', 'staff', 'student', 'parent', 'guardian', 'nurse']) {
+      expect(permissionsForRoles([role]), role).not.toContain('fees.read');
+    }
+  });
+});

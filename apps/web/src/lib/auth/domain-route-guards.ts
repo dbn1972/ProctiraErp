@@ -6,7 +6,7 @@
  * without the domain's read permission are stopped at the layout instead of
  * seeing empty pages backed by gateway 403s.
  */
-import { CAMPUS_BASE_READ_ROLE_IDS, hasPermission } from '@proctira/auth';
+import { CAMPUS_BASE_READ_ROLE_IDS, FEES_BASE_READ_ROLE_IDS, hasPermission } from '@proctira/auth';
 
 import type { ServerSession } from '@/lib/auth/server';
 import { sessionToAuthUser } from './examination-route-guards';
@@ -96,10 +96,34 @@ export const HOSTEL_PACKAGE_ROLE_IDS: ReadonlySet<string> = new Set([
   'school-admin',
 ]);
 
+/**
+ * F-D3: role ids the fees package allows `fees.read` (`FINANCE_ROLES` incl.
+ * `ADMIN_ROLES` in packages/backend/fees/src/fees-access.ts). The gateway
+ * serves the staff fees screens only when a role holds the gateway `fees`
+ * grant AND a role is in this set. Kept in sync by domain-route-guards.test.ts.
+ */
+export const FEES_PACKAGE_ROLE_IDS: ReadonlySet<string> = new Set([
+  'finance_officer',
+  'bursar',
+  'accountant',
+  'fees_clerk',
+  'cashier',
+  'registrar',
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system_admin',
+  'system-admin',
+  'principal',
+  'school_admin',
+  'school-admin',
+]);
+
 /** Domains whose backend package adds its own role check after the gateway grant. */
 const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<string>>> = {
   transport: TRANSPORT_PACKAGE_ROLE_IDS,
   hostel: HOSTEL_PACKAGE_ROLE_IDS,
+  fees: FEES_PACKAGE_ROLE_IDS,
 };
 
 /**
@@ -109,7 +133,6 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
  * backend package read set:
  * - admissions: registration-access.ts REGISTRATION_STAFF_ROLES
  * - assessments: assessment-access.ts ASSESSMENT_STAFF_ROLES
- * - fees: fees-access.ts `fees.read` (FINANCE_ROLES)
  * - library: library-access.ts LIBRARY_STAFF_ROLES
  * - lms: lms-access.ts LMS_STAFF_ROLES
  * - pipelines: etl-access.ts ETL_STAFF_ROLES
@@ -120,16 +143,14 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
  * - workflows: gateway grant only (the workflow package has no role check)
  *
  * Fail-closed for multi-role principals: access needs one role that is in the
- * set. A principal holding `teacher` + `bursar` is served `/fees` by the
- * gateway (teacher grant + bursar package role) but is denied here; the set is
- * deliberately not widened. Sets are used instead of web registry grants
+ * set. Fees (F-D3) left this list: it uses the package-role rule below, as
+ * hostel and transport do. Sets are used instead of web registry grants
  * because that registry also drives navigation and write guards.
  * Kept in sync by domain-route-guards.test.ts.
  */
 export const DOMAIN_ROUTE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<string>>> = {
   admissions: new Set(['admin', 'principal', 'super-admin']),
   assessments: new Set(['admin', 'principal', 'teacher', 'super-admin']),
-  fees: new Set(['admin', 'principal', 'super-admin']),
   library: new Set(['admin', 'principal', 'super-admin']),
   lms: new Set(['admin', 'principal', 'teacher', 'super-admin']),
   pipelines: new Set(['admin', 'principal', 'super-admin']),
@@ -165,14 +186,30 @@ export const REPORT_ROLE_DASHBOARD_ROLE_IDS: ReadonlySet<string> = new Set([
   'super-admin',
 ]);
 
-function hasStaffRole(session: ServerSession): boolean {
-  return session.user.roles.some((role) => !PORTAL_ONLY_ROLE_IDS.has(role.roleId.toLowerCase()));
+/**
+ * UATENV-D12: the session's lower-cased role ids. A session without a roles
+ * array, or a role entry without a string roleId, contributes no role, so the
+ * guards deny (access-denied screen) instead of throwing (error boundary).
+ */
+function sessionRoleIds(session: ServerSession): string[] {
+  const roles: unknown = session.user?.roles;
+  if (!Array.isArray(roles)) return [];
+  const ids: string[] = [];
+  for (const role of roles) {
+    const roleId = (role as { roleId?: unknown } | null)?.roleId;
+    if (typeof roleId === 'string' && roleId) ids.push(roleId.toLowerCase());
+  }
+  return ids;
+}
+
+function hasStaffRole(roleIds: readonly string[]): boolean {
+  return roleIds.some((roleId) => !PORTAL_ONLY_ROLE_IDS.has(roleId));
 }
 
 export function canAccessReportRoleDashboard(session: ServerSession): boolean {
+  const roleIds = sessionRoleIds(session);
   return (
-    hasStaffRole(session) &&
-    session.user.roles.some((role) => REPORT_ROLE_DASHBOARD_ROLE_IDS.has(role.roleId.toLowerCase()))
+    hasStaffRole(roleIds) && roleIds.some((roleId) => REPORT_ROLE_DASHBOARD_ROLE_IDS.has(roleId))
   );
 }
 
@@ -182,33 +219,31 @@ export function canAccessReportRoleDashboard(session: ServerSession): boolean {
  * get no web registry grant (the nav must not show these modules to them), but
  * the gateway serves a session where one of them supplies the gateway grant
  * and another role passes the package check (e.g. teacher + school_admin).
- * Only counted for the domains below.
+ * F-D3: the same rule for `fees:read` (gateway STAFF_READS and the portal
+ * roles). Only counted for the domains below.
  */
 const CAMPUS_BASE_READERS: ReadonlySet<string> = new Set<string>(CAMPUS_BASE_READ_ROLE_IDS);
-const BASE_READ_DOMAINS: ReadonlySet<DashboardDomain> = new Set<DashboardDomain>([
-  'hostel',
-  'transport',
-]);
+const DOMAIN_BASE_READERS: Partial<Record<DashboardDomain, ReadonlySet<string>>> = {
+  hostel: CAMPUS_BASE_READERS,
+  transport: CAMPUS_BASE_READERS,
+  fees: new Set<string>(FEES_BASE_READ_ROLE_IDS),
+};
 
 export function canAccessDashboardDomain(session: ServerSession, domain: DashboardDomain): boolean {
-  if (!hasStaffRole(session)) return false;
+  const roleIds = sessionRoleIds(session);
+  if (!hasStaffRole(roleIds)) return false;
   const routeRoles = DOMAIN_ROUTE_ROLE_IDS[domain];
   if (routeRoles) {
-    return session.user.roles.some((role) => routeRoles.has(role.roleId.toLowerCase()));
+    return roleIds.some((roleId) => routeRoles.has(roleId));
   }
   const packageRoles = DOMAIN_PACKAGE_ROLE_IDS[domain];
-  if (
-    packageRoles &&
-    !session.user.roles.some((role) => packageRoles.has(role.roleId.toLowerCase()))
-  ) {
+  if (packageRoles && !roleIds.some((roleId) => packageRoles.has(roleId))) {
     return false;
   }
   // Same multi-role rule as the gateway: some role holds the gateway grant and
   // some (possibly other) role is in the package set.
-  if (
-    BASE_READ_DOMAINS.has(domain) &&
-    session.user.roles.some((role) => CAMPUS_BASE_READERS.has(role.roleId.toLowerCase()))
-  ) {
+  const baseReaders = DOMAIN_BASE_READERS[domain];
+  if (baseReaders && roleIds.some((roleId) => baseReaders.has(roleId))) {
     return true;
   }
   return hasPermission(

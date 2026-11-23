@@ -298,48 +298,36 @@ describe('resolveRequestTenantSlug — header-based tenant resolution', () => {
   });
 });
 
-describe('PUBLISHED_THEME_PATH — endpoint contract', () => {
-  it('matches the `/api/v1/tenant/theme/published` path described in the task brief', () => {
-    expect(PUBLISHED_THEME_PATH).toBe('/api/v1/tenant/theme/published');
+describe('PUBLISHED_THEME_PATH — endpoint contract (PRC-M132)', () => {
+  it('targets the gateway public branding endpoint served by the registration surface', () => {
+    expect(PUBLISHED_THEME_PATH).toBe('/api/v1/registrations/branding');
   });
 });
 
+/** PRC-M132: transport stub returning a JSON body. */
+function jsonTransport(payload: unknown, status = 200) {
+  return vi.fn(async () => ({ status, body: JSON.stringify(payload) }));
+}
+
 /**
- * These cases stub `fetch`, so they prove the mapping, not that SSR branding works.
- * It does not: no backend package serves `PUBLISHED_THEME_PATH`, so the real fetcher
- * gets a 404 and the SSR head renders DEFAULT_BRAND on every request. See the doc
- * comment on `PUBLISHED_THEME_PATH`. The mapping is asserted here anyway because this
- * module keeps its own copy of `normalizeBrandResponse`, and an untested copy is how
- * the two drift apart.
+ * The module keeps its own copy of `normalizeBrandResponse`, so the token mapping is
+ * asserted here too (an untested copy is how the two drift apart).
  */
 describe('fetchPublishedThemeFromGateway — published tokens → Brand (mapping only)', () => {
   beforeEach(() => {
     clearSSRThemeCache();
     vi.unstubAllGlobals();
   });
-
   it('applies published tokens rather than falling back to the default brand', async () => {
-    // This module keeps its own copy of `normalizeBrandResponse` (importing the
-    // client provider's runtime exports from a Server Component throws), so the
-    // token mapping has to be asserted on both copies or the two drift apart.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            tokens: {
-              '--tenant-name': "'EduZo'",
-              '--tenant-primary': 'hsl(12, 76%, 41%)',
-              '--tenant-logo': 'url("/cdn/eduzo/logo.svg")',
-            },
-            revision: 4,
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        ),
-      ),
-    );
-
-    const brand = await fetchPublishedThemeFromGateway('eduzo');
+    const transport = jsonTransport({
+      tokens: {
+        '--tenant-name': "'EduZo'",
+        '--tenant-primary': 'hsl(12, 76%, 41%)',
+        '--tenant-logo': 'url("/cdn/eduzo/logo.svg")',
+      },
+      revision: 4,
+    });
+    const brand = await fetchPublishedThemeFromGateway('eduzo', 'eduzo.proctira.org', transport);
 
     expect(brand.name).toBe('EduZo');
     expect(brand.primary_color).toBe('hsl(12, 76%, 41%)');
@@ -352,19 +340,57 @@ describe('fetchPublishedThemeFromGateway — published tokens → Brand (mapping
     // shortName keys client storage, so deriving it from a defaulted name would
     // rewrite the SSR `--tenant-shortName` token to 'proctiraerp' and move every
     // user's saved theme and locale to an unwritten key.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ tokens: { '--tenant-primary': '#123456' } }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
-      ),
-    );
-
-    const brand = await fetchPublishedThemeFromGateway('eduzo');
-
+    const transport = jsonTransport({ tokens: { '--tenant-primary': '#123456' } });
+    const brand = await fetchPublishedThemeFromGateway('eduzo', 'eduzo.proctira.org', transport);
     expect(brand.shortName).toBe('proctira');
     expect(brandToTenantTokens(brand).shortName).toBe("'proctira'");
+  });
+});
+
+describe('PRC-M132: SSR branding fetch forwards the request Host', () => {
+  beforeEach(() => {
+    clearSSRThemeCache();
+  });
+
+  it('sends the incoming Host and the slug to the public branding endpoint', async () => {
+    const transport = jsonTransport({ slug: 'eduzo', name: 'EduZo', primaryColor: '#0f766e' });
+    const brand = await fetchPublishedThemeFromGateway('eduzo', 'EduZo.Proctira.org', transport);
+    expect(transport).toHaveBeenCalledTimes(1);
+    const [url, host] = transport.mock.calls[0] as unknown as [string, string];
+    expect(new URL(url).pathname).toBe('/api/v1/registrations/branding');
+    expect(new URL(url).searchParams.get('slug')).toBe('eduzo');
+    expect(host).toBe('eduzo.proctira.org');
+    expect(brand.name).toBe('EduZo');
+    expect(brand.primary_color).toBe('#0f766e');
+  });
+
+  it('without a usable Host it does not fetch and renders the default brand', async () => {
+    for (const host of [undefined, '', 'evil host', 'a/b', '<script>']) {
+      const transport = jsonTransport({ name: 'Should not be used' });
+      const brand = await fetchPublishedThemeFromGateway('eduzo', host, transport);
+      expect(transport).not.toHaveBeenCalled();
+      expect(brand.name).toBe('ProctiraERP');
+    }
+  });
+
+  it('a 404 (Host/slug mismatch at the gateway) renders the default brand', async () => {
+    const transport = jsonTransport({ code: 'PUBLIC_BRANDING_NOT_FOUND' }, 404);
+    const brand = await fetchPublishedThemeFromGateway('eduzo', 'other.proctira.org', transport);
+    expect(brand.name).toBe('ProctiraERP');
+  });
+
+  it('caches per Host and slug, so two hosts never share a brand', async () => {
+    const fetcher = vi.fn(async (_slug: string, host?: string) => ({
+      ...(await fetchPublishedThemeFromGateway(
+        'eduzo',
+        host,
+        jsonTransport({ name: host === 'a.proctira.org' ? 'Alpha' : 'Beta' }),
+      )),
+    }));
+    const a = await getPublishedTenantTheme('eduzo', fetcher, 'a.proctira.org');
+    const b = await getPublishedTenantTheme('eduzo', fetcher, 'b.proctira.org');
+    expect(a.brand.name).toBe('Alpha');
+    expect(b.brand.name).toBe('Beta');
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

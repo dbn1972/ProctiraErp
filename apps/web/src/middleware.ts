@@ -3,7 +3,8 @@ import type { NextRequest } from 'next/server';
 import { defaultLocale, isValidLocale, getDirection } from './i18n/config';
 import { isSecureCookieContext } from './lib/auth/cookies';
 import { resolveTenantFromSubdomain, resolveTenantForRequest } from './lib/api/request-tenant';
-import { decodeBase64Url } from './lib/auth/jwt-payload';
+import { readSessionToken, tenantIdFromClaims } from './lib/auth/verified-token';
+import { normaliseTokenClaims } from './lib/auth/token-claims';
 import {
   CSRF_COOKIE,
   CSRF_HEADER,
@@ -245,60 +246,28 @@ export async function getTenantConfig(slug: string): Promise<TenantConfig> {
 // ─── Token Helpers ───────────────────────────────────────────────────────────
 
 /**
- * Returns true when the JWT looks structurally valid AND its `exp` claim is
- * still in the future (with a small buffer).
+ * True when the claims' `exp` is still in the future (with a small buffer).
+ * A missing `exp` can only reach here in decode-only mode (the JWKS verifier
+ * refuses it) and keeps the previous behaviour: treated as fresh.
  */
-function isAccessTokenFresh(token: string): boolean {
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-
-  try {
-    const payload = JSON.parse(decodeBase64Url(parts[1]!)) as { exp?: number };
-    if (!payload.exp) return true;
-    const now = Math.floor(Date.now() / 1000);
-    return payload.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
-  } catch {
-    return false;
-  }
+function isAccessTokenFresh(claims: { exp?: unknown }): boolean {
+  if (!claims.exp) return true;
+  if (typeof claims.exp !== 'number') return false;
+  const now = Math.floor(Date.now() / 1000);
+  return claims.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
 }
 
 /**
- * Returns true when a token is structurally valid (regardless of expiry).
- * Used to decide whether we should attempt a refresh vs. force a re-login.
+ * Normalised role ids from a JWT payload (`roleId` preferred over `roleName`).
+ * UATENV-D06: Keycloak payloads (`realm_access.roles`) are read through the same
+ * `normaliseTokenClaims` the server session uses.
  */
-function isStructurallyValid(token: string): boolean {
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-  try {
-    JSON.parse(decodeBase64Url(parts[1]!));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Normalised role ids from a JWT payload (`roleId` preferred over `roleName`). */
 export function jwtRoleIds(payload: unknown): string[] {
-  if (!payload || typeof payload !== 'object') return [];
-  const roles = (payload as { roles?: unknown }).roles;
-  if (!Array.isArray(roles)) return [];
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
   const ids: string[] = [];
-  for (const role of roles) {
-    if (typeof role === 'string') {
-      const normalised = role.toLowerCase().replace(/_/g, '-').trim();
-      if (normalised) ids.push(normalised);
-      continue;
-    }
-    if (role && typeof role === 'object') {
-      const rec = role as Record<string, unknown>;
-      const raw =
-        (typeof rec.roleId === 'string' && rec.roleId) ||
-        (typeof rec.roleName === 'string' && rec.roleName) ||
-        (typeof rec.id === 'string' && rec.id) ||
-        '';
-      const normalised = raw.toLowerCase().replace(/_/g, '-').trim();
-      if (normalised) ids.push(normalised);
-    }
+  for (const role of normaliseTokenClaims(payload as Record<string, unknown>).roles) {
+    const normalised = role.roleId.toLowerCase().replace(/_/g, '-').trim();
+    if (normalised) ids.push(normalised);
   }
   return ids;
 }
@@ -314,11 +283,18 @@ export function isParentOnlyRoles(roles: readonly string[]): boolean {
 /**
  * Bounce student-only actors off `/parent` and parent-only actors off `/student`.
  * Staff/admin (any non-portal-only role) keep access so a11y sessions still work.
+ * UATENV-D13: portal-only actors landing on the staff dashboard home (`/`, the
+ * default login `returnTo`) go to their own portal.
  */
 export function portalRoleRedirect(
   pathname: string,
   roles: readonly string[],
 ): '/parent' | '/student' | null {
+  if (pathname === '/') {
+    if (isStudentOnlyRoles(roles)) return '/student';
+    if (isParentOnlyRoles(roles)) return '/parent';
+    return null;
+  }
   const onParent = pathname === '/parent' || pathname.startsWith('/parent/');
   const onStudent = pathname === '/student' || pathname.startsWith('/student/');
   if (onParent && isStudentOnlyRoles(roles)) return '/student';
@@ -436,13 +412,17 @@ export async function middleware(request: NextRequest) {
     const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
-    if (!accessToken || !isStructurallyValid(accessToken)) {
+    // PRC-L254: the session gate trusts only a token whose signature, issuer
+    // and audience verify against the IdP JWKS. Expiry is checked separately so
+    // an authentic expired token can still take the refresh path.
+    const claims = accessToken ? await readSessionToken(accessToken, { ignoreExpiry: true }) : null;
+    if (!accessToken || !claims) {
       return redirectToLogin(request, pathname);
     }
 
     // If the access token is expired but a refresh token is present, attempt
     // a transparent refresh by calling our own /api/auth/refresh route.
-    if (!isAccessTokenFresh(accessToken)) {
+    if (!isAccessTokenFresh(claims)) {
       if (!refreshToken) {
         return redirectToLogin(request, pathname);
       }
@@ -470,24 +450,18 @@ export async function middleware(request: NextRequest) {
       return replay;
     }
 
-    // Forward tenant from the JWT claim when present (takes precedence over
-    // subdomain/header for authenticated requests — Design §M priority 3).
-    try {
-      const parts = accessToken.split('.');
-      const payload = JSON.parse(decodeBase64Url(parts[1]!)) as {
-        tenantId?: string;
-        roles?: unknown;
-      };
-      if (payload.tenantId) {
-        response.headers.set('X-Tenant-ID', payload.tenantId);
-      }
-      const bounce = portalRoleRedirect(pathname, jwtRoleIds(payload));
-      if (bounce) {
-        return NextResponse.redirect(new URL(bounce, request.url));
-      }
-    } catch {
-      // Token parsing failed, continue with subdomain-resolved tenant.
+    // Forward tenant from the verified JWT claim when present (takes precedence
+    // over subdomain/header for authenticated requests — Design §M priority 3).
+    // UATENV-D06: platform `tenantId` or Keycloak `tenant_id`; PRC-L213: single-valued only.
+    const claimTenant = tenantIdFromClaims(claims);
+    if (claimTenant) {
+      response.headers.set('X-Tenant-ID', claimTenant);
     }
+    const bounce = portalRoleRedirect(pathname, jwtRoleIds(claims));
+    if (bounce) {
+      return NextResponse.redirect(new URL(bounce, request.url));
+    }
+    // A payload that does not decode keeps the subdomain-resolved tenant.
   }
 
   return response;

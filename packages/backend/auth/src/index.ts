@@ -133,6 +133,7 @@ export {
   createOIDCProvider,
   SAMLProvider,
   DefaultSAMLResponseParser,
+  NodeSamlResponseParser,
   createSAMLProvider,
   // Handler
   ExternalAuthHandler,
@@ -211,7 +212,7 @@ export {
   keycloakRoleCatalog,
   mapKeycloakRoles,
 } from './keycloak/roles.js';
-export type { KeycloakRealmRole } from './keycloak/roles.js';
+export type { KeycloakRealmRole, KeycloakRoleCatalogEntry } from './keycloak/roles.js';
 export {
   KeycloakJwksClient,
   KeycloakTokenError,

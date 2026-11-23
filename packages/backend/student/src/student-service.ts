@@ -23,6 +23,7 @@ import type {
   StudentEntity,
   StudentFilter,
   StudentRepository,
+  StudentSearchOptions,
   StudentUpdateOptions,
 } from './student-repository.js';
 import { StaleStudentUpdateError, updatedAtMatches } from './student-repository.js';
@@ -303,15 +304,16 @@ export class StudentService {
   }
 
   /**
-   * Full-text search on student name and national ID.
-   * Uses PostgreSQL tsvector in production; simulated in-memory for tests.
+   * Search on student name, and on national ID only when `options.matchNationalId`
+   * is set (HN-F4-R3: callers pass it only for roles that may view national IDs).
    */
   async search(
     tenantId: string,
     query: string,
     pagination: PaginationOptions,
+    options?: StudentSearchOptions,
   ): Promise<PaginatedResult<StudentEntity>> {
-    return this.repository.search(tenantId, query, pagination);
+    return this.repository.search(tenantId, query, pagination, options);
   }
 
   /**

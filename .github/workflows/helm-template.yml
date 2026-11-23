@@ -213,6 +213,13 @@ jobs:
         run: node --test tools/scripts/check-dev-secrets-scope.test.mjs
       - name: Fail when a dev placeholder credential leaks outside overlays/development (PRC-L475)
         run: node tools/scripts/check-dev-secrets-scope.mjs
+      # PRC-L565: tools/scripts/__tests__ is not reached by `turbo run test`;
+      # run the DNS-01 ClusterIssuer render contract here, where helm is installed.
+      - name: Unit-test DNS-01 ClusterIssuer render (PRC-L565)
+        run: npx vitest run tools/scripts/__tests__/helm-cluster-issuer.test.ts
+      # PRC-M624: Object Lock GOVERNANCE->COMPLIANCE switch and 35-day prod floor.
+      - name: Unit-test backup Object Lock governance (PRC-M624)
+        run: node --test tools/scripts/__tests__/backup-object-lock-governance.test.mjs
       - name: Lint + template charts (deploy path check)
         run: |
           ./tools/scripts/helm-template-check.sh

@@ -33,6 +33,7 @@ import type {
   StudentBulkWrite,
   StudentBulkWriteResult,
   StudentRepository,
+  StudentSearchOptions,
   StudentTxnAuditClient,
   StudentTxnAuditEvent,
   StudentTxnAuditPort,
@@ -410,9 +411,10 @@ export class PrismaStudentRepository implements StudentRepository {
     tenantId: string,
     query: string,
     pagination: PaginationOptions,
+    options: StudentSearchOptions = {},
   ): Promise<PaginatedResult<StudentEntity>> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
-      const where = buildSearchWhere(tenantId, query);
+      const where = buildSearchWhere(tenantId, query, options.matchNationalId === true);
       const { skip, take } = buildPageWindow(pagination);
 
       const [totalItems, rows] = await Promise.all([
@@ -475,7 +477,7 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
     where.gender = filter.gender;
   }
   if (filter.search) {
-    where.OR = nameOrNationalIdMatch(filter.search);
+    where.OR = nameOrNationalIdMatch(filter.search, filter.matchNationalId === true);
   }
   if (filter.ids) {
     where.id = { in: filter.ids };
@@ -492,10 +494,14 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
   return where;
 }
 
-function buildSearchWhere(tenantId: string, query: string): Record<string, unknown> {
+function buildSearchWhere(
+  tenantId: string,
+  query: string,
+  matchNationalId: boolean,
+): Record<string, unknown> {
   // Each whitespace-separated term must match the first name, last name, or
-  // national id (case-insensitive). This makes "John Smith" match a student
-  // named John Smith, while a single term still does a broad contains match.
+  // (when allowed) national id, case-insensitively. This makes "John Smith" match
+  // a student named John Smith, while a single term still does a broad contains match.
   const terms = query.trim().split(/\s+/).filter(Boolean);
   if (terms.length === 0) {
     return { tenantId, deletedAt: null };
@@ -503,13 +509,22 @@ function buildSearchWhere(tenantId: string, query: string): Record<string, unkno
   return {
     tenantId,
     deletedAt: null,
-    AND: terms.map((term) => ({ OR: nameOrNationalIdMatch(term) })),
+    AND: terms.map((term) => ({ OR: nameOrNationalIdMatch(term, matchNationalId) })),
   };
 }
 
-function nameOrNationalIdMatch(term: string): Array<Record<string, unknown>> {
+/**
+ * HN-F4-R3: `nationalId` is matched only when the caller may view it; otherwise a
+ * role that sees masked national IDs could still confirm one by searching for it.
+ */
+function nameOrNationalIdMatch(
+  term: string,
+  matchNationalId: boolean,
+): Array<Record<string, unknown>> {
   const contains = { contains: term, mode: 'insensitive' as const };
-  return [{ firstName: contains }, { lastName: contains }, { nationalId: contains }];
+  const match: Array<Record<string, unknown>> = [{ firstName: contains }, { lastName: contains }];
+  if (matchNationalId) match.push({ nationalId: contains });
+  return match;
 }
 
 function buildOrderBy(pagination: PaginationOptions): Record<string, 'asc' | 'desc'> {

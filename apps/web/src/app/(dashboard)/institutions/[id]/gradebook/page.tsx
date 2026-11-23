@@ -14,7 +14,7 @@ import { GradebookSectionSwitcher } from '@/components/gradebook/section-switche
 import { GradebookWorkflowPanel } from '@/components/gradebook/gradebook-workflow-panel';
 import { Card, CardContent } from '@proctira/ui/components';
 import { getSession } from '@/lib/auth/server';
-import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
+import { formatCodeNameLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { getStudent, listStudents, type Student } from '@/lib/api/students';
 import {
   listClassRanks,
@@ -37,6 +37,8 @@ import { getTenantToday } from '@/lib/tenant-today';
 import { humanGradebookError, reportCardStatusLabel } from '@/lib/gradebook/presentation';
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
+
+import { toGradebookStudentOption } from './student-options';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,15 +94,6 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const jobs = jobsResult.ok ? jobsResult.data : [];
   const comments = commentsResult.ok ? commentsResult.data : [];
   const directory = studentsResult.data ?? [];
-  const studentCode = (student: Student) => {
-    const custom = student.customData?.gradebookCode;
-    return typeof custom === 'string' && custom.length > 0 ? custom : student.nationalId;
-  };
-  const toOption = (student: Student) => ({
-    id: student.id,
-    label: formatPersonLabel(student.firstName, student.lastName, studentCode(student)),
-    searchText: `${student.firstName} ${student.lastName} ${studentCode(student) ?? ''}`,
-  });
   const activePeriodIds = new Set(activeAcademicPeriods(periods, today).map((period) => period.id));
   const preferred = pickDefaultSection(sections, activePeriodIds);
   const sectionId =
@@ -119,7 +112,8 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const extras = (
     await Promise.all(missingIds.map((id) => getStudent(id).catch(() => null)))
   ).filter((student): student is Student => student !== null);
-  const studentOptions = [...directory, ...extras].map(toOption);
+  // HN-F4-R1: labels never carry the national ID.
+  const studentOptions = [...directory, ...extras].map(toGradebookStudentOption);
   const studentLabel = new Map(studentOptions.map((option) => [option.id, option.label]));
   const entryError = entriesResult.ok ? null : entriesResult.error;
   const ranksResult = sectionId ? await listClassRanks(sectionId) : { ok: true as const, data: [] };

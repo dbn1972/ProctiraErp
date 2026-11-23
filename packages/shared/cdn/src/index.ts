@@ -19,6 +19,7 @@ export type {
   InvalidationResult,
   CdnAdapterHealth,
   CdnAdapter,
+  CdnAdapterDeps,
 } from './types.js';
 export { CdnConfigSchema } from './types.js';
 
