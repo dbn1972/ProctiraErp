@@ -27,7 +27,9 @@ import { isAssessmentAdmin, isReportCardOperator } from './assessment-access.js'
 import { assessmentAuditContextOf } from './assessment-audit.js';
 import { installAssessmentRouteGuard, requireAssessmentAction } from './assessment-http-guard.js';
 import {
+  isAssessmentPortalReader,
   requireAssessmentOwnership,
+  type AssessmentPortalBinding,
   type AssessmentTeachingScope,
 } from './assessment-ownership.js';
 import {
@@ -59,6 +61,8 @@ export interface ReportCardRoutesOptions {
   prefix?: string;
   /** PRC-M160 / PRC-L274: teacher -> subject / student ownership lookup. */
   teachingScope?: AssessmentTeachingScope | null;
+  /** PRC-L274: students a guardian / parent / student principal may read. */
+  portalBinding?: AssessmentPortalBinding | null;
 }
 
 /**
@@ -171,7 +175,12 @@ export async function registerReportCardRoutes(
 ): Promise<void> {
   // W1-SEC-02: package-level RBAC; PRC-L083: installed once per instance.
   installAssessmentRouteGuard(fastify);
-  const { reportCardService, prefix = '/report-cards', teachingScope = null } = options;
+  const {
+    reportCardService,
+    prefix = '/report-cards',
+    teachingScope = null,
+    portalBinding = null,
+  } = options;
 
   // ─── Template Routes ───────────────────────────────────────────────────
 
@@ -485,6 +494,12 @@ export async function registerReportCardRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          studentIds: [result.data.studentId],
+        }))
+      )
+        return;
 
       const comments = await reportCardService.getComments(
         tenantId,
@@ -528,6 +543,12 @@ export async function registerReportCardRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          studentIds: [result.data.studentId],
+        }))
+      )
+        return;
 
       try {
         const job = await reportCardService.queueReportCardGeneration(
@@ -573,6 +594,12 @@ export async function registerReportCardRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          studentIds: result.data.studentIds,
+        }))
+      )
+        return;
 
       try {
         const bulkResult = await reportCardService.queueBulkReportCardGeneration(
@@ -625,6 +652,13 @@ export async function registerReportCardRoutes(
 
       try {
         const job = await reportCardService.getJobStatus(tenantId, paramsResult.data.jobId);
+        // PRC-L274: a teacher-only caller sees only jobs of students they teach.
+        if (
+          !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+            studentIds: [job.studentId],
+          }))
+        )
+          return;
         return reply.status(200).send(formatJobResponse(job));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -693,6 +727,8 @@ export async function registerReportCardRoutes(
    */
   fastify.get(
     `${prefix}/jobs/:jobId/download`,
+    // PRC-L274: the package role guard lets portal readers through to the binding check.
+    { config: { assessmentPortalRead: true } },
     async function downloadReportCardHandler(
       request: FastifyRequest<{ Params: ReportCardJobParams }>,
       reply: FastifyReply,
@@ -717,6 +753,33 @@ export async function registerReportCardRoutes(
       }
 
       try {
+        // PRC-L274: per-student authorization before any bytes. Guardians / parents /
+        // students download only cards of students bound to them (404 otherwise, so a job
+        // id never confirms another child's card); teacher-only staff need to teach the
+        // student. The download itself writes the read audit (PRC-M495).
+        const job = await reportCardService.getJobStatus(tenantId, paramsResult.data.jobId);
+        const user = (request as FastifyRequest & { user?: { sub?: unknown; roles?: unknown } })
+          .user;
+        if (isAssessmentPortalReader(user?.roles)) {
+          const actorId = typeof user?.sub === 'string' ? user.sub : '';
+          const readable =
+            portalBinding && actorId
+              ? await portalBinding.listReadableStudentIds(tenantId, actorId)
+              : [];
+          if (!readable.includes(job.studentId)) {
+            return reply.status(404).send({
+              code: 'NOT_FOUND',
+              message: 'Report card not found',
+              statusCode: 404,
+            });
+          }
+        } else if (
+          !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+            studentIds: [job.studentId],
+          }))
+        ) {
+          return;
+        }
         const artifact = await reportCardService.getReportCardPdf(
           tenantId,
           paramsResult.data.jobId,

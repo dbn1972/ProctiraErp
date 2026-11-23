@@ -267,6 +267,18 @@ export async function registerResultRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(
+          request,
+          reply,
+          tenantId,
+          teachingScope,
+          result.data.studentId
+            ? { studentIds: [result.data.studentId] }
+            : { subjectIds: [result.data.subjectId] },
+        ))
+      )
+        return;
 
       try {
         if (result.data.studentId) {

@@ -34,6 +34,8 @@ export interface TeachingScopeDirectory {
     principalIds: readonly string[],
     studentId: string,
   ): Promise<boolean>;
+  /** PRC-L274: the student record(s) a learner principal is (portal self-service). */
+  studentIdsForLearner(tenantId: string, learnerUserId: string): Promise<string[]>;
   learnerInSection(tenantId: string, learnerUserId: string, sectionId: string): Promise<boolean>;
   learnerInInstitution(
     tenantId: string,
@@ -114,6 +116,14 @@ export function createPgTeachingScopeDirectory(run: Runner): TeachingScopeDirect
           [tenantId, principals, studentId],
         ),
       );
+    },
+
+    async studentIdsForLearner(tenantId, learnerUserId) {
+      if (!learnerUserId) return [];
+      return run(tenantId, async (db) => {
+        const res = await db.query(`${LEARNER_STUDENT} ORDER BY st.id`, [tenantId, learnerUserId]);
+        return (res.rows as Array<{ id: unknown }>).map((row) => String(row.id));
+      });
     },
 
     async learnerInSection(tenantId, learnerUserId, sectionId) {

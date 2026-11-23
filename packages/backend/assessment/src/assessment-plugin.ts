@@ -11,7 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { AssessmentAuditSink } from './assessment-audit.js';
-import type { AssessmentTeachingScope } from './assessment-ownership.js';
+import type { AssessmentPortalBinding, AssessmentTeachingScope } from './assessment-ownership.js';
 import type {
   GradingSchemeRepository,
   AssessmentItemRepository,
@@ -88,6 +88,11 @@ export interface AssessmentPluginOptions {
    * report cards when they teach that student. Omitted: production-like envs fail closed (503).
    */
   teachingScope?: AssessmentTeachingScope | null;
+  /**
+   * PRC-L274: students a guardian / parent / student may read, so the report-card PDF
+   * download serves families their own cards. Omitted: portal callers get 404.
+   */
+  portalBinding?: AssessmentPortalBinding | null;
   /** Route prefix for grading schemes (default: '/grading-schemes') */
   gradingSchemesPrefix?: string;
   /** Route prefix for assessment items (default: '/assessment-items') */
@@ -257,6 +262,7 @@ export const assessmentPlugin = fp(
         reportCardService,
         prefix: reportCardsPrefix,
         teachingScope: options.teachingScope ?? null,
+        portalBinding: options.portalBinding ?? null,
       });
     }
   },

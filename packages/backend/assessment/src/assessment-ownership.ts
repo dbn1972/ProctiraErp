@@ -16,6 +16,8 @@
 import { AppError, isProductionLike } from '@proctira/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import { hasAssessmentAccess } from './assessment-access.js';
+
 export interface AssessmentTeachingScope {
   teachesSubject(
     tenantId: string,
@@ -27,6 +29,28 @@ export interface AssessmentTeachingScope {
     principalIds: readonly string[],
     studentId: string,
   ): Promise<boolean>;
+}
+
+/**
+ * PRC-L274: resolves the students a guardian / parent (linked children) or a
+ * student (their own record) may read.
+ */
+export interface AssessmentPortalBinding {
+  listReadableStudentIds(tenantId: string, actorUserId: string): Promise<string[]>;
+}
+
+const PORTAL_ROLES: ReadonlySet<string> = new Set(['guardian', 'parent', 'student']);
+
+/**
+ * PRC-L274: a portal principal with no assessment staff role. Such callers may
+ * reach routes marked `config.assessmentPortalRead` and are bound to their
+ * students there; every other assessment route stays staff-only.
+ */
+export function isAssessmentPortalReader(roles: unknown): boolean {
+  const ids = roleIdsOnly(roles);
+  return (
+    ids.some((role) => PORTAL_ROLES.has(role)) && !hasAssessmentAccess(roles, 'assessment.read')
+  );
 }
 
 /** Role ids whose assessment access is institution-wide (not bound to teaching). */

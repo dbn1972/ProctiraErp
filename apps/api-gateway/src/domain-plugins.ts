@@ -1291,6 +1291,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Durable board HTML report cards also live at `/gradebook/report-cards`.
       // W2-JOB-02: durable queue publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       const reportCardQueueHandle = await createReportCardPublisherFromEnv();
+      const assessmentParentRepo = createParentPortalRepository();
       if (reportCardQueueHandle) {
         scope.addHook('onClose', async () => {
           await reportCardQueueHandle.disconnect();
@@ -1314,6 +1315,17 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         // a student's assessment data only when they teach that student (staff.user_id ->
         // section_meetings / sections -> section_enrollments). No pool: production fails closed.
         teachingScope: sharedTeachingScopeDirectory(),
+        // PRC-L274: families download only their own cards — guardians/parents through the
+        // child-link table (as gradebook), a student through their own student record.
+        portalBinding: {
+          listReadableStudentIds: async (tenantId, actorUserId) => {
+            const links = await assessmentParentRepo.listChildLinksForParent(tenantId, actorUserId);
+            const own =
+              (await sharedTeachingScopeDirectory()?.studentIdsForLearner(tenantId, actorUserId)) ??
+              [];
+            return [...links.map((link) => link.studentId), ...own];
+          },
+        },
       });
     },
   },
