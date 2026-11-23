@@ -9,5 +9,8 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     passWithNoTests: true,
+    // H-D3: the 304 migration cases take ACCESS EXCLUSIVE on the hostel tables
+    // (rolled back); keep files serial so they never race pg-hostel-repository.test.ts.
+    fileParallelism: false,
   },
 });
