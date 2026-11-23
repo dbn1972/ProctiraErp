@@ -278,8 +278,11 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        // PRC-M630: policy lifecycle (activate) requires tenant admin.
+        // PRC-M606: policy lifecycle (activate) requires tenant admin.
         assertCanManagePolicy(request);
+        // PRC-M610: a platform-scope policy may only be activated by a platform admin.
+        const existing = await policyService.getById(tenantId, paramsResult.data.id);
+        assertCanAuthorScope(request, existing.scope);
         const actor = requireActor(request);
         const policy = await policyService.activate(tenantId, paramsResult.data.id, actor);
         return reply.status(200).send(formatPolicyResponse(policy));
@@ -321,8 +324,11 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        // PRC-M630: policy lifecycle (deactivate) requires tenant admin.
+        // PRC-M606: policy lifecycle (deactivate) requires tenant admin.
         assertCanManagePolicy(request);
+        // PRC-M610: a platform-scope policy may only be deactivated by a platform admin.
+        const existing = await policyService.getById(tenantId, paramsResult.data.id);
+        assertCanAuthorScope(request, existing.scope);
         const actor = requireActor(request);
         const policy = await policyService.deactivate(tenantId, paramsResult.data.id, actor);
         return reply.status(200).send(formatPolicyResponse(policy));
@@ -671,8 +677,11 @@ export async function registerPolicyRoutes(
       }
 
       try {
-        // PRC-M609/M630: removing a policy assignment requires tenant admin.
+        // PRC-M606: removing a policy assignment requires tenant admin.
         assertCanManagePolicy(request);
+        // PRC-M610: detaching a platform-scope policy is platform-admin only.
+        const existing = await policyService.getById(tenantId, request.params.id);
+        assertCanAuthorScope(request, existing.scope);
         const actor = requireActor(request);
         await policyService.removeAssignment(
           tenantId,

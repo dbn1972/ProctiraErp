@@ -248,3 +248,117 @@ describe('PRC-M610 only platform admins author platform-scope policies', () => {
     expect(res.statusCode).toBe(403);
   });
 });
+
+/**
+ * Create, activate and assign a platform-scope policy as a platform admin.
+ * Returns the policy id and its platform assignment id.
+ */
+async function createActivePlatformPolicy(): Promise<{ id: string; assignmentId: string }> {
+  const createRes = await app.inject({
+    method: 'POST',
+    url: '/policies',
+    headers: headers(PLATFORM),
+    payload: platformPolicyBody,
+  });
+  expect(createRes.statusCode).toBe(201);
+  const id = createRes.json().id as string;
+  const activateRes = await app.inject({
+    method: 'POST',
+    url: `/policies/${id}/activate`,
+    headers: headers(PLATFORM),
+  });
+  expect(activateRes.statusCode).toBe(200);
+  const assignRes = await app.inject({
+    method: 'POST',
+    url: `/policies/${id}/assignments`,
+    headers: headers(PLATFORM),
+    payload: { policyId: id, targetType: 'platform' },
+  });
+  expect(assignRes.statusCode).toBe(201);
+  return { id, assignmentId: assignRes.json().id as string };
+}
+
+describe('PRC-M610 platform-scope lifecycle is platform-admin only', () => {
+  it('rejects a tenant admin deactivating a platform-scope policy with 403', async () => {
+    const { id } = await createActivePlatformPolicy();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/policies/${id}/deactivate`,
+      headers: headers(TENANT),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN');
+  });
+
+  it('rejects a tenant admin activating a platform-scope policy with 403', async () => {
+    const { id } = await createActivePlatformPolicy();
+    const deactivateRes = await app.inject({
+      method: 'POST',
+      url: `/policies/${id}/deactivate`,
+      headers: headers(PLATFORM),
+    });
+    expect(deactivateRes.statusCode).toBe(200);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/policies/${id}/activate`,
+      headers: headers(TENANT),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN');
+  });
+
+  it('rejects a tenant admin removing a platform-scope policy assignment with 403', async () => {
+    const { id, assignmentId } = await createActivePlatformPolicy();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/policies/${id}/assignments/${assignmentId}`,
+      headers: headers(TENANT),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN');
+    const listRes = await app.inject({
+      method: 'GET',
+      url: `/policies/${id}/assignments`,
+      headers: headers(TENANT),
+    });
+    expect(listRes.json().data).toHaveLength(1);
+  });
+
+  it('allows a platform admin to deactivate and detach a platform-scope policy', async () => {
+    const { id, assignmentId } = await createActivePlatformPolicy();
+    const removeRes = await app.inject({
+      method: 'DELETE',
+      url: `/policies/${id}/assignments/${assignmentId}`,
+      headers: headers(PLATFORM),
+    });
+    expect(removeRes.statusCode).toBe(204);
+    const deactivateRes = await app.inject({
+      method: 'POST',
+      url: `/policies/${id}/deactivate`,
+      headers: headers(PLATFORM),
+    });
+    expect(deactivateRes.statusCode).toBe(200);
+  });
+
+  it('still allows a tenant admin to detach and deactivate a tenant-scope policy', async () => {
+    const id = await createActivePolicy();
+    const assignRes = await app.inject({
+      method: 'POST',
+      url: `/policies/${id}/assignments`,
+      headers: headers(TENANT),
+      payload: { policyId: id, targetType: 'tenant', targetId: tenantId },
+    });
+    const removeRes = await app.inject({
+      method: 'DELETE',
+      url: `/policies/${id}/assignments/${assignRes.json().id}`,
+      headers: headers(TENANT),
+    });
+    expect(removeRes.statusCode).toBe(204);
+    const deactivateRes = await app.inject({
+      method: 'POST',
+      url: `/policies/${id}/deactivate`,
+      headers: headers(TENANT),
+    });
+    expect(deactivateRes.statusCode).toBe(200);
+  });
+});

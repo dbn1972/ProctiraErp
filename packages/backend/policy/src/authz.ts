@@ -11,8 +11,9 @@
  * PRC-M610 — a policy carries a `scope` of `platform | tenant | institution`.
  * A `platform`-scope policy applies across every tenant through the evaluation
  * inheritance chain, so only a **platform admin** may author (create or update
- * into) a `platform`-scope policy, or assign a policy to the `platform` target.
- * A tenant admin attempting either is rejected. This stops a single tenant from
+ * into) a `platform`-scope policy, activate, deactivate or detach one, or assign
+ * a policy to the `platform` target. A tenant admin attempting any of these is
+ * rejected. This stops a single tenant from
  * writing policy that would leak across the whole platform.
  *
  * Role ids come from the canonical shared sets in `@proctira/common` so a
@@ -76,8 +77,9 @@ export function assertCanManagePolicy(request: FastifyRequest): void {
 
 /**
  * Fail-closed guard for platform-scope authorship (PRC-M610): only platform
- * admins may create or update a policy whose scope is `platform`, or assign a
- * policy to the `platform` target. A tenant admin is rejected.
+ * admins may create, update, activate, deactivate or detach a policy whose
+ * scope is `platform`, or assign a policy to the `platform` target. A tenant
+ * admin is rejected.
  *
  * @param request the verified request.
  * @param scope the policy/assignment scope under consideration; the guard only
