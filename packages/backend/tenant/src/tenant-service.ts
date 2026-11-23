@@ -20,6 +20,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { validateBrandingTokens } from './branding-validation.js';
 import { assertTenantConfigValues } from './config-validation.js';
+import {
+  createDomainProofChecker,
+  dnsChallengeName,
+  DOMAIN_VERIFICATION_TTL_MS,
+  generateDomainVerificationToken,
+  httpsChallengeUrl,
+  isDomainVerificationCurrent,
+  type DomainProofChecker,
+} from './custom-domain-verification.js';
+import { invalidatePublicHostCaches } from './public-tenant-resolver.js';
 import type {
   CreateTenantInput,
   UpdateTenantInput,
@@ -41,6 +51,7 @@ import type {
 } from './schemas.js';
 import type { TenantDefaultsSeeder } from './tenant-provisioner.js';
 import type {
+  TenantDataExportState,
   TenantEntity,
   DomainEntity,
   TenantThemeVersionEntity,
@@ -55,6 +66,27 @@ const logger = createLogger({ name: 'tenant-service' });
 /** Fail-closed gate for permanent destruction (W1-SEC-06). */
 export interface DestructiveDeleteGuard {
   assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
+}
+
+/**
+ * PRC-L372: exports a tenant's data before decommission (`exportData`, default true).
+ * Must be idempotent per tenant; returns a reference to the produced export.
+ */
+export interface TenantDataExporter {
+  exportTenantData(
+    tenantId: string,
+    context: { reason: string },
+  ): Promise<{ exportId: string; location?: string }>;
+}
+
+/** Optional TenantService collaborators. */
+export interface TenantServiceOptions {
+  /** PRC-L372: decommission data exporter. Without one a requested export stays `pending`. */
+  dataExporter?: TenantDataExporter;
+  /** PRC-L169: custom-domain ownership proof (default: DNS TXT, then HTTPS well-known). */
+  domainProofChecker?: DomainProofChecker;
+  /** Clock (tests). */
+  now?: () => Date;
 }
 
 /** Input handed to the admin provisioner for a tenant in 'provisioning' status. */
@@ -84,7 +116,19 @@ export class TenantService {
     private readonly adminProvisioner?: TenantAdminProvisioner,
     /** PRC-H099: seeds built-in roles + default settings before the admin. */
     private readonly defaultsSeeder?: TenantDefaultsSeeder,
-  ) {}
+    options: TenantServiceOptions = {},
+  ) {
+    this.domainProofChecker = options.domainProofChecker ?? createDomainProofChecker();
+    this.clock = options.now ?? (() => new Date());
+    this.dataExporter = options.dataExporter;
+  }
+
+  /** PRC-L372: decommission data exporter (optional). */
+  private readonly dataExporter?: TenantDataExporter;
+
+  /** PRC-L169: DNS TXT / HTTPS ownership proof for custom domains. */
+  private readonly domainProofChecker: DomainProofChecker;
+  private readonly clock: () => Date;
 
   /**
    * PRC-H098: lifecycle status changes must reach enforcement (the gateway suspension gate).
@@ -231,6 +275,100 @@ export class TenantService {
   }
 
   /**
+   * PRC-M218: provision an isolated sandbox tenant for a developer sandbox.
+   *
+   * The tenant is a real, separate tenant (own id, slug, RLS scope and seeded defaults) flagged
+   * `sandbox: true`. It has no interactive admin user: sandboxes are driven through developer
+   * credentials. A failed seed removes the never-active record, as for normal provisioning.
+   */
+  async provisionSandboxTenant(input: { name: string; ownerRef: string }): Promise<TenantEntity> {
+    const id = uuidv4();
+    const slug = `sbx-${id.replace(/-/g, '').slice(0, 12)}`;
+    const tenant = await this.repository.createTenant({
+      id,
+      name: input.name,
+      slug,
+      status: 'provisioning',
+      plan: 'sandbox',
+      region: null,
+      config: {
+        branding: { organizationName: input.name },
+        locale: {
+          defaultLocale: 'en',
+          supportedLocales: ['en'],
+          timezone: 'UTC',
+          dateFormat: 'YYYY-MM-DD',
+        },
+        features: {
+          modules: {},
+          customFields: true,
+          bulkImport: false,
+          apiAccess: true,
+          webhooks: true,
+        },
+        security: {
+          mfaRequired: false,
+          sessionTimeoutMinutes: 60,
+          passwordMinLength: 12,
+          passwordRequireSpecialChar: true,
+        },
+      },
+      suspendedAt: null,
+      suspendedReason: null,
+      decommissionedAt: null,
+      dataRetentionUntil: null,
+      legalHold: false,
+      sandbox: true,
+    });
+    try {
+      await this.defaultsSeeder?.seedTenantDefaults(tenant);
+    } catch (error) {
+      logger.error({ tenantId: id, err: error }, 'Sandbox tenant seeding failed; removing it');
+      try {
+        await this.defaultsSeeder?.removeTenantDefaults?.(id);
+      } catch {
+        // best effort
+      }
+      if (this.repository.discardProvisioningTenant) {
+        await this.repository.discardProvisioningTenant(id);
+      } else {
+        await this.repository.deleteTenant(id);
+      }
+      throw new BusinessRuleError('Sandbox tenant provisioning failed');
+    }
+    const active = await this.applyUpdate(id, { status: 'active' });
+    logger.info({ tenantId: id, slug, ownerRef: input.ownerRef }, 'Sandbox tenant provisioned');
+    return active;
+  }
+
+  /**
+   * PRC-M218: tear a sandbox tenant down for real — decommission (0-day retention, export
+   * waived: sandbox data is disposable) then permanently delete through the normal guards
+   * (legal hold and the destructive-delete guard still apply). Refuses non-sandbox tenants.
+   */
+  async teardownSandboxTenant(tenantId: string): Promise<void> {
+    const tenant = await this.repository.findTenantById(tenantId);
+    if (!tenant) return; // already gone
+    if (tenant.sandbox !== true) {
+      throw new BusinessRuleError('Refusing to tear down a tenant that is not a sandbox');
+    }
+    if (tenant.status !== 'decommissioned') {
+      await this.decommissionTenant(tenantId, {
+        reason: 'Developer sandbox destroyed',
+        retainDataDays: 0,
+        exportData: false,
+      });
+    }
+    await this.deleteTenant(tenantId);
+    try {
+      await this.defaultsSeeder?.removeTenantDefaults?.(tenantId);
+    } catch (error) {
+      logger.error({ tenantId, err: error }, 'Failed to remove sandbox tenant defaults');
+    }
+    logger.info({ tenantId }, 'Sandbox tenant torn down');
+  }
+
+  /**
    * Update an existing tenant's mutable attributes.
    *
    * @throws NotFoundError if tenant not found
@@ -360,6 +498,15 @@ export class TenantService {
    * - Data is retained for the specified retention period
    * - After retention period, data is eligible for permanent deletion
    *
+   * PRC-L372:
+   * - `exportData` (default true) is honoured: with a configured exporter the export runs
+   *   before the status changes (a failed export aborts the decommission); without one the
+   *   obligation is recorded as `pending` and permanent deletion is refused until it is met.
+   *   `exportData: false` records an explicit waiver.
+   * - Custom domains are unverified at once and stop resolving.
+   * - Sessions: the gateway's lifecycle listener revokes every session of a tenant entering a
+   *   blocking status (`decommissioned` included) and blocks the tenant's requests.
+   *
    * @throws NotFoundError if tenant not found
    * @throws BusinessRuleError if tenant is already decommissioned
    */
@@ -377,12 +524,43 @@ export class TenantService {
     const retentionDeadline = new Date();
     retentionDeadline.setDate(retentionDeadline.getDate() + retainDays);
 
+    // PRC-L372: honour exportData before anything changes.
+    const requestedAt = this.clock();
+    let dataExport: TenantDataExportState;
+    if (input.exportData === false) {
+      dataExport = { status: 'waived', requestedAt };
+    } else if (this.dataExporter) {
+      let exported: { exportId: string; location?: string };
+      try {
+        exported = await this.dataExporter.exportTenantData(id, { reason: input.reason });
+      } catch (error) {
+        logger.error(
+          { tenantId: id, err: error },
+          'Tenant data export failed; not decommissioning',
+        );
+        throw new BusinessRuleError('Tenant data export failed; the tenant was not decommissioned');
+      }
+      dataExport = {
+        status: 'completed',
+        requestedAt,
+        exportId: exported.exportId,
+        ...(exported.location ? { location: exported.location } : {}),
+        completedAt: this.clock(),
+      };
+    } else {
+      dataExport = { status: 'pending', requestedAt };
+    }
+
     const updated = await this.applyUpdate(id, {
       status: 'decommissioned',
       decommissionedAt: new Date(),
       dataRetentionUntil: retentionDeadline,
+      dataExport,
     });
 
+    // PRC-L372: a decommissioned tenant's custom domains stop resolving immediately.
+    const unverified = (await this.repository.unverifyTenantDomains?.(id)) ?? [];
+    for (const domain of unverified) invalidatePublicHostCaches(domain.domain);
     logger.info(
       { tenantId: id, reason: input.reason, retainDays, retentionDeadline },
       'Tenant decommissioned',
@@ -432,6 +610,12 @@ export class TenantService {
 
     if (tenant.legalHold) {
       throw new BusinessRuleError(`Cannot permanently delete tenant '${id}': legal hold is active`);
+    }
+    // PRC-L372: a requested decommission export must complete before the data is destroyed.
+    if (tenant.dataExport?.status === 'pending') {
+      throw new BusinessRuleError(
+        `Cannot permanently delete tenant '${id}': the requested data export has not completed`,
+      );
     }
     if (this.destructiveDeleteGuard) {
       await this.destructiveDeleteGuard.assertDestructiveDeleteAllowed(id);
@@ -565,6 +749,8 @@ export class TenantService {
       primary: input.primary ?? false,
       verified: false,
       createdAt: new Date(),
+      // PRC-L169: ownership challenge the tenant publishes via DNS TXT or HTTPS.
+      verificationToken: generateDomainVerificationToken(),
     });
 
     logger.info({ tenantId, domain: input.domain }, 'Domain added to tenant');
@@ -583,12 +769,77 @@ export class TenantService {
       throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
     }
 
+    const target = (await this.repository.findDomainsByTenant(tenantId)).find(
+      (d) => d.id === domainId,
+    );
     const removed = await this.repository.removeDomain(tenantId, domainId);
     if (!removed) {
       throw new NotFoundError(`Domain with id '${domainId}' not found for tenant '${tenantId}'`);
     }
-
+    // PRC-L369: a removed domain stops resolving at once in this process (others: cache TTL).
+    invalidatePublicHostCaches(target?.domain);
     logger.info({ tenantId, domainId }, 'Domain removed from tenant');
+  }
+
+  /**
+   * PRC-L169: verify ownership of a custom domain and bind the hostname to this tenant
+   * exclusively. The proof is a DNS TXT record `_proctira-verify.<domain>` or an HTTPS
+   * well-known file carrying the domain's challenge token.
+   *
+   * @throws NotFoundError if the tenant does not exist or does not own the domain
+   * @throws BusinessRuleError if the tenant is decommissioned or the proof is not found
+   * @throws ConflictError if the hostname is verified for another tenant
+   */
+  async verifyDomain(tenantId: string, domainId: string): Promise<DomainEntity> {
+    const tenant = await this.repository.findTenantById(tenantId);
+    if (!tenant) {
+      throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
+    }
+    if (tenant.status === 'decommissioned') {
+      throw new BusinessRuleError('Cannot verify domains of a decommissioned tenant');
+    }
+    let domain = (await this.repository.findDomainsByTenant(tenantId)).find(
+      (d) => d.id === domainId,
+    );
+    if (!domain) {
+      throw new NotFoundError(`Domain with id '${domainId}' not found for tenant '${tenantId}'`);
+    }
+    if (!this.repository.verifyDomainExclusive) {
+      throw new BusinessRuleError('Domain verification is not supported by this tenant store');
+    }
+    if (!domain.verificationToken) {
+      // Legacy row added before challenges existed: issue its token now.
+      const updated = await this.repository.setDomainVerificationToken?.(
+        domainId,
+        generateDomainVerificationToken(),
+      );
+      if (!updated?.verificationToken) {
+        throw new BusinessRuleError('Could not issue a domain verification challenge');
+      }
+      domain = updated;
+    }
+    const proven = await this.domainProofChecker.check(domain.domain, domain.verificationToken!);
+    if (!proven) {
+      throw new BusinessRuleError(
+        `Domain ownership not proven: publish TXT ${dnsChallengeName(domain.domain)} or serve the token at ${httpsChallengeUrl(domain.domain, domain.verificationToken!)}`,
+      );
+    }
+    const verifiedAt = this.clock();
+    const result = await this.repository.verifyDomainExclusive(
+      tenantId,
+      domainId,
+      verifiedAt,
+      new Date(verifiedAt.getTime() + DOMAIN_VERIFICATION_TTL_MS),
+    );
+    if (result.status === 'not_found') {
+      throw new NotFoundError(`Domain with id '${domainId}' not found for tenant '${tenantId}'`);
+    }
+    if (result.status === 'conflict') {
+      throw new ConflictError(`Domain '${domain.domain}' is already verified for another tenant`);
+    }
+    invalidatePublicHostCaches(result.domain.domain);
+    logger.info({ tenantId, domainId, domain: result.domain.domain }, 'Custom domain verified');
+    return result.domain;
   }
 
   /**
@@ -969,14 +1220,29 @@ export class TenantService {
    * Format a domain entity for API response.
    */
   formatDomainResponse(entity: DomainEntity): DomainResponse {
-    return {
+    const current = isDomainVerificationCurrent(entity, this.clock());
+    const response: DomainResponse = {
       id: entity.id,
       tenantId: entity.tenantId,
       domain: entity.domain,
       primary: entity.primary,
-      verified: entity.verified,
+      // PRC-L169: a lapsed verification is reported as unverified (it does not resolve).
+      verified: current,
       createdAt: entity.createdAt.toISOString(),
     };
+    // PRC-L169 (additive): verification timestamps and, until verified, the challenge.
+    if (entity.verifiedAt) response.verifiedAt = new Date(entity.verifiedAt).toISOString();
+    if (entity.verificationExpiresAt) {
+      response.verificationExpiresAt = new Date(entity.verificationExpiresAt).toISOString();
+    }
+    if (!current && entity.verificationToken) {
+      response.verification = {
+        token: entity.verificationToken,
+        dnsTxtName: dnsChallengeName(entity.domain),
+        httpsUrl: httpsChallengeUrl(entity.domain, entity.verificationToken),
+      };
+    }
+    return response;
   }
 
   /**

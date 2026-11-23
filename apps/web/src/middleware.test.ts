@@ -410,3 +410,84 @@ describe('G-904 portal role bounce', () => {
     expect(portalRoleRedirect('/student', mixed)).toBeNull();
   });
 });
+
+describe('UATENV-D06 / D13: Keycloak session claims in middleware', () => {
+  function keycloakJwt(realmRoles: string[]): string {
+    const enc = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const now = Math.floor(Date.now() / 1000);
+    return `${enc({ alg: 'RS256', typ: 'JWT' })}.${enc({
+      sub: 'kc-subject-1',
+      iss: 'https://keycloak.test/realms/proctira',
+      azp: 'proctira-gateway',
+      exp: now + 600,
+      iat: now,
+      tenant_id: 'tenant-kc-1',
+      realm_access: { roles: [...realmRoles, 'offline_access', 'default-roles-proctira'] },
+    })}.sig`;
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+  });
+
+  async function navigate(path: string, realmRoles: string[]) {
+    const { NextRequest } = await import('next/server');
+    const { middleware, clearTenantConfigCache } = await import('./middleware');
+    clearTenantConfigCache();
+    return middleware(
+      new NextRequest(`https://app.proctira.io${path}`, {
+        headers: {
+          host: 'app.proctira.io',
+          cookie: `access_token=${keycloakJwt(realmRoles)}; refresh_token=rt-1`,
+        },
+      }),
+    );
+  }
+
+  it('reads Keycloak realm roles, without the Keycloak built-in roles', async () => {
+    const { jwtRoleIds } = await import('./middleware');
+    expect(
+      jwtRoleIds({
+        tenant_id: 't1',
+        azp: 'proctira-gateway',
+        realm_access: { roles: ['student', 'offline_access', 'default-roles-proctira'] },
+      }),
+    ).toEqual(['student']);
+  });
+
+  it('bounces a Keycloak student off /parent and a Keycloak guardian off /student', async () => {
+    expect((await navigate('/parent/grades', ['student'])).headers.get('location')).toBe(
+      'https://app.proctira.io/student',
+    );
+    expect((await navigate('/student/timetable', ['guardian'])).headers.get('location')).toBe(
+      'https://app.proctira.io/parent',
+    );
+  });
+
+  it('forwards the Keycloak tenant_id claim as X-Tenant-ID', async () => {
+    const res = await navigate('/students', ['teacher']);
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('X-Tenant-ID')).toBe('tenant-kc-1');
+  });
+
+  it('D13: sends portal-only roles from the staff dashboard home to their portal', async () => {
+    expect((await navigate('/', ['student'])).headers.get('location')).toBe(
+      'https://app.proctira.io/student',
+    );
+    expect((await navigate('/', ['guardian'])).headers.get('location')).toBe(
+      'https://app.proctira.io/parent',
+    );
+    expect((await navigate('/', ['teacher'])).headers.get('location')).toBeNull();
+  });
+
+  it('D13: portalRoleRedirect sends portal-only roles from / to their portal', async () => {
+    const { portalRoleRedirect } = await import('./middleware');
+    expect(portalRoleRedirect('/', ['student'])).toBe('/student');
+    expect(portalRoleRedirect('/', ['parent'])).toBe('/parent');
+    expect(portalRoleRedirect('/', ['guardian'])).toBe('/parent');
+    expect(portalRoleRedirect('/', ['parent', 'teacher'])).toBeNull();
+    expect(portalRoleRedirect('/', [])).toBeNull();
+  });
+});

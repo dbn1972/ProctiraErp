@@ -71,12 +71,57 @@ export const DEFAULT_BULK_IMPORT_LABELS: BulkImportLabels = {
   validatingFile: 'Validating file...',
   fileTooLarge: (size, max) => `File size (${size}) exceeds maximum (${max})`,
   fileTypeNotAccepted: (ext, allowed) => `File type "${ext}" is not accepted. Allowed: ${allowed}`,
+  fileContentMismatch: (ext) => `The file's content does not match its ${ext} type`,
   validateFailed: 'Failed to validate file',
   importFailed: 'Import failed',
   duplicateMapping: (fields) =>
     `Each field can only be mapped once. Mapped more than once: ${fields}`,
   requiredNotMapped: (fields) => `Required fields not mapped: ${fields}`,
 };
+
+/**
+ * PRC-L200: compare the leading bytes with the extension instead of trusting
+ * the name. .xlsx must be a ZIP container, .xls an OLE compound file, and a
+ * .csv must be text (no NUL byte and no ZIP/OLE/PDF/PE signature). Other
+ * extensions are not sniffed. The server re-validates every import.
+ */
+const SNIFF_BYTES = 512;
+const ZIP_SIGS = [
+  [0x50, 0x4b, 0x03, 0x04],
+  [0x50, 0x4b, 0x05, 0x06],
+  [0x50, 0x4b, 0x07, 0x08],
+];
+const OLE_SIG = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+const BINARY_SIGS = [...ZIP_SIGS, OLE_SIG, [0x25, 0x50, 0x44, 0x46], [0x4d, 0x5a]];
+
+function readHead(file: File): Promise<Uint8Array> {
+  const blob = file.slice(0, SNIFF_BYTES);
+  if (typeof blob.arrayBuffer === 'function') {
+    return blob.arrayBuffer().then((buf) => new Uint8Array(buf));
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read file'));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+const startsWith = (head: Uint8Array, sig: number[]): boolean =>
+  head.length >= sig.length && sig.every((b, i) => head[i] === b);
+
+async function spreadsheetContentMatches(file: File, ext: string): Promise<boolean> {
+  if (ext !== '.xlsx' && ext !== '.xls' && ext !== '.csv') return true;
+  let head: Uint8Array;
+  try {
+    head = await readHead(file);
+  } catch {
+    return false;
+  }
+  if (ext === '.xlsx') return ZIP_SIGS.some((sig) => startsWith(head, sig));
+  if (ext === '.xls') return startsWith(head, OLE_SIG);
+  return !head.includes(0) && !BINARY_SIGS.some((sig) => startsWith(head, sig));
+}
 
 /** Visible error rows in the preview; the full list is always downloadable. */
 const ERROR_PREVIEW_LIMIT = 50;
@@ -174,6 +219,12 @@ export function BulkImport({
       const ext = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`;
       if (!acceptedFileTypes.some((t) => t.toLowerCase() === ext)) {
         setError(t.fileTypeNotAccepted(ext, acceptedFileTypes.join(', ')));
+        return;
+      }
+
+      // PRC-L200: the bytes must match the extension (renamed binaries rejected).
+      if (!(await spreadsheetContentMatches(file, ext))) {
+        setError(t.fileContentMismatch(ext));
         return;
       }
 

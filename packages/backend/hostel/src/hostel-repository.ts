@@ -244,9 +244,13 @@ export interface HostelRepository {
 
   createBlock(data: Omit<HostelBlockEntity, 'createdAt' | 'updatedAt'>): Promise<HostelBlockEntity>;
   listBlocks(tenantId: string, hostelId?: string): Promise<HostelBlockEntity[]>;
+  /** H-D3: tenant-bound lookup; null for a missing or other-tenant block. */
+  findBlockById(id: string, tenantId: string): Promise<HostelBlockEntity | null>;
 
   createRoom(data: Omit<HostelRoomEntity, 'createdAt' | 'updatedAt'>): Promise<HostelRoomEntity>;
   listRooms(tenantId: string, blockId?: string): Promise<HostelRoomEntity[]>;
+  /** H-D3: tenant-bound lookup; null for a missing or other-tenant room. */
+  findRoomById(id: string, tenantId: string): Promise<HostelRoomEntity | null>;
 
   createBed(data: Omit<HostelBedEntity, 'createdAt' | 'updatedAt'>): Promise<HostelBedEntity>;
   listBeds(tenantId: string, roomId?: string): Promise<HostelBedEntity[]>;
