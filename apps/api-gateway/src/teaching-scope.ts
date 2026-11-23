@@ -14,7 +14,8 @@
  *  - a learner principal is the student whose id is the principal id or whose
  *    `custom_data.user_id` is the principal id (same rule as the student portal);
  *    the learner is in a section through an ENROLLED `section_enrollments` row
- *    and in an institution through an ENROLLED `enrollments` row.
+ *    and in an institution through an ENROLLED `enrollments` row or an
+ *    ENROLLED `section_enrollments` row in one of the institution's sections.
  *
  * Every query runs under the tenant GUC (RLS) and also filters `tenant_id`.
  * `::text` comparisons keep a non-UUID id from raising a cast error (it simply
@@ -152,6 +153,15 @@ export function createPgTeachingScopeDirectory(run: Runner): TeachingScopeDirect
               AND e.institution_id::text = $3
               AND e.status = 'ENROLLED'
               AND e.student_id IN (${LEARNER_STUDENT})
+           UNION ALL
+           SELECT 1 FROM section_enrollments se
+             JOIN sections sec
+               ON sec.tenant_id = se.tenant_id AND sec.id = se.section_id
+              AND sec.deleted_at IS NULL
+            WHERE se.tenant_id = $1::uuid
+              AND sec.institution_id::text = $3
+              AND se.status = 'ENROLLED'
+              AND se.student_id IN (${LEARNER_STUDENT})
             LIMIT 1`,
           [tenantId, learnerUserId, institutionId],
         ),

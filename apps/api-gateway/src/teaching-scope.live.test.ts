@@ -196,7 +196,11 @@ describe.skipIf(!pool)('teaching-scope directory (live)', () => {
     expect(await directory.learnerInInstitution(tenant, ids.pupilUser, ids.otherInstitution)).toBe(
       false,
     );
+    // A section enrolment in one of the school's sections also makes the learner a member.
     expect(await directory.learnerInInstitution(tenant, ids.otherPupil, ids.institution)).toBe(
+      true,
+    );
+    expect(await directory.learnerInInstitution(tenant, ids.otherPupil, ids.otherInstitution)).toBe(
       false,
     );
   });
