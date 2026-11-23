@@ -130,7 +130,11 @@ describe('workflowUiPlugin', () => {
       headers: { 'x-tenant-id': otherTenant },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ data: [] });
+    // PRC-M022: the definitions list carries paging totals.
+    expect(res.json()).toEqual({
+      data: [],
+      meta: { page: 1, pageSize: 200, totalItems: 0, totalPages: 1 },
+    });
   });
 
   it('creates a definition and lists pending approvals for authorize tenant', async () => {

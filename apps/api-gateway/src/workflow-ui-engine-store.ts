@@ -215,17 +215,54 @@ export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
     readonly persistence: 'postgres' | 'memory',
   ) {}
 
-  private async definitionsFor(tenantId: string): Promise<Map<string, WorkflowDefinitionEntity>> {
+  /**
+   * PRC-M022: the definitions a set of instances refers to, looked up by id so
+   * a definition past the first page still names its instances.
+   */
+  private async definitionsFor(
+    tenantId: string,
+    instances: WorkflowInstanceEntity[],
+  ): Promise<Map<string, WorkflowDefinitionEntity>> {
     await this.ensureSeed();
-    const result = await this.repository.listDefinitions(tenantId, {}, PAGE);
-    return new Map(result.data.map((d) => [d.id, d]));
+    const defs = new Map<string, WorkflowDefinitionEntity>();
+    for (const id of new Set(instances.map((i) => i.workflowDefinitionId))) {
+      const definition = await this.repository.findDefinitionById(id, tenantId);
+      if (definition) defs.set(id, definition);
+    }
+    return defs;
+  }
+
+  /** PRC-M022: every page of a repository list, so unpaged reads never stop at one page. */
+  private async allPages<T>(
+    fetchPage: (pagination: { page: number; pageSize: number }) => Promise<{
+      data: T[];
+      meta?: { totalPages?: number };
+    }>,
+  ): Promise<T[]> {
+    const rows: T[] = [];
+    for (let page = 1; ; page += 1) {
+      const result = await fetchPage({ page, pageSize: PAGE.pageSize });
+      rows.push(...result.data);
+      if (result.data.length < PAGE.pageSize || page >= Number(result.meta?.totalPages ?? 0)) {
+        return rows;
+      }
+    }
   }
 
   async listDefinitions(tenantId: string): Promise<UiWorkflowDefinition[]> {
-    const defs = await this.definitionsFor(tenantId);
-    return [...defs.values()]
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .map(toUiDefinition);
+    await this.ensureSeed();
+    const defs = await this.allPages((p) => this.repository.listDefinitions(tenantId, {}, p));
+    return defs.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()).map(toUiDefinition);
+  }
+
+  /** PRC-M022: SQL-paged definitions (repository ORDER BY created_at, id) with totals. */
+  async listDefinitionsPage(
+    tenantId: string,
+    pagination: { page: number; pageSize: number },
+  ): Promise<WorkflowUiPage<UiWorkflowDefinition>> {
+    await this.ensureSeed();
+    const result = await this.repository.listDefinitions(tenantId, {}, pagination);
+    return { data: result.data.map(toUiDefinition), meta: pageMeta(result.meta, pagination) };
   }
 
   async getDefinition(tenantId: string, id: string): Promise<UiWorkflowDefinition | null> {
@@ -247,17 +284,21 @@ export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
   }
 
   async listInstances(tenantId: string): Promise<UiWorkflowInstance[]> {
-    const defs = await this.definitionsFor(tenantId);
-    const result = await this.repository.listInstances(tenantId, {}, PAGE);
-    return result.data
+    await this.ensureSeed();
+    const rows = await this.allPages((p) => this.repository.listInstances(tenantId, {}, p));
+    const defs = await this.definitionsFor(tenantId, rows);
+    return rows
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((i) => toUiInstance(i, defs.get(i.workflowDefinitionId)));
   }
 
   async listPendingApprovals(tenantId: string): Promise<UiWorkflowApproval[]> {
-    const defs = await this.definitionsFor(tenantId);
-    const result = await this.repository.listInstances(tenantId, { status: 'ACTIVE' }, PAGE);
-    return result.data.map((i) => toUiApproval(i, defs.get(i.workflowDefinitionId)));
+    await this.ensureSeed();
+    const rows = await this.allPages((p) =>
+      this.repository.listInstances(tenantId, { status: 'ACTIVE' }, p),
+    );
+    const defs = await this.definitionsFor(tenantId, rows);
+    return rows.map((i) => toUiApproval(i, defs.get(i.workflowDefinitionId)));
   }
 
   /**
@@ -288,8 +329,9 @@ export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
     tenantId: string,
     pagination: { page: number; pageSize: number },
   ): Promise<WorkflowUiPage<UiWorkflowInstance>> {
-    const defs = await this.definitionsFor(tenantId);
+    await this.ensureSeed();
     const result = await this.repository.listInstances(tenantId, {}, pagination);
+    const defs = await this.definitionsFor(tenantId, result.data);
     return {
       data: result.data.map((i) => toUiInstance(i, defs.get(i.workflowDefinitionId))),
       meta: pageMeta(result.meta, pagination),
@@ -300,8 +342,9 @@ export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
     tenantId: string,
     pagination: { page: number; pageSize: number },
   ): Promise<WorkflowUiPage<UiWorkflowApproval>> {
-    const defs = await this.definitionsFor(tenantId);
+    await this.ensureSeed();
     const result = await this.repository.listInstances(tenantId, { status: 'ACTIVE' }, pagination);
+    const defs = await this.definitionsFor(tenantId, result.data);
     return {
       data: result.data.map((i) => toUiApproval(i, defs.get(i.workflowDefinitionId))),
       meta: pageMeta(result.meta, pagination),
