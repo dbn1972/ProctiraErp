@@ -33,6 +33,22 @@ export { MinIOAdapter } from './adapters/minio-adapter.js';
 // Factory
 export { createStorageAdapter } from './factory.js';
 
+// Malware scanning (topic 18: uploads are unusable until scanned clean)
+export type {
+  MalwareScanner,
+  ScanResult,
+  ScanStatus,
+  ClamdScannerOptions,
+} from './malware-scanner.js';
+export {
+  ClamdMalwareScanner,
+  NoopMalwareScanner,
+  UnavailableMalwareScanner,
+  createMalwareScannerFromEnv,
+  isUsableScanStatus,
+  parseClamdReply,
+} from './malware-scanner.js';
+
 // Tenant namespace utilities
 export {
   buildTenantKey,

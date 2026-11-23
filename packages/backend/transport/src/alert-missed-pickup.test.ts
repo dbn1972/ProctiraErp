@@ -94,4 +94,28 @@ describe('missed_pickup evaluation (PRC-M441)', () => {
     // No attendance was recorded on the next day, so both students are absent.
     expect(nextDay.data.map((a) => a.studentId).sort()).toEqual([boarded, missing].sort());
   });
+
+  // T-D4: riders outside their assignment window are not on the trip, so not missed.
+  it('does not alert a rider whose assignment starts after or ended before the trip date', async () => {
+    const future = uuidv4();
+    const ended = uuidv4();
+    await service.createStudentAssignment(
+      TENANT,
+      { studentId: future, routeId, startDate: '2026-09-10' },
+      ACTOR,
+    );
+    await service.createStudentAssignment(
+      TENANT,
+      { studentId: ended, routeId, startDate: '2026-08-01', endDate: '2026-09-08' },
+      ACTOR,
+    );
+    for (const input of [{ tripDate: TRIP_DATE }, { tripDate: TRIP_DATE, routeId }]) {
+      const result = await service.evaluateAlerts(TENANT, input, AFTER_GRACE);
+      const alerted = result.data.map((a) => a.studentId);
+      expect(alerted).not.toContain(future);
+      expect(alerted).not.toContain(ended);
+    }
+    const alerts = (await service.listAlerts(TENANT)).filter((a) => a.kind === 'missed_pickup');
+    expect(alerts.map((a) => a.studentId)).toEqual([missing]);
+  });
 });

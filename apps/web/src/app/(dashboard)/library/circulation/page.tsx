@@ -5,10 +5,16 @@ import { requireSession } from '@/lib/auth/server';
 import { listLibraryItems } from '@/lib/api/library';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { CirculationDesk } from '../_components/circulation-desk';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryCirculationPage() {
+  // A-batch: check before any library read.
+  if (!(await hasDashboardDomainRouteAccess('library', '/library'))) {
+    return <RouteAccessDenied />;
+  }
   const session = await requireSession();
   const [items, studentOptions] = await Promise.all([listLibraryItems(), loadStudentOptions()]);
 

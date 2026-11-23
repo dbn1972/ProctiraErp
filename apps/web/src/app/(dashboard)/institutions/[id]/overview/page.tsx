@@ -30,12 +30,13 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { ApiClientError } from '@/lib/institutions/api';
 import {
   getCachedInstitution,
   getCachedInstitutionOverview,
 } from '@/lib/institutions/request-cache';
 import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 interface OverviewPageProps {
   params: Promise<{ id: string }>;
@@ -248,6 +249,10 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 /* ──────────────────────────────── Page ── */
 
 export default async function InstitutionOverviewPage(props: OverviewPageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const [institutionResult, areas, types, snapshotResult] = await Promise.all([
     getCachedInstitution(params.id).catch(() => null),
@@ -255,13 +260,12 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
     loadTypeOptions(),
     getCachedInstitutionOverview(params.id).then(
       (snapshot) => ({ snapshot, error: null as string | null }),
-      (error: unknown) => ({
-        snapshot: null,
-        error:
-          error instanceof ApiClientError
-            ? error.message
-            : 'Institution details are currently unavailable.',
-      }),
+      (error: unknown) => {
+        // D1-T5: fixed copy on screen; the failure goes to the server log.
+        // eslint-disable-next-line no-console
+        console.error('[institution-overview] snapshot load failed', error);
+        return { snapshot: null, error: 'Institution details are currently unavailable.' };
+      },
     ),
   ]);
 

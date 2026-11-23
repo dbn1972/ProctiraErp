@@ -83,8 +83,11 @@ async function buildApp(store: InstanceType<typeof InMemoryReportStore>, logLine
   apps.push(app);
   app.decorateRequest('user', undefined);
   app.addHook('onRequest', async (request) => {
+    // PRC-L339: the verified principal carries the tenant; the x-tenant-id
+    // header is no longer trusted by the catalogue.
     (request as typeof request & { user: unknown }).user = {
       sub: 'principal-1',
+      tenantId: TENANT,
       roles: [{ roleId: 'principal', roleName: 'principal' }],
     };
   });

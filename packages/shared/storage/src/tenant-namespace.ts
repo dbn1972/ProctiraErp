@@ -107,17 +107,16 @@ export function assertTenantScopedObjectKeyIfRequired(
  * PRC-M634 — ownership guard for raw-key operations. The previous scope check was
  * shape-only ("is this key under *some* tenants/{id}/ prefix"), so one tenant
  * could pass another tenant's well-formed key to download/delete/sign/list and the
- * check still passed. When the caller supplies its own tenantId, assert the key is
- * owned by that tenant (key segment === caller tenant), not merely scoped.
+ * check still passed. The caller tenant is now REQUIRED on every raw-key op
+ * (interface contract): assert the key is owned by that tenant (key segment ===
+ * caller tenant), not merely scoped. A missing caller identity fails closed —
+ * ownership can never be silently skipped.
  */
 export function assertTenantOwnedObjectKey(
   key: string,
   tenantId: string | undefined,
   surface = 'storage',
 ): void {
-  // When no caller tenant is supplied we fall back to the shape check elsewhere;
-  // ownership can only be enforced against a known caller identity.
-  if (tenantId === undefined) return;
   assertTenantId(tenantId, surface);
   if (!validateTenantOwnership(key, tenantId)) {
     throw new TenantScopeError(

@@ -2,6 +2,7 @@
  * Unit tests for OAuth2Provider (including Google and Microsoft).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import { MemoryWebTicketStore } from '../keycloak/routes.js';
 import { OAuth2Provider } from './oauth2-provider.js';
 import type { HttpClient } from './oauth2-provider.js';
 import type { OAuth2ProviderConfig } from './types.js';
@@ -375,5 +376,56 @@ describe('Microsoft Provider', () => {
       expect(profile.emailVerified).toBe(false);
       expect(httpClient.postCalls[0]!.body['code_verifier']).toBeTruthy();
     });
+  });
+});
+
+describe('PRC-M589 replica-shared pending login state (OAuth2)', () => {
+  const extract = (data: Record<string, unknown>) => ({
+    externalId: data['sub'] as string,
+    email: data['email'] as string,
+    displayName: data['email'] as string,
+    rawAttributes: data,
+  });
+
+  it('a callback served by another replica sharing the store completes the login once', async () => {
+    const shared = new MemoryWebTicketStore();
+    const replicaA = new OAuth2Provider(
+      { ...baseConfig, stateStore: shared },
+      extract,
+      new MockHttpClient(),
+    );
+    const clientB = new MockHttpClient();
+    const replicaB = new OAuth2Provider({ ...baseConfig, stateStore: shared }, extract, clientB);
+    const init = await replicaA.initiateAuth('tenant-1');
+    clientB.postResponses.push({ data: { access_token: 'at', token_type: 'Bearer' }, status: 200 });
+    clientB.getResponses.push({ data: { sub: 'u-1', email: 'u1@example.com' }, status: 200 });
+    const profile = await replicaB.handleCallback({ code: 'c', state: init.state }, 'tenant-1');
+    expect(profile.externalId).toBe('u-1');
+    // PKCE verifier stored by replica A is the one replica B sends.
+    expect(clientB.postCalls[0]!.body['code_verifier']).toEqual(expect.any(String));
+    // Single use: a replay on either replica fails.
+    await expect(
+      replicaA.handleCallback({ code: 'c', state: init.state }, 'tenant-1'),
+    ).rejects.toMatchObject({ code: 'OAUTH2_INVALID_STATE' });
+  });
+
+  it('refuses to start without a shared store in a deployed environment', () => {
+    const saved = process.env['NODE_ENV'];
+    try {
+      process.env['NODE_ENV'] = 'production';
+      expect(() => new OAuth2Provider(baseConfig, extract, new MockHttpClient())).toThrow(
+        /PRC-M589/,
+      );
+      expect(
+        () =>
+          new OAuth2Provider(
+            { ...baseConfig, stateStore: new MemoryWebTicketStore() },
+            extract,
+            new MockHttpClient(),
+          ),
+      ).not.toThrow();
+    } finally {
+      process.env['NODE_ENV'] = saved;
+    }
   });
 });

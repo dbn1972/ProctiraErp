@@ -30,6 +30,7 @@ import type {
   LegalHoldEntity,
   OffboardChecklistItem,
   ListPage,
+  PrivacyAuditDirective,
   PrivacyRepository,
   TenantOffboardJobEntity,
 } from './privacy-repository.js';
@@ -178,6 +179,38 @@ export class PrivacyService implements DestructiveDeleteGuard {
     this.stalledJobAfterMs = options.stalledJobAfterMs ?? DEFAULT_STALLED_JOB_AFTER_MS;
   }
 
+  /**
+   * PRC-M013: true when the repository writes the erasure state-transition audit
+   * row in the SAME transaction as the transition. When so, the service passes a
+   * {@link PrivacyAuditDirective} to the repo and MUST NOT also emit the post-hoc
+   * `this.audit.record` event for that transition (no double write).
+   */
+  private get txnAudit(): boolean {
+    return this.repository.supportsTransactionalAudit === true;
+  }
+
+  /**
+   * Build the in-transaction audit directive for an erasure state change. Carries
+   * only the status change + field names (never the subject's PII values) so the
+   * audit row is DPDP-minimising, matching the post-hoc event.
+   */
+  private buildErasureAuditDirective(args: {
+    actorId: string;
+    ctx?: PrivacyRequestContext;
+    beforeValues: Record<string, unknown> | null;
+    afterValues: Record<string, unknown> | null;
+    metadata?: Record<string, unknown>;
+  }): PrivacyAuditDirective {
+    return {
+      beforeValues: args.beforeValues,
+      afterValues: args.afterValues,
+      metadata: args.metadata ?? {},
+      actorId: args.actorId,
+      ipAddress: args.ctx?.ipAddress?.trim() ? args.ctx.ipAddress : null,
+      requestId: null,
+    };
+  }
+
   async placeLegalHold(
     input: PlaceLegalHoldInput,
     ctx?: PrivacyRequestContext,
@@ -235,6 +268,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
     const existing = await this.repository.findLegalHoldById(holdId, tenantId);
     if (!existing) throw new NotFoundError(`Legal hold '${holdId}' not found`);
     if (!existing.active) throw new BusinessRuleError('Legal hold is already released');
+    // PRC-L336: releasing a hold needs a second actor; the placer cannot lift their own hold.
+    if (releasedBy === existing.placedBy) {
+      throw new ConflictError(
+        'Separation of duties: a legal hold must be released by someone other than the actor who placed it',
+      );
+    }
     const updated = await this.repository.updateLegalHold(holdId, tenantId, {
       active: false,
       releasedBy,
@@ -344,6 +383,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
     if (!ERASURE_TRANSITIONS[existing.status].includes(toStatus)) {
       throw new BusinessRuleError(`Invalid erasure transition: ${existing.status} → ${toStatus}`);
     }
+    // PRC-L336: an approval needs a second actor; the requester cannot approve their own request.
+    if (toStatus === 'approved' && actorId === existing.requestedBy) {
+      throw new ConflictError(
+        'Separation of duties: the requester cannot approve their own erasure request',
+      );
+    }
     if (existing.status === 'in_progress') {
       // Review #554: only `approved` is reachable here (MANUAL_ERASURE_TARGETS ∩ transitions).
       return this.releaseStalledErasure(existing, actorId, statusReason, ctx);
@@ -357,23 +402,33 @@ export class PrivacyService implements DestructiveDeleteGuard {
         statusReason: statusReason ?? null,
       },
       { expectedStatus: existing.status },
+      this.txnAudit
+        ? this.buildErasureAuditDirective({
+            actorId,
+            ctx,
+            beforeValues: { status: existing.status },
+            afterValues: { status: toStatus, statusReason: statusReason ?? null },
+          })
+        : undefined,
     );
     if (!updated) {
       throw new ConflictError(
         `Erasure request '${requestId}' changed concurrently; reload and retry`,
       );
     }
-    await this.audit.record({
-      tenantId: updated.tenantId,
-      entityType: 'privacy_erasure',
-      entityId: requestId,
-      operation: 'UPDATE',
-      userId: actorId,
-      userName: actorId,
-      ipAddress: ipOf(ctx),
-      beforeValues: { status: existing.status },
-      afterValues: { status: updated.status, statusReason: updated.statusReason },
-    });
+    if (!this.txnAudit) {
+      await this.audit.record({
+        tenantId: updated.tenantId,
+        entityType: 'privacy_erasure',
+        entityId: requestId,
+        operation: 'UPDATE',
+        userId: actorId,
+        userName: actorId,
+        ipAddress: ipOf(ctx),
+        beforeValues: { status: existing.status },
+        afterValues: { status: updated.status, statusReason: updated.statusReason },
+      });
+    }
     return updated;
   }
 
@@ -398,6 +453,15 @@ export class PrivacyService implements DestructiveDeleteGuard {
         statusReason: statusReason ?? 'Stalled erasure run released for retry',
       },
       staleBefore,
+      this.txnAudit
+        ? this.buildErasureAuditDirective({
+            actorId,
+            ctx,
+            beforeValues: { status: existing.status },
+            afterValues: { status: 'approved' },
+            metadata: { action: 'release_stalled' },
+          })
+        : undefined,
     );
     if (result.outcome === 'not_in_progress') {
       throw new ConflictError(
@@ -410,21 +474,23 @@ export class PrivacyService implements DestructiveDeleteGuard {
           'wait for it to finish or fail before returning the request to approved',
       );
     }
-    await this.audit.record({
-      tenantId: existing.tenantId,
-      entityType: 'privacy_erasure',
-      entityId: existing.id,
-      operation: 'UPDATE',
-      userId: actorId,
-      userName: actorId,
-      ipAddress: ipOf(ctx),
-      beforeValues: { status: existing.status },
-      afterValues: {
-        status: result.erasure.status,
-        statusReason: result.erasure.statusReason,
-        fencedJobIds: result.failedJobIds,
-      },
-    });
+    if (!this.txnAudit) {
+      await this.audit.record({
+        tenantId: existing.tenantId,
+        entityType: 'privacy_erasure',
+        entityId: existing.id,
+        operation: 'UPDATE',
+        userId: actorId,
+        userName: actorId,
+        ipAddress: ipOf(ctx),
+        beforeValues: { status: existing.status },
+        afterValues: {
+          status: result.erasure.status,
+          statusReason: result.erasure.statusReason,
+          fencedJobIds: result.failedJobIds,
+        },
+      });
+    }
     return result.erasure;
   }
 
@@ -446,6 +512,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
         `Erasure execute requires approved status; current=${existing.status}`,
       );
     }
+    // PRC-L336: the requester cannot execute their own erasure (second actor required).
+    if (actorId === existing.requestedBy) {
+      throw new ConflictError(
+        'Separation of duties: the requester cannot execute their own erasure request',
+      );
+    }
     if (!this.erasureExecutionAvailable) {
       // PRC-H077: without injected domain anonymizers the default records a
       // residual and the job can only fail. Refuse up front and leave the
@@ -455,34 +527,50 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
     if (await this.isOnLegalHold(existing.tenantId, existing.subjectType, existing.subjectId)) {
-      await this.repository.updateErasureRequest(requestId, tenantId, {
-        status: 'blocked_legal_hold',
-        reviewedBy: actorId,
-        statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
-      });
-      await this.audit.record({
-        tenantId: existing.tenantId,
-        entityType: 'privacy_erasure',
-        entityId: requestId,
-        operation: 'UPDATE',
-        userId: actorId,
-        userName: actorId,
-        ipAddress: ipOf(ctx),
-        beforeValues: { status: existing.status },
-        afterValues: { status: 'blocked_legal_hold' },
-      });
+      await this.repository.updateErasureRequest(
+        requestId,
+        tenantId,
+        {
+          status: 'blocked_legal_hold',
+          reviewedBy: actorId,
+          statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
+        },
+        undefined,
+        this.txnAudit
+          ? this.buildErasureAuditDirective({
+              actorId,
+              ctx,
+              beforeValues: { status: existing.status },
+              afterValues: { status: 'blocked_legal_hold' },
+            })
+          : undefined,
+      );
+      if (!this.txnAudit) {
+        await this.audit.record({
+          tenantId: existing.tenantId,
+          entityType: 'privacy_erasure',
+          entityId: requestId,
+          operation: 'UPDATE',
+          userId: actorId,
+          userName: actorId,
+          ipAddress: ipOf(ctx),
+          beforeValues: { status: existing.status },
+          afterValues: { status: 'blocked_legal_hold' },
+        });
+      }
       throw new BusinessRuleError(
         `Erasure blocked: subject under legal hold (request ${requestId})`,
       );
     }
 
     // PRC-M320: status flip + job creation in one transaction (fails closed to `approved`).
+    const jobId = uuidv4();
     const startedExecution = await this.repository.startErasureExecution(
       requestId,
       tenantId,
       { reviewedBy: actorId, statusReason: 'Erasure execution started' },
       {
-        id: uuidv4(),
+        id: jobId,
         tenantId: existing.tenantId,
         erasureRequestId: requestId,
         subjectType: existing.subjectType,
@@ -496,23 +584,34 @@ export class PrivacyService implements DestructiveDeleteGuard {
         startedAt: null,
         completedAt: null,
       },
+      this.txnAudit
+        ? this.buildErasureAuditDirective({
+            actorId,
+            ctx,
+            beforeValues: { status: existing.status },
+            afterValues: { status: 'in_progress', jobId },
+            metadata: { requestType: existing.requestType, subjectType: existing.subjectType },
+          })
+        : undefined,
     );
     if (!startedExecution) {
       throw new ConflictError(`Erasure request '${requestId}' is already being executed`);
     }
     const { job } = startedExecution;
-    await this.audit.record({
-      tenantId: existing.tenantId,
-      entityType: 'privacy_erasure',
-      entityId: requestId,
-      operation: 'UPDATE',
-      userId: actorId,
-      userName: actorId,
-      ipAddress: ipOf(ctx),
-      beforeValues: { status: existing.status },
-      afterValues: { status: 'in_progress', jobId: job.id },
-      metadata: { requestType: existing.requestType, subjectType: existing.subjectType },
-    });
+    if (!this.txnAudit) {
+      await this.audit.record({
+        tenantId: existing.tenantId,
+        entityType: 'privacy_erasure',
+        entityId: requestId,
+        operation: 'UPDATE',
+        userId: actorId,
+        userName: actorId,
+        ipAddress: ipOf(ctx),
+        beforeValues: { status: existing.status },
+        afterValues: { status: 'in_progress', jobId: job.id },
+        metadata: { requestType: existing.requestType, subjectType: existing.subjectType },
+      });
+    }
 
     if (this.anonymizationPublisher) {
       try {

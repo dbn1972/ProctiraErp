@@ -9,7 +9,7 @@ import amqplib from 'amqplib';
 import type { TaskMessage } from '../types';
 
 import type { RabbitMQConfig } from './config';
-import { DEFAULT_RABBITMQ_CONFIG, buildTenantRoutingKey } from './config';
+import { DEFAULT_RABBITMQ_CONFIG, buildTenantQueue, buildTenantRoutingKey } from './config';
 
 export class RabbitMQPublisher {
   private config: Required<
@@ -137,7 +137,8 @@ export class RabbitMQPublisher {
       throw new Error('RabbitMQPublisher is not connected. Call connect() first.');
     }
 
-    const fullQueueName = `tenant.${tenantId}.${queueName}`;
+    // PRC-M633: same fail-closed builder as the subscriber (no hand-built names).
+    const fullQueueName = buildTenantQueue(tenantId, queueName);
     const dlqName = `${fullQueueName}.dlq`;
     const routingKey = buildTenantRoutingKey(tenantId, routingPattern);
 

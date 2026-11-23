@@ -4,6 +4,7 @@
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ar from '@/messages/ar.json';
 import en from '@/messages/en.json';
@@ -55,5 +56,25 @@ describe('PRC-L020 SuccessCard copy feedback', () => {
     renderCard('ar');
     const button = await screen.findByRole('button', { name: ar.registration.copyTrackingNumber });
     expect(button.getAttribute('aria-label')).not.toMatch(/[A-Za-z]/);
+  });
+});
+describe('UAT-9a SuccessCard under React.StrictMode', () => {
+  afterEach(() => {
+    cleanup();
+    window.sessionStorage.clear();
+  });
+  it('keeps the tracking number when the read-once effect runs twice', async () => {
+    window.sessionStorage.setItem('registration:lastTrackingNumber', 'REG-STRICT01');
+    render(
+      <StrictMode>
+        <NextIntlClientProvider locale="en" messages={en}>
+          <SuccessCard />
+        </NextIntlClientProvider>
+      </StrictMode>,
+    );
+    expect(await screen.findByText('REG-STRICT01')).toBeTruthy();
+    expect(screen.queryByText(en.registration.trackingMissingTitle)).toBeNull();
+    // PRC-M054: the stored number is still read once and cleared.
+    expect(window.sessionStorage.getItem('registration:lastTrackingNumber')).toBeNull();
   });
 });

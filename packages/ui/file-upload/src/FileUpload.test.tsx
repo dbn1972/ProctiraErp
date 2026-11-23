@@ -1,10 +1,11 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { FileUpload } from './FileUpload';
 
 function createFile(name: string, size: number, type: string): File {
-  const content = new Array(size).fill('a').join('');
-  return new File([content], name, { type });
+  // PRC-L200: PDFs must carry the %PDF- signature to pass content sniffing.
+  const body = new Array(Math.max(size - 5, 0)).fill('a').join('');
+  return new File([type === 'application/pdf' ? `%PDF-${body}` : body], name, { type });
 }
 
 describe('FileUpload', () => {
@@ -38,7 +39,7 @@ describe('FileUpload', () => {
     expect(screen.getByText(/10\.0 MB/)).toBeInTheDocument();
   });
 
-  it('calls onFilesSelected with valid files', () => {
+  it('calls onFilesSelected with valid files', async () => {
     const onFilesSelected = vi.fn();
     render(
       <FileUpload
@@ -54,10 +55,10 @@ describe('FileUpload', () => {
     Object.defineProperty(input, 'files', { value: [file] });
     fireEvent.change(input);
 
-    expect(onFilesSelected).toHaveBeenCalledWith([file]);
+    await waitFor(() => expect(onFilesSelected).toHaveBeenCalledWith([file]));
   });
 
-  it('calls onValidationError for invalid file type', () => {
+  it('calls onValidationError for invalid file type', async () => {
     const onValidationError = vi.fn();
     const onFilesSelected = vi.fn();
     render(
@@ -75,13 +76,15 @@ describe('FileUpload', () => {
     Object.defineProperty(input, 'files', { value: [file] });
     fireEvent.change(input);
 
-    expect(onValidationError).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ error: 'type' })]),
+    await waitFor(() =>
+      expect(onValidationError).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ error: 'type' })]),
+      ),
     );
     expect(onFilesSelected).not.toHaveBeenCalled();
   });
 
-  it('calls onValidationError for oversized files', () => {
+  it('calls onValidationError for oversized files', async () => {
     const onValidationError = vi.fn();
     const onFilesSelected = vi.fn();
     render(
@@ -99,8 +102,10 @@ describe('FileUpload', () => {
     Object.defineProperty(input, 'files', { value: [file] });
     fireEvent.change(input);
 
-    expect(onValidationError).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ error: 'size' })]),
+    await waitFor(() =>
+      expect(onValidationError).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ error: 'size' })]),
+      ),
     );
   });
 
@@ -167,7 +172,7 @@ describe('FileUpload', () => {
       fireEvent.drop(screen.getByRole('button'), { dataTransfer: { files } });
     };
 
-    it('accepts several dropped files up to maxFiles when multiple', () => {
+    it('accepts several dropped files up to maxFiles when multiple', async () => {
       const onFilesSelected = vi.fn();
       const onValidationError = vi.fn();
       render(
@@ -181,13 +186,13 @@ describe('FileUpload', () => {
       );
       const files = ['a', 'b', 'c'].map((n) => createFile(`${n}.pdf`, 10, 'application/pdf'));
       drop(files);
-      expect(onFilesSelected).toHaveBeenCalledWith([files[0], files[1]]);
+      await waitFor(() => expect(onFilesSelected).toHaveBeenCalledWith([files[0], files[1]]));
       expect(onValidationError).toHaveBeenCalledWith([
         expect.objectContaining({ file: files[2], error: 'count' }),
       ]);
     });
 
-    it('keeps only one dropped file in single-file mode', () => {
+    it('keeps only one dropped file in single-file mode', async () => {
       const onFilesSelected = vi.fn();
       const onValidationError = vi.fn();
       render(
@@ -199,7 +204,7 @@ describe('FileUpload', () => {
       );
       const files = ['a', 'b'].map((n) => createFile(`${n}.pdf`, 10, 'application/pdf'));
       drop(files);
-      expect(onFilesSelected).toHaveBeenCalledWith([files[0]]);
+      await waitFor(() => expect(onFilesSelected).toHaveBeenCalledWith([files[0]]));
       expect(onValidationError).toHaveBeenCalledWith([
         expect.objectContaining({
           file: files[1],

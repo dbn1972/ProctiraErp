@@ -2,6 +2,16 @@
  * Transport service client — routes, vehicles, assignments.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { gatewayFetchAllPagesWithTotal, type AllPagesResult } from './gateway-all-pages';
+
+/**
+ * T-D2: the transport list endpoints return 20 rows unless asked for more, so the
+ * list readers below follow every page. The `*WithTotal` readers also return the
+ * list's total, for screens that print a count.
+ */
+export type TransportList<T> = AllPagesResult<T>;
+
+const LIST_INIT = { next: { revalidate: 0 } } as const;
 
 export type TransportRouteStatus = 'active' | 'inactive' | 'suspended';
 
@@ -61,12 +71,16 @@ function mapRoute(raw: Record<string, unknown>): TransportRoute {
   };
 }
 
+export async function listTransportRoutesWithTotal(): Promise<TransportList<TransportRoute>> {
+  const list = await gatewayFetchAllPagesWithTotal<Record<string, unknown>>(
+    '/transport/routes',
+    LIST_INIT,
+  );
+  return { ...list, items: list.items.map(mapRoute) };
+}
+
 export async function listTransportRoutes(): Promise<TransportRoute[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>('/transport/routes', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return (result.data?.data ?? []).map(mapRoute);
+  return (await listTransportRoutesWithTotal()).items;
 }
 
 export async function getTransportRoute(id: string): Promise<TransportRoute | null> {
@@ -133,12 +147,16 @@ function mapVehicle(raw: Record<string, unknown>): TransportVehicle {
   };
 }
 
+export async function listTransportVehiclesWithTotal(): Promise<TransportList<TransportVehicle>> {
+  const list = await gatewayFetchAllPagesWithTotal<Record<string, unknown>>(
+    '/transport/vehicles',
+    LIST_INIT,
+  );
+  return { ...list, items: list.items.map(mapVehicle) };
+}
+
 export async function listTransportVehicles(): Promise<TransportVehicle[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>('/transport/vehicles', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return (result.data?.data ?? []).map(mapVehicle);
+  return (await listTransportVehiclesWithTotal()).items;
 }
 
 export async function createTransportVehicle(
@@ -178,20 +196,26 @@ export interface StudentAssignment {
   isActive: boolean;
 }
 
+export function listDriverAssignmentsWithTotal(): Promise<TransportList<DriverAssignment>> {
+  return gatewayFetchAllPagesWithTotal<DriverAssignment>(
+    '/transport/driver-assignments',
+    LIST_INIT,
+  );
+}
+
 export async function listDriverAssignments(): Promise<DriverAssignment[]> {
-  const result = await gatewayFetch<{ data: DriverAssignment[] }>('/transport/driver-assignments', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return (await listDriverAssignmentsWithTotal()).items;
+}
+
+export function listStudentAssignmentsWithTotal(): Promise<TransportList<StudentAssignment>> {
+  return gatewayFetchAllPagesWithTotal<StudentAssignment>(
+    '/transport/student-assignments',
+    LIST_INIT,
+  );
 }
 
 export async function listStudentAssignments(): Promise<StudentAssignment[]> {
-  const result = await gatewayFetch<{ data: StudentAssignment[] }>(
-    '/transport/student-assignments',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.data?.data ?? [];
+  return (await listStudentAssignmentsWithTotal()).items;
 }
 
 export async function createDriverAssignment(input: {

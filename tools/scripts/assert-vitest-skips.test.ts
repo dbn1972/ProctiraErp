@@ -45,6 +45,67 @@ describe('W3-TEST-04 assert-vitest-skips', () => {
     ).toBe(true);
   });
 
+  it('UAT-API-002: counts DATABASE_URL-gated suites outside the pg-* naming convention', () => {
+    for (const file of [
+      '/repo/packages/backend/institution/src/academic-calendar/rollover-concurrency.pg.test.ts',
+      '/repo/packages/backend/institution/src/education/class-name-unique.pg.test.ts',
+      '/repo/packages/backend/examination/src/allocation-concurrency.test.ts',
+      '/repo/packages/backend/examination/src/room-clash-scoping.test.ts',
+      '/repo/apps/api-gateway/src/insights-ui-plugin.test.ts',
+    ]) {
+      expect(isPgGateFile(file)).toBe(true);
+    }
+    expect(isPgGateFile('/repo/apps/api-gateway/src/other-plugin.test.ts')).toBe(false);
+    const result = evaluateVitestReport(
+      {
+        testResults: [
+          ...executedPgReport.testResults,
+          {
+            name: '/repo/packages/backend/institution/src/education/class-name-unique.pg.test.ts',
+            status: 'passed',
+            assertionResults: [{ status: 'skipped', title: 'exactly one wins' }],
+          },
+          {
+            name: '/repo/apps/api-gateway/src/insights-ui-plugin.test.ts',
+            status: 'passed',
+            assertionResults: [
+              { status: 'passed', title: 'memory case' },
+              { status: 'skipped', title: 'restart-safe smoke' },
+            ],
+          },
+        ],
+      },
+      { CI: 'true', DATABASE_URL: 'postgres://x', FORBID_TEST_SKIPS: '1' },
+      { profile: 'pg', minExecuted: 25, maxAllowedSkips: 1 },
+    );
+    expect(result.summary.skipped).toBe(2);
+    expect(result.ok).toBe(false);
+  });
+
+  it('UAT-API-003: counts skips of the REDIS_URL-gated suites', () => {
+    const redisFiles = [
+      '/repo/packages/backend/auth/src/keycloak/password-throttle-redis.test.ts',
+      '/repo/apps/api-gateway/src/tenant-status-bus.redis.test.ts',
+    ];
+    for (const file of redisFiles) expect(isPgGateFile(file)).toBe(true);
+    const result = evaluateVitestReport(
+      {
+        testResults: [
+          ...executedPgReport.testResults,
+          ...redisFiles.map((name) => ({
+            name,
+            status: 'passed',
+            assertionResults: [{ status: 'skipped', title: 'live Redis' }],
+          })),
+        ],
+      },
+      { CI: 'true', DATABASE_URL: 'postgres://x', FORBID_TEST_SKIPS: '1' },
+      { profile: 'pg', minExecuted: 25, maxAllowedSkips: 1 },
+    );
+    expect(result.summary.skipped).toBe(2);
+    expect(result.ok).toBe(false);
+  });
+
   it('counts skipped pg assertions even when Vitest marks the file passed', () => {
     const s = summarizeReport(skippedPgReport, { profile: 'pg' });
     expect(s.skipped).toBe(2);

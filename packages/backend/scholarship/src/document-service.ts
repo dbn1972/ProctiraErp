@@ -141,7 +141,7 @@ export class ScholarshipDocumentService {
       );
       return publicDocument(row);
     } catch (error) {
-      await this.deps.blobs.delete(storedKey).catch(() => undefined);
+      await this.deps.blobs.delete(storedKey, input.tenantId).catch(() => undefined);
       throw error;
     }
   }
@@ -174,7 +174,7 @@ export class ScholarshipDocumentService {
     });
     let url = `/api/v1/scholarships/document-downloads?token=${encodeURIComponent(signed.token)}`;
     if (this.deps.blobs.getSignedUrl) {
-      const providerUrl = await this.deps.blobs.getSignedUrl(row.objectKey, ttl);
+      const providerUrl = await this.deps.blobs.getSignedUrl(row.objectKey, tenantId, ttl);
       if (providerUrl) url = providerUrl;
     }
     return {
@@ -190,7 +190,7 @@ export class ScholarshipDocumentService {
     const row = await this.requireRow(tenantId, documentId);
     let bytes: Buffer | null;
     try {
-      bytes = await this.deps.blobs.get(row.objectKey);
+      bytes = await this.deps.blobs.get(row.objectKey, tenantId);
     } catch (cause) {
       // PRC-M356: storage outage is a 503, not "file no longer available".
       const error = new AppError(

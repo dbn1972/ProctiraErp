@@ -60,7 +60,10 @@ export async function updateApplicationStatus(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'STATUS_FAILED',
-      message: result.error?.message ?? 'Failed to update status',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to update status',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
 }
@@ -98,7 +101,10 @@ export async function createInterviewSlot(input: {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'SLOT_FAILED',
-      message: result.error?.message ?? 'Failed to create interview slot',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to create interview slot',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -116,7 +122,10 @@ export async function bookInterview(input: {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'BOOK_FAILED',
-      message: result.error?.message ?? 'Failed to book interview',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to book interview',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -242,7 +251,10 @@ export async function createEnquiry(input: {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'ENQUIRY_FAILED',
-      message: result.error?.message ?? 'Failed to create enquiry',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to create enquiry',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -260,7 +272,10 @@ export async function updateEnquiry(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'ENQUIRY_UPDATE_FAILED',
-      message: result.error?.message ?? 'Failed to update enquiry',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to update enquiry',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
 }
@@ -280,7 +295,10 @@ export async function addEnquiryFollowup(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'FOLLOWUP_FAILED',
-      message: result.error?.message ?? 'Failed to add follow-up',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to add follow-up',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -297,7 +315,10 @@ export async function convertEnquiry(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'CONVERT_FAILED',
-      message: result.error?.message ?? 'Failed to convert enquiry',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to convert enquiry',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -333,7 +354,10 @@ export async function upsertSeatMatrix(input: {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'SEAT_FAILED',
-      message: result.error?.message ?? 'Failed to save seat matrix',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to save seat matrix',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -354,7 +378,10 @@ export async function generateMeritList(input: {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'MERIT_FAILED',
-      message: result.error?.message ?? 'Failed to generate merit list',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to generate merit list',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -405,7 +432,10 @@ export async function setApplicationPlacement(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'PLACEMENT_FAILED',
-      message: result.error?.message ?? 'Failed to save placement / scores',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to save placement / scores',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -425,7 +455,10 @@ export async function createAdmissionOffer(input: {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'OFFER_FAILED',
-      message: result.error?.message ?? 'Failed to create offer',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to create offer',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -442,7 +475,10 @@ export async function sendAdmissionOffer(id: string): Promise<AdmissionOffer> {
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'SEND_FAILED',
-      message: result.error?.message ?? 'Failed to send offer',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to send offer',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -463,7 +499,10 @@ export async function acceptAdmissionOffer(
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'ACCEPT_FAILED',
-      message: result.error?.message ?? 'Failed to accept offer',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to accept offer',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;
@@ -480,7 +519,10 @@ export async function declineAdmissionOffer(id: string): Promise<AdmissionOffer>
     throw new GatewayError({
       status: result.status,
       code: result.error?.code ?? 'DECLINE_FAILED',
-      message: result.error?.message ?? 'Failed to decline offer',
+      // D1-T6: fixed text; the gateway envelope stays in details for server logs.
+      message: 'Failed to decline offer',
+      ...(result.error ? { details: result.error } : {}),
+      ...(result.correlationId ? { correlationId: result.correlationId } : {}),
     });
   }
   return result.data;

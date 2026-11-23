@@ -1,7 +1,6 @@
 /**
  * Staff fee structures (Server Component).
  */
-import { requireSession } from '@/lib/auth/server';
 import { listFeeStructuresResult } from '@/lib/api/fees';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { formatCodeNameLabel } from '@/lib/entity-label';
@@ -10,11 +9,16 @@ import { listGrades, listClassesByInstitution } from '@/lib/institutions/api';
 import { listInstitutions } from '@/lib/api/institutions';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 import { StructuresWorkspace } from '../_components/structures-workspace';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesStructuresPage() {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const [structuresResult, institutions, grades, studentOptions] = await Promise.all([
     listFeeStructuresResult(),
     listInstitutions({ pageSize: MAX_API_PAGE_SIZE }).catch(() => []),

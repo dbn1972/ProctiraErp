@@ -16,6 +16,8 @@ import { ScopePill } from '../_components/badges';
 import { NewSkillForm } from '../_components/new-skill-form';
 import { PalLookup } from '../_components/pal-lookup';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export default async function SpiralPalPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const sp = (await props.searchParams) ?? {};
   // PRC-M116: ?studentId= preselects a learner (e.g. linked from a profile).
   const initialStudentId =

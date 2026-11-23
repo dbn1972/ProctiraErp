@@ -12,6 +12,8 @@ import { formatCodeNameLabel, formatPersonLabel } from '@/lib/entity-label';
 import { listAcademicPeriods, listSubjects } from '@/lib/institutions/api';
 import { listStaff } from '@/lib/api/staff';
 import { listBellSchedules, listGenerationJobs, listSections } from '@/lib/api/timetable';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +36,10 @@ function formatWhen(value: string | null | undefined): string {
 }
 
 export default async function TimetableGeneratePage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('institutions', '/institutions'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const searchParams = (await props.searchParams) ?? {};
   const institutionId = params.id;

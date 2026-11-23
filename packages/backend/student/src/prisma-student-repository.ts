@@ -24,6 +24,7 @@ import type { Prisma, PrismaClient } from '@proctira/database';
 
 import { admissionNoOf, rethrowUniqueViolation } from './admission-number.js';
 import type {
+  StudentAuditDirective,
   StudentContact,
   StudentEntity,
   StudentFilter,
@@ -32,6 +33,9 @@ import type {
   StudentBulkWrite,
   StudentBulkWriteResult,
   StudentRepository,
+  StudentTxnAuditClient,
+  StudentTxnAuditEvent,
+  StudentTxnAuditPort,
   StudentUpdateOptions,
 } from './student-repository.js';
 import { StaleStudentUpdateError, updatedAtMatches } from './student-repository.js';
@@ -137,7 +141,56 @@ function toEntity(row: StudentRow): StudentEntity {
 type StudentTx = Parameters<Parameters<typeof withTenantTransaction>[2]>[0];
 
 export class PrismaStudentRepository implements StudentRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    /**
+     * PRC-M013: when provided, student PII mutations (update / delete) write the
+     * durable audit row on the mutation's own transaction. A throwing port rolls
+     * the mutation back. Injected by the gateway (see `domain-plugins.ts`); the
+     * student package stays free of `@proctira/backend-audit` (dependency
+     * inversion, same shape as the staff `StaffTxnAuditPort`).
+     */
+    private readonly txnAudit?: StudentTxnAuditPort,
+  ) {}
+
+  /** PRC-M013: advertise same-transaction audit so the service skips the post-hoc sink. */
+  get supportsTransactionalAudit(): boolean {
+    return Boolean(this.txnAudit);
+  }
+
+  /**
+   * PRC-M013: append the audit row on the mutation's own transaction client so a
+   * failed audit append rolls the student mutation back. No-op when no port or
+   * no directive (the in-memory path keeps the post-hoc sink).
+   */
+  private async appendAuditInTxn(
+    tx: StudentTx,
+    tenantId: string,
+    entityId: string,
+    audit: StudentAuditDirective | undefined,
+  ): Promise<void> {
+    if (!this.txnAudit || !audit) return;
+    const client: StudentTxnAuditClient = {
+      // The audit port passes static, parameterised DML only; routed through the
+      // same transaction so the no-runtime-DDL gate (PRC-L386) sees static SQL.
+      query: async (text: string, values: unknown[] = []) => ({
+        rows: await tx.$queryRawUnsafe<unknown[]>(text, ...values),
+      }),
+    };
+    const event: StudentTxnAuditEvent = {
+      tenantId,
+      entityType: 'student',
+      entityId,
+      operation: audit.operation,
+      beforeValues: audit.beforeValues,
+      afterValues: audit.afterValues,
+      metadata: audit.metadata,
+      actorId: audit.actorId,
+      ipAddress: audit.ipAddress,
+      requestId: audit.requestId,
+    };
+    await this.txnAudit.appendAuditInTxn(client, event);
+  }
 
   async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
     try {
@@ -221,9 +274,10 @@ export class PrismaStudentRepository implements StudentRepository {
     tenantId: string,
     data: Partial<StudentEntity>,
     options?: StudentUpdateOptions,
+    audit?: StudentAuditDirective,
   ): Promise<StudentEntity | null> {
     try {
-      return await this.updateInTx(id, tenantId, data, options);
+      return await this.updateInTx(id, tenantId, data, options, audit);
     } catch (err) {
       rethrowUniqueViolation(
         err,
@@ -237,9 +291,10 @@ export class PrismaStudentRepository implements StudentRepository {
     tenantId: string,
     data: Partial<StudentEntity>,
     options?: StudentUpdateOptions,
+    audit?: StudentAuditDirective,
   ): Promise<StudentEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, (tx) =>
-      this.updateWith(tx, id, tenantId, data, options),
+      this.updateWith(tx, id, tenantId, data, options, audit),
     );
   }
 
@@ -249,6 +304,7 @@ export class PrismaStudentRepository implements StudentRepository {
     tenantId: string,
     data: Partial<StudentEntity>,
     options?: StudentUpdateOptions,
+    audit?: StudentAuditDirective,
   ): Promise<StudentEntity | null> {
     if (options?.expectedUpdatedAt) {
       // PRC-L365: lock the row so the precondition check and the write are
@@ -306,6 +362,9 @@ export class PrismaStudentRepository implements StudentRepository {
            WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
         `;
       }
+      // PRC-M013: write the audit row in the SAME transaction; a throwing port
+      // rolls the student update back.
+      await this.appendAuditInTxn(tx, tenantId, id, audit);
       return toEntity(row);
     }
   }
@@ -370,7 +429,7 @@ export class PrismaStudentRepository implements StudentRepository {
     });
   }
 
-  async delete(id: string, tenantId: string): Promise<boolean> {
+  async delete(id: string, tenantId: string, audit?: StudentAuditDirective): Promise<boolean> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       // Soft delete: only rows that exist within the tenant and aren't already
       // deleted are affected. `count` tells us whether anything changed.
@@ -378,7 +437,13 @@ export class PrismaStudentRepository implements StudentRepository {
         where: { id, tenantId, deletedAt: null },
         data: { deletedAt: new Date() },
       });
-      return result.count > 0;
+      const deleted = result.count > 0;
+      // PRC-M013: audit the delete in the SAME transaction only when a row was
+      // actually soft-deleted; a throwing port rolls the delete back.
+      if (deleted) {
+        await this.appendAuditInTxn(tx, tenantId, id, audit);
+      }
+      return deleted;
     });
   }
 

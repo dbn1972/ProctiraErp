@@ -953,9 +953,10 @@ export class TransportService {
     await this.getRouteById(tenantId, filter.routeId);
     const [rows, assignments] = await Promise.all([
       this.repository.listBusAttendanceTrip(tenantId, filter),
+      // T-D4: the roster is the riders whose assignment covers the trip date.
       this.repository.listStudentAssignments(
         tenantId,
-        { routeId: filter.routeId, isActive: true },
+        { routeId: filter.routeId, isActive: true, activeOn: filter.tripDate },
         { page: 1, pageSize: 200 },
       ),
     ]);
@@ -1001,15 +1002,16 @@ export class TransportService {
       this.repository.listAllStops(tenantId),
       collectAllPages((page) => this.repository.listRoutes(tenantId, {}, page)),
       collectAllPages((page) =>
+        // T-D4: only riders and drivers whose assignment covers the trip date.
         this.repository.listStudentAssignments(
           tenantId,
-          { routeId: input.routeId, isActive: true },
+          { routeId: input.routeId, isActive: true, activeOn: tripDate },
           page,
         ),
       ),
     ]);
     const driverAssignments = await collectAllPages((page) =>
-      this.repository.listDriverAssignments(tenantId, { isActive: true }, page),
+      this.repository.listDriverAssignments(tenantId, { isActive: true, activeOn: tripDate }, page),
     );
     const routeByVehicle = new Map(
       driverAssignments.data

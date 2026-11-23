@@ -19,6 +19,8 @@ import {
 import { getScholarshipProgram } from '@/lib/api/scholarships';
 
 import { EditProgramForm } from '../../../_components/edit-program-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +29,10 @@ interface PageProps {
 }
 
 export default async function EditScholarshipProgramPage(props: PageProps) {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const program = await getScholarshipProgram(params.id);
   if (!program) notFound();

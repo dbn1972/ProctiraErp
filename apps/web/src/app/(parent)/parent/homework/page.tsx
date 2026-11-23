@@ -64,6 +64,7 @@ export default async function ParentHomeworkPage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No published homework yet."
       hasRows={items.length > 0}
     >

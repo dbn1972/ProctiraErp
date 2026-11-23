@@ -32,6 +32,11 @@ vi.mock('@/lib/auth', () => ({
     exp: 9999999999,
   }),
 }));
+// PRC-L265: gateway.ts reads the tenant from the verified token claims.
+vi.mock('@/lib/auth/verified-token', () => ({
+  readSessionToken: async () => ({ sub: 'user-1', tenantId: mockTenantId, exp: 9999999999 }),
+  tenantIdFromClaims: (claims: { tenantId?: string } | null) => claims?.tenantId ?? null,
+}));
 
 const fetchMock = vi.fn<(...args: [string, RequestInit?]) => Promise<Response>>();
 vi.stubGlobal('fetch', fetchMock);
@@ -93,6 +98,39 @@ describe('gatewayFetch', () => {
     expect(result.error?.code).toBe('VALIDATION_ERROR');
   });
 
+  it('returns the response correlation id on a non-2xx response (D1b)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ code: 'INTERNAL_ERROR', message: 'boom' }), {
+        status: 500,
+        headers: {
+          'content-type': 'application/json',
+          'x-correlation-id': '2ee7694a-4534-4ad0-a4bf-44cc3f17b9d7',
+        },
+      }),
+    );
+    const { gatewayFetch } = await import('./gateway');
+    const result = await gatewayFetch('/students', { throwOnError: false });
+    expect(result.ok).toBe(false);
+    expect(result.correlationId).toBe('2ee7694a-4534-4ad0-a4bf-44cc3f17b9d7');
+  });
+
+  it('puts the response correlation id on a thrown GatewayError (T-D3)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'denied' }), {
+        status: 403,
+        headers: {
+          'content-type': 'application/json',
+          'x-request-id': 'req-7f3c2a91',
+        },
+      }),
+    );
+    const { gatewayFetch, GatewayError } = await import('./gateway');
+    const error = await gatewayFetch('/transport/vehicles', { method: 'POST' }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(GatewayError);
+    expect((error as { correlationId?: string }).correlationId).toBe('req-7f3c2a91');
+  });
   it('turns revalidate 0 into cache no-store so the Data Cache cannot serve a stale plan', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ items: [] }), {
@@ -148,13 +186,12 @@ describe('gatewayFetch auth fallbacks and failures (PRC-M489)', () => {
     expect(headers.get('Authorization')).toBeNull();
     expect(headers.get('X-Tenant-ID')).toBe('tenant-from-header');
   });
-  it('falls back to "default" tenant when neither cookie nor header is present', async () => {
+  it('refuses (sends nothing) when neither a verified cookie nor a host tenant is present (PRC-L265)', async () => {
     mockGet.mockReturnValue(undefined);
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     const { gatewayFetch } = await import('./gateway');
-    const res = await gatewayFetch('/students');
-    expect((fetchMock.mock.calls[0]![1]!.headers as Headers).get('X-Tenant-ID')).toBe('default');
-    expect(res).toMatchObject({ ok: true, status: 204, data: null });
+    const res = await gatewayFetch('/students', { throwOnError: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ ok: false, status: 401, error: { code: 'TENANT_UNRESOLVED' } });
   });
   it('maps a network failure to NETWORK_ERROR (throwing and non-throwing)', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));

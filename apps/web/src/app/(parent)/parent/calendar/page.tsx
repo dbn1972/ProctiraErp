@@ -64,6 +64,7 @@ export default async function ParentCalendarPage({
       selectedId={child.studentId}
       status={status}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No holidays or events have been published yet."
       hasRows={events.length > 0}
     >

@@ -11,6 +11,7 @@ import fp from 'fastify-plugin';
 import type { DeveloperPortalExtendedRepository } from './developer-portal-repository.js';
 import {
   DeveloperPortalService,
+  type SandboxTenantProvisioner,
   type DeveloperPortalServiceConfig,
   type WebhookHttpFetch,
   type WebhookSigningSecretResolver,
@@ -59,6 +60,43 @@ export interface DeveloperPortalPluginOptions {
   signingSecretResolver?: WebhookSigningSecretResolver;
   /** Route prefix (default: '/developer') */
   prefix?: string;
+  /**
+   * PRC-M218: sandbox tenant provisioner. Defaults to the gateway's root `tenantService`
+   * decorator (tenant lifecycle) when it exposes sandbox provisioning; otherwise sandbox
+   * creation fails closed.
+   */
+  sandboxProvisioner?: SandboxTenantProvisioner;
+}
+
+/** Structural view of the tenant lifecycle service (no package edge). */
+interface SandboxCapableTenantService {
+  provisionSandboxTenant(input: { name: string; ownerRef: string }): Promise<{ id: string }>;
+  teardownSandboxTenant(tenantId: string): Promise<void>;
+}
+
+/** PRC-M218: adapt the root `tenantService` decorator, when present. */
+function sandboxProvisionerFromDecorator(
+  fastify: FastifyInstance,
+): SandboxTenantProvisioner | undefined {
+  const tenantService = (fastify as unknown as { tenantService?: SandboxCapableTenantService })
+    .tenantService;
+  if (
+    !tenantService ||
+    typeof tenantService.provisionSandboxTenant !== 'function' ||
+    typeof tenantService.teardownSandboxTenant !== 'function'
+  ) {
+    return undefined;
+  }
+  return {
+    async provisionSandboxTenant({ sandboxId, accountId, name }) {
+      const tenant = await tenantService.provisionSandboxTenant({
+        name: `Sandbox: ${name}`.slice(0, 200),
+        ownerRef: `developer-account:${accountId}/sandbox:${sandboxId}`,
+      });
+      return { tenantId: tenant.id };
+    },
+    teardownSandboxTenant: (tenantId) => tenantService.teardownSandboxTenant(tenantId),
+  };
 }
 
 // Extend Fastify types
@@ -90,6 +128,8 @@ export const developerPortalPlugin = fp(
       signingSecretResolver,
       prefix = '/developer',
     } = options;
+    const sandboxProvisioner =
+      options.sandboxProvisioner ?? sandboxProvisionerFromDecorator(fastify);
 
     // Merge config with defaults
     const fullConfig: DeveloperPortalServiceConfig = { ...DEFAULT_CONFIG, ...config };
@@ -100,6 +140,7 @@ export const developerPortalPlugin = fp(
       replayStore,
       httpFetch,
       signingSecretResolver,
+      sandboxProvisioner,
     });
 
     // Decorate fastify with the service

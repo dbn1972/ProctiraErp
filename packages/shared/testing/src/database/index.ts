@@ -19,3 +19,11 @@ export type {
   MultiBoardSeedResult,
   SchoolSeedBundle,
 } from './multi-board-seed.js';
+// PRC-L497: Postgres persistence for the multi-board fixture, under RLS for its tenant.
+export { persistMultiBoardSeed, SeedTenantMismatchError } from './multi-board-seed-pg.js';
+export type {
+  PersistedMultiBoardSeed,
+  PersistMultiBoardSeedOptions,
+  SeedPgClient,
+  SeedPgPool,
+} from './multi-board-seed-pg.js';

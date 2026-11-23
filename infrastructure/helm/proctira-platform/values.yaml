@@ -69,6 +69,44 @@ ingress:
     admin: 'admin.proctira.io'
     developers: 'developers.proctira.io'
 
+# -- cert-manager ClusterIssuer (PRC-L565)
+# A wildcard certificate for `*.proctira.io` cannot be issued with the HTTP-01
+# challenge; it requires a DNS-01 solver. This chart can render a Route 53
+# DNS-01 ClusterIssuer that authenticates through IRSA (a projected service
+# account role) so NO static AWS access keys are ever stored in the cluster.
+#
+# DISABLED BY DEFAULT and left disabled in production until the operating
+# inputs exist (decision register ## 41, Topic 25 — WAITING_ON_INPUT):
+#   - hostedZoneID: the Route 53 hosted zone for proctira.io
+#   - role.roleArn: the IAM role ARN (IRSA) cert-manager assumes to write
+#     the _acme-challenge TXT records
+# Until those are supplied, enabling this block renders an incomplete issuer,
+# so the template fails closed (see cluster-issuer.yaml) rather than shipping a
+# broken issuer. When enabled, the ingress annotation must point at
+# `clusterIssuer.name` instead of the externally-managed `letsencrypt-prod`.
+certManager:
+  clusterIssuer:
+    # Must stay false until the DNS-01 provider + solver identity are provisioned.
+    enabled: false
+    name: letsencrypt-dns01
+    # ACME directory (Let's Encrypt production by default).
+    acmeServer: https://acme-v02.api.letsencrypt.org/directory
+    # Contact address for ACME expiry/abuse notices.
+    email: devops@proctira.io
+    # Secret name cert-manager uses to store the ACME account private key.
+    privateKeySecretRef: letsencrypt-dns01-account-key
+    dns01:
+      provider: route53
+      # AWS region for the Route 53 API (hosted zones are global, but the
+      # client still needs a region).
+      region: ap-south-1
+      # WAITING_ON_INPUT: Route 53 hosted zone ID for proctira.io.
+      hostedZoneID: ''
+      role:
+        # IRSA: cert-manager's ServiceAccount assumes this role; no static keys.
+        # WAITING_ON_INPUT: the IAM role ARN with Route53 TXT-record write access.
+        roleArn: ''
+
 # -- API Gateway service
 apiGateway:
   enabled: true
@@ -510,64 +548,6 @@ developerPortal:
 # on api-gateway. Set topology.mode=split and enable individual services only
 # for lab experiments. See docs/DEPLOYMENT_TOPOLOGY.md.
 
-# -- Institution Service
-institutionService:
-  enabled: false
-  replicaCount: 2
-  image:
-    repository: proctira/institution-service
-    tag: ''
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3020
-  resources:
-    requests:
-      cpu: 200m
-      memory: 256Mi
-    limits:
-      cpu: '1'
-      memory: 512Mi
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
-  livenessProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 15
-    periodSeconds: 20
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /ready
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
-  startupProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 5
-    failureThreshold: 12
-  env:
-    PORT: '3020'
-    HOST: '0.0.0.0'
-    SERVICE_NAME: 'institution-service'
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-
 # -- Student Service
 studentService:
   enabled: false
@@ -620,64 +600,6 @@ studentService:
     PORT: '3021'
     HOST: '0.0.0.0'
     SERVICE_NAME: 'student-service'
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-
-# -- Staff Service
-staffService:
-  enabled: false
-  replicaCount: 2
-  image:
-    repository: proctira/staff-service
-    tag: ''
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3022
-  resources:
-    requests:
-      cpu: 200m
-      memory: 256Mi
-    limits:
-      cpu: '1'
-      memory: 512Mi
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
-  livenessProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 15
-    periodSeconds: 20
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /ready
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
-  startupProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 5
-    failureThreshold: 12
-  env:
-    PORT: '3022'
-    HOST: '0.0.0.0'
-    SERVICE_NAME: 'staff-service'
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -742,64 +664,6 @@ assessmentService:
       maxUnavailable: 0
       maxSurge: 1
 
-# -- Attendance Service
-attendanceService:
-  enabled: false
-  replicaCount: 2
-  image:
-    repository: proctira/attendance-service
-    tag: ''
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3024
-  resources:
-    requests:
-      cpu: 200m
-      memory: 256Mi
-    limits:
-      cpu: '1'
-      memory: 512Mi
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
-  livenessProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 15
-    periodSeconds: 20
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /ready
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
-  startupProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 5
-    failureThreshold: 12
-  env:
-    PORT: '3024'
-    HOST: '0.0.0.0'
-    SERVICE_NAME: 'attendance-service'
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-
 # -- Examination Service
 examinationService:
   enabled: false
@@ -852,122 +716,6 @@ examinationService:
     PORT: '3025'
     HOST: '0.0.0.0'
     SERVICE_NAME: 'examination-service'
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-
-# -- Workflow Service
-workflowService:
-  enabled: false
-  replicaCount: 2
-  image:
-    repository: proctira/workflow-service
-    tag: ''
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3026
-  resources:
-    requests:
-      cpu: 200m
-      memory: 256Mi
-    limits:
-      cpu: '1'
-      memory: 512Mi
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 6
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
-  livenessProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 15
-    periodSeconds: 20
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /ready
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
-  startupProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 5
-    failureThreshold: 12
-  env:
-    PORT: '3026'
-    HOST: '0.0.0.0'
-    SERVICE_NAME: 'workflow-service'
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-
-# -- Notification Service
-notificationService:
-  enabled: false
-  replicaCount: 2
-  image:
-    repository: proctira/notification-service
-    tag: ''
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3027
-  resources:
-    requests:
-      cpu: 150m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 6
-    targetCPUUtilizationPercentage: 70
-    targetMemoryUtilizationPercentage: 80
-  livenessProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 15
-    periodSeconds: 20
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /ready
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
-  startupProbe:
-    httpGet:
-      path: /health
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 5
-    failureThreshold: 12
-  env:
-    PORT: '3027'
-    HOST: '0.0.0.0'
-    SERVICE_NAME: 'notification-service'
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -1063,17 +811,14 @@ config:
     keycloakAudience: '' # optional; tokens must carry it in aud/azp
     keycloakRedirectUri: '' # e.g. https://api.<domain>/api/v1/auth/callback
     webUrl: '' # NEXT_PUBLIC_WEB_URL: web origin for post-login redirects
-  # PRC-M524 (PARTIAL): CORS_ORIGINS / TRUSTED_PROXY_CIDRS. apps/api-gateway's
-  # CORS plugin takes a literal origin list (no wildcard-subdomain matching),
-  # so every environment overlay must enumerate the real tenant/portal
-  # domains it serves. Left empty at the base chart (sandbox-safe default).
-  # The gateway does NOT yet refuse to boot in production without this set —
-  # a production boot-fail guard mirroring resolveJwtSecret was deferred
-  # because this repo's own apps/api-gateway/src/config.test.ts boots the
-  # gateway with NODE_ENV=production and no CORS_ORIGINS to isolate an
-  # unrelated assertion; see the ledger residual. trustedProxyCidrs is also
-  # left empty: with no explicit entries the gateway trusts no forwarding
-  # proxy (direct socket IP only).
+  # PRC-M524: CORS_ORIGINS / TRUSTED_PROXY_CIDRS. apps/api-gateway's CORS
+  # plugin takes a literal origin list (no wildcard-subdomain matching), so
+  # every environment must enumerate the real tenant/portal domains it serves.
+  # Left empty at the base chart; the gateway refuses to boot in a deployed
+  # environment (NODE_ENV other than development/test, or APP_ENV=staging/
+  # production) when either value is empty or corsOrigins contains `*`
+  # (apps/api-gateway/src/config.ts). Outside a deployed environment an empty
+  # trustedProxyCidrs means the gateway trusts no forwarding proxy.
   corsOrigins: '' # comma-separated, e.g. https://*.proctira.io is NOT valid (no wildcard subdomains); enumerate hosts.web clients actually use
   trustedProxyCidrs: '' # comma-separated IP/CIDR list of the ingress controller's address, e.g. 10.0.0.0/8
 
@@ -1184,6 +929,10 @@ dr:
       # COMPLIANCE with retainDays >= retentionDays (fail-closed in template).
       objectLock:
         mode: '' # GOVERNANCE | COMPLIANCE | '' (disabled)
+        # PRC-M624: UTC date (YYYY-MM-DD) up to which Object Lock uses
+        # GOVERNANCE; on/after it pg-backup.sh switches to COMPLIANCE. Empty
+        # disables the switch (the static `mode` above is used as-is).
+        governanceUntil: ''
         retainDays: 0
   phiRetention:
     enabled: true

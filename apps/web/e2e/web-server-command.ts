@@ -37,6 +37,11 @@ export interface WebServerCommandInput {
   ci: boolean;
   /** Whether `.next/BUILD_ID` exists, i.e. `next build` has completed here. */
   hasProductionBuild: boolean;
+  /**
+   * Interface Next listens on. Next defaults to `0.0.0.0` (every interface), which
+   * exposes the dev server to the network; callers pass a loopback address (UAT-ENV-010).
+   */
+  host: string;
   port: string;
 }
 
@@ -49,8 +54,9 @@ export interface WebServerCommandInput {
 export function resolveWebServerCommand({
   ci,
   hasProductionBuild,
+  host,
   port,
 }: WebServerCommandInput): string {
   const mode = ci && hasProductionBuild ? 'start' : 'dev';
-  return `pnpm --filter @proctira/web exec next ${mode} --port ${port}`;
+  return `pnpm --filter @proctira/web exec next ${mode} --hostname ${host} --port ${port}`;
 }

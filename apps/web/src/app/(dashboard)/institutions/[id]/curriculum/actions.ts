@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { GatewayError } from '@/lib/api/gateway';
 import {
   createLearningOutcome,
   createLessonPlan,
@@ -27,15 +26,17 @@ import {
   updateLearningOutcomeSchema,
   updateLessonPlanSchema,
 } from '@/lib/validation/campus-actions-schema';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export type CurriculumActionResult =
   { ok: true; id: string; extra?: Record<string, unknown> } | { ok: false; error: string };
 
 function fail(error: unknown): CurriculumActionResult {
-  if (error instanceof GatewayError) {
-    return { ok: false, error: error.message };
-  }
-  return { ok: false, error: error instanceof Error ? error.message : 'Unexpected error' };
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
+  return {
+    ok: false,
+    error: genericActionErrorMessage(error, 'The curriculum change could not be saved.'),
+  };
 }
 
 function revalidateCurriculum(institutionId: string) {

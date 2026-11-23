@@ -110,33 +110,7 @@ developerPortal:
       memory: 128Mi
 
 # -- Backend domain services (development overrides — single replica, no autoscaling)
-institutionService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
 studentService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
-staffService:
   enabled: false
   replicaCount: 1
   autoscaling:
@@ -162,46 +136,7 @@ assessmentService:
       cpu: 500m
       memory: 256Mi
 
-attendanceService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
 examinationService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
-workflowService:
-  enabled: false
-  replicaCount: 1
-  autoscaling:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
-notificationService:
   enabled: false
   replicaCount: 1
   autoscaling:

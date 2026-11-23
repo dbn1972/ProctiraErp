@@ -68,8 +68,8 @@ for env in development staging production; do
 done
 
 mapfile -t K8S_BASE_DEPLOYMENTS < <(find ./infrastructure/k8s/base -mindepth 2 -maxdepth 2 -name deployment.yaml -print | sort)
-[[ "${#K8S_BASE_DEPLOYMENTS[@]}" -eq 17 ]] \
-  || die "expected 17 Kustomize base Deployments, got ${#K8S_BASE_DEPLOYMENTS[@]}"
+[[ "${#K8S_BASE_DEPLOYMENTS[@]}" -eq 12 ]] \
+  || die "expected 12 Kustomize base Deployments, got ${#K8S_BASE_DEPLOYMENTS[@]}"
 for deployment in "${K8S_BASE_DEPLOYMENTS[@]}"; do
   assert_deployment_hardening "$deployment" "$deployment" 1
 done
@@ -295,17 +295,12 @@ helm template proctira "${PLATFORM_CHART}" \
   --namespace proctira-lab \
   -f "${PLATFORM_CHART}/values-development.yaml" \
   --set topology.mode=split \
-  --set institutionService.enabled=true \
   --set studentService.enabled=true \
-  --set staffService.enabled=true \
   --set assessmentService.enabled=true \
-  --set attendanceService.enabled=true \
   --set examinationService.enabled=true \
-  --set workflowService.enabled=true \
-  --set notificationService.enabled=true \
   --set reportService.enabled=true \
   >"$split_out"
-assert_deployment_hardening "$split_out" "platform split lab" 17
+assert_deployment_hardening "$split_out" "platform split lab" 12
 rm -f "$split_out"
 
 # G-707 — DR CronJobs
@@ -554,8 +549,8 @@ helm template proctira "${PLATFORM_CHART}" \
   -f "${PLATFORM_CHART}/values-production.yaml" \
   >"$prod_out"
 grep -q 'api-gateway' "$prod_out" || die "production platform missing api-gateway"
-if grep -E 'app.kubernetes.io/name: institution-service|name: .*institution-service$' "$prod_out" >/dev/null; then
-  die "production platform must not render institution-service (W1-OPS-16)"
+if grep -E 'app.kubernetes.io/name: student-service|name: .*student-service$' "$prod_out" >/dev/null; then
+  die "production platform must not render student-service (W1-OPS-16)"
 fi
 # W1-OPS-17 — production render must include HA PDBs for canonical services
 for pdb_svc in api-gateway web etl-worker registration-portal public-website admin-console developer-portal; do

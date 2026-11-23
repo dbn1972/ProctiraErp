@@ -15,6 +15,8 @@ import {
 } from '@/lib/api/gradebook';
 import { listInstitutions } from '@/lib/institutions/api';
 import { pickSelectedLookup } from '@/lib/admissions/lookups';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +35,10 @@ function formatJobDate(iso: string): string {
 export default async function AssessmentReportCardsPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // A-batch: check before any assessment read.
+  if (!(await hasDashboardDomainRouteAccess('assessments', '/assessments'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = (await props.searchParams) ?? {};
   const [institutions, jobsResult] = await Promise.all([
     listInstitutions({ pageSize: 50 }).catch(() => ({

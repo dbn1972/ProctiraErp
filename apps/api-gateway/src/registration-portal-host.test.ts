@@ -100,6 +100,9 @@ describe('PRC-H113 portal-originated public registration calls through the gatew
       domain: 'admissions.district-b.example',
       primary: true,
       verified: true,
+      // PRC-L169: a verified domain resolves only while its verification is current.
+      verifiedAt: new Date(),
+      verificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       createdAt: new Date(),
     });
     const { buildApp } = await import('./app.js');

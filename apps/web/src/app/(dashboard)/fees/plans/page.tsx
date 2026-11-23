@@ -2,7 +2,6 @@
  * Staff fee plans (Server Component).
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { listFeePlansResult } from '@/lib/api/fees';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { humanizeStatus } from '@/lib/status-label';
@@ -11,11 +10,16 @@ import { NewFeePlanForm } from '../_components/new-fee-plan-form';
 import { getLocale } from 'next-intl/server';
 
 import { formatAmount } from '../_components/format-amount';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesPlansPage() {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const locale = await getLocale();
   const plansResult = await listFeePlansResult();
   const plans = plansResult.ok ? plansResult.items : [];

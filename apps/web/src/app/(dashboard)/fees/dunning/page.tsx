@@ -3,7 +3,6 @@
  */
 import Link from 'next/link';
 
-import { requireSession } from '@/lib/auth/server';
 import {
   listOverdueReminders,
   listReminderSendAudits,
@@ -11,11 +10,16 @@ import {
 } from '@/lib/api/fees';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { DunningConsole } from '../_components/dunning-console';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesDunningPage() {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const [overdue, suppressions, auditPayload, studentOptions] = await Promise.all([
     listOverdueReminders(),
     listReminderSuppressions(),

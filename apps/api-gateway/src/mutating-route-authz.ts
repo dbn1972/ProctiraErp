@@ -300,6 +300,62 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     resource: 'notification',
     deferredDomainGuard: false,
   },
+  // PRC-M027: SCIM token issue/rotate and revoke are tenant-admin directory
+  // actions (`user: manage`); SCIM tokens themselves are denied here by the
+  // credential-principal allow-list.
+  {
+    id: 'tenant.scim-token.issue',
+    pathPrefix: '/api/v1/tenant/scim-token',
+    resource: 'user',
+    action: 'manage',
+    methods: ['POST'],
+    domainAction: 'scim-token.issue',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'tenant.scim-token.revoke',
+    pathPrefix: '/api/v1/tenant/scim-token',
+    resource: 'user',
+    action: 'manage',
+    methods: ['DELETE'],
+    domainAction: 'scim-token.revoke',
+    deferredDomainGuard: false,
+  },
+  // PRC-L280: audit evidence WRITES stay a platform control-plane action.
+  // L280 re-scopes READS of `/api/v1/audit-logs` to the caller's tenant (see
+  // `resourceForApiPath` → `audit-read`); these pinned overrides capture the
+  // guard the mutating audit routes resolve to on base (segment `audit-logs`
+  // → `platform`) so the read re-scope — or any later change to the coarse
+  // segment map — can never widen who may write audit rows. A tenant admin is
+  // not a platform admin, so it stays 403 on these writes at the gateway; the
+  // in-package `AUDIT_WRITE_ROLES` preHandler remains as defense in depth.
+  {
+    id: 'audit-logs.record',
+    pathPrefix: '/api/v1/audit-logs',
+    resource: 'platform',
+    action: 'create',
+    methods: ['POST'],
+    domainAction: 'audit.record',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'audit-logs.retention',
+    pathPrefix: '/api/v1/audit-logs/retention',
+    resource: 'platform',
+    action: 'update',
+    methods: ['PUT', 'PATCH'],
+    domainAction: 'audit.retention.set',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'audit-logs.delete',
+    pathPrefix: '/api/v1/audit-logs',
+    resource: 'platform',
+    action: 'delete',
+    methods: ['DELETE'],
+    domainAction: 'audit.delete',
+    deferredDomainGuard: false,
+  },
   // PRC-H048: global marketplace moderation and developer docs are platform
   // control-plane actions, not tenant `developer:*` rights. The `platform`
   // resource admits PLATFORM_ADMIN_ROLE_IDS only; the developer-portal package

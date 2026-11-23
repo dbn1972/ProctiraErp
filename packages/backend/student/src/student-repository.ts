@@ -92,9 +92,66 @@ export function updatedAtMatches(stored: Date, expected: Date): boolean {
 }
 
 /**
+ * PRC-M013: durable audit event a student PII mutation writes inside its own
+ * transaction. `entityType` is always `student`; the entity id is the student id.
+ */
+export interface StudentTxnAuditEvent {
+  tenantId: string;
+  entityType: 'student';
+  entityId: string;
+  operation: 'UPDATE' | 'DELETE';
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  /** JWT `sub` of the caller; null when raised outside an authenticated request. */
+  actorId: string | null;
+  /** Client IP resolved by the gateway; null outside a request. */
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+/**
+ * The injected client type is intentionally structural (`query(text, values)`)
+ * so this package does not import a database client type. The gateway passes a
+ * `PgQueryable`-shaped adapter built over the mutation's own transaction.
+ */
+export interface StudentTxnAuditClient {
+  query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
+}
+
+export interface StudentTxnAuditPort {
+  /** Append the audit row on the caller's transaction client. */
+  appendAuditInTxn(client: StudentTxnAuditClient, event: StudentTxnAuditEvent): Promise<void>;
+}
+
+/**
+ * PRC-M013: audit context a mutating repository call carries so the audit row
+ * is written in the same transaction. Supplied by {@link StudentService} only
+ * when the repository advertises {@link StudentRepository.supportsTransactionalAudit}.
+ */
+export interface StudentAuditDirective {
+  operation: 'UPDATE' | 'DELETE';
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+}
+
+/**
  * Repository interface for student data access.
  */
 export interface StudentRepository {
+  /**
+   * PRC-M013: when `true`, the repository writes the student PII mutation audit
+   * row in the SAME transaction as the mutation (given a
+   * {@link StudentAuditDirective}), so the service must NOT also emit a post-hoc
+   * audit event for that mutation. Absent / `false` (e.g. the in-memory
+   * repository) keeps the post-hoc path.
+   */
+  readonly supportsTransactionalAudit?: boolean;
+
   /** Create a new student */
   create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity>;
 
@@ -103,12 +160,15 @@ export interface StudentRepository {
    * PRC-L365: when `options.expectedUpdatedAt` is set the write is conditional —
    * implementations must re-check the stored `updatedAt` atomically with the
    * write and throw `StaleStudentUpdateError` when it differs.
+   * PRC-M013: when `audit` is supplied and the implementation supports
+   * transactional audit, the audit row is written in the same transaction.
    */
   update(
     id: string,
     tenantId: string,
     data: Partial<StudentEntity>,
     options?: StudentUpdateOptions,
+    audit?: StudentAuditDirective,
   ): Promise<StudentEntity | null>;
 
   /** Find a student by ID within a tenant */
@@ -131,8 +191,12 @@ export interface StudentRepository {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StudentEntity>>;
 
-  /** Delete a student (soft delete) */
-  delete(id: string, tenantId: string): Promise<boolean>;
+  /**
+   * Delete a student (soft delete).
+   * PRC-M013: when `audit` is supplied and the implementation supports
+   * transactional audit, the audit row is written in the same transaction.
+   */
+  delete(id: string, tenantId: string, audit?: StudentAuditDirective): Promise<boolean>;
 
   /**
    * W2-SIS-01: allocate the next unique admission number for a tenant.
