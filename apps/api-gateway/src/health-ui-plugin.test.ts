@@ -141,6 +141,48 @@ describe('healthUiPlugin', () => {
     expect(body.data.length).toBeGreaterThan(0);
   });
 
+  // HL-O8: a refused read must be sent exactly once. The gateway has async onSend hooks;
+  // when a denied handler resolved `undefined` instead of the reply, Fastify sent a second
+  // time and logged ERR_HTTP_HEADERS_SENT with statusCode 500 for a request the client saw as 403.
+  it.each([
+    ['/health/screenings', 403, 'Teacher'],
+    ['/health/records', 403, 'Teacher'],
+    ['/health/records/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa91', 403, 'Teacher'],
+    ['/health/special-needs', 403, 'Teacher'],
+    ['/health/counselling', 403, 'Teacher'],
+    ['/health/screenings', 400, 'NURSE'],
+  ])('HL-O8: GET %s refused with %i is sent once', async (url, status, roleName) => {
+    const lines: string[] = [];
+    const app = Fastify({
+      logger: { level: 'info', stream: { write: (l: string) => lines.push(l) } },
+    });
+    apps.push(app);
+    app.addHook('onRequest', async (request) => {
+      // 400 case: a health role without tenant context.
+      const tenantId = status === 400 ? undefined : HEALTH_DEMO_TENANT_ID;
+      setUser(
+        request,
+        { sub: 't1', tenantId, roles: [{ roleId: 'r', roleName, areaId: 'area-1' }] },
+        tenantId,
+      );
+    });
+    app.addHook('onSend', async (_request, _reply, payload) => {
+      await new Promise((resolve) => setImmediate(resolve));
+      return payload;
+    });
+    await app.register(healthUiPlugin);
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url });
+    expect(res.statusCode).toBe(status);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const log = lines.join('');
+    expect(log).not.toMatch(/ERR_HTTP_HEADERS_SENT|headers after they are sent/i);
+    const completed = lines
+      .map((l) => JSON.parse(l) as { msg?: string; res?: { statusCode?: number } })
+      .filter((l) => l.msg === 'request completed');
+    expect(completed.map((l) => l.res?.statusCode)).toEqual([status]);
+  });
+
   describe('G-912 — lists are built from domain rows, not only the seed', () => {
     const TENANT = '00000000-0000-4000-8000-0000000000e1';
     const OTHER = '00000000-0000-4000-8000-0000000000e2';
@@ -600,6 +642,28 @@ describe('healthUiPlugin', () => {
         const res = await app.inject({ method: 'GET', url });
         expect((res.json() as { data: unknown[] }).data).toEqual([]);
       }
+    });
+    it('D1-D3 contract (PRC-M088): live rows carry no name; another tenant cannot read this student', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      const own = await buildLiveApp(repository);
+      // The web resolves the name from the caller's tenant-scoped directory, so the
+      // aggregates return '' — never an id fragment, never a name from elsewhere.
+      const detail = await own.inject({ method: 'GET', url: `/health/records/${STUDENT}` });
+      expect(detail.statusCode).toBe(200);
+      expect(detail.json()).toMatchObject({ studentId: STUDENT, studentName: '' });
+      const needs = (await own.inject({ method: 'GET', url: '/health/special-needs' })).json() as {
+        data: Array<{ studentId: string; studentName: string }>;
+      };
+      expect(needs.data).toEqual([
+        expect.objectContaining({ studentId: STUDENT, studentName: '' }),
+      ]);
+      // Cross-tenant negative: the other tenant gets 404 for this student's record.
+      const other = await buildLiveApp(repository, OTHER);
+      const foreign = await other.inject({ method: 'GET', url: `/health/records/${STUDENT}` });
+      expect(foreign.statusCode).toBe(404);
+      expect(foreign.body).not.toContain('Peanuts');
+      expect(foreign.body).not.toContain(STUDENT);
     });
   });
 });

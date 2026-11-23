@@ -9,10 +9,16 @@ import { EmptyState } from '@/components/page';
 
 import { DiscussionCreateForm, DiscussionModeration } from '../_components/discussion-forms';
 import { LmsSubnav } from '../_components/lms-subnav';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LmsDiscussionsPage() {
+  // A-batch: check before any LMS read.
+  if (!(await hasDashboardDomainRouteAccess('lms', '/lms'))) {
+    return <RouteAccessDenied />;
+  }
   const [threads, schools] = await Promise.all([listDiscussions(), loadInstitutionOptions()]);
   return (
     <section className="space-y-6" aria-labelledby="lms-discussions-heading">

@@ -117,22 +117,52 @@ class InstallApiClient {
   private csrfToken: string | null = null;
   private installToken: string | null = null;
   private sessionPromise: Promise<void> | null = null;
+  private bootstrapSecret: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+  }
+
+  /**
+   * PRC-M467: start the install session with the operator's bootstrap secret. The secret is
+   * held in memory only (never persisted in the browser) and sent once, on session issuance.
+   */
+  async startSession(bootstrapSecret: string): Promise<void> {
+    this.bootstrapSecret = bootstrapSecret;
+    this.csrfToken = null;
+    this.installToken = null;
+    try {
+      await this.ensureSession();
+    } finally {
+      this.bootstrapSecret = null;
+    }
+  }
+
+  /** True once a session has been issued. */
+  hasSession(): boolean {
+    return Boolean(this.csrfToken && this.installToken);
   }
 
   /** Ensure CSRF + install-token session is established (idempotent). */
   async ensureSession(): Promise<void> {
     if (this.csrfToken && this.installToken) return;
     if (!this.sessionPromise) {
+      const secret = this.bootstrapSecret;
       this.sessionPromise = (async () => {
+        if (!secret) {
+          throw new Error('Enter the installer bootstrap secret to start setup.');
+        }
         const response = await fetch(`${this.baseUrl}/session`, {
-          method: 'GET',
+          method: 'POST',
           credentials: 'include',
+          headers: { 'x-install-bootstrap-secret': secret },
         });
         if (!response.ok) {
-          throw new Error(`Failed to start install session: ${response.statusText}`);
+          const data = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(
+            data.error ??
+              `Failed to start install session: ${response.statusText || response.status}`,
+          );
         }
         const data = (await response.json()) as {
           csrfToken?: string;

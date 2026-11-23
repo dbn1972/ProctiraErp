@@ -13,6 +13,8 @@ import type {
   RoleEntity,
   RolesRepository,
   UserListFilter,
+  UserQuery,
+  UserQueryWindow,
   UserRecord,
 } from './roles-repository.js';
 
@@ -201,6 +203,30 @@ export class InMemoryRolesRepository implements RolesRepository {
     return {
       data,
       meta: { page, pageSize, totalItems, totalPages },
+    };
+  }
+
+  /** PRC-M026: same contract as the Postgres query (exact match, role filter, window). */
+  async queryUsers(
+    tenantId: string,
+    query: UserQuery,
+    window: UserQueryWindow,
+  ): Promise<{ data: UserRecord[]; total: number }> {
+    const map = this.usersByTenant.get(tenantId) ?? new Map<string, UserRecord>();
+    let rows = Array.from(map.values());
+    if (query.roleId) rows = rows.filter((u) => u.roleIds.includes(query.roleId!));
+    if (query.match) {
+      const needle = query.match.value.toLowerCase();
+      const attribute = query.match.attribute;
+      rows = rows.filter((u) => (u[attribute] ?? '').toLowerCase() === needle);
+    }
+    rows.sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id));
+    const offset = Math.max(0, window.offset);
+    return {
+      data: rows
+        .slice(offset, offset + Math.max(0, window.limit))
+        .map((u) => ({ ...u, roleIds: [...u.roleIds] })),
+      total: rows.length,
     };
   }
 

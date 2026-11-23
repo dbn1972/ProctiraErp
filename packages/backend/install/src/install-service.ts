@@ -19,6 +19,7 @@ import {
   QueueValidator,
 } from './adapter-validators';
 import type { BootstrapStore } from './bootstrap-store';
+import type { EndpointPolicy } from './endpoint-policy';
 import type {
   InstallService,
   BootstrapStatus,
@@ -61,7 +62,19 @@ export interface InstallServiceDependencies {
   store: BootstrapStore;
   /** Optional connectivity tester override (for testing) */
   connectivityTester?: ConnectivityTester;
+  /**
+   * PRC-L568: SSRF policy for URL-typed adapter fields. The install HTTP plugin always sets it;
+   * the local operator CLI (trusted, not network exposed) may omit it.
+   */
+  endpointPolicy?: EndpointPolicy;
+  /** PRC-L568: time box for each connectivity test (default 10 s). */
+  connectivityTimeoutMs?: number;
 }
+
+/** PRC-L568: default connectivity-test time box. */
+export const DEFAULT_CONNECTIVITY_TIMEOUT_MS = 10_000;
+
+type ConnectivityOutcome = { healthy: boolean; latencyMs: number; error?: string };
 
 /**
  * Interface for testing actual connectivity to adapters.
@@ -95,6 +108,8 @@ export class InstallServiceImpl implements InstallService {
   private readonly logger: Logger;
   private readonly store: BootstrapStore;
   private readonly connectivityTester: ConnectivityTester;
+  private readonly endpointPolicy?: EndpointPolicy;
+  private readonly connectivityTimeoutMs: number;
 
   // Validators for each step
   private readonly cdnValidator = new CdnValidator();
@@ -113,6 +128,67 @@ export class InstallServiceImpl implements InstallService {
     this.logger = deps.logger;
     this.store = deps.store;
     this.connectivityTester = deps.connectivityTester ?? {};
+    this.endpointPolicy = deps.endpointPolicy;
+    this.connectivityTimeoutMs = deps.connectivityTimeoutMs ?? DEFAULT_CONNECTIVITY_TIMEOUT_MS;
+  }
+
+  /**
+   * PRC-L568: run a connectivity test with a time box; a throw or timeout is a failed test,
+   * never an unhandled error.
+   */
+  private async runConnectivity(
+    test: () => Promise<ConnectivityOutcome>,
+  ): Promise<ConnectivityOutcome> {
+    const start = Date.now();
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        test(),
+        new Promise<ConnectivityOutcome>((resolve) => {
+          timer = setTimeout(
+            () =>
+              resolve({
+                healthy: false,
+                latencyMs: Date.now() - start,
+                error: `Connectivity test timed out after ${this.connectivityTimeoutMs}ms`,
+              }),
+            this.connectivityTimeoutMs,
+          );
+        }),
+      ]);
+    } catch (err) {
+      return {
+        healthy: false,
+        latencyMs: Date.now() - start,
+        error: `Connectivity test failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * PRC-L568: apply the SSRF endpoint policy to the URL-typed fields of a step.
+   * Returns a failed ValidationResult, or null when every present URL is acceptable.
+   */
+  private async checkEndpoints(
+    step: BootstrapStep,
+    urls: Array<[field: string, value: string | undefined, schemes: readonly string[]]>,
+  ): Promise<ValidationResult | null> {
+    if (!this.endpointPolicy) return null;
+    for (const [field, value, schemes] of urls) {
+      if (value === undefined || value === '') continue;
+      const refusal = await this.endpointPolicy.check(value, schemes);
+      if (refusal) {
+        return {
+          success: false,
+          step,
+          message: `${field} is not an allowed endpoint`,
+          error: refusal,
+        };
+      }
+    }
+    return null;
   }
 
   /**
@@ -174,10 +250,16 @@ export class InstallServiceImpl implements InstallService {
       this.logger.warn({ error: result.error }, 'CDN validation failed');
       return result;
     }
+    const cdnEndpoint = await this.checkEndpoints('cdn', [
+      ['baseUrl', config.baseUrl, ['https:']],
+      ['custom.invalidationEndpoint', config.custom?.invalidationEndpoint, ['https:']],
+    ]);
+    if (cdnEndpoint) return cdnEndpoint;
 
     // Test connectivity if tester is available
     if (this.connectivityTester.testCdn) {
-      const connectivity = await this.connectivityTester.testCdn(config);
+      const tester = this.connectivityTester.testCdn.bind(this.connectivityTester);
+      const connectivity = await this.runConnectivity(() => tester(config));
       if (!connectivity.healthy) {
         return {
           success: false,
@@ -222,7 +304,8 @@ export class InstallServiceImpl implements InstallService {
 
     // Test connectivity
     if (this.connectivityTester.testDatabase) {
-      const connectivity = await this.connectivityTester.testDatabase(config);
+      const tester = this.connectivityTester.testDatabase.bind(this.connectivityTester);
+      const connectivity = await this.runConnectivity(() => tester(config));
       if (!connectivity.healthy) {
         return {
           success: false,
@@ -265,9 +348,14 @@ export class InstallServiceImpl implements InstallService {
       this.logger.warn({ error: result.error }, 'Storage validation failed');
       return result;
     }
+    const storageEndpoint = await this.checkEndpoints('storage', [
+      ['endpoint', config.endpoint, ['https:']],
+    ]);
+    if (storageEndpoint) return storageEndpoint;
 
     if (this.connectivityTester.testStorage) {
-      const connectivity = await this.connectivityTester.testStorage(config);
+      const tester = this.connectivityTester.testStorage.bind(this.connectivityTester);
+      const connectivity = await this.runConnectivity(() => tester(config));
       if (!connectivity.healthy) {
         return {
           success: false,
@@ -312,7 +400,8 @@ export class InstallServiceImpl implements InstallService {
     }
 
     if (this.connectivityTester.testCache) {
-      const connectivity = await this.connectivityTester.testCache(config);
+      const tester = this.connectivityTester.testCache.bind(this.connectivityTester);
+      const connectivity = await this.runConnectivity(() => tester(config));
       if (!connectivity.healthy) {
         return {
           success: false,
@@ -352,9 +441,16 @@ export class InstallServiceImpl implements InstallService {
       this.logger.warn({ error: result.error }, 'Queue validation failed');
       return result;
     }
+    const queueEndpoint = await this.checkEndpoints('queue', [
+      ['rabbitmq.url', config.rabbitmq?.url, ['amqps:']],
+      ['sqs.endpoint', config.sqs?.endpoint, ['https:']],
+      ['sqs.queueUrlPrefix', config.sqs?.queueUrlPrefix, ['https:']],
+    ]);
+    if (queueEndpoint) return queueEndpoint;
 
     if (this.connectivityTester.testQueue) {
-      const connectivity = await this.connectivityTester.testQueue(config);
+      const tester = this.connectivityTester.testQueue.bind(this.connectivityTester);
+      const connectivity = await this.runConnectivity(() => tester(config));
       if (!connectivity.healthy) {
         return {
           success: false,

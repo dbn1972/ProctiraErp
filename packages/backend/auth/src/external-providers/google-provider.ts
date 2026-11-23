@@ -5,7 +5,7 @@
  * Extracts user profile from Google's userinfo endpoint.
  */
 import { OAuth2Provider, type HttpClient, type UserInfoExtractor } from './oauth2-provider.js';
-import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
+import type { OAuth2ProviderConfig, ExternalUserProfile, PendingAuthStateStore } from './types.js';
 
 /** Google OAuth2 authorization endpoint */
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -31,6 +31,8 @@ export interface GoogleProviderOptions {
   callbackUrl: string;
   /** Additional scopes beyond the defaults */
   additionalScopes?: string[];
+  /** PRC-M589: replica-shared pending-login state store (required when deployed). */
+  stateStore?: PendingAuthStateStore;
 }
 
 /**
@@ -87,6 +89,7 @@ export function createGoogleProvider(
     userInfoUrl: GOOGLE_USERINFO_URL,
     scopes,
     callbackUrl: options.callbackUrl,
+    ...(options.stateStore ? { stateStore: options.stateStore } : {}),
   };
 
   return new OAuth2Provider(config, extractGoogleUserInfo, httpClient);

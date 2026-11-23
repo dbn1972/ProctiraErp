@@ -7,7 +7,7 @@ import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type pg from 'pg';
 
 import type { GradeBand } from './gpa-engine.js';
-import { GradebookSchemaMissingError } from './gradebook-errors.js';
+import { GradebookSchemaMissingError, ReferenceNotFoundError } from './gradebook-errors.js';
 import type {
   BoardCodeEntity,
   BoardExportCandidate,
@@ -81,13 +81,15 @@ function isForeignKeyViolation(
   );
 }
 
-/** `grade_entries_student_id_fkey` → `student_id`. */
-function fkColumn(constraint: string | undefined): string {
-  return (
-    (constraint ?? '')
-      .replace(/^grade_entries_|^gpa_snapshots_|^transcripts_/, '')
-      .replace(/_fkey$/, '') || 'reference'
+/**
+ * `grade_entries_student_id_fkey` → `student_id`. Any other constraint (for example a
+ * composite `*_tenant_fk`) → null, so its name never reaches a response body (M4-P2).
+ */
+function fkColumn(constraint: string | undefined): string | null {
+  const match = /^(?:grade_entries|gpa_snapshots|transcripts)_([a-z_]+)_fkey$/.exec(
+    constraint ?? '',
   );
+  return match ? match[1]! : null;
 }
 
 async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
@@ -105,6 +107,7 @@ async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
       // A caller-supplied id (student, section, subject…) does not exist in
       // this tenant: a 400 with the offending column, not an opaque 500.
       const column = fkColumn(error.constraint);
+      if (!column) throw new ReferenceNotFoundError();
       throw new ValidationError(`Referenced ${column.replace(/_id$/, '')} does not exist`, [
         { field: column, message: 'Unknown reference', rule: 'exists' },
       ]);
@@ -976,6 +979,20 @@ export class PgGradebookRepository implements GradebookRepository, GradebookSect
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
       return row ? mapInstitution(row) : null;
+    });
+  }
+
+  /** M4-P2: `id::text` so a non-UUID id is "not found", not a 22P02 cast error. */
+  studentExists(tenantId: string, studentId: string) {
+    return withSchemaCheck(async () => {
+      const res = await this.query(
+        tenantId,
+        `SELECT 1 FROM students
+          WHERE tenant_id = $1 AND id::text = $2 AND deleted_at IS NULL
+          LIMIT 1`,
+        [tenantId, studentId],
+      );
+      return res.rows.length > 0;
     });
   }
 

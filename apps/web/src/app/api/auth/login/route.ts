@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   accessTokenCookieOptions,
   getAuthServiceUrl,
+  getGatewayUrl,
   mfaChallengeCookieOptions,
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
@@ -19,7 +20,16 @@ import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/reque
  * `{ requiresMfa: true }` without setting any session cookies. The challenge
  * token is stored in a short-lived httpOnly cookie scoped to /api/auth/mfa
  * so it never appears in the /mfa URL (PRC-L024).
+ *
+ * UATENV-D08: in Keycloak mode the gateway serves the password grant at
+ * `POST /api/v1/auth/password` (tokens at the top level) and the platform
+ * `/auth/login` is not public, so the form got 401. The route tries the
+ * Keycloak route first. A gateway without Keycloak does not serve it: the path
+ * is unrouted (404/405/501) or proxied to an absent auth upstream (502). Only
+ * then is the platform `/auth/login` used. Every Keycloak-route answer,
+ * including a credential rejection, is final.
  */
+const KEYCLOAK_ROUTE_ABSENT: ReadonlySet<number> = new Set([404, 405, 501, 502]);
 export async function POST(request: Request): Promise<NextResponse> {
   let body: { email?: string; password?: string };
   try {
@@ -39,17 +49,24 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(TENANT_UNRESOLVED_BODY, { status: 400 });
   }
 
+  const init: RequestInit = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Tenant-ID': tenantId,
+    },
+    body: JSON.stringify({ username: email, password }),
+    cache: 'no-store',
+  };
+
   let upstream: Response;
+  let keycloak = true;
   try {
-    upstream = await fetch(`${getAuthServiceUrl()}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Tenant-ID': tenantId,
-      },
-      body: JSON.stringify({ username: email, password }),
-      cache: 'no-store',
-    });
+    upstream = await fetch(new URL('/api/v1/auth/password', getGatewayUrl()).toString(), init);
+    if (KEYCLOAK_ROUTE_ABSENT.has(upstream.status)) {
+      keycloak = false;
+      upstream = await fetch(`${getAuthServiceUrl()}/auth/login`, init);
+    }
   } catch {
     return NextResponse.json(
       {
@@ -60,7 +77,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const data = (await safeJson(upstream)) as {
-    tokens?: { accessToken: string; refreshToken: string; expiresIn: number };
+    tokens?: { accessToken: string; refreshToken?: string; expiresIn?: number };
+    accessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
     requiresMfa?: boolean;
     mfaToken?: string;
     session?: { id: string; expiresAt: string };
@@ -95,7 +115,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     return mfaResponse;
   }
 
-  if (!data.tokens) {
+  const tokens = keycloak
+    ? data.accessToken
+      ? {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          expiresIn: data.expiresIn,
+        }
+      : undefined
+    : data.tokens;
+  if (!tokens) {
     return NextResponse.json(
       { message: 'Authentication response missing tokens.' },
       { status: 502 },
@@ -105,14 +134,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   const response = NextResponse.json({ success: true });
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
-    data.tokens.accessToken,
-    accessTokenCookieOptions(data.tokens.expiresIn, request),
+    tokens.accessToken,
+    accessTokenCookieOptions(tokens.expiresIn, request),
   );
-  response.cookies.set(
-    AUTH_COOKIES.REFRESH_TOKEN,
-    data.tokens.refreshToken,
-    refreshTokenCookieOptions(undefined, request),
-  );
+  if (tokens.refreshToken) {
+    response.cookies.set(
+      AUTH_COOKIES.REFRESH_TOKEN,
+      tokens.refreshToken,
+      refreshTokenCookieOptions(undefined, request),
+    );
+  }
   if (data.session?.id) {
     response.cookies.set(
       AUTH_COOKIES.SESSION_ID,

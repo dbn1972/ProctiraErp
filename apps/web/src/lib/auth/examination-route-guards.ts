@@ -14,12 +14,19 @@ export function sessionToAuthUser(session: ServerSession): AuthUser {
     tenantId: user.tenantId,
     email: user.email,
     displayName: user.displayName ?? user.email,
-    roles: user.roles.map((role) => ({
-      roleId: role.roleId.toLowerCase(),
-      roleName: role.roleName,
-      areaId: role.areaId,
-      institutionId: role.institutionId,
-    })),
+    // UATENV-D12: a missing roles array or a role without a roleId grants nothing.
+    roles: (Array.isArray(user.roles) ? user.roles : []).flatMap((role) =>
+      role && typeof role.roleId === 'string'
+        ? [
+            {
+              roleId: role.roleId.toLowerCase(),
+              roleName: role.roleName,
+              areaId: role.areaId,
+              institutionId: role.institutionId,
+            },
+          ]
+        : [],
+    ),
     areas: [],
     institutions: [],
   };

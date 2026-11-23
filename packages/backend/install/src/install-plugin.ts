@@ -11,7 +11,8 @@
  * - POST /install/finalize - Finalize bootstrap
  * - GET /install/health - Aggregated health check
  *
- * Mutating routes require `X-Install-Token` when `INSTALL_TOKEN` / options.installToken is set.
+ * PRC-M625: every route (status and health included) requires `X-Install-Token`; the plugin
+ * refuses to register without a token (options.installToken / `INSTALL_TOKEN`).
  * After finalize, configure/finalize return 409 (bootstrap lock).
  */
 
@@ -22,8 +23,14 @@ import fp from 'fastify-plugin';
 import { InMemoryBootstrapStore } from './bootstrap-store';
 import type { BootstrapStore } from './bootstrap-store';
 import {
+  createEndpointPolicy,
+  parseAllowedEndpointHosts,
+  type ResolveHost,
+} from './endpoint-policy';
+import {
+  createInstallTokenFailureLimiter,
   enforceInstallToken,
-  resolveInstallToken,
+  requireInstallToken,
   statusForInstallResult,
 } from './install-security';
 import { InstallServiceImpl } from './install-service';
@@ -56,10 +63,18 @@ export interface InstallPluginOptions {
   /** Logger name override */
   loggerName?: string;
   /**
-   * Shared install token required on mutating routes.
-   * Falls back to INSTALL_TOKEN env. When unset, token gate is disabled.
+   * Shared install token required on every route (PRC-M625).
+   * Falls back to INSTALL_TOKEN env. When neither is set the plugin refuses to register.
    */
   installToken?: string;
+  /**
+   * PRC-L568: exact hosts the operator explicitly allows to resolve to private ranges.
+   * Falls back to `INSTALL_ENDPOINT_ALLOWED_HOSTS` (comma separated). Wildcards are refused.
+   * The SSRF endpoint policy itself is always on for this HTTP surface.
+   */
+  endpointAllowedHosts?: readonly string[];
+  /** PRC-L568: DNS resolver override (tests). */
+  resolveHost?: ResolveHost;
 }
 
 // Extend Fastify types
@@ -81,13 +96,21 @@ export const installPlugin = fp(
       loggerName = 'install-service',
     } = options;
 
-    const expectedToken = resolveInstallToken(options);
+    const expectedToken = requireInstallToken(options);
+    const tokenFailures = createInstallTokenFailureLimiter();
     const logger = createLogger({ name: loggerName });
 
+    const endpointPolicy = createEndpointPolicy({
+      allowedPrivateHosts:
+        options.endpointAllowedHosts ??
+        parseAllowedEndpointHosts(process.env.INSTALL_ENDPOINT_ALLOWED_HOSTS),
+      resolveHost: options.resolveHost,
+    });
     const installService = new InstallServiceImpl({
       logger,
       store,
       connectivityTester,
+      endpointPolicy,
     });
 
     // Decorate fastify instance with the service
@@ -97,16 +120,23 @@ export const installPlugin = fp(
     fastify.register(
       async function installRoutes(app) {
         const requireToken = async (request: FastifyRequest, reply: FastifyReply) => {
-          if (!enforceInstallToken(request, reply, expectedToken)) {
+          if (!enforceInstallToken(request, reply, expectedToken, tokenFailures)) {
             return reply;
           }
         };
 
         // GET /install/status - Get bootstrap status
-        app.get('/status', async (_request: FastifyRequest, reply: FastifyReply) => {
-          const status = await installService.getBootstrapStatus();
-          return reply.status(200).send(status);
-        });
+        app.get(
+          '/status',
+          {
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
+            preHandler: requireToken,
+          },
+          async (_request: FastifyRequest, reply: FastifyReply) => {
+            const status = await installService.getBootstrapStatus();
+            return reply.status(200).send(status);
+          },
+        );
 
         // POST /install/configure/cdn - Configure CDN
         app.post<{ Body: CdnConfigInput }>(
@@ -202,12 +232,19 @@ export const installPlugin = fp(
         );
 
         // GET /install/health - Aggregated health check
-        app.get('/health', async (_request: FastifyRequest, reply: FastifyReply) => {
-          const health = await installService.getAdapterHealth();
-          const statusCode =
-            health.status === 'healthy' ? 200 : health.status === 'degraded' ? 207 : 503;
-          return reply.status(statusCode).send(health);
-        });
+        app.get(
+          '/health',
+          {
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
+            preHandler: requireToken,
+          },
+          async (_request: FastifyRequest, reply: FastifyReply) => {
+            const health = await installService.getAdapterHealth();
+            const statusCode =
+              health.status === 'healthy' ? 200 : health.status === 'degraded' ? 207 : 503;
+            return reply.status(statusCode).send(health);
+          },
+        );
       },
       { prefix },
     );

@@ -20,6 +20,8 @@
 #                   PR spec set must pass; a red job blocks the PR.
 #   schedule      — nightly, hard-fail, broader spec set.
 #   dispatch      — operator picks specs; require_live defaults to true.
+#   push (main)   — only the registration live journey job (UAT-API-004), so
+#                   every main merge commit runs the journey with a backend.
 #
 # Honest scope (no live IdP / Keycloak secrets): all live specs authenticate
 # with HS256 cookies (JWT_SECRET) — no seeded password login is claimed here.
@@ -33,15 +35,21 @@ on:
       - '**.md'
       - 'docs/**'
       - 'redesign/**'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'redesign/**'
   workflow_dispatch:
     inputs:
       require_live:
-        description: 'Fail if api-gateway does not become healthy (E2E_REQUIRE_LIVE=1)'
+        description: 'Web shards: fail if api-gateway does not become healthy (E2E_REQUIRE_LIVE=1). The registration journey always runs live (Q12: no skip path)'
         required: false
         type: boolean
         default: true
       skip_stack:
-        description: 'Scaffolding only — migrate/SQL then skip gateway + Playwright'
+        description: 'Web shards only: migrate/SQL then skip gateway + Playwright. The registration journey always runs (Q12: no skip path)'
         required: false
         type: boolean
         default: false
@@ -115,6 +123,8 @@ env:
     e2e/54-transport-ops-write-smoke.spec.ts
     e2e/16e-institutions-tabs-live.spec.ts
     e2e/16e-institutions-timetable-write-smoke.spec.ts
+    e2e/60-student-portal-screens-read.spec.ts
+    e2e/61-student-portal-privacy-tenancy.spec.ts
   # Nightly: PR set + the remaining live write smokes.
   NIGHTLY_SPECS: >-
     e2e/08b-legal-pages.spec.ts
@@ -162,6 +172,27 @@ env:
     e2e/19-services-write-validation-smoke.spec.ts
     e2e/20b-attendance-write-validation-smoke.spec.ts
     e2e/21b-assessments-write-validation-smoke.spec.ts
+    e2e/60-student-portal-screens-read.spec.ts
+    e2e/61-student-portal-privacy-tenancy.spec.ts
+    e2e/63-health-screens-read.spec.ts
+    e2e/64-health-screens-write.spec.ts
+    e2e/65-health-privacy-phi.spec.ts
+    e2e/66-transport-screens-read.spec.ts
+    e2e/67-transport-screens-write.spec.ts
+    e2e/68-transport-privacy-tenancy.spec.ts
+    e2e/69-hostel-screens-read.spec.ts
+    e2e/70-hostel-screens-write.spec.ts
+    e2e/71-hostel-privacy-tenancy.spec.ts
+    e2e/72-campus-staff-roles.spec.ts
+    e2e/73-safe-error-responses.spec.ts
+    e2e/74-health-defect-fixes.spec.ts
+    e2e/90-fees-screens-read.spec.ts
+    e2e/91-fees-screens-write.spec.ts
+    e2e/92-fees-privacy-tenancy.spec.ts
+    e2e/93-staff-screens-read.spec.ts
+    e2e/94-staff-screens-write.spec.ts
+    e2e/95-staff-privacy-tenancy.spec.ts
+    e2e/115-assessments-gradebook-defect-fixes.spec.ts
 
 permissions:
   contents: read
@@ -169,6 +200,8 @@ permissions:
 jobs:
   e2e-backend-ready-shard:
     name: E2E backend-ready shard ${{ matrix.shard }}/${{ strategy.job-total }}
+    # push to main runs only registration-live-journey (UAT-API-004).
+    if: github.event_name != 'push'
     timeout-minutes: 45
     runs-on: ubuntu-latest
     strategy:
@@ -257,6 +290,9 @@ jobs:
         run: psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
         env:
           MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+          # PRC-L461: 006 raises unless proctira.allow_demo_seed=on. Bound for
+          # this psql connection only, as run-e2e-backend-ready.sh does.
+          PGOPTIONS: '-c proctira.allow_demo_seed=on'
 
       - name: Multi-board 3×2×500 certification (G-408)
         run: |
@@ -336,7 +372,19 @@ jobs:
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
           # Harness is fail-closed unless E2E_ALLOW_SKIP=1 (PRC-L389).
           E2E_ALLOW_SKIP: ${{ steps.mode.outputs.allow_skip || '0' }}
+          # PRC-L461 / DR4-3: the demo seed is opt-in. CI does not load the
+          # Sunrise demo fixture (the live specs it serves are not in the
+          # backend-ready smoke list); skip it explicitly so the harness does
+          # not fail closed on the missing decision. A caller that needs the
+          # demo rows sets ALLOW_SUNRISE_DEMO_SEED=1 instead.
+          E2E_SKIP_SUNRISE_SEED: '1'
           PLAYWRIGHT_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
+          # UAT-ENV-015: one worker per shard to cut runner contention. The web
+          # server is `next dev` (routes compile on first request); in nightly
+          # 43423176859, 16f:57 timed out on all three attempts with 15-16 s
+          # requests. Shards still run as four parallel jobs; expected 10-20 min
+          # of Playwright per shard (to be confirmed on the first runs).
+          PLAYWRIGHT_WORKERS: '1'
           CI: true
 
       - name: Upload shard Playwright report
@@ -349,6 +397,8 @@ jobs:
             apps/web/test-results/
             apps/web/blob-report/
             .e2e-gateway.log
+          # .e2e-gateway.log is a dotfile; upload-artifact skips hidden files by default.
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: ignore
 
@@ -361,13 +411,133 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # UAT-API-004 / PRC-M568: registration-portal live submit -> track journey
+  # (apps/registration-portal/e2e/03-registration-live-journey.spec.ts) on its
+  # own database. A separate job so the web shards and their steps stay
+  # unchanged; the live gate below requires it. Runs on PRs, nightly and on
+  # every push to main (the shards and the gate do not run on push). There is
+  # no skip path: a missing seed, gateway or portal, or any skipped test fails.
+  registration-live-journey:
+    name: Registration portal live journey (UAT-API-004 / PRC-M568)
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    env:
+      # Seeded by tools/e2e/seed-e2e-registration.sql (run by the harness);
+      # the spec applies to this institution's published form.
+      E2E_REGISTRATION_INSTITUTION_ID: 00000000-0000-4000-8000-00000000e0b1
+      E2E_REGISTRATION_PORT: '3002'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit-test registration live harness contracts
+        run: >-
+          node --test
+          tools/scripts/run-e2e-registration-live.test.mjs
+          tools/scripts/assert-registration-live-report.test.mjs
+
+      - name: Provision migrator + runtime roles and database (W1-DATA-10)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          BOOTSTRAP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+          MIGRATOR_PASSWORD=proctira_test \
+          APP_ROLE_PASSWORD=proctira_app_test \
+          BOOTSTRAP_DB_NAME=proctira_test \
+          BOOTSTRAP_EXTENSIONS=1 \
+          BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1 \
+            bash tools/scripts/bootstrap-db-roles.sh
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: migrator role bypasses RLS' ELSE 'migrator role OK: NOSUPERUSER NOBYPASSRLS' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^migrator role OK'
+          PGPASSWORD=proctira_app_test psql -h localhost -U proctira_app -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: app role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
+
+      - name: Run database migrations (Prisma)
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+
+      - name: Apply domain SQL schemas (G-002) with production FK posture (G-718)
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          APPLY_SEEDS: '1'
+          APPLY_STRICT_FKS: '1'
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @proctira/registration-portal exec playwright install --with-deps chromium
+
+      - name: Run registration live journey (seed + gateway + portal)
+        run: bash tools/scripts/run-e2e-registration-live.sh
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
+          CI: true
+
+      - name: Upload registration live journey report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: registration-live-journey-report
+          path: |
+            apps/registration-portal/playwright-report/
+            apps/registration-portal/test-results/
+            .e2e-registration-gateway.log
+            .e2e-registration-portal.log
+          # Dotfile logs: upload-artifact skips hidden files by default.
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: ignore
+
   # Required check name is unchanged. Matrix leg names must not reuse it:
   # branch protection matches the job name string, and CI Aggregate does not
   # list this workflow.
   e2e-backend-ready:
     name: E2E backend-ready live gate (G-401 / G-706)
-    needs: e2e-backend-ready-shard
-    if: always()
+    needs: [e2e-backend-ready-shard, registration-live-journey]
+    if: always() && github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -416,6 +586,9 @@ jobs:
             exit 1
           fi
           pnpm --filter @proctira/web exec playwright merge-reports --reporter=html "$GITHUB_WORKSPACE/blob-flat"
+          # UAT-ENV-007: merged JSON for the skip gate in the next step.
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$GITHUB_WORKSPACE/e2e-backend-ready-merged.json" \
+            pnpm --filter @proctira/web exec playwright merge-reports --reporter=json "$GITHUB_WORKSPACE/blob-flat"
         env:
           E2E_SHARD_TOTAL: ${{ env.E2E_SHARD_TOTAL }}
 
@@ -428,6 +601,19 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      # UAT-API-004: the required check also covers the registration journey.
+      # Anything but success (failure, cancelled, skipped) fails the gate.
+      - name: Require the registration live journey (UAT-API-004)
+        if: always()
+        env:
+          REGISTRATION_RESULT: ${{ needs.registration-live-journey.result }}
+        run: |
+          echo "- Registration live journey: \`$REGISTRATION_RESULT\`" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$REGISTRATION_RESULT" != "success" ]]; then
+            echo "error: registration live journey result is $REGISTRATION_RESULT (expected success)" >&2
+            exit 1
+          fi
+
       - name: Require every shard and the merged report
         if: always()
         env:
@@ -436,6 +622,8 @@ jobs:
           BLOBS_OUTCOME: ${{ steps.blobs.outcome }}
           MERGE_OUTCOME: ${{ steps.merge.outcome }}
           E2E_SHARD_TOTAL: ${{ env.E2E_SHARD_TOTAL }}
+          # Non-empty only for a dispatch with a custom spec list.
+          CUSTOM_SPECS: ${{ github.event_name == 'workflow_dispatch' && inputs.specs || '' }}
         run: |
           set -euo pipefail
           {
@@ -459,3 +647,12 @@ jobs:
             echo "error: shard jobs succeeded but blob merge did not (blobs=$BLOBS_OUTCOME merge=$MERGE_OUTCOME)" >&2
             exit 1
           fi
+          # UAT-ENV-007: fail on any skip not on the allowlist. The PR and
+          # nightly spec sets contain every allowlisted test, so require each
+          # one to be present and still skipping; a custom dispatch list may not.
+          GATE_ARGS=(--mode merged --report "$GITHUB_WORKSPACE/e2e-backend-ready-merged.json")
+          if [[ -z "$CUSTOM_SPECS" ]]; then
+            GATE_ARGS+=(--require-allowlisted)
+          fi
+          node tools/scripts/assert-playwright-skips.mjs "${GATE_ARGS[@]}"
+          echo "- Skip gate (UAT-ENV-007): pass" >> "$GITHUB_STEP_SUMMARY"

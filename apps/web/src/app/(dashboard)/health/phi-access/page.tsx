@@ -3,6 +3,7 @@
  * Admin / health-officer only — aligned with HealthService.listPhiAccessLogs.
  */
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { ArrowLeft } from 'lucide-react';
 
 import {
@@ -16,10 +17,11 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { canAccessPhiAccessLogs, listPhiAccessLogs } from '@/lib/api/health';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { canAccessPhiAccessLogs, listPhiAccessLogsResult } from '@/lib/api/health';
 import { PhiAccessDenied } from '@/lib/auth/health-route-guards';
 import { requireSession } from '@/lib/auth/server';
-import { resolveEntityLabel } from '@/lib/entity-label';
+import { personDisplayName, resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
@@ -29,10 +31,17 @@ export default async function PhiAccessPage() {
   if (!canAccessPhiAccessLogs(session.user.roles ?? [])) {
     return <PhiAccessDenied />;
   }
-  const [{ rows, accessDenied }, studentLabels] = await Promise.all([
-    listPhiAccessLogs(),
-    loadStudentLabelMap(),
-  ]);
+  const result = await listPhiAccessLogsResult();
+  const accessDenied = !result.ok && result.kind === 'denied';
+  const t = await getTranslations('health');
+  // HN-F1 / PRC-M088: resolve each row's student by id; an unresolved one gets the
+  // localized fallback (HN-R6), never an id fragment.
+  const logRows = result.ok ? result.items : [];
+  const studentLabels = await loadStudentLabelMap(logRows.map((r) => r.studentId));
+  const rows = logRows.map((r) => ({
+    ...r,
+    studentName: personDisplayName(studentLabels.get(r.studentId), '', t('unknownStudent')),
+  }));
 
   return (
     <div className="space-y-6 p-6">
@@ -55,6 +64,13 @@ export default async function PhiAccessPage() {
             <p className="p-6 text-sm text-destructive" role="alert">
               Access denied by the health service. Your session role cannot read PHI access logs.
             </p>
+          ) : !result.ok ? (
+            // HL-O1: a 5xx / network failure is not "No PHI access events yet".
+            <ListLoadFailure
+              kind={result.kind}
+              status={result.status}
+              returnTo="/health/phi-access"
+            />
           ) : rows.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground" role="status">
               No PHI access events yet.
@@ -77,9 +93,7 @@ export default async function PhiAccessPage() {
                       {r.createdAt.slice(0, 19).replace('T', ' ')}
                     </TableCell>
                     <TableCell>{resolveEntityLabel(r.actorUserId, {}, 'User')}</TableCell>
-                    <TableCell>
-                      {resolveEntityLabel(r.studentId, studentLabels, 'Student')}
-                    </TableCell>
+                    <TableCell>{r.studentName}</TableCell>
                     <TableCell>{r.resourceType}</TableCell>
                     <TableCell>{r.action}</TableCell>
                   </TableRow>

@@ -20,8 +20,11 @@ import {
   createCounsellingSession,
   getHealthRecordResult,
   listHealthRecordsResult,
-  listScreeningPrograms,
+  listNurseIncidentsResult,
+  listPhiAccessLogsResult,
+  listScreeningProgramsResult,
   listStudentVaccinationsResult,
+  listVaccinationsResult,
   type CreateCounsellingSessionInput,
 } from './health';
 
@@ -154,12 +157,21 @@ describe('health writes and screenings (PRC-M489)', () => {
     expect(error).toMatchObject({ status: 422, code: 'VALIDATION_ERROR' });
   });
 
-  it('lists screening programs and returns [] on failure', async () => {
-    gatewayFetch.mockResolvedValueOnce(ok({ data: [{ id: 'sp-1' }] }));
-    await expect(listScreeningPrograms()).resolves.toEqual([{ id: 'sp-1' }]);
-    expect(gatewayFetch.mock.calls[0]![0]).toBe('/health/screenings');
+  // HL-O1: the register reads used to collapse a 403 / 5xx to [], so the page said
+  // "none recorded". They now keep the failure kind and status.
+  it.each([
+    ['listScreeningProgramsResult', listScreeningProgramsResult, '/health/screenings'],
+    ['listVaccinationsResult', listVaccinationsResult, '/health/vaccinations'],
+    ['listNurseIncidentsResult', listNurseIncidentsResult, '/health/incidents'],
+    ['listPhiAccessLogsResult', () => listPhiAccessLogsResult(), '/health/phi-access'],
+  ] as const)('%s keeps rows on success and the failure kind otherwise', async (_n, read, path) => {
+    gatewayFetch.mockResolvedValueOnce(ok({ data: [{ id: 'r-1' }] }));
+    await expect(read()).resolves.toEqual({ ok: true, items: [{ id: 'r-1' }] });
+    expect(gatewayFetch.mock.calls[0]![0]).toBe(path);
 
+    gatewayFetch.mockResolvedValueOnce(fail(403));
+    await expect(read()).resolves.toMatchObject({ ok: false, kind: 'denied', status: 403 });
     gatewayFetch.mockResolvedValueOnce(fail(500));
-    await expect(listScreeningPrograms()).resolves.toEqual([]);
+    await expect(read()).resolves.toMatchObject({ ok: false, kind: 'unavailable', status: 500 });
   });
 });

@@ -213,7 +213,11 @@ export async function registerStaffRoutes(
           ))
         )
           return reply;
-        const staff = await staffService.update(tenantId, paramsResult.data.id, bodyResult.data);
+        const staff = await staffService.update(tenantId, paramsResult.data.id, bodyResult.data, {
+          actorId: getActorId(request),
+          ipAddress: request.ip ?? null,
+          requestId: request.id ?? null,
+        });
         return reply.status(200).send(formatStaffResponse(staff));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -347,6 +351,11 @@ export async function registerStaffRoutes(
           paramsResult.data.id,
           bodyResult.data,
           getActorId(request),
+          {
+            actorId: getActorId(request),
+            ipAddress: request.ip ?? null,
+            requestId: request.id ?? null,
+          },
         );
         return reply.status(200).send(view);
       } catch (error: unknown) {
@@ -483,7 +492,11 @@ export async function registerStaffRoutes(
           ))
         )
           return reply;
-        await staffService.delete(tenantId, paramsResult.data.id);
+        await staffService.delete(tenantId, paramsResult.data.id, {
+          actorId: getActorId(request),
+          ipAddress: request.ip ?? null,
+          requestId: request.id ?? null,
+        });
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {

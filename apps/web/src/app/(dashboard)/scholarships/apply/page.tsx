@@ -8,10 +8,16 @@ import { listInstitutions } from '@/lib/api/institutions';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 import { formatCodeNameLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ScholarshipApplyPage() {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   const [studentOptions, institutions] = await Promise.all([
     loadStudentOptions(),
     listInstitutions({ pageSize: MAX_API_PAGE_SIZE }).catch(() => []),

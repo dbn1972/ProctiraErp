@@ -5,16 +5,20 @@
  * Server Actions. Forwards the authenticated user's access token and the
  * tenant identifier resolved from the session JWT.
  *
- * Tenant resolution rules (Requirement 4.7 / Task 27.5 contract):
+ * Tenant resolution rules (Requirement 4.7 / Task 27.5 contract; PRC-L265):
  * - The `X-Tenant-ID` header is set on every outbound request.
- * - The value is taken from the `tenantId` claim on the access token cookie,
- *   falling back to the `X-Tenant-ID` request header passed by the middleware.
- * - The middleware only allows authenticated routes through, so a missing
- *   token here means the caller forgot to gate their route.
+ * - With an access token the tenant comes only from the token's verified
+ *   tenant claim (`tenantId`, or Keycloak `tenant_id`). A token that does not
+ *   verify or carries no single tenant claim is refused: no request is sent.
+ * - Without a token the tenant is the middleware's Host-derived `x-tenant-id`
+ *   (the middleware strips every client copy, so it is a verified host
+ *   mapping). There is no `'default'` fallback: an unresolved tenant is
+ *   refused.
  */
 import { cookies, headers } from 'next/headers';
 
-import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
+import { AUTH_COOKIES } from '@/lib/auth';
+import { readSessionToken, tenantIdFromClaims } from '@/lib/auth/verified-token';
 
 /** Base URL for the API gateway. Can be overridden via env. */
 export const GATEWAY_BASE_URL =
@@ -41,9 +45,20 @@ export interface GatewayResponse<T> {
   ok: boolean;
   data: T | null;
   error?: { code: string; message: string; details?: unknown };
+  /** Gateway `x-correlation-id` (or `x-request-id`) of a non-2xx response. */
+  correlationId?: string;
 }
 
-/** Reads the current session's tenant + access token from cookies / headers. */
+/**
+ * Reads the current session's tenant + access token (PRC-L265).
+ *
+ * - Token present: `tenantId` is the verified token claim. A token that does
+ *   not verify, or has no single tenant claim, is not forwarded: the result is
+ *   `{ tenantId: '', accessToken: null }`, which every caller treats as
+ *   unauthenticated (gatewayFetch sends nothing).
+ * - No token: `tenantId` is the middleware's Host-derived `x-tenant-id`, or
+ *   `''` when the host maps to no tenant. Never the literal `'default'`.
+ */
 export async function getSessionContext(): Promise<{
   tenantId: string;
   accessToken: string | null;
@@ -52,12 +67,14 @@ export async function getSessionContext(): Promise<{
   const headerStore = await headers();
 
   const accessToken = cookieStore.get(AUTH_COOKIES.ACCESS_TOKEN)?.value ?? null;
-  const payload = accessToken ? decodeTokenPayload(accessToken) : null;
+  if (accessToken) {
+    const tenantId = tenantIdFromClaims(
+      await readSessionToken(accessToken, { ignoreExpiry: true }),
+    );
+    return tenantId ? { tenantId, accessToken } : { tenantId: '', accessToken: null };
+  }
 
-  // Prefer JWT claim; fall back to middleware-injected header; finally to "default".
-  const tenantId = payload?.tenantId ?? headerStore.get('x-tenant-id') ?? 'default';
-
-  return { tenantId, accessToken };
+  return { tenantId: headerStore.get('x-tenant-id')?.trim() ?? '', accessToken: null };
 }
 
 /**
@@ -69,7 +86,23 @@ export async function gatewayFetch<T>(
   init: GatewayRequestInit = {},
 ): Promise<GatewayResponse<T>> {
   const { tenantId: ctxTenantId, accessToken } = await getSessionContext();
-  const tenantId = init.tenantId ?? ctxTenantId;
+  // PRC-L265: an authenticated call always uses the verified token tenant.
+  const tenantId = accessToken ? ctxTenantId : (init.tenantId ?? ctxTenantId);
+  if (!tenantId) {
+    // No verified tenant claim and no Host-derived tenant: refuse, send nothing.
+    const refusal = {
+      status: 401,
+      code: 'TENANT_UNRESOLVED',
+      message: 'No verified tenant for this request.',
+    };
+    if (init.throwOnError !== false) throw new GatewayError(refusal);
+    return {
+      status: refusal.status,
+      ok: false,
+      data: null,
+      error: { code: refusal.code, message: refusal.message },
+    };
+  }
 
   const requestHeaders = new Headers(init.headers);
   requestHeaders.set('X-Tenant-ID', tenantId);
@@ -151,12 +184,15 @@ export async function gatewayFetch<T>(
           code: 'GATEWAY_ERROR',
           message: response.statusText || 'Gateway request failed',
         };
+    const correlationId =
+      response.headers.get('x-correlation-id') ?? response.headers.get('x-request-id') ?? undefined;
     if (init.throwOnError !== false) {
       throw new GatewayError({
         status: response.status,
         code: error.code,
         message: error.message,
         details: payload,
+        ...(correlationId ? { correlationId } : {}),
       });
     }
     return {
@@ -164,6 +200,7 @@ export async function gatewayFetch<T>(
       ok: false,
       data: null,
       error: { code: error.code, message: error.message, details: payload },
+      correlationId,
     };
   }
 
@@ -190,6 +227,8 @@ export interface GatewayErrorInit {
   code: string;
   message: string;
   details?: unknown;
+  /** Gateway `x-correlation-id` (or `x-request-id`) of the failed response. */
+  correlationId?: string;
 }
 
 /** Error thrown by gatewayFetch when a non-2xx response is received. */
@@ -197,6 +236,7 @@ export class GatewayError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details?: unknown;
+  readonly correlationId?: string;
 
   constructor(init: GatewayErrorInit) {
     super(init.message);
@@ -204,5 +244,6 @@ export class GatewayError extends Error {
     this.status = init.status;
     this.code = init.code;
     if (init.details !== undefined) this.details = init.details;
+    if (init.correlationId !== undefined) this.correlationId = init.correlationId;
   }
 }

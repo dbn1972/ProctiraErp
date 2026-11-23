@@ -11,12 +11,18 @@ import { SubstitutionCreateForm } from '@/components/timetable/substitution-crea
 import { listMeetings, listSubstitutions } from '@/lib/api/timetable';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStaffLabelMap } from '@/lib/load-entity-labels';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 const DAY_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default async function StaffSubstitutionsPage() {
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const [subsResult, meetingsResult, staffLabels] = await Promise.all([
     listSubstitutions(),
     listMeetings(),

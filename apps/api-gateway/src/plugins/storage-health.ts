@@ -153,7 +153,7 @@ export async function runStorageHealthProbe(
       contentType: 'text/plain',
       lifecycle: 'temporary',
     });
-    const downloaded = await streamToBuffer(await adapter.download(uploaded.key));
+    const downloaded = await streamToBuffer(await adapter.download(uploaded.key, tenantId));
     if (!downloaded.equals(payload)) {
       return {
         healthy: false,
@@ -162,7 +162,7 @@ export async function runStorageHealthProbe(
         message: 'Object storage round-trip payload mismatch',
       };
     }
-    await adapter.delete(uploaded.key);
+    await adapter.delete(uploaded.key, tenantId);
     return {
       healthy: true,
       roundTrip: true,

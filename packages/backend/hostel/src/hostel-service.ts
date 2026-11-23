@@ -188,6 +188,7 @@ export class HostelService {
   }
 
   async createLeave(tenantId: string, input: CreateLeaveInput) {
+    await this.getHostel(tenantId, input.hostelId); // H-D3: hostel must be in the caller tenant
     return this.repository.createLeave({
       id: uuidv4(),
       tenantId,
@@ -247,6 +248,7 @@ export class HostelService {
   }
 
   async createVisitor(tenantId: string, input: CreateVisitorInput) {
+    await this.getHostel(tenantId, input.hostelId); // H-D3: hostel must be in the caller tenant
     return this.repository.createVisitor({
       id: uuidv4(),
       tenantId,
@@ -311,6 +313,7 @@ export class HostelService {
   }
 
   async createBlock(tenantId: string, input: CreateBlockInput) {
+    await this.getHostel(tenantId, input.hostelId); // H-D3: hostel must be in the caller tenant
     return this.repository.createBlock({
       id: uuidv4(),
       tenantId,
@@ -325,6 +328,11 @@ export class HostelService {
   }
 
   async createRoom(tenantId: string, input: CreateRoomInput) {
+    // H-D3: the block must belong to the caller's tenant.
+    const block = await this.repository.findBlockById(input.blockId, tenantId);
+    if (!block) {
+      throw new NotFoundError(`Block with id '${input.blockId}' not found`);
+    }
     return this.repository.createRoom({
       id: uuidv4(),
       tenantId,
@@ -339,6 +347,11 @@ export class HostelService {
   }
 
   async createBed(tenantId: string, input: CreateBedInput) {
+    // H-D3: the room must belong to the caller's tenant.
+    const room = await this.repository.findRoomById(input.roomId, tenantId);
+    if (!room) {
+      throw new NotFoundError(`Room with id '${input.roomId}' not found`);
+    }
     return this.repository.createBed({
       id: uuidv4(),
       tenantId,

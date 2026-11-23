@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache';
 import { majorUnitsToCents } from '@proctira/common';
 import { generateIdempotencyKey, isValidIdempotencyKey } from '@/lib/sync/idempotencyKey';
 import { validateReconciliationCsv } from './reconciliation-csv';
-import { GatewayError } from '@/lib/api/gateway';
 import {
   applyConcession,
   applyScholarshipNetting,
@@ -48,6 +47,7 @@ import {
   type ResolveReconExceptionFormValues,
   type ScholarshipNettingFormValues,
 } from './validation';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface FieldError {
   field: string;
@@ -66,12 +66,10 @@ function flattenZod(error: {
 }
 
 function fail(error: unknown): ActionResult<never> {
-  if (error instanceof GatewayError) {
-    return { success: false, error: error.message };
-  }
+  // RAW-WEB: fixed copy plus a reference; gateway text is never shown.
   return {
     success: false,
-    error: error instanceof Error ? error.message : 'Unexpected error',
+    error: genericActionErrorMessage(error, 'The fee change could not be saved.'),
   };
 }
 

@@ -19,6 +19,8 @@ import { getStaff } from '@/lib/api/staff';
 import type { StaffFormValues } from '@/lib/validation/staff-schema';
 
 import { StaffForm } from '../../_components/staff-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +29,10 @@ interface PageProps {
 }
 
 export default async function EditStaffPage(props: PageProps) {
+  // A-batch: check before any staff read.
+  if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const staff = await getStaff(params.id);
   if (!staff) {

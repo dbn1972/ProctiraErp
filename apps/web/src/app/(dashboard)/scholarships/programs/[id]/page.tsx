@@ -36,6 +36,8 @@ import {
   type ScholarshipProgram,
 } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,6 +144,10 @@ function windowProgress(start: string, end: string): number | null {
 }
 
 export default async function ScholarshipProgramPage(props: PageProps) {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const [program, appsResult] = await Promise.all([
     getScholarshipProgram(params.id),

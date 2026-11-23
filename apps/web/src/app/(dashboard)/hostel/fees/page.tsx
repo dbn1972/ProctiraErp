@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listHostelFeeStructures, listHostels } from '@/lib/api/hostel';
 import { formatMoney } from '@/lib/format-money';
 import { HostelFeeStructureForm } from '../_components/fee-structure-form';
@@ -17,7 +18,10 @@ import { HostelFeeStructureForm } from '../_components/fee-structure-form';
 export const dynamic = 'force-dynamic';
 
 export default async function HostelFeesPage() {
-  await requireSession();
+  // H-D1: check before any hostel read.
+  if (!(await hasDashboardDomainRouteAccess('hostel', '/hostel'))) {
+    return <RouteAccessDenied />;
+  }
   const [hostels, rows] = await Promise.all([listHostels(), listHostelFeeStructures()]);
 
   return (

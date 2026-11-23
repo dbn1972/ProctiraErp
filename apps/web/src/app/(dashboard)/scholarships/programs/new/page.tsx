@@ -10,8 +10,14 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 
 import { NewProgramForm } from '../../_components/new-program-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
-export default function NewScholarshipProgramPage() {
+export default async function NewScholarshipProgramPage() {
+  // A-batch: check before any scholarship read.
+  if (!(await hasDashboardDomainRouteAccess('scholarships', '/scholarships'))) {
+    return <RouteAccessDenied />;
+  }
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">

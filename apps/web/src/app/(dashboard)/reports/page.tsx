@@ -15,10 +15,16 @@ import { formatCodeNameLabel } from '@/lib/entity-label';
 
 import { BoardSummaryPanel } from './_components/board-summary-panel';
 import { CatalogueGeneratePanel } from './_components/catalogue-generate-panel';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage() {
+  // A-batch: check before any report read.
+  if (!(await hasDashboardDomainRouteAccess('reports', '/reports'))) {
+    return <RouteAccessDenied />;
+  }
   const [{ templates, source }, boards] = await Promise.all([
     listReportTemplates(),
     listGradebookBoards(),

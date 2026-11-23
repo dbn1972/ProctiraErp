@@ -88,14 +88,9 @@
     "$comment": "W1-OPS-16 non-prod split-domain images: buildable only via an explicit services input.",
     "dockerfile": "infrastructure/docker/Dockerfile.backend-service",
     "ports": {
-      "institution": "3020",
       "student": "3021",
-      "staff": "3022",
       "assessment": "3023",
-      "attendance": "3024",
       "examination": "3025",
-      "workflow": "3026",
-      "notification": "3027",
       "report": "3028"
     }
   }

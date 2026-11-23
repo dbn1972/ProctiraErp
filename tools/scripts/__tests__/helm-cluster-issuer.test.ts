@@ -14,9 +14,10 @@
  *   4. production values              → ClusterIssuer stays disabled
  *
  * These are render-only assertions; nothing is deployed. `helm` must be on
- * PATH (v3). The suite skips with a clear message if it is not installed.
+ * PATH (v3). The suite fails (never skips) when it is not installed; CI runs
+ * it in the Helm Template job, which installs helm.
  */
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,9 +38,13 @@ function helmTemplate(extraArgs: string[]): ReturnType<typeof spawnSync> {
   });
 }
 
-const run = helmAvailable() ? describe : describe.skip;
+describe('cert-manager DNS-01 ClusterIssuer (PRC-L565)', () => {
+  beforeAll(() => {
+    if (!helmAvailable()) {
+      throw new Error('helm v3 must be on PATH to render the chart (PRC-L565)');
+    }
+  });
 
-run('cert-manager DNS-01 ClusterIssuer (PRC-L565)', () => {
   it('renders no ClusterIssuer with the default values (disabled)', () => {
     const out = helmTemplate([]);
     const combined = `${out.stdout ?? ''}${out.stderr ?? ''}`;

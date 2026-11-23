@@ -13,6 +13,10 @@ const CODE_TO_KEY = {
   PUBLIC_REGISTRATION_CONTEXT_NOT_FOUND: 'errors.contextMissing',
   PUBLIC_REGISTRATION_CONTEXT_UNAVAILABLE: 'errors.unavailable',
   TENANT_REQUIRED: 'errors.unavailable',
+  // PRC-M332: a retry fetches and solves a fresh bot challenge.
+  CHALLENGE_REQUIRED: 'errors.unavailable',
+  CHALLENGE_FAILED: 'errors.unavailable',
+  CHALLENGE_UNAVAILABLE: 'errors.unavailable',
 } as const;
 
 type KnownCode = keyof typeof CODE_TO_KEY;

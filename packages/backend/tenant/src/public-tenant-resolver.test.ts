@@ -49,6 +49,9 @@ describe('trusted public tenant resolver', () => {
       domain: 'admissions.north.example',
       primary: true,
       verified: true,
+      // PRC-L169: a verified domain resolves only while its verification is current.
+      verifiedAt: new Date(),
+      verificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       createdAt: new Date(),
     });
     const resolver = createPublicTenantResolver({ repository, baseDomain: 'apply.example.edu' });
@@ -96,6 +99,9 @@ describe('trusted public tenant resolver', () => {
       domain: 'school.apply.example.edu',
       primary: true,
       verified: true,
+      // PRC-L169: a verified domain resolves only while its verification is current.
+      verifiedAt: new Date(),
+      verificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       createdAt: new Date(),
     });
     const resolver = createPublicTenantResolver({ repository, baseDomain: 'apply.example.edu' });

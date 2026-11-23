@@ -6,7 +6,9 @@
 ARG NODE_VERSION=20-alpine
 
 FROM node:${NODE_VERSION} AS base
-RUN apk add --no-cache libc6-compat curl tini
+# UATENV-D01: openssl lets `prisma generate` (pnpm install postinstall) pick the
+# OpenSSL 3 musl engine; without it Prisma ships the 1.1 engine the runner cannot load.
+RUN apk add --no-cache libc6-compat curl tini openssl
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
@@ -28,7 +30,8 @@ ENV NODE_ENV=production
 RUN pnpm --filter "@proctira/exam-document-worker" run build
 
 FROM node:${NODE_VERSION} AS runner
-RUN apk add --no-cache curl tini
+# UATENV-D01: Prisma's OpenSSL 3 engine needs openssl at runtime as well.
+RUN apk add --no-cache curl tini openssl
 WORKDIR /app
 
 ENV NODE_ENV=production

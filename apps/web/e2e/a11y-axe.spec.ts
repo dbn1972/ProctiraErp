@@ -33,8 +33,16 @@ import { setupGatewayTenantSession } from './fixtures/fake-session';
 import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
-/** PRC-L034: layouts that require `platform:read` (platform administrator persona). */
-const PLATFORM_GATED_PATHS: ReadonlySet<string> = new Set(['/billing', '/audit-logs']);
+/**
+ * PRC-L034: layouts that require `platform:read` (platform administrator persona).
+ * A-batch: /tenant-lifecycle denies tenant admins with the access-denied card,
+ * which has no h1, so it is scanned as the platform administrator too.
+ */
+const PLATFORM_GATED_PATHS: ReadonlySet<string> = new Set([
+  '/billing',
+  '/audit-logs',
+  '/tenant-lifecycle',
+]);
 /** Seeded by tools/e2e/seed-e2e-tenants.sql for tenant A (G-722). */
 const E2E_INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 

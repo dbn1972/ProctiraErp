@@ -12,7 +12,13 @@
  * - 8.3: Reject if weights don't sum to 100%
  * - 8.6: Outcome-based assessment mapping
  */
-import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import {
+  AppError,
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+  ValidationError,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -31,6 +37,7 @@ import type {
   OutcomeEntity,
   OutcomeRepository,
 } from './assessment-repository.js';
+import type { ReportCardDirectory } from './report-card-directory.js';
 import type { AssessmentResultRepository } from './result-repository.js';
 import type {
   CreateGradingSchemeInput,
@@ -59,8 +66,34 @@ export const REQUIRED_WEIGHT_TOTAL = 100;
 const MAX_BAND_GAP = 1;
 const GRADE_EPSILON = 1e-9;
 
+/**
+ * M4-P3: a caller-supplied subject or academic period id that does not exist in the caller's
+ * tenant. Same 422 body as the gateway's H-D4a foreign-key mapping (#739): fixed copy that says
+ * neither which table was checked nor whether the id exists in another tenant.
+ */
+export const REFERENCE_NOT_FOUND_MESSAGE = 'A referenced record does not exist.';
+export class ReferenceNotFoundError extends AppError {
+  constructor() {
+    super(REFERENCE_NOT_FOUND_MESSAGE, 'REFERENCE_NOT_FOUND', 422);
+    this.name = 'ReferenceNotFoundError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+/** M4-P3: the tenant-scoped subject / period lookups the write paths need. */
+export type AssessmentReferenceDirectory = Pick<
+  ReportCardDirectory,
+  'findSubjectNames' | 'findAcademicPeriodName'
+>;
+
 export interface AssessmentServiceOptions {
   auditSink?: AssessmentAuditSink | null;
+  /**
+   * M4-P3: when provided, item definitions and outcomes must name a subject (and period) of
+   * the caller's tenant. `assessment_items.subject_id` / `assessment_outcomes.subject_id` have
+   * no foreign key, so without it nothing refuses another tenant's id.
+   */
+  referenceDirectory?: AssessmentReferenceDirectory | null;
 }
 
 /** PRC-M495: audit snapshot of a grading scheme. */
@@ -100,6 +133,23 @@ export class AssessmentService {
     /** PRC-M495: optional domain audit sink (no sink: unchanged behaviour). */
     private readonly options: AssessmentServiceOptions = {},
   ) {}
+
+  /** M4-P3: refuse a subject (and period) that is not in the tenant; no-op without a directory. */
+  private async assertReferencesInTenant(
+    tenantId: string,
+    refs: { subjectId: string; academicPeriodId?: string },
+  ): Promise<void> {
+    const directory = this.options.referenceDirectory;
+    if (!directory) return;
+    const subjects = await directory.findSubjectNames(tenantId, [refs.subjectId]);
+    if (!subjects.has(refs.subjectId)) throw new ReferenceNotFoundError();
+    if (
+      refs.academicPeriodId !== undefined &&
+      (await directory.findAcademicPeriodName(tenantId, refs.academicPeriodId)) === null
+    ) {
+      throw new ReferenceNotFoundError();
+    }
+  }
 
   /** PRC-M495: emit one domain audit entry when a sink is configured. */
   private async audit(entry: AssessmentAuditEntry): Promise<void> {
@@ -353,6 +403,7 @@ export class AssessmentService {
    *
    * Validates:
    * - Grading scheme exists
+   * - Subject and academic period belong to the tenant (M4-P3, with a reference directory)
    * - Number of items does not exceed 50
    * - All item weights sum to exactly 100%
    * - Each item's minScore < maxScore
@@ -379,6 +430,10 @@ export class AssessmentService {
     if (!gradingScheme) {
       throw new NotFoundError(`Grading scheme with id '${input.gradingSchemeId}' not found`);
     }
+    await this.assertReferencesInTenant(tenantId, {
+      subjectId: input.subjectId,
+      academicPeriodId: input.academicPeriodId,
+    });
 
     // Validate item count (max 50)
     if (input.items.length > MAX_ITEMS_PER_SUBJECT_PERIOD) {
@@ -516,6 +571,7 @@ export class AssessmentService {
    * Requirement 8.6: Outcome-based assessment mapping.
    */
   async createOutcome(tenantId: string, input: CreateOutcomeInput): Promise<OutcomeEntity> {
+    await this.assertReferencesInTenant(tenantId, { subjectId: input.subjectId });
     const entity: Omit<OutcomeEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
