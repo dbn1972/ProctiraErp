@@ -186,14 +186,30 @@ export const REPORT_ROLE_DASHBOARD_ROLE_IDS: ReadonlySet<string> = new Set([
   'super-admin',
 ]);
 
-function hasStaffRole(session: ServerSession): boolean {
-  return session.user.roles.some((role) => !PORTAL_ONLY_ROLE_IDS.has(role.roleId.toLowerCase()));
+/**
+ * UATENV-D12: the session's lower-cased role ids. A session without a roles
+ * array, or a role entry without a string roleId, contributes no role, so the
+ * guards deny (access-denied screen) instead of throwing (error boundary).
+ */
+function sessionRoleIds(session: ServerSession): string[] {
+  const roles: unknown = session.user?.roles;
+  if (!Array.isArray(roles)) return [];
+  const ids: string[] = [];
+  for (const role of roles) {
+    const roleId = (role as { roleId?: unknown } | null)?.roleId;
+    if (typeof roleId === 'string' && roleId) ids.push(roleId.toLowerCase());
+  }
+  return ids;
+}
+
+function hasStaffRole(roleIds: readonly string[]): boolean {
+  return roleIds.some((roleId) => !PORTAL_ONLY_ROLE_IDS.has(roleId));
 }
 
 export function canAccessReportRoleDashboard(session: ServerSession): boolean {
+  const roleIds = sessionRoleIds(session);
   return (
-    hasStaffRole(session) &&
-    session.user.roles.some((role) => REPORT_ROLE_DASHBOARD_ROLE_IDS.has(role.roleId.toLowerCase()))
+    hasStaffRole(roleIds) && roleIds.some((roleId) => REPORT_ROLE_DASHBOARD_ROLE_IDS.has(roleId))
   );
 }
 
@@ -214,25 +230,20 @@ const DOMAIN_BASE_READERS: Partial<Record<DashboardDomain, ReadonlySet<string>>>
 };
 
 export function canAccessDashboardDomain(session: ServerSession, domain: DashboardDomain): boolean {
-  if (!hasStaffRole(session)) return false;
+  const roleIds = sessionRoleIds(session);
+  if (!hasStaffRole(roleIds)) return false;
   const routeRoles = DOMAIN_ROUTE_ROLE_IDS[domain];
   if (routeRoles) {
-    return session.user.roles.some((role) => routeRoles.has(role.roleId.toLowerCase()));
+    return roleIds.some((roleId) => routeRoles.has(roleId));
   }
   const packageRoles = DOMAIN_PACKAGE_ROLE_IDS[domain];
-  if (
-    packageRoles &&
-    !session.user.roles.some((role) => packageRoles.has(role.roleId.toLowerCase()))
-  ) {
+  if (packageRoles && !roleIds.some((roleId) => packageRoles.has(roleId))) {
     return false;
   }
   // Same multi-role rule as the gateway: some role holds the gateway grant and
   // some (possibly other) role is in the package set.
   const baseReaders = DOMAIN_BASE_READERS[domain];
-  if (
-    baseReaders &&
-    session.user.roles.some((role) => baseReaders.has(role.roleId.toLowerCase()))
-  ) {
+  if (baseReaders && roleIds.some((roleId) => baseReaders.has(roleId))) {
     return true;
   }
   return hasPermission(

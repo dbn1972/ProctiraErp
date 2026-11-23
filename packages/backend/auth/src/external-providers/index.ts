@@ -54,6 +54,8 @@ export { OIDCProvider, createOIDCProvider } from './oidc-provider.js';
 // SAML Provider
 export { SAMLProvider, DefaultSAMLResponseParser, createSAMLProvider } from './saml-provider.js';
 export type { SAMLResponseParser, SAMLParsedResponse } from './saml-provider.js';
+export { NodeSamlResponseParser } from './node-saml-response-parser.js';
+export type { NodeSamlResponseParserOptions } from './node-saml-response-parser.js';
 
 // External Auth Handler
 export { ExternalAuthHandler } from './external-auth-handler.js';

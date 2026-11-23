@@ -36,6 +36,8 @@ export class InMemoryGradebookRepository
   private readonly sections = new Map<string, SectionSummary>();
   private readonly boards = new Map<string, BoardSummary>();
   private readonly institutions = new Map<string, InstitutionSummary>();
+  /** M4-P2: `${tenantId}:${studentId}` of the students that exist. */
+  private readonly students = new Set<string>();
   private readonly boardCodes = new Map<string, BoardCodeEntity>();
   private readonly candidates = new Map<string, BoardExportCandidate>();
   private readonly sectionTeachers: Array<{
@@ -60,6 +62,9 @@ export class InMemoryGradebookRepository
 
   seedInstitution(institution: InstitutionSummary) {
     this.institutions.set(institution.id, institution);
+  }
+  seedStudent(tenantId: string, studentId: string) {
+    this.students.add(`${tenantId}:${studentId}`);
   }
 
   seedBoardCode(code: BoardCodeEntity) {
@@ -365,6 +370,9 @@ export class InMemoryGradebookRepository
     return row?.tenantId === tenantId ? row : null;
   }
 
+  async studentExists(tenantId: string, studentId: string) {
+    return this.students.has(`${tenantId}:${studentId}`);
+  }
   async listInstitutionsByBoard(tenantId: string, boardId: string) {
     return [...this.institutions.values()]
       .filter((i) => i.tenantId === tenantId && i.boardId === boardId)

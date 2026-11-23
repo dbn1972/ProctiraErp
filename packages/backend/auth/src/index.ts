@@ -133,6 +133,7 @@ export {
   createOIDCProvider,
   SAMLProvider,
   DefaultSAMLResponseParser,
+  NodeSamlResponseParser,
   createSAMLProvider,
   // Handler
   ExternalAuthHandler,

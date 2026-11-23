@@ -26,6 +26,11 @@ vi.mock('@/lib/auth', () => ({
     exp: 9999999999,
   }),
 }));
+// PRC-L265: gatewayFetch takes the tenant from the verified token claim.
+vi.mock('@/lib/auth/verified-token', () => ({
+  readSessionToken: async () => ({ tenantId: '11111111-1111-1111-1111-111111111111' }),
+  tenantIdFromClaims: (claims: { tenantId?: string } | null) => claims?.tenantId ?? null,
+}));
 vi.mock('@/lib/auth/server', () => ({
   requireSession: vi.fn(async () => ({ user: { sub: 'parent-1' } })),
 }));
