@@ -3,6 +3,7 @@
  *
  * When DATABASE_URL is set, occupancy persists via db/sql/008_hostel_schema.sql.
  */
+import { NotFoundError } from '@proctira/common';
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
@@ -56,6 +57,41 @@ export function getSharedHostelPool(): pg.Pool | null {
 export async function ensureHostelSchema(pool: PgPoolLike = getSharedHostelPool()!): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for hostel schema ensure');
   await ensureHostelSchemaReady(pool);
+}
+
+type ParentRefs = Partial<
+  Record<'studentId' | 'hostelId' | 'blockId' | 'roomId' | 'bedId' | 'planId', string>
+>;
+
+const PARENT_FK_COLUMNS: Record<string, [keyof ParentRefs, string]> = {
+  student_id: ['studentId', 'Student'],
+  hostel_id: ['hostelId', 'Hostel'],
+  block_id: ['blockId', 'Block'],
+  room_id: ['roomId', 'Room'],
+  bed_id: ['bedId', 'Bed'],
+  plan_id: ['planId', 'Mess plan'],
+};
+
+const PARENT_FK_CONSTRAINT =
+  /_(student_id|hostel_id|block_id|room_id|bed_id|plan_id)_(fkey|tenant_fk)$/;
+
+/**
+ * H-D3: a parent FK violation (id-only `_fkey` or tenant-composite `_tenant_fk`)
+ * becomes the same 404 a tenant-scoped lookup miss gives, so the response never
+ * tells "exists in another tenant" from "does not exist". Anything else
+ * (including the tenant_id -> tenants FK) is rethrown unchanged.
+ */
+function rethrowParentFkViolation(err: unknown, refs: ParentRefs): never {
+  const pgErr = err as { code?: string; constraint?: string } | null;
+  if (pgErr?.code === '23503') {
+    const column = PARENT_FK_CONSTRAINT.exec(String(pgErr.constraint ?? ''))?.[1];
+    const parent = column ? PARENT_FK_COLUMNS[column] : undefined;
+    const ref = parent ? refs[parent[0]] : undefined;
+    if (parent && ref !== undefined) {
+      throw new NotFoundError(`${parent[1]} with id '${ref}' not found`);
+    }
+  }
+  throw err;
 }
 
 function toDate(value: unknown): Date {
@@ -268,6 +304,18 @@ export class PgHostelRepository implements HostelRepository {
     );
   }
 
+  /** H-D3: an INSERT whose parent FK violations map to the parent's 404. */
+  private insertChild(
+    tenantId: string,
+    refs: ParentRefs,
+    text: string,
+    values: unknown[],
+  ): Promise<pg.QueryResult> {
+    return this.query(tenantId, text, values).catch((err: unknown) =>
+      rethrowParentFkViolation(err, refs),
+    );
+  }
+
   /** PRC-M278: COUNT + LIMIT/OFFSET page under one tenant-bound connection. */
   private page<T>(
     tenantId: string,
@@ -337,8 +385,9 @@ export class PgHostelRepository implements HostelRepository {
     data: Omit<HostelAssignmentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelAssignmentEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { studentId: data.studentId, bedId: data.bedId },
       `INSERT INTO hostel_assignments
          (id, tenant_id, student_id, bed_id, start_date, end_date, is_active)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -407,6 +456,9 @@ export class PgHostelRepository implements HostelRepository {
     } catch (err) {
       if (err instanceof BedAssignmentConflictError) throw err;
       const pgErr = err as { code?: string; constraint?: string };
+      if (pgErr.code === '23503') {
+        rethrowParentFkViolation(err, { studentId: data.studentId, bedId: data.bedId });
+      }
       if (pgErr.code === '23505') {
         if (String(pgErr.constraint ?? '').includes('active_student')) {
           throw new BedAssignmentConflictError(
@@ -442,8 +494,9 @@ export class PgHostelRepository implements HostelRepository {
     data: Omit<HostelLeaveEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelLeaveEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { studentId: data.studentId, hostelId: data.hostelId },
       `INSERT INTO hostel_leaves
          (id, tenant_id, student_id, hostel_id, start_date, end_date, reason, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
@@ -516,8 +569,9 @@ export class PgHostelRepository implements HostelRepository {
     data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelVisitorEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { hostelId: data.hostelId, studentId: data.studentId },
       `INSERT INTO hostel_visitors
          (id, tenant_id, hostel_id, visitor_name, student_id, visit_date, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -589,8 +643,9 @@ export class PgHostelRepository implements HostelRepository {
     data: Omit<HostelBlockEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelBlockEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { hostelId: data.hostelId },
       `INSERT INTO hostel_blocks (id, tenant_id, hostel_id, name, floor)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [data.id, data.tenantId, data.hostelId, data.name, data.floor],
@@ -616,12 +671,24 @@ export class PgHostelRepository implements HostelRepository {
     return result.rows.map((row) => mapBlock(row as Record<string, unknown>));
   }
 
+  async findBlockById(id: string, tenantId: string): Promise<HostelBlockEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM hostel_blocks WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapBlock(result.rows[0] as Record<string, unknown>);
+  }
+
   async createRoom(
     data: Omit<HostelRoomEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelRoomEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { blockId: data.blockId },
       `INSERT INTO hostel_rooms (id, tenant_id, block_id, room_number, capacity)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [data.id, data.tenantId, data.blockId, data.roomNumber, data.capacity],
@@ -647,12 +714,24 @@ export class PgHostelRepository implements HostelRepository {
     return result.rows.map((row) => mapRoom(row as Record<string, unknown>));
   }
 
+  async findRoomById(id: string, tenantId: string): Promise<HostelRoomEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM hostel_rooms WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapRoom(result.rows[0] as Record<string, unknown>);
+  }
+
   async createBed(
     data: Omit<HostelBedEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelBedEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { roomId: data.roomId },
       `INSERT INTO hostel_beds (id, tenant_id, room_id, bed_label, is_available)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [data.id, data.tenantId, data.roomId, data.bedLabel, data.isAvailable],
@@ -712,8 +791,9 @@ export class PgHostelRepository implements HostelRepository {
 
   async createMessPlan(data: NewMessPlan): Promise<MessPlanEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { hostelId: data.hostelId },
       `INSERT INTO mess_plans (id, tenant_id, hostel_id, name, meal_count, status)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [data.id, data.tenantId, data.hostelId, data.name, data.mealCount, data.status],
@@ -752,8 +832,9 @@ export class PgHostelRepository implements HostelRepository {
 
   async createMessMenuItem(data: NewMessMenuItem): Promise<MessMenuItemEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { planId: data.planId },
       `INSERT INTO mess_menu_items (id, tenant_id, plan_id, weekday, meal, item_name)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [data.id, data.tenantId, data.planId, data.weekday, data.meal, data.itemName],
@@ -774,8 +855,9 @@ export class PgHostelRepository implements HostelRepository {
 
   async createMessSubscription(data: NewMessSubscription): Promise<MessSubscriptionEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { planId: data.planId, studentId: data.studentId },
       `INSERT INTO mess_subscriptions
          (id, tenant_id, plan_id, student_id, start_date, end_date, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -816,8 +898,9 @@ export class PgHostelRepository implements HostelRepository {
 
   async createGatePass(data: NewGatePass): Promise<GatePassEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { hostelId: data.hostelId, studentId: data.studentId },
       `INSERT INTO gate_passes (
          id, tenant_id, hostel_id, student_id, requested_by, requester_user_id,
          reason, expected_out_at, expected_in_at, status, decided_by, out_at, in_at
@@ -918,8 +1001,9 @@ export class PgHostelRepository implements HostelRepository {
 
   async createFeeStructure(data: NewHostelFeeStructure): Promise<HostelFeeStructureEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { hostelId: data.hostelId },
       `INSERT INTO hostel_fee_structures
          (id, tenant_id, hostel_id, room_type, term_label, amount_cents, currency)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -960,8 +1044,9 @@ export class PgHostelRepository implements HostelRepository {
 
   async upsertAttendance(data: NewHostelAttendance): Promise<HostelAttendanceEntity> {
     await this.ensureSchema();
-    const result = await this.query(
+    const result = await this.insertChild(
       data.tenantId,
+      { blockId: data.blockId, studentId: data.studentId },
       `INSERT INTO hostel_attendance
          (id, tenant_id, block_id, student_id, on_date, status, reason)
        VALUES ($1,$2,$3,$4,$5,$6,$7)

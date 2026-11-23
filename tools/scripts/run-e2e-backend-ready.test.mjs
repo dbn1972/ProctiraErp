@@ -758,3 +758,25 @@ test('fees screen specs 90-92 exist and run nightly', () => {
     FEES_SPECS_IN_PR,
   );
 });
+
+test('staff screen specs 93-95 exist and run nightly', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const STAFF_SPECS = [
+    '93-staff-screens-read.spec.ts',
+    '94-staff-screens-write.spec.ts',
+    '95-staff-privacy-tenancy.spec.ts',
+  ];
+  // Nightly only, like the other screen-coverage specs: the PR shard budget is used up.
+  // Move a spec here only together with PR_SPECS.
+  const STAFF_SPECS_IN_PR = [];
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const f of STAFF_SPECS) {
+    assert.ok(readdirSync(e2eDir).includes(f), `apps/web/e2e/${f} exists`);
+    assert.ok(nightly.includes(`e2e/${f}`), `NIGHTLY_SPECS has e2e/${f}`);
+  }
+  assert.deepEqual(
+    STAFF_SPECS.filter((f) => pr.includes(`e2e/${f}`)),
+    STAFF_SPECS_IN_PR,
+  );
+});
