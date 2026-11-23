@@ -8,7 +8,9 @@
  */
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 
+import { getGatewayUrl } from './cookies';
 import { AUTH_COOKIES, decodeTokenPayload, isTokenExpired, type TokenPayload } from './session';
 
 /** Result returned by getSession. */
@@ -42,13 +44,45 @@ export async function getSession(): Promise<ServerSession | null> {
     return null;
   }
 
+  const isExpired = isTokenExpired(accessToken);
+  const principal =
+    payload.idp === 'keycloak' && !isExpired ? await resolveGatewayPrincipal(accessToken) : null;
+
   return {
     accessToken,
     refreshToken,
-    user: payload,
-    isExpired: isTokenExpired(accessToken),
+    user: principal
+      ? { ...payload, sub: principal.sub, tenantId: principal.tenantId || payload.tenantId }
+      : payload,
+    isExpired,
   };
 }
+
+/**
+ * UATENV-D06: the gateway links a Keycloak subject to a local user and uses
+ * that local id as `sub` (packages/backend/auth/src/keycloak/plugin.ts), so
+ * per-user routes such as `/notifications/user/:id` need the local id, not the
+ * Keycloak `sub` in the token. Asks the gateway once per request (React
+ * `cache`) for the principal; on any failure the token claims are kept.
+ */
+const resolveGatewayPrincipal = cache(
+  async (accessToken: string): Promise<{ sub: string; tenantId: string } | null> => {
+    try {
+      const response = await fetch(new URL('/api/v1/auth/me', getGatewayUrl()), {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { user?: { sub?: unknown; tenantId?: unknown } };
+      const sub = body.user?.sub;
+      if (typeof sub !== 'string' || !sub) return null;
+      const tenantId = body.user?.tenantId;
+      return { sub, tenantId: typeof tenantId === 'string' ? tenantId : '' };
+    } catch {
+      return null;
+    }
+  },
+);
 
 /**
  * Server-component helper that enforces authentication. Redirects to /login
