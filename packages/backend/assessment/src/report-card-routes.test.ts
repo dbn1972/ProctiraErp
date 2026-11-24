@@ -80,7 +80,8 @@ describe('Report Card Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
         sub: TEST_USER_ID,
-        roles: ['teacher'],
+        // PRC-M160: report-card templates are coordinator configuration.
+        roles: ['academic_coordinator'],
       };
     });
 

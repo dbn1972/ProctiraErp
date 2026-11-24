@@ -127,6 +127,10 @@ export interface WorkflowUiStore {
     tenantId: string,
     pagination: { page: number; pageSize: number },
   ): Promise<WorkflowUiPage<UiWorkflowApproval>>;
+  listDefinitionsPage?(
+    tenantId: string,
+    pagination: { page: number; pageSize: number },
+  ): Promise<WorkflowUiPage<UiWorkflowDefinition>>;
   listDefinitions(tenantId: string): Promise<UiWorkflowDefinition[]>;
   getDefinition(tenantId: string, id: string): Promise<UiWorkflowDefinition | null>;
   createDefinition(definition: UiWorkflowDefinition): Promise<UiWorkflowDefinition>;

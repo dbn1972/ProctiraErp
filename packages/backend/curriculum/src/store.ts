@@ -91,6 +91,8 @@ export interface CurriculumStore {
     >,
   ): Promise<LearningOutcomeRecord | null>;
   deleteOutcome(tenantId: string, id: string): Promise<boolean>;
+  /** PRC-M194: one outcome by id (ownership check before update/delete). */
+  getOutcome(tenantId: string, id: string): Promise<LearningOutcomeRecord | null>;
 
   upsertCoverage(row: UnitCoverageRecord): Promise<UnitCoverageRecord>;
   getCoverage(tenantId: string, unitId: string): Promise<UnitCoverageRecord | null>;
@@ -223,6 +225,10 @@ export class InMemoryCurriculumStore implements CurriculumStore {
     return { ...next };
   }
 
+  async getOutcome(tenantId: string, id: string): Promise<LearningOutcomeRecord | null> {
+    const row = this.outcomes.get(id);
+    return row && row.tenantId === tenantId ? { ...row } : null;
+  }
   async deleteOutcome(tenantId: string, id: string): Promise<boolean> {
     const row = this.outcomes.get(id);
     if (!row || row.tenantId !== tenantId) return false;
@@ -615,6 +621,15 @@ export class PgCurriculumStore implements CurriculumStore {
     });
   }
 
+  async getOutcome(tenantId: string, id: string): Promise<LearningOutcomeRecord | null> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT * FROM learning_outcomes WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+        [tenantId, id],
+      );
+      return rows[0] ? mapOutcome(rows[0] as Record<string, unknown>) : null;
+    });
+  }
   async deleteOutcome(tenantId: string, id: string): Promise<boolean> {
     return this.run(tenantId, async (client) => {
       const { rowCount } = await client.query(

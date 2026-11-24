@@ -111,6 +111,7 @@ import {
   createLmsRepository,
   LmsService,
   lmsPlugin,
+  type LmsLearnerMembership,
   type LmsRepository,
 } from '@proctira/backend-lms';
 import {
@@ -193,6 +194,7 @@ import {
   offerFeeAmountCents,
   tenantLocalDate,
 } from './admissions-offer-policy.js';
+import { createAssessmentPortalBinding } from './assessment-portal-binding.js';
 import { createAttendanceHolidayLookup } from './attendance-holiday-lookup.js';
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
@@ -207,6 +209,7 @@ import { buildStorageAdapterConfig, readStorageEnv } from './plugins/storage-hea
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { createScholarshipDisbursementLookup } from './scholarship-disbursement-lookup.js';
 import { createScholarshipDownloadReplayGuard } from './scholarship-download-controls.js';
+import { sharedTeachingScopeDirectory } from './teaching-scope.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { invalidateTenantCustomRoles } from './tenant-custom-roles.js';
 import { createTenantTimeZoneResolver, pgTenantTimeZoneSources } from './tenant-timezone.js';
@@ -284,7 +287,12 @@ export function sharedLmsService(dependencies: DomainPluginDependencies): {
     entry.lms = {
       repository,
       // PRC-M527: grades, rubric scores, deletes, publish/close and file downloads are audited.
-      service: new LmsService(repository, { auditSink: domainAuditSink('lms') }),
+      service: new LmsService(repository, {
+        auditSink: domainAuditSink('lms'),
+        // PRC-M299: learners submit, upload and post only where they are ENROLLED
+        // (section_enrollments / enrollments). No pool: production refuses learner writes.
+        learnerMembership: lmsLearnerMembership(),
+      }),
     };
   }
   return entry.lms;
@@ -367,6 +375,36 @@ function scholarshipRepositoryForFees(): ScholarshipRepository {
  * see the same rows the staff routes wrote).
  */
 let assignmentRepositorySingleton: ReturnType<typeof createAssignmentRepository> | undefined;
+let admissionsStoresSingleton:
+  | {
+      crmStore: ReturnType<typeof createAdmissionsCrmStore>;
+      pipelineStore: ReturnType<typeof createAdmissionsPipelineStore>;
+    }
+  | undefined;
+/**
+ * PRC-L142: one admissions pipeline store and one CRM store per gateway process, shared by
+ * the registration (staff) and parent-portal (guardian offers) mounts.
+ */
+export function sharedAdmissionsStores(): NonNullable<typeof admissionsStoresSingleton> {
+  admissionsStoresSingleton ??= {
+    crmStore: createAdmissionsCrmStore(),
+    pipelineStore: createAdmissionsPipelineStore(),
+  };
+  return admissionsStoresSingleton;
+}
+
+/** PRC-M299: LMS learner enrolment port over the shared teaching-scope directory. */
+function lmsLearnerMembership(): LmsLearnerMembership | null {
+  const directory = sharedTeachingScopeDirectory();
+  return directory
+    ? {
+        inSection: (tenantId, userId, sectionId) =>
+          directory.learnerInSection(tenantId, userId, sectionId),
+        inInstitution: (tenantId, userId, institutionId) =>
+          directory.learnerInInstitution(tenantId, userId, institutionId),
+      }
+    : null;
+}
 function sharedAssignmentRepository(): ReturnType<typeof createAssignmentRepository> {
   assignmentRepositorySingleton ??= createAssignmentRepository();
   return assignmentRepositorySingleton;
@@ -1290,6 +1328,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Durable board HTML report cards also live at `/gradebook/report-cards`.
       // W2-JOB-02: durable queue publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       const reportCardQueueHandle = await createReportCardPublisherFromEnv();
+      const assessmentParentRepo = createParentPortalRepository();
       if (reportCardQueueHandle) {
         scope.addHook('onClose', async () => {
           await reportCardQueueHandle.disconnect();
@@ -1309,6 +1348,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         reportCardWorkerQueue: reportCardQueueHandle?.createConsumerAdapter(),
         // PRC-M495: score before/after, scheme/item changes, report-card generate/download.
         auditSink: domainAuditSink('assessment'),
+        // PRC-M160 / PRC-L274: teacher-only roles write only for subjects they teach and read
+        // a student's assessment data only when they teach that student (staff.user_id ->
+        // section_meetings / sections -> section_enrollments). No pool: production fails closed.
+        teachingScope: sharedTeachingScopeDirectory(),
+        // PRC-L274: families download only their own cards — guardians/parents through the
+        // parent portal's custody-filtered children (active link + household custody, no
+        // blocks_all_access restriction), a student through their own student record.
+        portalBinding: createAssessmentPortalBinding(
+          assessmentParentRepo,
+          async (tenantId, learnerUserId) =>
+            (await sharedTeachingScopeDirectory()?.studentIdsForLearner(tenantId, learnerUserId)) ??
+            [],
+        ),
       });
     },
   },
@@ -1374,6 +1426,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(curriculumPlugin, {
         store: createCurriculumStore(),
         prefix: '/curriculum',
+        // PRC-M194: teacher-only roles write units / lesson plans / coverage / outcomes only
+        // for subjects they teach (active section_meetings.subject_id). No pool: production
+        // fails closed.
+        teachingScope: sharedTeachingScopeDirectory(),
       });
     },
   },
@@ -1865,13 +1921,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const repository = createParentPortalRepository();
       // A2: same pipeline store + fee/enrol hooks as staff admissions so parent
       // accept enrols against durable offers (PG when DATABASE_URL).
+      // PRC-L142: the same pipeline + CRM store instances as the registration mount, so
+      // in-memory (no DATABASE_URL) parents see the offers staff make.
+      const shared = sharedAdmissionsStores();
       const pipelineService = new AdmissionsPipelineService(
-        createAdmissionsPipelineStore(),
+        shared.pipelineStore,
         createRegistrationRepository(),
         createAdmissionsEnrolOnAccept(),
         createOfferFeeInvoiceHook(),
         assertOfferFeePaidHook(),
-        undefined,
+        shared.crmStore,
         reconcileAdmissionsOfferResourcesHook(),
         verifyOfferFeeInvoiceOwnershipHook(),
       );
@@ -1901,8 +1960,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope, _config, dependencies) => {
       // Pg when DATABASE_URL (014 waitlist/interview + 034 enquiry/merit/offer); else in-memory.
       const repository = createRegistrationRepository();
-      const crmStore = createAdmissionsCrmStore();
-      const pipelineStore = createAdmissionsPipelineStore();
+      const { crmStore, pipelineStore } = sharedAdmissionsStores();
       // W1-SEC-05: Redis when REDIS_URL (shared across replicas); else in-memory
       // only when assertInMemoryFallbackAllowed permits (never production).
       const sessionStore = createRegistrationSessionStore();

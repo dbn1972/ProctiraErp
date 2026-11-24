@@ -10,7 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { AdmissionsCrmStore } from './admissions-crm-store.js';
+import { InMemoryAdmissionsCrmStore, type AdmissionsCrmStore } from './admissions-crm-store.js';
 import {
   createAdmissionsPipelineStore,
   createTenantReferenceChecker,
@@ -121,7 +121,9 @@ export const registrationPlugin = fp(
     } = options;
 
     // Shared CRM so waitlist enqueue (staff) and seat-release promote (pipeline) see one queue.
-    const crm = crmStore; // RegistrationService defaults to in-memory when undefined
+    // PRC-L142: the plugin owns the default, so the pipeline gets the same instance without
+    // reaching into RegistrationService's private field.
+    const crm = crmStore ?? new InMemoryAdmissionsCrmStore();
     const references = referenceChecker ?? createTenantReferenceChecker();
     const registrationService = new RegistrationService(
       repository,
@@ -148,8 +150,7 @@ export const registrationPlugin = fp(
       enrolOnAccept,
       createOfferFeeInvoice,
       assertOfferFeePaid,
-      // Prefer the same store RegistrationService uses (including its default in-memory).
-      (registrationService as unknown as { crm: AdmissionsCrmStore }).crm,
+      crm,
       reconcileOfferResources,
       verifyOfferFeeInvoiceOwnership,
       references,

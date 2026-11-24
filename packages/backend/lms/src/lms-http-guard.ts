@@ -4,11 +4,7 @@
 import { AppError } from '@proctira/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
-import {
-  assertLmsAccess,
-  lmsActionForRequest,
-  type LmsAction,
-} from './lms-access.js';
+import { assertLmsAccess, lmsActionForRequest, type LmsAction } from './lms-access.js';
 
 export function lmsRequestRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
@@ -16,9 +12,11 @@ export function lmsRequestRoles(request: FastifyRequest): unknown {
 }
 
 export function lmsHasUser(request: FastifyRequest): boolean {
-  const user = (request as FastifyRequest & {
-    user?: { sub?: string; userId?: string; id?: string };
-  }).user;
+  const user = (
+    request as FastifyRequest & {
+      user?: { sub?: string; userId?: string; id?: string };
+    }
+  ).user;
   if (!user) return false;
   return Boolean(user.sub ?? user.userId ?? user.id);
 }
@@ -40,10 +38,7 @@ export function requireLmsAction(
   }
 }
 
-export function enforceLmsRouteAccess(
-  request: FastifyRequest,
-  reply: FastifyReply,
-): boolean {
+export function enforceLmsRouteAccess(request: FastifyRequest, reply: FastifyReply): boolean {
   const path = request.url.split('?')[0] ?? request.url;
   const action = lmsActionForRequest(request.method, path);
   return requireLmsAction(request, reply, action);

@@ -83,7 +83,13 @@ describe('certificates routes SEC-2 tenant resolution', () => {
 
   it('honors the header only when TRUST_X_TENANT_ID_HEADER=1 is explicitly set (non-default opt-in)', async () => {
     process.env['TRUST_X_TENANT_ID_HEADER'] = '1';
-    app = await buildApp();
+    // PRC-M545: a writer role is still required; the user carries no tenant.
+    app = await buildApp((request) => {
+      (request as FastifyRequest & { user: { sub: string; roles: string[] } }).user = {
+        sub: 'actor-1',
+        roles: ['registrar'],
+      };
+    });
 
     const response = await app.inject({
       method: 'POST',
@@ -99,9 +105,12 @@ describe('certificates routes SEC-2 tenant resolution', () => {
   it('resolves from request.user.tenantId when set by a trusted hook (baseline sanity check, gateway-mounted shape)', async () => {
     delete process.env['TRUST_X_TENANT_ID_HEADER'];
     app = await buildApp((request) => {
-      (request as FastifyRequest & { user: { tenantId: string; sub: string } }).user = {
+      (
+        request as FastifyRequest & { user: { tenantId: string; sub: string; roles: string[] } }
+      ).user = {
         tenantId: TENANT,
         sub: 'actor-1',
+        roles: ['registrar'],
       };
     });
 
@@ -134,9 +143,12 @@ describe('certificates routes SEC-2 tenant resolution', () => {
     delete process.env['TRUST_X_TENANT_ID_HEADER'];
     const OTHER_TENANT = '33333333-3333-4333-8333-333333333333';
     app = await buildApp((request) => {
-      (request as FastifyRequest & { user: { tenantId: string; sub: string } }).user = {
+      (
+        request as FastifyRequest & { user: { tenantId: string; sub: string; roles: string[] } }
+      ).user = {
         tenantId: TENANT,
         sub: 'actor-1',
+        roles: ['registrar'],
       };
     });
 
@@ -149,5 +161,65 @@ describe('certificates routes SEC-2 tenant resolution', () => {
 
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({ tenantId: TENANT });
+  });
+});
+
+describe('certificate mutations need a registrar/admin role in-plugin (PRC-M545)', () => {
+  let app: FastifyInstance;
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function asRoles(roles: string[]) {
+    return buildApp((request) => {
+      (request as FastifyRequest & { user: unknown }).user = {
+        tenantId: TENANT,
+        sub: 'actor-1',
+        roles,
+      };
+    });
+  }
+
+  it('a teacher cannot issue a certificate (403)', async () => {
+    app = await asRoles(['teacher']);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/students/${STUDENT}/certificates`,
+      payload: { type: 'bonafide' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('a caller with no roles cannot revoke a certificate (403)', async () => {
+    app = await asRoles([]);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/students/certificates/44444444-4444-4444-8444-444444444444/revoke',
+      payload: { reason: 'x' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('a registrar issues and revokes; a teacher may still read the list', async () => {
+    app = await asRoles(['registrar']);
+    const issued = await app.inject({
+      method: 'POST',
+      url: `/students/${STUDENT}/certificates`,
+      payload: { type: 'bonafide' },
+    });
+    expect(issued.statusCode).toBe(201);
+    const id = (issued.json() as { id: string }).id;
+    const revoked = await app.inject({
+      method: 'POST',
+      url: `/students/certificates/${id}/revoke`,
+      payload: { reason: 'issued in error' },
+    });
+    expect(revoked.statusCode).toBe(200);
+    await app.close();
+    app = await asRoles(['teacher']);
+    const list = await app.inject({ method: 'GET', url: `/students/${STUDENT}/certificates` });
+    expect(list.statusCode).toBe(200);
   });
 });

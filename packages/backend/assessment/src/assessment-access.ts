@@ -5,7 +5,7 @@
  */
 import { AppError } from '@proctira/common';
 
-export type AssessmentAction = 'assessment.read' | 'assessment.write';
+export type AssessmentAction = 'assessment.read' | 'assessment.write' | 'assessment.configure';
 
 const ADMIN_ROLES = [
   'admin',
@@ -31,9 +31,24 @@ const ASSESSMENT_STAFF_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
+/**
+ * PRC-M160: read vs write vs configure. The registrar reads assessment data
+ * but does not author marks; grading schemes, report-card templates and
+ * outcome deletion are configuration owned by admins, academic coordinators
+ * and exam officers, not by teachers.
+ */
+const ASSESSMENT_AUTHOR_ROLES = ASSESSMENT_STAFF_ROLES.filter((role) => role !== 'registrar');
+const ASSESSMENT_CONFIG_ROLES = [
+  'academic_coordinator',
+  'academic-coordinator',
+  'exam_officer',
+  'exam-officer',
+  ...ADMIN_ROLES,
+] as const;
 const ACTION_ROLES: Record<AssessmentAction, readonly string[]> = {
   'assessment.read': ASSESSMENT_STAFF_ROLES,
-  'assessment.write': ASSESSMENT_STAFF_ROLES,
+  'assessment.write': ASSESSMENT_AUTHOR_ROLES,
+  'assessment.configure': ASSESSMENT_CONFIG_ROLES,
 };
 
 /** PRC-M163: admin-tier roles that may overwrite another author's comment. */
