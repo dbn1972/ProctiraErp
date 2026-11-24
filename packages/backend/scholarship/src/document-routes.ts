@@ -346,10 +346,15 @@ export async function registerScholarshipDocumentRoutes(
         });
       }
       try {
-        await loadApplication(tenantId, params.data.id);
+        const application = await loadApplication(tenantId, params.data.id);
         const actor = await actorFor(request, tenantId);
         assertCanVerify(actor);
-        const updated = await documentService.verify(tenantId, params.data.documentId, actor);
+        const updated = await documentService.verify(
+          tenantId,
+          params.data.documentId,
+          actor,
+          application,
+        );
         return reply.send(updated);
       } catch (error) {
         return sendError(reply, error);
@@ -381,13 +386,14 @@ export async function registerScholarshipDocumentRoutes(
         });
       }
       try {
-        await loadApplication(tenantId, params.data.id);
+        const application = await loadApplication(tenantId, params.data.id);
         const actor = await actorFor(request, tenantId);
         assertCanVerify(actor);
         const updated = await documentService.reject(
           tenantId,
           params.data.documentId,
           actor,
+          application,
           body.data.reason,
         );
         return reply.send(updated);
