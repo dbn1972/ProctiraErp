@@ -41,6 +41,40 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   private readonly enrollments = new Map<string, SectionEnrollmentEntity>();
   private readonly meetings = new Map<string, SectionMeetingEntity>();
   private readonly substitutions = new Map<string, SubstitutionEntity>();
+  /** FKB-094: `${tenantId}:${subjectId}`; when empty every subject id is accepted. */
+  private readonly subjects = new Set<string>();
+
+  /** Register a subject for {@link subjectExists}; unknown subject ids are then rejected. */
+  seedSubject(tenantId: string, subjectId: string): void {
+    this.subjects.add(`${tenantId}:${subjectId}`);
+  }
+
+  /** Test helper: a DRAFT section with a fixed id (meetings now require an in-tenant section). */
+  seedSection(
+    section: Pick<SectionEntity, 'id' | 'tenantId' | 'institutionId' | 'academicPeriodId'> &
+      Partial<SectionEntity>,
+  ): SectionEntity {
+    const now = new Date().toISOString();
+    const row: SectionEntity = {
+      gradeId: null,
+      code: `SEC-${section.id.slice(0, 8)}`,
+      name: 'Section',
+      primaryTeacherId: null,
+      defaultRoomId: null,
+      capacity: 40,
+      status: 'DRAFT',
+      publishedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      ...section,
+    };
+    this.sections.set(row.id, row);
+    return row;
+  }
+
+  async subjectExists(tenantId: string, id: string) {
+    return this.subjects.size === 0 || this.subjects.has(`${tenantId}:${id}`);
+  }
 
   async listBellSchedules(tenantId: string, filter?: ListBellSchedulesFilter) {
     const rows = [...this.bellSchedules.values()].filter((row) => {

@@ -20,7 +20,7 @@
  * is the authoritative guard (a duplicate create surfaces as P2002 → 409).
  * `findByNameInArea` carries a tenantId and is implemented normally.
  */
-import { ValidationError } from '@proctira/common';
+import { NotFoundError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
@@ -139,6 +139,24 @@ function toEntity(row: InstitutionRow): InstitutionEntity {
   };
 }
 
+const AREA_FK_CONSTRAINT = /institutions_area_id_(fkey|tenant_fk)/;
+
+/**
+ * FKB-047: an area FK violation (Prisma P2003 on the id-only `_fkey` or the tenant-composite
+ * `_tenant_fk`, e.g. an area deleted after the service lookup) becomes the same 404 the
+ * tenant-scoped lookup gives. Anything else is rethrown unchanged.
+ */
+function rethrowAreaFkViolation(error: unknown, areaId: string): never {
+  const prismaErr = error as { code?: string; meta?: unknown; message?: string } | null;
+  if (
+    prismaErr?.code === 'P2003' &&
+    AREA_FK_CONSTRAINT.test(`${JSON.stringify(prismaErr.meta ?? {})} ${prismaErr.message ?? ''}`)
+  ) {
+    throw new NotFoundError(`Area with id '${areaId}' not found`);
+  }
+  throw error;
+}
+
 export class PrismaInstitutionRepository implements InstitutionRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -146,20 +164,22 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
     data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<InstitutionEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
-      const row = (await tx.institution.create({
-        data: {
-          id: data.id,
-          tenantId: data.tenantId,
-          name: data.name,
-          code: data.code,
-          areaId: data.areaId,
-          type: data.typeId,
-          sector: data.sectorId,
-          ownership: data.ownershipId,
-          status: data.status,
-          customData: buildCustomData(data, {}) as Prisma.InputJsonValue,
-        },
-      })) as InstitutionRow;
+      const row = (await tx.institution
+        .create({
+          data: {
+            id: data.id,
+            tenantId: data.tenantId,
+            name: data.name,
+            code: data.code,
+            areaId: data.areaId,
+            type: data.typeId,
+            sector: data.sectorId,
+            ownership: data.ownershipId,
+            status: data.status,
+            customData: buildCustomData(data, {}) as Prisma.InputJsonValue,
+          },
+        })
+        .catch((error: unknown) => rethrowAreaFkViolation(error, data.areaId))) as InstitutionRow;
       return toEntity(row);
     });
   }
@@ -208,20 +228,22 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
       if (expectedVersion !== undefined) {
         updateWhere['version'] = expectedVersion;
       }
-      const result = await tx.institution.updateMany({
-        where: updateWhere as Prisma.InstitutionWhereInput,
-        data: {
-          name: merged.name,
-          code: merged.code,
-          areaId: merged.areaId,
-          type: merged.typeId,
-          sector: merged.sectorId,
-          ownership: merged.ownershipId,
-          status: merged.status,
-          customData: buildCustomData(merged, userCustomData) as Prisma.InputJsonValue,
-          version: { increment: 1 },
-        },
-      });
+      const result = await tx.institution
+        .updateMany({
+          where: updateWhere as Prisma.InstitutionWhereInput,
+          data: {
+            name: merged.name,
+            code: merged.code,
+            areaId: merged.areaId,
+            type: merged.typeId,
+            sector: merged.sectorId,
+            ownership: merged.ownershipId,
+            status: merged.status,
+            customData: buildCustomData(merged, userCustomData) as Prisma.InputJsonValue,
+            version: { increment: 1 },
+          },
+        })
+        .catch((error: unknown) => rethrowAreaFkViolation(error, merged.areaId));
       if (result.count === 0) {
         // Either the row vanished between findFirst and here, or (when
         // expectedVersion was passed) the version no longer matches — a
@@ -233,6 +255,15 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
         where: { id, tenantId },
       })) as InstitutionRow;
       return toEntity(row);
+    });
+  }
+
+  async areaExists(areaId: string, tenantId: string): Promise<boolean> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const count = await tx.geographicArea.count({
+        where: { id: areaId, tenantId, deletedAt: null },
+      });
+      return count > 0;
     });
   }
 

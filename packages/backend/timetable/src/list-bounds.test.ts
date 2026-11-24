@@ -65,13 +65,34 @@ describe('bounded lists (PRC-M407)', () => {
       });
       return original(t, candidate, clashCheck);
     };
+    const section = repo.seedSection({
+      id: '77777777-7777-4777-8777-777777777777',
+      tenantId: TENANT,
+      institutionId: INST,
+      academicPeriodId: TERM,
+    });
+    const schedule = await service.createBellSchedule(TENANT, {
+      institutionId: INST,
+      academicPeriodId: TERM,
+      name: 'Day',
+      code: 'DAY',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    const period = await service.createPeriod(TENANT, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
     await service.createMeeting(TENANT, {
       institutionId: INST,
       academicPeriodId: TERM,
-      sectionId: '77777777-7777-4777-8777-777777777777',
+      sectionId: section.id,
       subjectId: null,
       staffId: '55555555-5555-4555-8555-555555555555',
-      periodId: '99999999-9999-4999-8999-999999999999',
+      periodId: period.id,
       roomId: null,
       dayOfWeek: 3,
       status: 'active',
