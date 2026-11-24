@@ -113,18 +113,16 @@ test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
 });
 
 // Parent portal screen -> API -> DB coverage (57 read, 58 form saves, 59 privacy/tenancy).
-// All three always run nightly. PR membership follows the measured shard-time rule:
-// add in order 59, 58, 57 while max shard + (projected CI minutes of the added specs / 4)
-// x 1.25 stays within the budget. These specs are the "0.86 pending parent specs" in the
-// student budget below: 14.83 max PR shard + 0.86 + 0.854 / 4 x 1.25 = 15.96 min with the
-// parent and student specs, inside that 16.0-min budget and timeout-minutes 45. So all
-// three are in PR_SPECS. Removing one is a visible change here.
+// All three always run nightly. Integration bundle 2026-11-23: the owner's PR shard
+// budget rule keeps specs nightly-only unless they were already in PR_SPECS on main, so
+// the PR subset is empty (the measured 15.96-min figure below assumed them in PR_SPECS).
+// Adding one to PR_SPECS is a visible change here.
 const PARENT_SCREEN_SPECS = [
   '57-parent-portal-screens-read.spec.ts',
   '58-parent-portal-screens-write.spec.ts',
   '59-parent-portal-privacy-tenancy.spec.ts',
 ];
-const PARENT_SCREEN_PR_SUBSET = PARENT_SCREEN_SPECS;
+const PARENT_SCREEN_PR_SUBSET = [];
 test('parent portal screen specs are in the nightly set (and the measured PR subset)', () => {
   const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
   const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
