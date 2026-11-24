@@ -20,7 +20,16 @@ const ADMIN_ROLES = [
   'school_admin',
 ] as const;
 
-const SCHEDULER_ROLES = ['registrar', 'scheduler', 'timetable_officer', ...ADMIN_ROLES] as const;
+/**
+ * PRC-L174: `scheduler` (the realm spells it `timetable_officer`) and
+ * `coordinator` were dropped; neither is a realm or gateway-registry role, so
+ * no token carrying them reached this guard. `platform_admin` is NOT in
+ * ADMIN_ROLES (D2 CORRECTION: control-plane operator, no tenant timetable
+ * data); tenant admins (`admin`, `system_admin`) are. `hod` / `academic_coordinator` and the legacy admin
+ * spellings are shared with report/assessment/curriculum/lms and wait on the
+ * catalogue decision for those roles.
+ */
+const SCHEDULER_ROLES = ['registrar', 'timetable_officer', ...ADMIN_ROLES] as const;
 
 /** School staff who may see rosters / scheduling internals (never student/parent/guardian). */
 const STAFF_READ_ROLES = [
@@ -28,7 +37,6 @@ const STAFF_READ_ROLES = [
   'staff',
   'staff_admin',
   'hod',
-  'coordinator',
   'academic_coordinator',
   ...SCHEDULER_ROLES,
 ] as const;

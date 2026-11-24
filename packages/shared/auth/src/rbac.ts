@@ -11,7 +11,7 @@
  * - Permissions are evaluated against the user's JWT payload (AuthUser)
  */
 
-import type { AuthUser, RoleAssignment } from './types.js';
+import type { AuthUser } from './types.js';
 
 /**
  * Supported actions for permission checks.
@@ -27,13 +27,7 @@ import type { AuthUser, RoleAssignment } from './types.js';
  * read/write operations.
  */
 export type PermissionAction =
-  | 'create'
-  | 'read'
-  | 'update'
-  | 'delete'
-  | 'list'
-  | 'manage'
-  | 'preview';
+  'create' | 'read' | 'update' | 'delete' | 'list' | 'manage' | 'preview';
 
 /**
  * A single permission entry mapping a resource and action.
@@ -386,5 +380,319 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       { resource: 'assessment', action: 'read' },
       { resource: 'health', action: 'read' },
     ],
+  },
+  // ---------------------------------------------------------------------------
+  // D2 canonical role catalogue (append-only; PRC-M015).
+  //
+  // The six roles above are the original DEFAULT_ROLES and are UNCHANGED. Every
+  // entry below is privilege-preserving: its permission set is the union of (a)
+  // the role's `createGatewayRbacRegistry()` definition where one exists, and
+  // (b) the resource/action implied by the backend module allow-lists that
+  // already name the role (mapped through the gateway PATH_RESOURCE_MAP). No
+  // role is granted a permission it does not already effectively hold; only
+  // `super-admin`/`platform_admin` carry `*:manage`.
+  // ---------------------------------------------------------------------------
+
+  // --- Platform / tenant administration -------------------------------------
+  {
+    // Gateway-defined control-plane operator: platform console + global
+    // platform-operations wildcard. platform_admin is DISTINCT from the
+    // per-tenant system_admin and does NOT inherit system_admin's tenant-scoped
+    // student / health / assessment / examination / report data grants
+    // (D2 CORRECTION — preserve tenant isolation).
+    roleId: 'platform_admin',
+    roleName: 'Platform Administrator',
+    permissions: [
+      { resource: 'platform', action: 'manage' },
+      { resource: '*', action: 'manage' },
+    ],
+  },
+
+  // --- Staff / HR / registration (gateway STAFF_HR_PERMISSIONS = staff:manage) ---
+  {
+    roleId: 'registrar',
+    roleName: 'Registrar',
+    permissions: [{ resource: 'staff', action: 'manage' }],
+  },
+  {
+    roleId: 'hr_officer',
+    roleName: 'Hr Officer',
+    permissions: [{ resource: 'staff', action: 'manage' }],
+  },
+  {
+    roleId: 'staff_admin',
+    roleName: 'Staff Admin',
+    permissions: [{ resource: 'staff', action: 'manage' }],
+  },
+  {
+    roleId: 'admissions_officer',
+    roleName: 'Admissions Officer',
+    permissions: [{ resource: 'staff', action: 'manage' }],
+  },
+
+  // --- Finance -----------------------------------------------------------------
+  // PRC-M015: no permissions here. The gateway and web registries grant these
+  // roles exactly the F-D3 fees matrix (fees-domain-roles.ts: fees only, no
+  // other resource); a grant here would widen that matrix.
+  { roleId: 'bursar', roleName: 'Bursar', permissions: [] },
+  { roleId: 'finance_officer', roleName: 'Finance Officer', permissions: [] },
+  {
+    // Scholarship RBAC: programs, applications, disbursements, compliance.
+    roleId: 'scholarship_officer',
+    roleName: 'Scholarship Officer',
+    permissions: [{ resource: 'scholarship', action: 'manage' }],
+  },
+
+  // --- Examinations / assessment --------------------------------------------
+  {
+    // examination-access EXAM_OFFICER_ROLES (create/update/publish/delete) +
+    // report exam_results + gradebook REGISTRAR moderation.
+    roleId: 'examinations_officer',
+    roleName: 'Examinations Officer',
+    permissions: [
+      { resource: 'examination', action: 'manage' },
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'gradebook', action: 'update' },
+      { resource: 'report', action: 'read' },
+    ],
+  },
+
+  // --- Case work (gateway CASE_WORKER = case:manage) -------------------------
+  {
+    roleId: 'counsellor',
+    roleName: 'Counsellor',
+    permissions: [{ resource: 'case', action: 'manage' }],
+  },
+  {
+    roleId: 'discipline_officer',
+    roleName: 'Discipline Officer',
+    permissions: [{ resource: 'case', action: 'manage' }],
+  },
+
+  // --- Communication / notification -----------------------------------------
+  {
+    // communication staff (campaigns/circulars) + notification staff (broadcast).
+    roleId: 'communications_officer',
+    roleName: 'Communications Officer',
+    permissions: [
+      { resource: 'communication', action: 'manage' },
+      { resource: 'notification', action: 'manage' },
+    ],
+  },
+  {
+    roleId: 'notification_admin',
+    roleName: 'Notification Admin',
+    permissions: [{ resource: 'notification', action: 'manage' }],
+  },
+
+  // --- Health ----------------------------------------------------------------
+  {
+    // health-service TENANT_WIDE_HEALTH_ROLES / PHI-log / break-glass approver.
+    roleId: 'health_admin',
+    roleName: 'Health Admin',
+    permissions: [{ resource: 'health', action: 'manage' }],
+  },
+  {
+    // health-service HEALTH_AUTHORIZED_ROLES (PHI reader, school-bound). Distinct
+    // from `nurse` (gateway health:manage) — kept separate per D2 decision.
+    roleId: 'school_nurse',
+    roleName: 'School Nurse',
+    permissions: [{ resource: 'health', action: 'read' }],
+  },
+  {
+    // Gateway-defined `nurse`: health:manage + student/parent reads.
+    roleId: 'nurse',
+    roleName: 'Nurse',
+    permissions: [
+      { resource: 'health', action: 'manage' },
+      { resource: 'student', action: 'read' },
+      { resource: 'student', action: 'list' },
+      { resource: 'parent', action: 'read' },
+    ],
+  },
+
+  // --- Residential / facilities ---------------------------------------------
+  // PRC-M015: warden and transport_officer get exactly the H-D2 / T-O1 campus
+  // matrix (campus-domain-roles.ts) from the gateway and web registries;
+  // `manage` here would add hostel/transport delete and export.
+  { roleId: 'warden', roleName: 'Warden', permissions: [] },
+  {
+    roleId: 'librarian',
+    roleName: 'Librarian',
+    permissions: [{ resource: 'library', action: 'manage' }],
+  },
+  { roleId: 'transport_officer', roleName: 'Transport Officer', permissions: [] },
+  // PRC-M015: hostel / transport / fees staff roles the gateway registry gates
+  // on (campus-domain-roles.ts H-D2/T-O1, fees-domain-roles.ts F-D3). They
+  // carry no permissions here: the gateway and web registries add their
+  // least-privilege grants, so listing them only makes the realm able to issue
+  // them. Hyphen spellings (`hostel-warden`, ...) map onto these ids through
+  // canonicalRoleId().
+  { roleId: 'hostel_warden', roleName: 'Hostel Warden', permissions: [] },
+  { roleId: 'hostel_manager', roleName: 'Hostel Manager', permissions: [] },
+  { roleId: 'hostel_admin', roleName: 'Hostel Admin', permissions: [] },
+  { roleId: 'hostel_clerk', roleName: 'Hostel Clerk', permissions: [] },
+  { roleId: 'transport_manager', roleName: 'Transport Manager', permissions: [] },
+  { roleId: 'fleet_manager', roleName: 'Fleet Manager', permissions: [] },
+  { roleId: 'transport_admin', roleName: 'Transport Admin', permissions: [] },
+  { roleId: 'accountant', roleName: 'Accountant', permissions: [] },
+
+  {
+    // PRC-L276: attendance-access.ts ATTENDANCE_WRITE/APPROVE_ROLES and
+    // ops-service approvers (mark, regularise, decide leave).
+    roleId: 'attendance_officer',
+    roleName: 'Attendance Officer',
+    permissions: [{ resource: 'attendance', action: 'manage' }],
+  },
+  // --- Operations ------------------------------------------------------------
+  {
+    // etl-access gates pipeline management; gateway maps /pipelines -> `report`.
+    roleId: 'etl_engineer',
+    roleName: 'Etl Engineer',
+    permissions: [{ resource: 'report', action: 'manage' }],
+  },
+  {
+    // timetable-access SCHEDULER_ROLES (schedule.write/publish/read).
+    roleId: 'timetable_officer',
+    roleName: 'Timetable Officer',
+    permissions: [{ resource: 'timetable', action: 'manage' }],
+  },
+
+  // --- Teaching sub-roles ----------------------------------------------------
+  {
+    // gradebook TEACHER_ROLES (grade.entry) + examination read + assessment.
+    roleId: 'subject_teacher',
+    roleName: 'Subject Teacher',
+    permissions: [
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'gradebook', action: 'create' },
+      { resource: 'gradebook', action: 'update' },
+      { resource: 'examination', action: 'read' },
+      { resource: 'assessment', action: 'read' },
+    ],
+  },
+  {
+    // attendance write + gradebook grade.entry + examination read.
+    roleId: 'class_teacher',
+    roleName: 'Class Teacher',
+    permissions: [
+      { resource: 'attendance', action: 'read' },
+      { resource: 'attendance', action: 'create' },
+      { resource: 'attendance', action: 'update' },
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'gradebook', action: 'create' },
+      { resource: 'gradebook', action: 'update' },
+      { resource: 'examination', action: 'read' },
+      { resource: 'assessment', action: 'read' },
+    ],
+  },
+  {
+    // AMBIGUOUS (flagged for reviewer): `marks_clerk` appears only in an
+    // examination result-routes TEST fixture ("simulated future divergence",
+    // exam.update), never in a production allow-list. Granted the narrowest
+    // examination read consistent with that single reference; do not widen
+    // without owner sign-off.
+    roleId: 'marks_clerk',
+    roleName: 'Marks Clerk',
+    permissions: [{ resource: 'examination', action: 'read' }],
+  },
+
+  // --- Government / board actors (dashboards/scope.ts; read-only aggregates) ---
+  {
+    // dashboards BOARD_ADMIN scope + lms TENANT_ADMIN_ROLES (board read).
+    roleId: 'board_admin',
+    roleName: 'Board Admin',
+    permissions: [
+      { resource: 'report', action: 'read' },
+      { resource: 'lms', action: 'read' },
+    ],
+  },
+  {
+    // report EXAM_STAFF_ROLES (exam_results) + gradebook REGISTRAR + exam read.
+    roleId: 'board_officer',
+    roleName: 'Board Officer',
+    permissions: [
+      { resource: 'report', action: 'read' },
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'gradebook', action: 'update' },
+      { resource: 'examination', action: 'read' },
+    ],
+  },
+  {
+    roleId: 'board_regional_officer',
+    roleName: 'Board Regional Officer',
+    permissions: [{ resource: 'report', action: 'read' }],
+  },
+  {
+    roleId: 'ministry_admin',
+    roleName: 'Ministry Admin',
+    permissions: [{ resource: 'report', action: 'read' }],
+  },
+  {
+    roleId: 'state_admin',
+    roleName: 'State Admin',
+    permissions: [{ resource: 'report', action: 'read' }],
+  },
+  {
+    roleId: 'state_director',
+    roleName: 'State Director',
+    permissions: [{ resource: 'report', action: 'read' }],
+  },
+
+  // --- Portal actors (gateway-defined blocks) ---------------------------------
+  // The gateway registry replaces these two entries with its own blocks, so
+  // they only drive the web nav and the role names. PRC-M015: fees, hostel and
+  // transport reads are left out because those packages deny portal roles and
+  // the web nav must not show the modules to them (F-D3, H-D1-R3).
+  {
+    roleId: 'parent',
+    roleName: 'Parent',
+    permissions: [
+      { resource: 'parent', action: 'create' },
+      { resource: 'parent', action: 'update' },
+      { resource: 'parent', action: 'delete' },
+      { resource: 'parent', action: 'read' },
+      { resource: 'parent', action: 'list' },
+      { resource: 'student', action: 'read' },
+      { resource: 'attendance', action: 'read' },
+      { resource: 'assessment', action: 'read' },
+      { resource: 'health', action: 'read' },
+      { resource: 'communication', action: 'read' },
+      { resource: 'lms', action: 'read' },
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'timetable', action: 'read' },
+      { resource: 'report', action: 'read' },
+      { resource: 'library', action: 'read' },
+    ],
+  },
+  {
+    roleId: 'student',
+    roleName: 'Student',
+    permissions: [
+      { resource: 'parent', action: 'create' },
+      { resource: 'parent', action: 'update' },
+      { resource: 'parent', action: 'delete' },
+      { resource: 'parent', action: 'read' },
+      { resource: 'parent', action: 'list' },
+      { resource: 'student-portal', action: 'read' },
+      { resource: 'student-portal', action: 'list' },
+      { resource: 'student', action: 'read' },
+      { resource: 'attendance', action: 'read' },
+      { resource: 'assessment', action: 'read' },
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'timetable', action: 'read' },
+      { resource: 'examination', action: 'read' },
+      { resource: 'library', action: 'read' },
+      { resource: 'communication', action: 'read' },
+      { resource: 'scholarship', action: 'read' },
+      { resource: 'lms', action: 'read' },
+      { resource: 'lms', action: 'create' },
+    ],
+  },
+  {
+    // scholarship document-access APPLICANT_ROLES (own-application read/submit).
+    roleId: 'applicant',
+    roleName: 'Applicant',
+    permissions: [{ resource: 'scholarship', action: 'read' }],
   },
 ];

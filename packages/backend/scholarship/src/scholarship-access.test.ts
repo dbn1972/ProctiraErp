@@ -18,7 +18,7 @@ describe('scholarship-access (W1-SEC-02)', () => {
   it('allows bursar / scholarship_officer for reads and program writes', () => {
     expect(hasScholarshipAccess(['bursar'], 'scholarship.read')).toBe(true);
     expect(hasScholarshipAccess(['scholarship_officer'], 'program.write')).toBe(true);
-    expect(hasScholarshipAccess(['financial_aid_officer'], 'application.decide')).toBe(true);
+    expect(hasScholarshipAccess(['scholarship_officer'], 'application.decide')).toBe(true);
   });
 
   it('denies teacher and empty roles (fail closed)', () => {
@@ -33,5 +33,29 @@ describe('scholarship-access (W1-SEC-02)', () => {
     expect(hasScholarshipAccess(['registrar'], 'application.decide')).toBe(false);
     expect(hasScholarshipAccess(['registrar'], 'disbursement.manage')).toBe(false);
     expect(hasScholarshipAccess(['registrar'], 'application.submit')).toBe(true);
+  });
+});
+
+// PRC-L347: the officer is the realm's scholarship_officer; the old aliases get nothing.
+describe('scholarship-access role vocabulary (PRC-L347)', () => {
+  const ACTIONS = [
+    'scholarship.read',
+    'program.write',
+    'application.submit',
+    'application.decide',
+    'disbursement.manage',
+    'compliance.record',
+  ] as const;
+
+  it.each(['financial_aid_officer', 'aid_officer'])('%s is not a scholarship role', (role) => {
+    for (const action of ACTIONS) {
+      expect(hasScholarshipAccess([role], action), `${role} ${action}`).toBe(false);
+    }
+  });
+
+  it('scholarship_officer holds every action', () => {
+    for (const action of ACTIONS) {
+      expect(hasScholarshipAccess(['scholarship_officer'], action), action).toBe(true);
+    }
   });
 });
