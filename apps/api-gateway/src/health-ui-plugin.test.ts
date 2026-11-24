@@ -141,6 +141,35 @@ describe('healthUiPlugin', () => {
     expect(body.data.length).toBeGreaterThan(0);
   });
 
+  // PRC-M015: mapKeycloakRoles gives realm roles their catalogue id plus a
+  // display name. The gate matched the name only, so the realm's own health
+  // roles were refused; a platform role must still get no PHI.
+  it.each([
+    [{ roleId: 'health_admin', roleName: 'Health Administrator' }, 200],
+    [{ roleId: 'school_nurse', roleName: 'School Nurse' }, 200],
+    [{ roleId: 'HEALTH-ADMIN', roleName: 'Health Administrator' }, 200],
+    [{ roleId: 'super-admin', roleName: 'Super Administrator' }, 403],
+    [{ roleId: 'platform_admin', roleName: 'Platform Administrator' }, 403],
+  ])('PRC-M015: Keycloak-mapped role %j on /health/records -> %i', async (role, status) => {
+    const app = Fastify();
+    apps.push(app);
+    app.addHook('onRequest', async (request) => {
+      setUser(
+        request,
+        {
+          sub: 'u-kc',
+          tenantId: HEALTH_DEMO_TENANT_ID,
+          roles: [{ ...role, areaId: 'ROOT' }],
+        },
+        HEALTH_DEMO_TENANT_ID,
+      );
+    });
+    await app.register(healthUiPlugin);
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/health/records' });
+    expect(res.statusCode).toBe(status);
+  });
+
   // HL-O8: a refused read must be sent exactly once. The gateway has async onSend hooks;
   // when a denied handler resolved `undefined` instead of the reply, Fastify sent a second
   // time and logged ERR_HTTP_HEADERS_SENT with statusCode 500 for a request the client saw as 403.

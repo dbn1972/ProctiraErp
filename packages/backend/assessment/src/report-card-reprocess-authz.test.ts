@@ -69,7 +69,7 @@ describe('PRC-L080 report-card job reprocess authz', () => {
 
   beforeEach(async () => {
     teacherApp = buildApp(['teacher']);
-    adminApp = buildApp(['exam_officer']);
+    adminApp = buildApp(['examinations_officer']);
     await teacherApp.ready();
     await adminApp.ready();
   });

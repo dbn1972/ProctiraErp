@@ -142,7 +142,7 @@ export function InviteUserDialog({ roles }: { roles: TenantRole[] }) {
         Invite user
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent data-hydrated="true">
+        <DialogContent className="max-h-[85vh] overflow-y-auto" data-hydrated="true">
           <form action={onSubmit} className="space-y-4">
             <DialogHeader>
               <DialogTitle>Invite user</DialogTitle>
@@ -249,7 +249,7 @@ export function UserRowActions({ user, roles }: { user: TenantUser; roles: Tenan
         </span>
       ) : null}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent data-hydrated="true">
+        <DialogContent className="max-h-[85vh] overflow-y-auto" data-hydrated="true">
           <DialogHeader>
             <DialogTitle>Roles for {user.displayName}</DialogTitle>
             <DialogDescription>{user.email}</DialogDescription>

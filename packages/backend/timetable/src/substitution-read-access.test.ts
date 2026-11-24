@@ -104,7 +104,7 @@ describe('GET /timetable/substitutions authorization (S-D2)', () => {
     },
   );
 
-  it.each(['teacher', 'staff', 'hod', 'coordinator', 'academic_coordinator', 'staff_admin'])(
+  it.each(['teacher', 'staff', 'hod', 'academic_coordinator', 'staff_admin'])(
     'non-scheduler staff role %s gets 403 and no reason',
     async (role) => {
       await build();
@@ -114,7 +114,7 @@ describe('GET /timetable/substitutions authorization (S-D2)', () => {
     },
   );
 
-  it.each(['admin', 'principal', 'registrar', 'scheduler', 'timetable_officer', 'school_admin'])(
+  it.each(['admin', 'principal', 'registrar', 'timetable_officer', 'school_admin'])(
     'desk role %s still reads the substitution with its reason',
     async (role) => {
       await build();

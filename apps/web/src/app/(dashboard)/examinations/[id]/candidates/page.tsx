@@ -22,6 +22,7 @@ import {
 } from '@proctira/ui/components';
 import { RegisterCandidateDialog } from '@/components/examinations/exam-ops-controls';
 import { getExamination, listExaminationCandidates } from '@/lib/api/examinations';
+import { hasSessionPermission } from '@/lib/auth/require-permission';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentDirectory, withStudentLabels } from '@/lib/load-entity-labels';
 
@@ -38,10 +39,12 @@ function formatDateTime(value: string): string {
 
 export default async function ExaminationCandidatesPage(props: PageProps) {
   const params = await props.params;
-  const [examination, candidates, studentDirectory] = await Promise.all([
+  const [examination, candidates, studentDirectory, canManage] = await Promise.all([
     getExamination(params.id),
     listExaminationCandidates(params.id),
     loadStudentDirectory(),
+    // PRC-L237: only examination writers see the register control.
+    hasSessionPermission('examination', 'create'),
   ]);
   if (!examination) notFound();
 
@@ -63,11 +66,13 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
             {candidates.length.toLocaleString()} registered candidates.
           </CardDescription>
         </div>
-        <RegisterCandidateDialog
-          examination={examination}
-          studentOptions={studentOptions}
-          studentTotal={studentDirectory.total}
-        />
+        {canManage ? (
+          <RegisterCandidateDialog
+            examination={examination}
+            studentOptions={studentOptions}
+            studentTotal={studentDirectory.total}
+          />
+        ) : null}
       </CardHeader>
       <CardContent>
         {candidates.length === 0 ? (
