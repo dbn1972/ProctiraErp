@@ -1,143 +1,129 @@
 /**
  * Category 7 — Report export isolation tests.
  *
- * Verifies that report generation is tenant-scoped:
- *   • output rows are only the requesting tenant's data;
- *   • output file paths are namespaced under `tenants/{tenantId}/`;
- *   • multi-tenant concurrent generation never leaks rows or paths.
+ * PRC-M614: drives the product report catalogue (`@proctira/backend-report`
+ * `CatalogueService` with its in-memory run/artifact store and blob store, the
+ * same classes the gateway falls back to without Postgres). It verifies that:
+ *   • stored export files are namespaced under `{tenantId}/reports/`;
+ *   • another tenant can neither read the artifact record nor download it;
+ *   • run listings only show the caller tenant's runs, also when many tenants
+ *     export concurrently.
  *
  * Charter: Section 39 (Tenant Isolation Verification)
  * Validates: Requirements 4.7, 26.5 (tenant-scoped report exports)
  */
-
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  CatalogueService,
+  InMemoryReportBlobStore,
+  InMemoryReportStore,
+} from '@proctira/backend-report';
 import * as fc from 'fast-check';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
-  TenantScopedReportEngine,
   assertContainsTenant,
   assertNoForeignTenant,
   assertNoForeignTenantInString,
   distinctTenantPairArb,
   distinctTenantSetArb,
-  entityCodeArb,
-  entityNameArb,
-  uuidV4Arb,
 } from '../helpers/index.js';
 
-const recordArb = fc.record({ id: uuidV4Arb, name: entityNameArb, code: entityCodeArb });
-const reportTypeArb = fc.constantFrom('institutions', 'students', 'staff', 'attendance');
-const formatArb = fc.constantFrom('xlsx' as const, 'pdf' as const, 'csv' as const);
+const reportKeyArb = fc.constantFrom('students_roster', 'attendance_summary', 'enrolment_by_grade');
 
-describe('Category 7 — Report Export Isolation', () => {
-  let engine: TenantScopedReportEngine;
+function productCatalogue() {
+  const store = new InMemoryReportStore();
+  const blobs = new InMemoryReportBlobStore();
+  return { store, blobs, service: new CatalogueService(store, blobs) };
+}
 
-  beforeEach(() => {
-    engine = new TenantScopedReportEngine();
-  });
+const savedDemo = process.env['REPORT_DEMO_DATA'];
+beforeAll(() => {
+  // No database here: the catalogue providers serve their explicit demo rows (PRC-H080).
+  process.env['REPORT_DEMO_DATA'] = '1';
+});
+afterAll(() => {
+  if (savedDemo === undefined) delete process.env['REPORT_DEMO_DATA'];
+  else process.env['REPORT_DEMO_DATA'] = savedDemo;
+});
 
-  it('a tenant`s report only contains its own rows', () => {
-    fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        fc.array(recordArb, { minLength: 1, maxLength: 5 }),
-        fc.array(recordArb, { minLength: 1, maxLength: 5 }),
-        reportTypeArb,
-        formatArb,
-        ({ tenantA, tenantB }, recordsA, recordsB, type, format) => {
-          engine.clear();
-          engine.seed(tenantA, recordsA);
-          engine.seed(tenantB, recordsB);
-
-          const reportA = engine.generate({ tenantId: tenantA, reportType: type, format });
-          assertNoForeignTenant('report:rows', tenantA, reportA.records);
-          expect(reportA.recordCount).toBe(recordsA.length);
-
-          const reportB = engine.generate({ tenantId: tenantB, reportType: type, format });
-          assertNoForeignTenant('report:rows', tenantB, reportB.records);
-          expect(reportB.recordCount).toBe(recordsB.length);
-        },
-      ),
-      { numRuns: 100 },
+describe('Category 7 — Report Export Isolation (product @proctira/backend-report)', () => {
+  it('stored export files are namespaced under the tenant', async () => {
+    await fc.assert(
+      fc.asyncProperty(distinctTenantPairArb, reportKeyArb, async ({ tenantA, tenantB }, key) => {
+        const { service } = productCatalogue();
+        const a = await service.generate(tenantA, 'actor-a', { reportKey: key, format: 'csv' });
+        const b = await service.generate(tenantB, 'actor-b', { reportKey: key, format: 'csv' });
+        expect(a.artifact.objectKey).not.toBe(b.artifact.objectKey);
+        expect(a.artifact.objectKey.startsWith(`${tenantA}/reports/`)).toBe(true);
+        expect(b.artifact.objectKey.startsWith(`${tenantB}/reports/`)).toBe(true);
+        assertContainsTenant('report:objectKey', tenantA, a.artifact.objectKey);
+        assertNoForeignTenantInString('report:objectKey', tenantA, a.artifact.objectKey, [tenantB]);
+        assertNoForeignTenantInString('report:objectKey', tenantB, b.artifact.objectKey, [tenantA]);
+      }),
+      { numRuns: 20 },
     );
   });
 
-  it('output paths are tenant-scoped (S3 prefix per tenant)', () => {
-    fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        reportTypeArb,
-        formatArb,
-        ({ tenantA, tenantB }, type, format) => {
-          engine.clear();
-          const reportA = engine.generate({ tenantId: tenantA, reportType: type, format });
-          const reportB = engine.generate({ tenantId: tenantB, reportType: type, format });
-
-          expect(reportA.filePath).not.toBe(reportB.filePath);
-          assertContainsTenant('report:filePath', tenantA, reportA.filePath);
-          assertContainsTenant('report:filePath', tenantB, reportB.filePath);
-          assertNoForeignTenantInString('report:filePath', tenantA, reportA.filePath, [tenantB]);
-          assertNoForeignTenantInString('report:filePath', tenantB, reportB.filePath, [tenantA]);
-          expect(reportA.filePath.startsWith(`tenants/${tenantA}/`)).toBe(true);
-          expect(reportB.filePath.startsWith(`tenants/${tenantB}/`)).toBe(true);
-        },
-      ),
-      { numRuns: 100 },
+  it('another tenant cannot read or download a tenant`s artifact', async () => {
+    await fc.assert(
+      fc.asyncProperty(distinctTenantPairArb, reportKeyArb, async ({ tenantA, tenantB }, key) => {
+        const { service } = productCatalogue();
+        const a = await service.generate(tenantA, 'actor-a', { reportKey: key, format: 'csv' });
+        await expect(service.getArtifact(tenantB, a.artifact.id)).rejects.toMatchObject({
+          statusCode: 404,
+        });
+        await expect(service.downloadBytes(tenantB, a.artifact.id)).rejects.toMatchObject({
+          statusCode: 404,
+        });
+        expect(await service.getArtifactsByIds(tenantB, [a.artifact.id])).toEqual([]);
+        const own = await service.downloadBytes(tenantA, a.artifact.id);
+        expect(own.bytes.equals(a.bytes)).toBe(true);
+      }),
+      { numRuns: 20 },
     );
   });
 
-  it('a tenant with no data gets an empty report — never another tenant`s rows', () => {
-    fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        fc.array(recordArb, { minLength: 1, maxLength: 8 }),
-        ({ tenantA, tenantB }, recordsB) => {
-          engine.clear();
-          engine.seed(tenantB, recordsB);
-          const report = engine.generate({
-            tenantId: tenantA,
-            reportType: 'students',
-            format: 'xlsx',
-          });
-
-          expect(report.recordCount).toBe(0);
-          expect(report.records).toEqual([]);
-          assertNoForeignTenantInString('report:filePath', tenantA, report.filePath, [tenantB]);
-        },
-      ),
-      { numRuns: 50 },
+  it('a tenant with no exports lists no runs — never another tenant`s', async () => {
+    await fc.assert(
+      fc.asyncProperty(distinctTenantPairArb, async ({ tenantA, tenantB }) => {
+        const { service } = productCatalogue();
+        await service.generate(tenantB, 'actor-b', {
+          reportKey: 'students_roster',
+          format: 'csv',
+        });
+        expect(await service.listRuns(tenantA)).toEqual([]);
+      }),
+      { numRuns: 20 },
     );
   });
 
-  it('concurrent reports across many tenants stay isolated', () => {
-    fc.assert(
-      fc.property(
-        distinctTenantSetArb,
-        fc.array(recordArb, { minLength: 1, maxLength: 4 }),
-        (tenantIds, baseRows) => {
-          engine.clear();
-          for (let i = 0; i < tenantIds.length; i += 1) {
-            engine.seed(tenantIds[i]!, baseRows.slice(0, i + 1));
-          }
-
-          const reports = tenantIds.map((id) =>
-            engine.generate({ tenantId: id, reportType: 'students', format: 'csv' }),
+  it('concurrent exports across many tenants stay isolated', async () => {
+    await fc.assert(
+      fc.asyncProperty(distinctTenantSetArb, async (tenantIds) => {
+        const { service } = productCatalogue();
+        const results = await Promise.all(
+          tenantIds.map((tenantId, i) =>
+            service.generate(tenantId, `actor-${i}`, {
+              reportKey: 'students_roster',
+              format: 'csv',
+            }),
+          ),
+        );
+        for (let i = 0; i < tenantIds.length; i += 1) {
+          const tenantId = tenantIds[i]!;
+          const others = tenantIds.filter((id) => id !== tenantId);
+          const runs = await service.listRuns(tenantId);
+          expect(runs).toHaveLength(1);
+          assertNoForeignTenant('report:runs', tenantId, runs);
+          assertNoForeignTenantInString(
+            'report:objectKey',
+            tenantId,
+            results[i]!.artifact.objectKey,
+            others,
           );
-
-          for (let i = 0; i < reports.length; i += 1) {
-            const report = reports[i]!;
-            const tenantId = tenantIds[i]!;
-            assertNoForeignTenant('report:concurrent', tenantId, report.records);
-            assertNoForeignTenantInString(
-              'report:concurrent',
-              tenantId,
-              report.filePath,
-              tenantIds.filter((id) => id !== tenantId),
-            );
-          }
-        },
-      ),
-      { numRuns: 30 },
+        }
+      }),
+      { numRuns: 10 },
     );
   });
 });

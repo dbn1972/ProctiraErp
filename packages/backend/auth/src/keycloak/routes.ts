@@ -13,6 +13,7 @@ import {
   OtpValidationError,
   type OtpService,
 } from '../otp-service.js';
+import type { PreMfaTicketCodec } from '../pre-mfa-ticket.js';
 import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
 import {
   isIssuedBeforeTenantRevocation,
@@ -102,6 +103,19 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
    * default is process-local memory. Passing the same instance as `webTicketStore` is rejected.
    */
   mfaPendingStore?: WebTicketStore;
+  /**
+   * PRC-M497: when set, an `mfa_required` answer also carries a pre-MFA ticket naming the
+   * principal the password step established, so `/auth/mfa/otp/send` and `/auth/mfa/verify`
+   * are bound to this login.
+   */
+  preMfaTicket?: PreMfaTicketCodec;
+  /**
+   * PRC-M497: single-use login-completion tickets minted by `/auth/mfa/verify`
+   * ({@link createMfaCompletionTicketIssuer}). `/password/mfa` redeems one in place of the code.
+   * Must be a separate instance from `webTicketStore` (Redis with its own key prefix when
+   * multi-replica).
+   */
+  mfaCompletionStore?: WebTicketStore;
 };
 
 /** PRC-H043: server-resolved MFA requirement for a user. */
@@ -189,6 +203,35 @@ function isWebTicketId(value: unknown): value is string {
 const MFA_PENDING_TTL_SECONDS = 300;
 function mfaPendingKey(mfaToken: string): string {
   return `mfa-pending:${mfaToken}`;
+}
+
+/** PRC-M497: completion tickets live this long and under this key namespace. */
+const MFA_COMPLETION_TTL_SECONDS = 120;
+function mfaCompletionKey(ticket: string): string {
+  return `mfa-complete:${ticket}`;
+}
+type MfaCompletion = { userId: string; tenantId: string; mfaToken: string };
+
+/**
+ * PRC-M497: the `issueCompletionTicket` hook for `registerMfaRoutes`. After `/auth/mfa/verify`
+ * accepts the code it stores `{userId, tenantId, mfaToken}` under a random single-use id; the
+ * id is redeemed at `POST /auth/password/mfa` together with the same `mfaToken`.
+ */
+export function createMfaCompletionTicketIssuer(
+  store: WebTicketStore,
+  ttlSeconds: number = MFA_COMPLETION_TTL_SECONDS,
+): (verified: { userId: string; tenantId: string; mfaToken?: string }) => Promise<string> {
+  return async (verified) => {
+    if (!verified.mfaToken) throw new Error('A completion ticket needs the verified mfaToken');
+    const ticket = mintWebTicketId();
+    const value: MfaCompletion = {
+      userId: verified.userId,
+      tenantId: verified.tenantId,
+      mfaToken: verified.mfaToken,
+    };
+    await store.put(mfaCompletionKey(ticket), JSON.stringify(value), Math.max(1, ttlSeconds));
+    return ticket;
+  };
 }
 
 /** PRC-H043: tokens held for an OTP challenge, bound to the principal the challenge was sent to. */
@@ -524,6 +567,9 @@ export async function registerKeycloakAuthRoutes(
   const mfaPendingStore = config.mfaPendingStore ?? new MemoryWebTicketStore();
   if (mfaPendingStore === webTicketStore) {
     throw new Error('mfaPendingStore must not be the same store instance as webTicketStore');
+  }
+  if (config.mfaCompletionStore && config.mfaCompletionStore === webTicketStore) {
+    throw new Error('mfaCompletionStore must not be the same store instance as webTicketStore');
   }
   const secureCookies = config.redirectUri.startsWith('https://');
   const sessionRevocationTtlSeconds =
@@ -974,6 +1020,15 @@ export async function registerKeycloakAuthRoutes(
             method: challenge.method,
             phoneHint: challenge.phoneHint,
             expiresAt: challenge.expiresAt,
+            // PRC-M497: binds /auth/mfa/otp/send and /auth/mfa/verify to this login.
+            ...(config.preMfaTicket
+              ? {
+                  preMfaTicket: config.preMfaTicket.mint({
+                    userId: mfaUserId,
+                    tenantId: mfaTenantId,
+                  }),
+                }
+              : {}),
             ...(challenge.debugCode ? { debugCode: challenge.debugCode } : {}),
           });
         }
@@ -1000,12 +1055,15 @@ export async function registerKeycloakAuthRoutes(
   fastify.post(
     `${prefix}/password/mfa`,
     async (
-      request: FastifyRequest<{ Body: { mfaToken?: string; code?: string } }>,
+      request: FastifyRequest<{
+        Body: { mfaToken?: string; code?: string; completionTicket?: string };
+      }>,
       reply: FastifyReply,
     ) => {
       const mfaToken = (request.body?.mfaToken ?? '').trim();
       const code = (request.body?.code ?? '').trim();
-      if (!mfaToken || !code) {
+      const completionTicket = (request.body?.completionTicket ?? '').trim();
+      if (!mfaToken || (!code && !completionTicket)) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
           message: 'mfaToken and code are required',
@@ -1019,21 +1077,39 @@ export async function registerKeycloakAuthRoutes(
           statusCode: 501,
         });
       }
-      let verified: Awaited<ReturnType<OtpService['verifyChallenge']>>;
-      try {
-        verified = await config.otpService.verifyChallenge({ mfaToken, code });
-      } catch (error) {
-        if (error instanceof OtpRateLimitError) {
-          return reply
-            .status(429)
-            .send({ code: 'TOO_MANY_ATTEMPTS', message: error.message, statusCode: 429 });
+      let verified: { userId: string; tenantId: string };
+      if (code) {
+        try {
+          verified = await config.otpService.verifyChallenge({ mfaToken, code });
+        } catch (error) {
+          if (error instanceof OtpRateLimitError) {
+            return reply
+              .status(429)
+              .send({ code: 'TOO_MANY_ATTEMPTS', message: error.message, statusCode: 429 });
+          }
+          if (error instanceof OtpAuthError) {
+            return reply
+              .status(401)
+              .send({ code: 'MFA_INVALID', message: error.message, statusCode: 401 });
+          }
+          throw error;
         }
-        if (error instanceof OtpAuthError) {
-          return reply
-            .status(401)
-            .send({ code: 'MFA_INVALID', message: error.message, statusCode: 401 });
+      } else {
+        // PRC-M497: the code was verified at /auth/mfa/verify (bound by the pre-MFA ticket);
+        // redeem its single-use completion ticket, which must name this same OTP challenge.
+        const stored =
+          config.mfaCompletionStore && isWebTicketId(completionTicket)
+            ? await config.mfaCompletionStore.take(mfaCompletionKey(completionTicket))
+            : null;
+        const completion = stored ? (JSON.parse(stored) as MfaCompletion) : null;
+        if (!completion || completion.mfaToken !== mfaToken) {
+          return reply.status(401).send({
+            code: 'MFA_INVALID',
+            message: 'The completion ticket is invalid or expired',
+            statusCode: 401,
+          });
         }
-        throw error;
+        verified = { userId: completion.userId, tenantId: completion.tenantId };
       }
       // OTP verified: consume the hold (atomic single-use take) only now, so a wrong code or a
       // throttled attempt never burns it.

@@ -17,7 +17,15 @@
  *     PUT/PATCH: userName/emails, displayName/name.*, externalId, active
  *     (PRC-M025); any other PATCH path → 400 scimType invalidPath.
  *   GET  /scim/v2/Groups  |  GET/PATCH /scim/v2/Groups/:id (members add/remove/replace)
+ *
+ * PRC-M027: deprovisioning (`active: false` on PUT/PATCH, or DELETE) also revokes
+ * the user's sessions through the per-subject revocation store, linked to the
+ * login identity by tenant + email; reprovisioning lifts the suspension.
  */
+import {
+  DEFAULT_SUBJECT_REVOCATION_TTL_SECONDS,
+  type SubjectSessionRevocationStore,
+} from '@proctira/backend-auth';
 import type { RoleEntity, RolesService, UserQuery, UserRecord } from '@proctira/backend-tenant';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
@@ -33,6 +41,11 @@ export interface ScimPluginOptions {
   rolesService: RolesService;
   /** Default `/scim/v2`. */
   prefix?: string;
+  /**
+   * PRC-M027: revokes a deprovisioned user's sessions (tenant + email). Without it,
+   * deprovisioning is refused (503) rather than leaving live sessions behind.
+   */
+  subjectRevocation?: SubjectSessionRevocationStore;
 }
 
 interface ScimUser {
@@ -282,7 +295,33 @@ const MAX_GROUP_MEMBERS = 10_000;
 export const scimPlugin = fp(
   async (fastify: FastifyInstance, options: ScimPluginOptions) => {
     const prefix = options.prefix ?? '/scim/v2';
-    const { rolesService } = options;
+    const { rolesService, subjectRevocation } = options;
+
+    /**
+     * PRC-M027: revoke (deprovision) or restore (reprovision) the login identity linked to a
+     * directory record. Runs before the status write, so a revocation failure leaves the record
+     * unchanged and the IdP retries.
+     */
+    const syncSubjectSessions = async (tenantId: string, user: UserRecord, active: boolean) => {
+      if (!subjectRevocation) {
+        if (active) return;
+        throw Object.assign(new Error('Session revocation is unavailable'), { statusCode: 503 });
+      }
+      if (active) {
+        await subjectRevocation.restoreSubject(
+          tenantId,
+          user.email,
+          DEFAULT_SUBJECT_REVOCATION_TTL_SECONDS,
+        );
+        return;
+      }
+      await subjectRevocation.revokeSubject(
+        tenantId,
+        user.email,
+        Math.floor(Date.now() / 1000),
+        DEFAULT_SUBJECT_REVOCATION_TTL_SECONDS,
+      );
+    };
 
     // IdPs post `application/scim+json`; Fastify only parses `application/json` by default.
     if (!fastify.hasContentTypeParser('application/scim+json')) {
@@ -473,6 +512,7 @@ export const scimPlugin = fp(
         });
       }
       if (change.active !== undefined) {
+        await syncSubjectSessions(tenantId, user, change.active);
         updated = await rolesService.setUserStatus(
           tenantId,
           user.id,
@@ -587,7 +627,10 @@ export const scimPlugin = fp(
       const tenantId = tenantOf(request);
       if (!tenantId) return scimError(reply, 400, 'Tenant context required');
       try {
-        await rolesService.setUserStatus(tenantId, request.params.id, 'SUSPENDED');
+        const user = await findUser(tenantId, request.params.id);
+        if (!user) return scimError(reply, 404, `User ${request.params.id} not found`);
+        await syncSubjectSessions(tenantId, user, false);
+        await rolesService.setUserStatus(tenantId, user.id, 'SUSPENDED');
         return reply.code(204).send();
       } catch (error) {
         return mapError(reply, error);

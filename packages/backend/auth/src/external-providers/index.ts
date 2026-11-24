@@ -25,14 +25,20 @@ export type {
   ExternalProviderConfig,
   ExternalAuthProvider,
   PendingAuthStateStore,
+  AssertionReplayStore,
 } from './types.js';
 export { ExternalAuthError } from './types.js';
 
 // PRC-M589: replica-safe pending login state
 export {
+  MemoryAssertionReplayStore,
   PENDING_AUTH_STATE_TTL_SECONDS,
+  RedisAssertionReplayStore,
+  resolveAssertionReplayStore,
   resolvePendingAuthStateStore,
+  SAML_ASSERTION_REPLAY_TTL_SECONDS,
 } from './pending-auth-state.js';
+export type { RedisLikeForAssertionReplay } from './pending-auth-state.js';
 // Provider Registry
 export { ProviderRegistry } from './provider-registry.js';
 

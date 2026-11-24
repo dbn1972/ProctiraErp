@@ -10,7 +10,7 @@ import { isDeployedEnvironment } from '@proctira/common/node-env';
 
 import { MemoryWebTicketStore } from '../keycloak/routes.js';
 
-import type { PendingAuthStateStore } from './types.js';
+import type { AssertionReplayStore, PendingAuthStateStore } from './types.js';
 
 /** Pending external logins expire after 10 minutes (unchanged from the Map TTL). */
 export const PENDING_AUTH_STATE_TTL_SECONDS = 600;
@@ -55,4 +55,64 @@ export function parsePendingAuthState<T extends Record<string, unknown>>(
   } catch {
     return null;
   }
+}
+
+/** SAML Assertion IDs are remembered for 24 hours (unchanged from the Map TTL). */
+export const SAML_ASSERTION_REPLAY_TTL_SECONDS = 24 * 60 * 60;
+
+/** Process-local replay claims for development / test only. */
+export class MemoryAssertionReplayStore implements AssertionReplayStore {
+  private readonly claimed = new Map<string, number>();
+  constructor(private readonly now: () => number = Date.now) {}
+  claim(assertionId: string, ttlSeconds: number): Promise<boolean> {
+    const now = this.now();
+    for (const [id, expiresAt] of this.claimed) if (expiresAt <= now) this.claimed.delete(id);
+    if (this.claimed.has(assertionId)) return Promise.resolve(false);
+    this.claimed.set(assertionId, now + Math.max(1, Math.trunc(ttlSeconds)) * 1000);
+    return Promise.resolve(true);
+  }
+}
+
+/** Minimal ioredis surface for `SET key value EX ttl NX`. */
+export interface RedisLikeForAssertionReplay {
+  set(
+    key: string,
+    value: string,
+    expiryMode: 'EX',
+    ttlSeconds: number,
+    condition: 'NX',
+  ): Promise<string | null>;
+}
+
+/** Redis-backed replay cache: the first `SET NX` wins on every replica. */
+export class RedisAssertionReplayStore implements AssertionReplayStore {
+  constructor(
+    private readonly redis: RedisLikeForAssertionReplay,
+    private readonly keyPrefix = 'auth:saml-assertion:',
+  ) {}
+  async claim(assertionId: string, ttlSeconds: number): Promise<boolean> {
+    const result = await this.redis.set(
+      `${this.keyPrefix}${assertionId}`,
+      '1',
+      'EX',
+      Math.max(1, Math.trunc(ttlSeconds)),
+      'NX',
+    );
+    return result === 'OK';
+  }
+}
+
+/** Injected replay store, or process memory outside deployed environments (fail closed). */
+export function resolveAssertionReplayStore(
+  store: AssertionReplayStore | undefined,
+  context: string,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): AssertionReplayStore {
+  if (store) return store;
+  if (isDeployedEnvironment(processEnv['NODE_ENV'], processEnv)) {
+    throw new Error(
+      `${context} requires a shared (Redis) SAML assertion replay store in a deployed environment (PRC-M589)`,
+    );
+  }
+  return new MemoryAssertionReplayStore();
 }

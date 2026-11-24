@@ -32,6 +32,8 @@
     "fastify-plugin": "^4.5.0"
   },
   "devDependencies": {
+    "@proctira/backend-report": "workspace:*",
+    "@proctira/cache": "workspace:*",
     "@proctira/database": "workspace:*",
     "@playwright/test": "^1.65.1",
     "@types/node": "^20.12.0",

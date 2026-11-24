@@ -42,8 +42,10 @@ export interface MfaRoutesOptions {
   /**
    * PRC-M497: on the non-token path, mint an opaque login-completion ticket for
    * the verified challenge. The verify response never carries a bare userId.
+   * `mfaToken` names the verified challenge so the ticket can only release the
+   * login held for it (Keycloak `/password/mfa`, `createMfaCompletionTicketIssuer`).
    */
-  issueCompletionTicket?: (verified: PrimaryAuthContext) => Promise<string>;
+  issueCompletionTicket?: (verified: PrimaryAuthContext & { mfaToken?: string }) => Promise<string>;
   /**
    * PRC-M497: pre-MFA ticket minted by the login handler after the primary
    * factor. When set (and `resolvePrimaryAuth` is not), the ticket is the
@@ -274,7 +276,11 @@ export async function registerMfaRoutes(
         // Gateway / Keycloak path: challenge verified; caller completes login
         // with an opaque completion ticket (PRC-M497: never a bare userId).
         const completionTicket = issueCompletionTicket
-          ? await issueCompletionTicket({ userId: verified.userId, tenantId: verified.tenantId })
+          ? await issueCompletionTicket({
+              userId: verified.userId,
+              tenantId: verified.tenantId,
+              mfaToken,
+            })
           : undefined;
         return reply.status(200).send({
           success: true,

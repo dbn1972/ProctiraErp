@@ -10,7 +10,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 export interface TenantContext {
-  tenantId: string | undefined;
+  /** May be a getter: the plugin reads `request.tenantId` on each access (PRC-L325). */
+  readonly tenantId: string | undefined;
 }
 
 export const tenantContext = new AsyncLocalStorage<TenantContext>();
