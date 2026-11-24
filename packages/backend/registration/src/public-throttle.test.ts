@@ -3,9 +3,14 @@
  * submit can require a bot-challenge token (fail closed without a verifier).
  */
 import Fastify, { type FastifyInstance } from 'fastify';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InMemoryRegistrationRepository } from './in-memory-repository.js';
-import { PublicRegistrationThrottle, SlidingWindowLimiter } from './public-throttle.js';
+import {
+  createPublicRegistrationThrottle,
+  PublicRegistrationThrottle,
+  type RedisLikeForThrottle,
+  SlidingWindowLimiter,
+} from './public-throttle.js';
 import { RegistrationService } from './registration-service.js';
 import { registerRegistrationRoutes, type RegistrationRoutesOptions } from './routes.js';
 
@@ -25,8 +30,10 @@ const body = {
 };
 
 const apps: FastifyInstance[] = [];
-async function build(extra: Partial<RegistrationRoutesOptions> = {}) {
-  const repo = new InMemoryRegistrationRepository();
+async function build(
+  extra: Partial<RegistrationRoutesOptions> = {},
+  repo = new InMemoryRegistrationRepository(),
+) {
   repo.seedInstitutions([
     {
       id: INSTITUTION,
@@ -64,7 +71,43 @@ async function build(extra: Partial<RegistrationRoutesOptions> = {}) {
 
 afterEach(async () => {
   while (apps.length) await apps.pop()!.close();
+  vi.unstubAllEnvs();
 });
+
+/** In-process stand-in for one Redis server shared by two gateway replicas. */
+class FakeRedis implements RedisLikeForThrottle {
+  private readonly counters = new Map<string, { value: number; expiresAt: number | null }>();
+  constructor(private readonly now: () => number = Date.now) {}
+  private live(key: string) {
+    const entry = this.counters.get(key);
+    if (entry && entry.expiresAt !== null && entry.expiresAt <= this.now()) {
+      this.counters.delete(key);
+      return undefined;
+    }
+    return entry;
+  }
+  async incr(key: string) {
+    const entry = this.live(key) ?? { value: 0, expiresAt: null };
+    entry.value += 1;
+    this.counters.set(key, entry);
+    return entry.value;
+  }
+  async pexpire(key: string, ms: number) {
+    const entry = this.live(key);
+    if (!entry) return 0;
+    entry.expiresAt = this.now() + ms;
+    return 1;
+  }
+  async pttl(key: string) {
+    const entry = this.live(key);
+    if (!entry) return -2;
+    return entry.expiresAt === null ? -1 : entry.expiresAt - this.now();
+  }
+  async get(key: string) {
+    const entry = this.live(key);
+    return entry ? String(entry.value) : null;
+  }
+}
 
 describe('PRC-M332 public throttles', () => {
   it('sliding window allows max then blocks with retry-after', () => {
@@ -140,5 +183,75 @@ describe('PRC-M332 public throttles', () => {
       payload: body,
     });
     expect(bad.statusCode).toBe(400);
+  });
+
+  it('status lookups share one budget across replicas when Redis-backed', async () => {
+    const redis = new FakeRedis();
+    // Two replicas: one database, one Redis, separate processes.
+    const database = new InMemoryRegistrationRepository();
+    const replicaOne = await build(
+      { publicThrottle: createPublicRegistrationThrottle({ redis }) },
+      database,
+    );
+    const replicaTwo = await build(
+      { publicThrottle: createPublicRegistrationThrottle({ redis }) },
+      database,
+    );
+    const submit = await replicaOne.inject({
+      method: 'POST',
+      url: '/registrations',
+      headers: { 'idempotency-key': 'shared-status' },
+      payload: body,
+    });
+    const { trackingNumber } = submit.json() as { trackingNumber: string };
+    const codes: number[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      const replica = i % 2 === 0 ? replicaOne : replicaTwo;
+      const res = await replica.inject({
+        method: 'POST',
+        url: '/registrations/status',
+        payload: { trackingNumber, dateOfBirth: body.dateOfBirth },
+      });
+      codes.push(res.statusCode);
+    }
+    expect(codes.slice(0, 10).every((c) => c === 200)).toBe(true);
+    expect(codes.slice(10)).toEqual([429, 429]);
+  });
+
+  it('submits are throttled per applicant identity across replicas', async () => {
+    const redis = new FakeRedis();
+    const replicaOne = await build({
+      publicThrottle: createPublicRegistrationThrottle({ redis }),
+    });
+    const replicaTwo = await build({
+      publicThrottle: createPublicRegistrationThrottle({ redis }),
+    });
+    const codes: number[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      const replica = i % 2 === 0 ? replicaOne : replicaTwo;
+      const res = await replica.inject({
+        method: 'POST',
+        url: '/registrations',
+        headers: { 'idempotency-key': `same-applicant-${i}` },
+        // Case, spacing and phone punctuation do not make a new identity.
+        payload: i === 3 ? { ...body, firstName: ' TOM ', guardianPhone: '+1 555 0200' } : body,
+      });
+      codes.push(res.statusCode);
+    }
+    expect(codes.slice(0, 5).every((c) => c === 201)).toBe(true);
+    expect(codes[5]).toBe(429);
+    const other = await replicaTwo.inject({
+      method: 'POST',
+      url: '/registrations',
+      headers: { 'idempotency-key': 'other-applicant' },
+      payload: { ...body, firstName: 'Tina' },
+    });
+    expect(other.statusCode).toBe(201);
+  });
+
+  it('a deployed process without Redis refuses to build the throttles', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('REDIS_URL', '');
+    expect(() => createPublicRegistrationThrottle()).toThrow(/PRC-M332/);
   });
 });

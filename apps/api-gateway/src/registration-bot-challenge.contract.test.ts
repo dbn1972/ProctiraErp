@@ -10,6 +10,7 @@ import {
   InMemoryChallengeNonceStore,
   InMemoryRegistrationRepository,
   InMemorySessionStore,
+  PublicRegistrationThrottle,
   RegistrationService,
   registerRegistrationRoutes,
 } from '@proctira/backend-registration';
@@ -61,6 +62,8 @@ beforeAll(async () => {
         registrationService: new RegistrationService(repo),
         publicTenantResolver: { resolveHostname: async () => TENANT },
         sessionStore: new InMemorySessionStore(),
+        // PRC-M332: deployed boots need Redis-backed throttles; inject a local one.
+        publicThrottle: new PublicRegistrationThrottle(),
         submitChallenge: {
           secret: 'contract-challenge-secret-0123456789abcdef',
           nonceStore: new InMemoryChallengeNonceStore(),

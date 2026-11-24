@@ -44,6 +44,19 @@ export {
   RedisChallengeNonceStore,
 } from './bot-challenge-nonce-store.js';
 export type { ChallengeNonceStore } from './bot-challenge-nonce-store.js';
+// PRC-M332: per-identifier public throttles (Redis-shared when deployed)
+export {
+  createPublicRegistrationThrottle,
+  PublicRegistrationThrottle,
+  RedisWindowLimiter,
+  SlidingWindowLimiter,
+  submitIdentityKey,
+} from './public-throttle.js';
+export type {
+  PublicThrottleConfig,
+  RedisLikeForThrottle,
+  ThrottleLimiter,
+} from './public-throttle.js';
 // NEW-g4_apps_auth-006 — document content validation + storage port
 export { sniffDocumentContent, matchesDeclaredType } from './document-content-validation.js';
 export type { SniffResult } from './document-content-validation.js';

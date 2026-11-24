@@ -35,7 +35,11 @@ import {
   toPublicBranding,
   type PublicBrandingSource,
 } from './public-branding.js';
-import { PublicRegistrationThrottle } from './public-throttle.js';
+import {
+  createPublicRegistrationThrottle,
+  type PublicRegistrationThrottle,
+  submitIdentityKey,
+} from './public-throttle.js';
 import { isPublicRegistrationPath } from './registration-access.js';
 import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
 import type { RegistrationService } from './registration-service.js';
@@ -336,7 +340,6 @@ export async function registerRegistrationRoutes(
     defaultTenantId,
   } = options;
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
-  const throttle = options.publicThrottle ?? new PublicRegistrationThrottle();
   if (isProductionNodeEnv(process.env.NODE_ENV) && defaultTenantId) {
     throw new AppError(
       'Production public registration cannot use defaultTenantId; inject publicTenantResolver',
@@ -361,6 +364,9 @@ export async function registerRegistrationRoutes(
   const sessionStore = options.sessionStore ?? new InMemorySessionStore();
   // PRC-M332: resolved after the tenant/session production guards above.
   const submitChallenge = resolveSubmitChallenge(options.submitChallenge);
+  // PRC-M332: per-identifier limits, Redis-backed (replica-shared) in deployed
+  // environments; resolved after the guards above so their errors come first.
+  const throttle = options.publicThrottle ?? createPublicRegistrationThrottle();
 
   /**
    * POST /registrations
@@ -421,7 +427,7 @@ export async function registerRegistrationRoutes(
         statusCode: 404,
       });
     }
-    const limit = throttle.challengeIssuance.hit(tenantId);
+    const limit = await throttle.challengeIssuance.hit(tenantId);
     if (!limit.allowed) return tooManyRequests(reply, limit.retryAfterSeconds);
     return reply
       .status(200)
@@ -476,6 +482,18 @@ export async function registerRegistrationRoutes(
             statusCode: 400,
           });
         }
+      }
+      // PRC-M332: per-identifier submit budget (tenant + applicant identity),
+      // shared across replicas through Redis in deployed environments.
+      const submitLimit = await throttle.submitPerIdentifier.hit(
+        submitIdentityKey(tenantId, result.data),
+      );
+      if (!submitLimit.allowed) {
+        request.log.warn(
+          { event: 'registration.submit.throttled' },
+          'Registration submit throttled for one applicant identity',
+        );
+        return tooManyRequests(reply, submitLimit.retryAfterSeconds);
       }
       const submissionKey = submissionKeyFromRequest(request);
       if (!submissionKey) {
@@ -533,12 +551,12 @@ export async function registerRegistrationRoutes(
     }
     const tenantId = publicTenantId(request);
     const trackingKey = `${tenantId}:${paramsResult.data.trackingNumber}`;
-    const locked = throttle.statusFailures.check(trackingKey);
+    const locked = await throttle.statusFailures.check(trackingKey);
     if (!locked.allowed) {
       return tooManyRequests(reply, locked.retryAfterSeconds);
     }
     // PRC-M332: bound total lookups per tracking number (any outcome).
-    const burst = throttle.statusTracking.hit(trackingKey);
+    const burst = await throttle.statusTracking.hit(trackingKey);
     if (!burst.allowed) {
       request.log.warn(
         { event: 'registration.status.burst', trackingNumber: paramsResult.data.trackingNumber },
@@ -556,8 +574,8 @@ export async function registerRegistrationRoutes(
     } catch (error: unknown) {
       if (error instanceof AppError) {
         if (error.statusCode === 404) {
-          throttle.statusFailures.hit(trackingKey);
-          if (!throttle.statusFailures.check(trackingKey).allowed) {
+          await throttle.statusFailures.hit(trackingKey);
+          if (!(await throttle.statusFailures.check(trackingKey)).allowed) {
             // Alerting signal: repeated no-match lookups for one tracking number.
             request.log.warn(
               {
@@ -879,7 +897,7 @@ export async function registerRegistrationRoutes(
           message: 'Branding is unavailable for this request',
           statusCode: 404,
         });
-      const decision = throttle.brandingPerClient.hit(request.ip || 'unknown');
+      const decision = await throttle.brandingPerClient.hit(request.ip || 'unknown');
       if (!decision.allowed) return tooManyRequests(reply, decision.retryAfterSeconds);
       if (!request.publicRegistrationTenantFromHost || !request.publicRegistrationTenantId) {
         return notFound();
