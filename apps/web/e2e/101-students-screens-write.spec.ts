@@ -146,6 +146,38 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
     }
   });
 
+  test('M1-I1 a save from a stale edit form is refused instead of overwriting a newer save', async ({
+    page,
+    browser,
+    request,
+  }) => {
+    const tag = newTag();
+    const admin = stAdmin(`st-admin-${tag}`);
+    const s = await seedStudent(request, admin, tag);
+    const otherContext = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+    try {
+      const second = await otherContext.newPage();
+      await openAs(page, admin);
+      await openAs(second, admin);
+      await page.goto(`/students/${s.id}/edit`, { waitUntil: 'load' });
+      await second.goto(`/students/${s.id}/edit`, { waitUntil: 'load' });
+      const first = await hydratedForm(page, 'student-form');
+      const stale = await hydratedForm(second, 'student-form');
+      await first.locator('#lastName').fill('First');
+      await first.getByRole('button', { name: 'Save changes' }).click();
+      await expect(page).toHaveURL(new RegExp(`/students/${s.id}$`), { timeout: 30_000 });
+      await stale.locator('[id="guardians.0.contactPhone"]').fill(`000-${tag}-8`);
+      await stale.getByRole('button', { name: 'Save changes' }).click();
+      await expect
+        .soft(stale.getByRole('alert'), 'the stale save is refused')
+        .toContainText('This conflicts with an existing record.', { timeout: 30_000 });
+      const stored = await getJson<Row>(request, admin, `/students/${s.id}`);
+      expect(stored.lastName, 'the newer save survives').toBe('First');
+    } finally {
+      await otherContext.close();
+      await deleteStudents(request, admin, [s.id]);
+    }
+  });
   test('/students/[id]/enroll places the student in a class', async ({ page, request }) => {
     const tag = newTag();
     const admin = stAdmin(`st-admin-${tag}`);
