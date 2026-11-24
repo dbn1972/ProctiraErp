@@ -80,6 +80,15 @@ export interface PendingAuthStateStore {
   put(id: string, value: string, ttlSeconds: number): Promise<void>;
   take(id: string): Promise<string | null>;
 }
+/**
+ * PRC-M589: replica-shared single-use claim for SAML Assertion IDs. `claim`
+ * returns true only for the first caller cluster-wide (Redis `SET NX EX`), so a
+ * replayed assertion is refused on every replica. Implementations throw when
+ * their backend is unavailable (callers fail closed).
+ */
+export interface AssertionReplayStore {
+  claim(assertionId: string, ttlSeconds: number): Promise<boolean>;
+}
 
 export interface OAuth2ProviderConfig {
   type: 'oauth2';
@@ -162,6 +171,10 @@ export interface SAMLProviderConfig {
     firstName?: string;
     lastName?: string;
   };
+  /** PRC-M589: replica-shared RelayState -> AuthnRequest store (required when deployed). */
+  stateStore?: PendingAuthStateStore;
+  /** PRC-M589: replica-shared Assertion-ID replay cache (required when deployed). */
+  replayStore?: AssertionReplayStore;
 }
 
 /**
