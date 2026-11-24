@@ -37,3 +37,25 @@ export function isProductionNodeEnv(nodeEnv: string | undefined | null): boolean
 export function isProductionLike(nodeEnv: string | undefined | null): boolean {
   return !NON_PRODUCTION_NODE_ENVS.has(normalizeNodeEnv(nodeEnv));
 }
+
+/** APP_ENV / DEPLOY_ENV stage names that always mean a deployed environment. */
+const DEPLOYED_STAGES: ReadonlySet<string> = new Set(['staging', 'production', 'prod']);
+
+/**
+ * PRC-L566 — one predicate for "this process runs in a deployed environment"
+ * (staging or production), used by every production boot guard.
+ *
+ * True when {@link isProductionLike} holds for `nodeEnv` (so unset, empty,
+ * `staging` and unknown NODE_ENV values fail closed) or when APP_ENV /
+ * DEPLOY_ENV names a deployed stage (so `NODE_ENV=development` with
+ * `APP_ENV=staging` is still deployed). Only `development` / `test` without a
+ * deployed stage relax the guards.
+ */
+export function isDeployedEnvironment(
+  nodeEnv: string | undefined | null,
+  env: Readonly<Record<string, string | undefined>> = {},
+): boolean {
+  if (isProductionLike(nodeEnv)) return true;
+  const stage = normalizeNodeEnv(env['APP_ENV'] ?? env['DEPLOY_ENV']);
+  return DEPLOYED_STAGES.has(stage);
+}

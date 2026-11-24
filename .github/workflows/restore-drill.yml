@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: ${{ env.PNPM_VERSION }}
 
@@ -103,9 +103,32 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-16 age
+          # The runner image preinstalls a newer client, and /usr/bin/pg_dump
+          # (pg_wrapper) resolves to the newest major: run 45022980658 got
+          # pg_dump 18.7, whose pg_restore fails on the postgres:16 service with
+          # 'unrecognized configuration parameter "transaction_timeout"'. Put
+          # the 16 binaries first on PATH for this and every later step.
+          PG16_BIN=/usr/lib/postgresql/16/bin
+          test -x "$PG16_BIN/pg_dump" || { echo "::error::$PG16_BIN/pg_dump not installed"; exit 1; }
+          echo "$PG16_BIN" >> "$GITHUB_PATH"
+          export PATH="$PG16_BIN:$PATH"
           pg_dump --version
           age --version
           psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+
+      # Fails loudly if the client ever drifts off the server major again.
+      - name: Assert PostgreSQL client is 16.x
+        run: |
+          set -euo pipefail
+          for bin in pg_dump pg_restore psql; do
+            path="$(command -v "$bin")"
+            ver="$("$bin" --version)"
+            echo "$bin -> $path: $ver"
+            if [[ ! "$ver" =~ \(PostgreSQL\)\ 16\.[0-9]+ ]]; then
+              echo "::error::$bin must be PostgreSQL 16.x to match the postgres:16 service (got '$ver' at $path)"
+              exit 1
+            fi
+          done
 
       - name: Run database migrations (Prisma)
         run: pnpm --filter @proctira/database run prisma:migrate:deploy

@@ -13,6 +13,8 @@ import { InMemoryCaseRepository } from './in-memory-case-repository.js';
 import type { CreateCaseInput } from './case-schemas.js';
 
 const TENANT_ID = 'tenant-case-001';
+/** Tenant-wide caller used where the service needs a verified uploader. */
+const UPLOADER = { userId: 'teacher-001', roles: ['admin'], institutionIds: [], areaIds: [] };
 
 function createValidCaseInput(overrides?: Partial<CreateCaseInput>): CreateCaseInput {
   return {
@@ -89,20 +91,14 @@ describe('CaseService', () => {
     it('should create case with initial attachments', async () => {
       const input = createValidCaseInput({
         attachments: [
-          {
-            id: 'att-001',
-            fileName: 'incident-report.pdf',
-            fileType: 'application/pdf',
-            fileSize: 1024,
-            storagePath: '/uploads/incident-report.pdf',
-            uploadedBy: 'teacher-001',
-          },
+          { fileName: 'incident-report.pdf', fileType: 'application/pdf', fileSize: 1024 },
         ],
       });
-      const result = await service.createCase(TENANT_ID, input);
+      const result = await service.createCase(TENANT_ID, input, UPLOADER);
 
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments[0]!.fileName).toBe('incident-report.pdf');
+      expect(result.attachments[0]!.uploadedBy).toBe(UPLOADER.userId);
     });
   });
 
@@ -198,13 +194,16 @@ describe('CaseService', () => {
   describe('addAttachment', () => {
     it('should add an attachment to a case', async () => {
       const created = await service.createCase(TENANT_ID, createValidCaseInput());
-      const result = await service.addAttachment(TENANT_ID, created.id, {
-        fileName: 'evidence.jpg',
-        fileType: 'image/jpeg',
-        fileSize: 2048,
-        storagePath: '/uploads/evidence.jpg',
-        uploadedBy: 'teacher-001',
-      });
+      const result = await service.addAttachment(
+        TENANT_ID,
+        created.id,
+        {
+          fileName: 'evidence.jpg',
+          fileType: 'image/jpeg',
+          fileSize: 2048,
+        },
+        UPLOADER,
+      );
 
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments[0]!.fileName).toBe('evidence.jpg');
@@ -215,21 +214,27 @@ describe('CaseService', () => {
     it('should add multiple attachments', async () => {
       const created = await service.createCase(TENANT_ID, createValidCaseInput());
 
-      await service.addAttachment(TENANT_ID, created.id, {
-        fileName: 'file1.pdf',
-        fileType: 'application/pdf',
-        fileSize: 1024,
-        storagePath: '/uploads/file1.pdf',
-        uploadedBy: 'user-001',
-      });
+      await service.addAttachment(
+        TENANT_ID,
+        created.id,
+        {
+          fileName: 'file1.pdf',
+          fileType: 'application/pdf',
+          fileSize: 1024,
+        },
+        UPLOADER,
+      );
 
-      const result = await service.addAttachment(TENANT_ID, created.id, {
-        fileName: 'file2.pdf',
-        fileType: 'application/pdf',
-        fileSize: 2048,
-        storagePath: '/uploads/file2.pdf',
-        uploadedBy: 'user-001',
-      });
+      const result = await service.addAttachment(
+        TENANT_ID,
+        created.id,
+        {
+          fileName: 'file2.pdf',
+          fileType: 'application/pdf',
+          fileSize: 2048,
+        },
+        UPLOADER,
+      );
 
       expect(result.attachments).toHaveLength(2);
     });
@@ -239,25 +244,31 @@ describe('CaseService', () => {
       await service.updateCase(TENANT_ID, created.id, { status: 'closed' });
 
       await expect(
-        service.addAttachment(TENANT_ID, created.id, {
-          fileName: 'late.pdf',
-          fileType: 'application/pdf',
-          fileSize: 512,
-          storagePath: '/uploads/late.pdf',
-          uploadedBy: 'user-001',
-        }),
+        service.addAttachment(
+          TENANT_ID,
+          created.id,
+          {
+            fileName: 'late.pdf',
+            fileType: 'application/pdf',
+            fileSize: 512,
+          },
+          UPLOADER,
+        ),
       ).rejects.toThrow(BusinessRuleError);
     });
 
     it('should throw NotFoundError for non-existent case', async () => {
       await expect(
-        service.addAttachment(TENANT_ID, 'non-existent', {
-          fileName: 'file.pdf',
-          fileType: 'application/pdf',
-          fileSize: 512,
-          storagePath: '/uploads/file.pdf',
-          uploadedBy: 'user-001',
-        }),
+        service.addAttachment(
+          TENANT_ID,
+          'non-existent',
+          {
+            fileName: 'file.pdf',
+            fileType: 'application/pdf',
+            fileSize: 512,
+          },
+          UPLOADER,
+        ),
       ).rejects.toThrow(NotFoundError);
     });
   });

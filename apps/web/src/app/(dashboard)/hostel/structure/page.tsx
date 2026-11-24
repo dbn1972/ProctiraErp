@@ -11,14 +11,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { listHostelBeds, listHostelBlocks, listHostelRooms, listHostels } from '@/lib/api/hostel';
 import { NewBedForm, NewBlockForm, NewRoomForm } from '../_components/structure-forms';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HostelStructurePage() {
-  await requireSession();
+  // H-D1: check before any hostel read.
+  if (!(await hasDashboardDomainRouteAccess('hostel', '/hostel'))) {
+    return <RouteAccessDenied />;
+  }
   const [hostels, blocks, rooms, beds] = await Promise.all([
     listHostels(),
     listHostelBlocks(),

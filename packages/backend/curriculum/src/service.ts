@@ -108,6 +108,19 @@ export class CurriculumService {
     if (!unit) return null;
     return { institutionId: unit.institutionId };
   }
+  /** PRC-M194: subject of a lesson plan (through its syllabus unit); null when unknown. */
+  async lessonPlanSubject(tenantId: string, id: string): Promise<string | null> {
+    const plan = await this.store.getLessonPlan(tenantId, id);
+    if (!plan) return null;
+    const unit = await this.store.getUnit(tenantId, plan.unitId);
+    return unit?.subjectId ?? null;
+  }
+
+  /** PRC-M194: subject of a learning outcome; null when unknown. */
+  async outcomeSubject(tenantId: string, id: string): Promise<string | null> {
+    return (await this.store.getOutcome(tenantId, id))?.subjectId ?? null;
+  }
+
   async updateLessonPlan(
     tenantId: string,
     id: string,

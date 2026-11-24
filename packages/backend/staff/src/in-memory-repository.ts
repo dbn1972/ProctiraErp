@@ -169,7 +169,9 @@ export class InMemoryStaffRepository implements StaffRepository {
           entity.firstName.toLowerCase().includes(searchLower) ||
           entity.lastName.toLowerCase().includes(searchLower) ||
           `${entity.firstName} ${entity.lastName}`.toLowerCase().includes(searchLower) ||
-          entity.identityNumber.toLowerCase().includes(searchLower),
+          // HN-F4-R4: identity numbers match only for callers allowed to see them.
+          (filter.matchIdentityNumber === true &&
+            entity.identityNumber.toLowerCase().includes(searchLower)),
       );
     }
 

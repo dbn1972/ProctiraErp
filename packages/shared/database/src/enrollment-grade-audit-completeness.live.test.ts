@@ -52,8 +52,16 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
     if (MIGRATOR_DATABASE_URL) {
       const migrator = new pg.Pool({ connectionString: MIGRATOR_DATABASE_URL });
       try {
+        // Apply only what the ledger lacks. Replaying 080/096 over a migrated
+        // schema drops every FK on the audited column and re-adds only the
+        // id-only one, which would permanently strip the (tenant_id, col)
+        // composite FKs that db/sql/307 adds for other suites.
         for (const file of MIGRATIONS) {
-          await migrator.query(loadMigration(file));
+          const ledgered = await migrator.query(
+            `SELECT 1 FROM schema_migrations WHERE filename = $1`,
+            [file],
+          );
+          if (ledgered.rowCount === 0) await migrator.query(loadMigration(file));
         }
       } finally {
         await migrator.end();
@@ -535,9 +543,12 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
            ON child_col.attrelid = c.conrelid
           AND child_col.attnum = ANY (c.conkey)
          WHERE c.contype = 'f'
+           AND cardinality(c.conkey) = 1
            AND nsp.nspname = 'public'
            AND rel.relname = $1
            AND child_col.attname = $2`,
+        // Single-column FKs only: db/sql/307 adds a (tenant_id, col) composite
+        // twin, asserted in academic-tenant-parent-fks.live.test.ts.
         [spec.table, spec.column],
       );
       expect(rows, `${spec.table}.${spec.column} FK count`).toHaveLength(1);
@@ -569,6 +580,17 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
           `INSERT INTO tenants (id, name, slug, status)
            VALUES ($1, $2, $3, 'active')`,
           [tenantId, `audit-orphan-${suffix}`, `audit-orphan-${suffix}`],
+        );
+        // Replay 096 against the schema it was written for: drop the
+        // db/sql/307 composite twins (rolled back below), which 096 counts
+        // as duplicate audit FKs.
+        await client.query(
+          `ALTER TABLE grade_change_audit
+           DROP CONSTRAINT IF EXISTS grade_change_audit_grade_entry_id_tenant_fk`,
+        );
+        await client.query(
+          `ALTER TABLE enrollment_history
+           DROP CONSTRAINT IF EXISTS enrollment_history_enrollment_id_tenant_fk`,
         );
         await client.query(
           `ALTER TABLE grade_change_audit

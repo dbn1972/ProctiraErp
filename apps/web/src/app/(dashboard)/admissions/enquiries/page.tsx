@@ -3,10 +3,16 @@ import { listEnquiries } from '@/lib/api/admissions';
 import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
 import { EnquiryPanel } from '../_components/enquiry-panel';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdmissionsEnquiriesPage() {
+  // A-batch: check before any admissions read.
+  if (!(await hasDashboardDomainRouteAccess('admissions', '/admissions'))) {
+    return <RouteAccessDenied />;
+  }
   const [{ institutions, periods, grades, errors }, enquiries] = await Promise.all([
     loadAdmissionsLookups(),
     listEnquiries(),

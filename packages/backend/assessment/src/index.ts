@@ -254,6 +254,13 @@ export {
 } from './assessment-access.js';
 export type { AssessmentAction } from './assessment-access.js';
 export {
+  assertAssessmentOwnership,
+  hasInstitutionWideAssessmentRole,
+  isAssessmentPortalReader,
+  type AssessmentPortalBinding,
+  type AssessmentTeachingScope,
+} from './assessment-ownership.js';
+export {
   assessmentActionForMethod,
   assessmentRequestRoles,
   enforceAssessmentRouteAccess,

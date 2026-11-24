@@ -15,13 +15,18 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { PluginActorRequiredError } from './audit-port.js';
+import {
+  assertCanManageInstallation,
+  assertCanRegisterPlugin,
+  PluginForbiddenError,
+} from './authz.js';
 import type { PluginService } from './plugin-service.js';
 import {
   RegisterPluginSchema,
   InstallPluginSchema,
   PluginParamsSchema,
   PluginInstallParamsSchema,
-  PluginListQuerySchema,
   UninstallPluginSchema,
   type RegisterPluginInput,
   type InstallPluginInput,
@@ -108,11 +113,17 @@ function getTenantId(request: FastifyRequest): string | undefined {
 }
 
 /**
- * Extract actor (user ID) from request.
+ * PRC-L477: resolve the REAL verified actor for a mutating, audited operation.
+ * Fail-closed: if the verified principal has no `sub`, throw rather than
+ * attributing the audit entry to the literal `'system'` actor.
  */
-function getActor(request: FastifyRequest): string {
+function requireActor(request: FastifyRequest): string {
   const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
-  return user?.sub ?? 'system';
+  const sub = typeof user?.sub === 'string' ? user.sub.trim() : '';
+  if (!sub) {
+    throw new PluginActorRequiredError();
+  }
+  return sub;
 }
 
 /**
@@ -134,6 +145,16 @@ export async function registerPluginRoutes(
       request: FastifyRequest<{ Body: RegisterPluginInput }>,
       reply: FastifyReply,
     ) {
+      // PRC-L477: the register audit row carries the caller's verified tenant.
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
       const result = validate(RegisterPluginSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -144,12 +165,22 @@ export async function registerPluginRoutes(
         });
       }
 
-      const actor = getActor(request);
-
       try {
-        const plugin = await pluginService.register(result.data, actor);
+        assertCanRegisterPlugin(request);
+        const actor = requireActor(request);
+        const plugin = await pluginService.register(result.data, actor, tenantId);
         return reply.status(201).send(formatPluginResponse(plugin));
       } catch (error: unknown) {
+        if (error instanceof PluginActorRequiredError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -168,7 +199,7 @@ export async function registerPluginRoutes(
       request: FastifyRequest<{ Querystring: PluginListQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query as PluginListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -251,12 +282,22 @@ export async function registerPluginRoutes(
         });
       }
 
-      const actor = getActor(request);
-
       try {
+        assertCanManageInstallation(request);
+        const actor = requireActor(request);
         const install = await pluginService.install(tenantId, result.data, actor);
         return reply.status(201).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginActorRequiredError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -358,12 +399,22 @@ export async function registerPluginRoutes(
         });
       }
 
-      const actor = getActor(request);
-
       try {
+        assertCanManageInstallation(request);
+        const actor = requireActor(request);
         const install = await pluginService.enable(tenantId, paramsResult.data.installId, actor);
         return reply.status(200).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginActorRequiredError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -401,12 +452,22 @@ export async function registerPluginRoutes(
         });
       }
 
-      const actor = getActor(request);
-
       try {
+        assertCanManageInstallation(request);
+        const actor = requireActor(request);
         const install = await pluginService.disable(tenantId, paramsResult.data.installId, actor);
         return reply.status(200).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginActorRequiredError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -445,10 +506,11 @@ export async function registerPluginRoutes(
       }
 
       const bodyResult = validate(UninstallPluginSchema, request.body ?? {});
-      const actor = getActor(request);
       const reason = bodyResult.success ? bodyResult.data.reason : undefined;
 
       try {
+        assertCanManageInstallation(request);
+        const actor = requireActor(request);
         const install = await pluginService.uninstall(
           tenantId,
           paramsResult.data.installId,
@@ -457,6 +519,16 @@ export async function registerPluginRoutes(
         );
         return reply.status(200).send(formatInstallResponse(install));
       } catch (error: unknown) {
+        if (error instanceof PluginActorRequiredError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
+        if (error instanceof PluginForbiddenError) {
+          return reply
+            .status(error.statusCode)
+            .send({ code: error.code, message: error.message, statusCode: error.statusCode });
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }

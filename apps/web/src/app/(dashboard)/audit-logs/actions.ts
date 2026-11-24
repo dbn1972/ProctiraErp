@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/platform.server';
 
 import { AUDIT_RETENTION_MAX_MONTHS, minAuditRetentionMonths } from './retention-policy';
+import { genericActionErrorMessage } from '@/lib/api/action-error';
 
 export interface AuditActionState {
   status: 'idle' | 'success' | 'error';
@@ -27,9 +28,8 @@ function fail(error: unknown, fallback: string): AuditActionState {
     if (error.status === 403) {
       return { status: 'error', message: 'Platform administrator access is required.' };
     }
-    return { status: 'error', message: error.message || fallback };
   }
-  return { status: 'error', message: error instanceof Error ? error.message : fallback };
+  return { status: 'error', message: genericActionErrorMessage(error, fallback) };
 }
 
 function buildRetentionSchema() {

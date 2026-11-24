@@ -36,6 +36,7 @@ export async function AcademicFrame({
   selectedId,
   status,
   errorMessage,
+  correlationId,
   emptyMessage,
   hasRows,
   children,
@@ -47,6 +48,8 @@ export async function AcademicFrame({
   selectedId?: string;
   status?: 'ok' | 'empty-children' | 'forbidden' | 'not-found' | 'error';
   errorMessage?: string;
+  /** Support reference shown under the error message (D1b). */
+  correlationId?: string;
   emptyMessage: string;
   hasRows: boolean;
   children: React.ReactNode;
@@ -106,9 +109,14 @@ export async function AcademicFrame({
               No record was found. It may not be set up yet for your school.
             </p>
           ) : status === 'error' ? (
-            <p className="text-sm text-muted-foreground" role="status">
-              {errorMessage ?? 'Unable to load this page. Try again later.'}
-            </p>
+            <>
+              <p className="text-sm text-muted-foreground" role="status">
+                {errorMessage ?? 'Unable to load this page. Try again later.'}
+              </p>
+              {correlationId ? (
+                <p className="mt-1 text-xs text-muted-foreground">Reference: {correlationId}</p>
+              ) : null}
+            </>
           ) : hasRows ? (
             children
           ) : (

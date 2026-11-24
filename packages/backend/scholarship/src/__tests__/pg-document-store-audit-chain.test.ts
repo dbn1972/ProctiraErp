@@ -2,6 +2,7 @@
  * PRC-M354: document audit rows go through the hash-chained append on the same
  * transaction (chain_seq / prev_hash / entry_hash populated).
  */
+import { computeKeyedEntryHash, currentAuditChainKey } from '@proctira/backend-audit';
 import { describe, expect, it, vi } from 'vitest';
 import { PgScholarshipDocumentStore } from '../pg-document-store.js';
 
@@ -17,9 +18,17 @@ describe('PgScholarshipDocumentStore audit chain (PRC-M354)', () => {
     const client = {
       query: async (sql: string, params: unknown[] = []) => {
         calls.push({ sql, params });
-        if (sql.includes('FROM audit_chain_heads')) return { rows: [head] };
-        if (sql.startsWith('UPDATE audit_chain_heads'))
-          head = { head_seq: Number(params[1]), head_hash: String(params[2]) };
+        // PRC-M200: the head is locked and advanced only through the SECURITY DEFINER
+        // functions (migrations 292/294); the runtime role has no DML on audit_chain_heads.
+        if (/\b(INSERT INTO|UPDATE|DELETE FROM)\s+audit_chain_heads\b/.test(sql))
+          throw new Error('permission denied for table audit_chain_heads');
+        if (sql.includes('FROM audit_chain_lock_head(')) return { rows: [head] };
+        if (sql.includes('FROM audit_chain_append(')) {
+          // (tenant, id, …, metadata, entry_hash, key_id): row lands at head_seq+1.
+          const appended = { chain_seq: head.head_seq + 1, prev_hash: head.head_hash };
+          head = { head_seq: appended.chain_seq, head_hash: String(params[12]) };
+          return { rows: [appended] };
+        }
         if (sql.includes('INSERT INTO scholarship_application_documents'))
           return {
             rows: [
@@ -36,19 +45,6 @@ describe('PgScholarshipDocumentStore audit chain (PRC-M354)', () => {
                 uploaded_by: params[9],
                 uploaded_at: new Date(),
                 verification_status: 'PENDING',
-              },
-            ],
-          };
-        if (sql.includes('INSERT INTO audit_log_entries'))
-          return {
-            rows: [
-              {
-                id: params[0],
-                tenant_id: params[1],
-                occurred_at: new Date(),
-                chain_seq: params[12],
-                prev_hash: params[13],
-                entry_hash: params[14],
               },
             ],
           };
@@ -83,14 +79,38 @@ describe('PgScholarshipDocumentStore audit chain (PRC-M354)', () => {
     );
     const sqls = calls.map((c) => c.sql);
     const commit = sqls.indexOf('COMMIT');
-    const auditInsert = calls.findIndex((c) => c.sql.includes('INSERT INTO audit_log_entries'));
-    expect(auditInsert).toBeGreaterThan(-1);
+    const lockHead = calls.findIndex((c) => c.sql.includes('FROM audit_chain_lock_head('));
+    const auditInsert = calls.findIndex((c) => c.sql.includes('FROM audit_chain_append('));
+    expect(lockHead).toBeGreaterThan(-1);
+    expect(auditInsert).toBeGreaterThan(lockHead);
     expect(auditInsert).toBeLessThan(commit);
-    expect(sqls.some((s) => /FROM audit_chain_heads .*FOR UPDATE/.test(s))).toBe(true);
+    expect(calls[lockHead]!.params[0]).toBe(TENANT);
     const params = calls[auditInsert]!.params;
-    expect(params[12]).toBe(5); // chain_seq
-    expect(params[13]).toBe('a'.repeat(64)); // prev_hash
-    expect(String(params[14])).toMatch(/^[0-9a-f]{64}$/); // entry_hash
-    expect(head).toEqual({ head_seq: 5, head_hash: params[14] });
+    expect(params[0]).toBe(TENANT);
+    expect(params[2]).toBe('scholarship_application_document');
+    expect(params[3]).toBe('00000000-0000-4000-8000-0000000000f1');
+    expect(String(params[12])).toMatch(/^[0-9a-f]{64}$/); // entry_hash (HMAC)
+    expect(params[13]).toBe(currentAuditChainKey().keyId); // key_id
+    // The HMAC links to the chain: it covers the prev_hash read from audit_chain_lock_head
+    // (head 4 = 'a'*64) and exactly the fields sent to audit_chain_append.
+    const parseJson = (v: unknown) => (v == null ? null : (JSON.parse(String(v)) as never));
+    const hashedInput = {
+      id: String(params[1]),
+      tenantId: String(params[0]),
+      entityType: String(params[2]),
+      entityId: String(params[3]),
+      operation: params[4] as 'CREATE',
+      userId: String(params[5]),
+      userName: String(params[6]),
+      ipAddress: String(params[7]),
+      timestamp: params[8] as Date,
+      beforeValues: parseJson(params[9]),
+      afterValues: parseJson(params[10]),
+      metadata: parseJson(params[11]),
+    };
+    expect(params[12]).toBe(
+      computeKeyedEntryHash(hashedInput, 'a'.repeat(64), currentAuditChainKey()),
+    );
+    expect(head).toEqual({ head_seq: 5, head_hash: params[12] });
   });
 });

@@ -44,6 +44,7 @@ async function installAndHook(
       },
     },
     'admin',
+    'platform-tenant',
   );
   const install = await service.install(
     TENANT,

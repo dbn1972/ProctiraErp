@@ -4,7 +4,7 @@
  * POST   /students          - Create a new student
  * PUT    /students/:id      - Update a student
  * GET    /students          - List students (paginated, filterable)
- * GET    /students/search   - Full-text search on name and national ID
+ * GET    /students/search   - Full-text search on name (national ID for registrar/admin)
  * GET    /students/:id      - Get a single student
  * DELETE /students/:id      - Delete a student (soft delete)
  */
@@ -53,6 +53,23 @@ function getRoles(request: FastifyRequest): unknown {
 function getActorId(request: FastifyRequest): string | null {
   const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
   return user?.sub ?? user?.userId ?? null;
+}
+
+/**
+ * PRC-M013: resolve the authenticated caller + request context for the
+ * same-transaction student PII audit. The actor id comes ONLY from the verified
+ * JWT (never a client-supplied field); ip/requestId from the gateway.
+ */
+function buildAuditActor(request: FastifyRequest): {
+  actorId: string | null;
+  ipAddress: string | null;
+  requestId: string | null;
+} {
+  return {
+    actorId: getActorId(request),
+    ipAddress: request.ip ?? null,
+    requestId: request.id ?? null,
+  };
 }
 
 /**
@@ -288,11 +305,13 @@ export async function registerStudentRoutes(
       try {
         assertStudentWriteAccess(getRoles(request), 'student.update');
         // PRC-L365: optional optimistic-concurrency precondition (409 on stale).
+        // PRC-M013: actor from the verified JWT drives the same-transaction audit.
         const student = await studentService.update(
           tenantId,
           paramsResult.data.id,
           bodyResult.data,
           expectedUpdatedAt ? { expectedUpdatedAt } : {},
+          buildAuditActor(request),
         );
         reply.header('ETag', studentEtag(student.updatedAt));
         return reply.status(200).send(formatStudentResponse(student));
@@ -307,7 +326,7 @@ export async function registerStudentRoutes(
 
   /**
    * GET /students/search
-   * Full-text search on student name and national ID.
+   * Full-text search on student name; national ID only for registrar/admin (HN-F4-R3).
    * Must be registered before GET /students/:id to avoid route conflict.
    */
   fastify.get(
@@ -343,7 +362,13 @@ export async function registerStudentRoutes(
         const page = Number(query.page) || 1;
         const pageSize = Number(query.pageSize) || 20;
 
-        const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
+        // HN-F4-R3: national ID is searchable only by roles that may view it.
+        const result = await studentService.search(
+          tenantId,
+          query.q.trim(),
+          { page, pageSize },
+          { matchNationalId: mayViewNationalId(roles) },
+        );
 
         return reply.status(200).send({
           data: result.data.map((s) => maskStudentPii(formatStudentResponse(s), roles)),
@@ -400,6 +425,8 @@ export async function registerStudentRoutes(
           {
             gender: query.gender,
             search: query.search,
+            // HN-F4-R3: national ID is searchable only by roles that may view it.
+            matchNationalId: mayViewNationalId(roles),
             institutionId: query.institutionId,
             ids,
           },
@@ -511,7 +538,8 @@ export async function registerStudentRoutes(
 
       try {
         assertStudentWriteAccess(getRoles(request), 'student.delete');
-        await studentService.delete(tenantId, paramsResult.data.id);
+        // PRC-M013: actor from the verified JWT drives the same-transaction audit.
+        await studentService.delete(tenantId, paramsResult.data.id, buildAuditActor(request));
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {

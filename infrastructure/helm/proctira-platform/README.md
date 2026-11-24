@@ -9,7 +9,7 @@ Backend `*Service` values default to `enabled: false` and stay disabled in
 `values-production.yaml`.
 
 **Non-prod / lab:** set `topology.mode=split` and enable individual
-`institutionService` / `studentService` / … only for experiments. Prefer the
+`studentService` / `assessmentService` / … only for experiments. Prefer the
 per-service `proctira-service` chart + `deploy.yml` for production releases of
 canonical deployables. See `docs/DEPLOYMENT_TOPOLOGY.md`.
 

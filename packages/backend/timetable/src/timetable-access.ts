@@ -3,8 +3,13 @@
  */
 import { AppError } from '@proctira/common';
 
-/** `schedule.read`: staff-only reads (rosters, generation jobs, absences) — PRC-M406. */
-export type TimetableAction = 'schedule.write' | 'schedule.publish' | 'schedule.read';
+/**
+ * `schedule.read`: staff-only reads (rosters, generation jobs, absences) — PRC-M406.
+ * `substitution.read`: the substitution desk list (absent + covering teacher, date and the
+ * free-text reason, e.g. medical leave) — S-D2. Same roles that may create substitutions.
+ */
+export type TimetableAction =
+  'schedule.write' | 'schedule.publish' | 'schedule.read' | 'substitution.read';
 
 const ADMIN_ROLES = [
   'admin',
@@ -32,6 +37,7 @@ const ACTION_ROLES: Record<TimetableAction, readonly string[]> = {
   'schedule.write': SCHEDULER_ROLES,
   'schedule.publish': SCHEDULER_ROLES,
   'schedule.read': STAFF_READ_ROLES,
+  'substitution.read': SCHEDULER_ROLES,
 };
 
 export function normalizeTimetableRoles(roles: unknown): string[] {

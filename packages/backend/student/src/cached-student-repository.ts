@@ -10,11 +10,13 @@ import { reviveDates, tenantKey } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type {
+  StudentAuditDirective,
   StudentBulkWrite,
   StudentBulkWriteResult,
   StudentEntity,
   StudentFilter,
   StudentRepository,
+  StudentSearchOptions,
   StudentUpdateOptions,
 } from './student-repository.js';
 
@@ -39,6 +41,15 @@ export class CachedStudentRepository implements StudentRepository {
     }
   }
 
+  /**
+   * PRC-M013: transparently inherit the delegate's same-transaction audit
+   * capability so wrapping the Pg repository in a cache does not silently drop
+   * the atomic audit guarantee.
+   */
+  get supportsTransactionalAudit(): boolean {
+    return Boolean(this.delegate.supportsTransactionalAudit);
+  }
+
   /** PRC-M384: only exposed when the delegate is transactional. */
   readonly bulkWrite?: (tenantId: string, ops: StudentBulkWrite) => Promise<StudentBulkWriteResult>;
 
@@ -51,8 +62,9 @@ export class CachedStudentRepository implements StudentRepository {
     tenantId: string,
     data: Partial<StudentEntity>,
     options?: StudentUpdateOptions,
+    audit?: StudentAuditDirective,
   ): Promise<StudentEntity | null> {
-    const result = await this.delegate.update(id, tenantId, data, options);
+    const result = await this.delegate.update(id, tenantId, data, options, audit);
     if (result && this.cache) {
       // Invalidate cached entry on update
       const key = tenantKey(tenantId, 'student', id);
@@ -92,16 +104,17 @@ export class CachedStudentRepository implements StudentRepository {
     tenantId: string,
     query: string,
     pagination: PaginationOptions,
+    options?: StudentSearchOptions,
   ): Promise<PaginatedResult<StudentEntity>> {
-    return this.delegate.search(tenantId, query, pagination);
+    return this.delegate.search(tenantId, query, pagination, options);
   }
 
   async allocateAdmissionNumber(tenantId: string): Promise<string> {
     return this.delegate.allocateAdmissionNumber(tenantId);
   }
 
-  async delete(id: string, tenantId: string): Promise<boolean> {
-    const result = await this.delegate.delete(id, tenantId);
+  async delete(id: string, tenantId: string, audit?: StudentAuditDirective): Promise<boolean> {
+    const result = await this.delegate.delete(id, tenantId, audit);
     if (result && this.cache) {
       // Invalidate cached entry on delete
       const key = tenantKey(tenantId, 'student', id);

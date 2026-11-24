@@ -101,6 +101,12 @@ function deny(
   return reply.status(statusCode).send({ code, message, statusCode });
 }
 
+/**
+ * Sends the 403/400 itself and returns null on refusal. HL-O8: callers must then
+ * `return reply`, never a bare `return`: with async onSend hooks a handler that
+ * resolves `undefined` before the first send finishes makes Fastify send again
+ * (ERR_HTTP_HEADERS_SENT, logged as a 500 for a request the client saw as 403).
+ */
 function assertHealthAccess(
   request: FastifyRequest,
   reply: {
@@ -474,7 +480,7 @@ export const healthUiPlugin = fp(
 
     fastify.get('/health/records', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
-      if (!tenantId) return;
+      if (!tenantId) return reply;
       try {
         const context = await accessContextOf(request, tenantId);
         // Seed rows are dev/test demo data (empty in production, G-705); live rows are PHI.
@@ -499,7 +505,7 @@ export const healthUiPlugin = fp(
       '/health/records/:studentId',
       async (request, reply) => {
         const tenantId = assertHealthAccess(request, reply);
-        if (!tenantId) return;
+        if (!tenantId) return reply;
         const { studentId } = request.params;
         try {
           const context = await accessContextOf(request, tenantId);
@@ -523,7 +529,7 @@ export const healthUiPlugin = fp(
 
     fastify.get('/health/special-needs', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
-      if (!tenantId) return;
+      if (!tenantId) return reply;
       try {
         const context = await accessContextOf(request, tenantId);
         const seeded = forTenant(seed.specialNeeds, tenantId);
@@ -556,7 +562,7 @@ export const healthUiPlugin = fp(
 
     fastify.get('/health/counselling', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
-      if (!tenantId) return;
+      if (!tenantId) return reply;
       try {
         const context = await accessContextOf(request, tenantId);
         const seeded = forTenant(seed.counselling, tenantId).map((row) =>
@@ -594,7 +600,7 @@ export const healthUiPlugin = fp(
       '/health/screenings',
       async (request, reply) => {
         const tenantId = assertHealthAccess(request, reply);
-        if (!tenantId) return;
+        if (!tenantId) return reply;
         const page = clampInt(request.query?.page, 1, 1, 100_000);
         const pageSize = clampInt(request.query?.pageSize, 100, 1, 500);
         const seeded = page === 1 ? forTenant(seed.screenings, tenantId) : [];

@@ -5,7 +5,7 @@
  * Supports both personal Microsoft accounts and Azure AD organizational accounts.
  */
 import { OAuth2Provider, type HttpClient, type UserInfoExtractor } from './oauth2-provider.js';
-import type { OAuth2ProviderConfig, ExternalUserProfile } from './types.js';
+import type { OAuth2ProviderConfig, ExternalUserProfile, PendingAuthStateStore } from './types.js';
 
 /** Microsoft Graph userinfo endpoint */
 const MICROSOFT_USERINFO_URL = 'https://graph.microsoft.com/v1.0/me';
@@ -31,6 +31,8 @@ export interface MicrosoftProviderOptions {
   tenantId: string;
   /** Additional scopes beyond the defaults */
   additionalScopes?: string[];
+  /** PRC-M589: replica-shared pending-login state store (required when deployed). */
+  stateStore?: PendingAuthStateStore;
 }
 
 /**
@@ -103,6 +105,7 @@ export function createMicrosoftProvider(
     userInfoUrl: MICROSOFT_USERINFO_URL,
     scopes,
     callbackUrl: options.callbackUrl,
+    ...(options.stateStore ? { stateStore: options.stateStore } : {}),
   };
 
   return new OAuth2Provider(config, (data) => microsoftProfile(data, tenant), httpClient);

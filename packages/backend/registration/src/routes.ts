@@ -14,11 +14,27 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { AppError } from '@proctira/common';
-import { isProductionNodeEnv } from '@proctira/common/node-env';
+import { isDeployedEnvironment, isProductionNodeEnv } from '@proctira/common/node-env';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import {
+  createChallengeNonceStore,
+  type ChallengeNonceStore,
+} from './bot-challenge-nonce-store.js';
+import {
+  DEFAULT_CHALLENGE_TTL_SECONDS,
+  issueRegistrationChallenge,
+  MIN_CHALLENGE_SECRET_LENGTH,
+  normaliseChallengeDifficulty,
+  verifyRegistrationChallenge,
+} from './bot-challenge.js';
 import { parseListPage, toPageResult } from './pagination.js';
+import {
+  brandingSourceFromDecorator,
+  toPublicBranding,
+  type PublicBrandingSource,
+} from './public-branding.js';
 import { PublicRegistrationThrottle } from './public-throttle.js';
 import { isPublicRegistrationPath } from './registration-access.js';
 import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
@@ -42,6 +58,7 @@ import {
   type CreateInterviewSlotInput,
   type BookInterviewInput,
 } from './schemas.js';
+import { ReferenceNotFoundError, referenceNotFoundBody } from './tenant-references.js';
 
 /**
  * Options for registering registration routes.
@@ -60,13 +77,29 @@ export interface RegistrationRoutesOptions {
   /** PRC-M331/M332: per-identifier throttles for anonymous endpoints. */
   publicThrottle?: PublicRegistrationThrottle;
   /**
-   * PRC-M332: bot challenge on anonymous submit. When required (option or
-   * `REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1`), the `x-registration-challenge`
-   * header is mandatory; a missing verifier fails closed (503).
+   * PRC-M332: bot challenge on anonymous submit. Required by default in a
+   * deployed environment (and when `REGISTRATION_SUBMIT_CHALLENGE_REQUIRED=1`):
+   * the `x-registration-challenge` header must carry a solved, unexpired,
+   * single-use proof-of-work issued by `GET /registrations/challenge`.
+   *
+   * The default verifier is the self-hosted HMAC proof-of-work in
+   * `bot-challenge.ts` keyed by `secret` (default
+   * `REGISTRATION_CHALLENGE_SECRET`; a per-process random key outside deployed
+   * environments) with nonces claimed in a replica-shared store (Redis via
+   * REDIS_URL). A deployed process that requires the challenge but has no
+   * secret or no shared store refuses to register the routes.
    */
   submitChallenge?: {
     required?: boolean;
     verify?: (input: { token: string; ip: string; tenantId: string }) => Promise<boolean>;
+    /** HMAC key for issued challenges (default REGISTRATION_CHALLENGE_SECRET). */
+    secret?: string;
+    /** Single-use nonce store (default: Redis via REDIS_URL; memory outside deployed envs). */
+    nonceStore?: ChallengeNonceStore;
+    /** Leading zero bits required (default REGISTRATION_CHALLENGE_DIFFICULTY or 16). */
+    difficulty?: number;
+    /** Challenge lifetime in seconds (default 300). */
+    ttlSeconds?: number;
   };
   /**
    * W1-SEC-05: shared session store (Redis/DB in multi-replica). Defaults to
@@ -75,6 +108,11 @@ export interface RegistrationRoutesOptions {
   sessionStore?: RegistrationSessionStore;
   /** Session TTL ms (default 8h). */
   sessionTtlMs?: number;
+  /**
+   * PRC-M132: branding reader for `GET /registrations/branding`. Defaults to the gateway's
+   * root `tenantService` decorator; absent -> 404.
+   */
+  brandingSource?: PublicBrandingSource;
 }
 
 /** Trusted public host lookup injected by gateway composition. */
@@ -150,6 +188,8 @@ function clientBindingFromRequest(request: FastifyRequest): string {
 declare module 'fastify' {
   interface FastifyRequest {
     publicRegistrationTenantId?: string;
+    /** PRC-M132: true only when the tenant came from the verified Host mapping. */
+    publicRegistrationTenantFromHost?: boolean;
   }
 }
 
@@ -213,6 +253,75 @@ async function resolveOrMintSessionId(
   return { sessionId: mintRegistrationSessionId(), existing: null };
 }
 
+type ResolvedSubmitChallenge = {
+  required: boolean;
+  verify?: (input: { token: string; ip: string; tenantId: string }) => Promise<boolean>;
+  issuer?: { issue(tenantId: string): ReturnType<typeof issueRegistrationChallenge> };
+};
+
+/**
+ * PRC-M332: resolve the submit bot control. Deployed environments require it
+ * by default and refuse to boot without a usable secret and shared nonce store.
+ */
+function resolveSubmitChallenge(
+  options: RegistrationRoutesOptions['submitChallenge'],
+): ResolvedSubmitChallenge {
+  const deployed = isDeployedEnvironment(process.env.NODE_ENV, process.env);
+  const required =
+    options?.required ?? (deployed || process.env.REGISTRATION_SUBMIT_CHALLENGE_REQUIRED === '1');
+  if (options?.verify) return { required, verify: options.verify };
+
+  const configured = (options?.secret ?? process.env.REGISTRATION_CHALLENGE_SECRET ?? '').trim();
+  if (configured && deployed) {
+    if (configured.length < MIN_CHALLENGE_SECRET_LENGTH) {
+      throw new AppError(
+        `REGISTRATION_CHALLENGE_SECRET must be at least ${MIN_CHALLENGE_SECRET_LENGTH} characters in a deployed environment (PRC-M332)`,
+        'REGISTRATION_CONFIGURATION_ERROR',
+        500,
+      );
+    }
+    if (configured === process.env.JWT_SECRET?.trim()) {
+      throw new AppError(
+        'REGISTRATION_CHALLENGE_SECRET must not reuse JWT_SECRET (one secret per purpose, PRC-M332)',
+        'REGISTRATION_CONFIGURATION_ERROR',
+        500,
+      );
+    }
+  }
+  if (!configured && deployed) {
+    if (required) {
+      throw new AppError(
+        'Registration submit requires a bot challenge in a deployed environment: set REGISTRATION_CHALLENGE_SECRET (and REDIS_URL) (PRC-M332)',
+        'REGISTRATION_CONFIGURATION_ERROR',
+        500,
+      );
+    }
+    return { required };
+  }
+  // Outside deployed environments a per-process key keeps local stacks working.
+  const secret = configured || randomBytes(32).toString('base64url');
+  const nonceStore = options?.nonceStore ?? createChallengeNonceStore();
+  const difficulty = normaliseChallengeDifficulty(
+    options?.difficulty ?? process.env.REGISTRATION_CHALLENGE_DIFFICULTY ?? undefined,
+  );
+  const ttlSeconds = options?.ttlSeconds ?? DEFAULT_CHALLENGE_TTL_SECONDS;
+  return {
+    required,
+    issuer: {
+      issue: (tenantId) => issueRegistrationChallenge({ secret, tenantId, difficulty, ttlSeconds }),
+    },
+    verify: async ({ token, tenantId }) =>
+      (
+        await verifyRegistrationChallenge(token, {
+          secret,
+          tenantId,
+          nonceStore,
+          minDifficulty: difficulty,
+        })
+      ).ok,
+  };
+}
+
 /**
  * Register public registration routes on a Fastify instance.
  */
@@ -228,12 +337,6 @@ export async function registerRegistrationRoutes(
   } = options;
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const throttle = options.publicThrottle ?? new PublicRegistrationThrottle();
-  const submitChallenge = {
-    required:
-      options.submitChallenge?.required ??
-      process.env.REGISTRATION_SUBMIT_CHALLENGE_REQUIRED === '1',
-    verify: options.submitChallenge?.verify,
-  };
   if (isProductionNodeEnv(process.env.NODE_ENV) && defaultTenantId) {
     throw new AppError(
       'Production public registration cannot use defaultTenantId; inject publicTenantResolver',
@@ -256,6 +359,8 @@ export async function registerRegistrationRoutes(
     );
   }
   const sessionStore = options.sessionStore ?? new InMemorySessionStore();
+  // PRC-M332: resolved after the tenant/session production guards above.
+  const submitChallenge = resolveSubmitChallenge(options.submitChallenge);
 
   /**
    * POST /registrations
@@ -266,6 +371,10 @@ export async function registerRegistrationRoutes(
   if (!fastify.hasRequestDecorator('publicRegistrationTenantId')) {
     fastify.decorateRequest('publicRegistrationTenantId', undefined);
   }
+  if (!fastify.hasRequestDecorator('publicRegistrationTenantFromHost')) {
+    fastify.decorateRequest('publicRegistrationTenantFromHost', false);
+  }
+  const brandingSource = options.brandingSource ?? brandingSourceFromDecorator(fastify);
 
   // Public routes resolve tenant exclusively from raw Host through trusted DI.
   // Caller tenant and forwarding headers are deliberately ignored. Staff paths
@@ -289,6 +398,7 @@ export async function registerRegistrationRoutes(
         });
       }
       request.publicRegistrationTenantId = tenantId;
+      request.publicRegistrationTenantFromHost = Boolean(resolved);
     } catch {
       return reply.status(503).send({
         code: 'PUBLIC_REGISTRATION_CONTEXT_UNAVAILABLE',
@@ -296,6 +406,27 @@ export async function registerRegistrationRoutes(
         statusCode: 503,
       });
     }
+  });
+
+  /**
+   * GET /registrations/challenge (PRC-M332)
+   * Issue a tenant-bound proof-of-work challenge for the next submit.
+   */
+  fastify.get(`${prefix}/challenge`, async function challengeHandler(request, reply) {
+    const tenantId = publicTenantId(request);
+    if (!submitChallenge.issuer) {
+      return reply.status(404).send({
+        code: 'CHALLENGE_DISABLED',
+        message: 'No bot challenge is configured for this portal',
+        statusCode: 404,
+      });
+    }
+    const limit = throttle.challengeIssuance.hit(tenantId);
+    if (!limit.allowed) return tooManyRequests(reply, limit.retryAfterSeconds);
+    return reply
+      .status(200)
+      .header('cache-control', 'no-store')
+      .send(submitChallenge.issuer.issue(tenantId));
   });
 
   fastify.post(
@@ -316,7 +447,8 @@ export async function registerRegistrationRoutes(
       }
 
       const tenantId = publicTenantId(request);
-      // PRC-M332: optional bot challenge (CAPTCHA / proof-of-work) on submit.
+      // PRC-M332: bot challenge (self-hosted proof-of-work) on submit; mandatory
+      // by default in deployed environments.
       if (submitChallenge.required) {
         const token = request.headers['x-registration-challenge'];
         if (typeof token !== 'string' || token.length === 0 || token.length > 4096) {
@@ -713,23 +845,59 @@ export async function registerRegistrationRoutes(
    * GET /registrations/language
    * Get current language preference from session.
    * Requirement 16.5
+   *
+   * PRC-L139: a read never mints or writes a session. Without a valid, bound session the default
+   * language is returned and no session id is issued; sessions are created only by the
+   * state-changing POST.
    */
   fastify.get(
     `${prefix}/language`,
     async function getLanguageHandler(request: FastifyRequest, reply: FastifyReply) {
       const binding = clientBindingFromRequest(request);
       const { sessionId, existing } = await resolveOrMintSessionId(request, sessionStore, binding);
-      const language = existing?.data.language ?? 'en';
       if (!existing) {
-        // Mint empty session so client receives a server-issued id (not client-chosen).
-        await sessionStore.set(sessionId, {
-          data: {},
-          clientBinding: binding,
-          expiresAtMs: Date.now() + sessionTtlMs,
-        });
+        return reply.status(200).send({ language: 'en' });
       }
-
+      const language = existing.data.language ?? 'en';
       return reply.status(200).header('x-session-id', sessionId).send({ language, sessionId });
+    },
+  );
+
+  /**
+   * GET /registrations/branding
+   * PRC-M132: published tenant branding for SSR first paint. The tenant comes ONLY from the
+   * request Host through the verified host mapping (never a header, never the test fallback);
+   * an optional `slug` must equal that tenant's slug; only allow-listed brand fields are
+   * returned; reads are throttled per client.
+   */
+  fastify.get(
+    `${prefix}/branding`,
+    async function publicBrandingHandler(request: FastifyRequest, reply: FastifyReply) {
+      const notFound = () =>
+        reply.status(404).send({
+          code: 'PUBLIC_BRANDING_NOT_FOUND',
+          message: 'Branding is unavailable for this request',
+          statusCode: 404,
+        });
+      const decision = throttle.brandingPerClient.hit(request.ip || 'unknown');
+      if (!decision.allowed) return tooManyRequests(reply, decision.retryAfterSeconds);
+      if (!request.publicRegistrationTenantFromHost || !request.publicRegistrationTenantId) {
+        return notFound();
+      }
+      const record = await brandingSource(request.publicRegistrationTenantId);
+      if (!record) return notFound();
+      const slug = (request.query as { slug?: unknown } | undefined)?.slug;
+      if (
+        slug !== undefined &&
+        (typeof slug !== 'string' || slug.trim().toLowerCase() !== record.slug.toLowerCase())
+      ) {
+        return notFound();
+      }
+      return reply
+        .status(200)
+        .header('cache-control', 'public, max-age=60')
+        .header('vary', 'Host')
+        .send(toPublicBranding(record));
     },
   );
 
@@ -891,6 +1059,10 @@ export async function registerRegistrationRoutes(
           status: slot.status,
         });
       } catch (error: unknown) {
+        if (error instanceof ReferenceNotFoundError) {
+          // AD-T1: #739 safe form (fixed copy + correlation id).
+          return reply.status(error.statusCode).send(referenceNotFoundBody(error, request));
+        }
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }

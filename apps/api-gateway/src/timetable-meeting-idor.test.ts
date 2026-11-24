@@ -35,6 +35,10 @@ function appFor(
 describe('gateway timetable meetings', () => {
   it('returns 409 when a teacher is already booked, 404 across tenants, and 403 for a teacher role', async () => {
     const repository = new InMemoryTimetableRepository();
+    // PR B1: meetings resolve their section inside the tenant.
+    for (const id of [sectionA, sectionB]) {
+      repository.seedSection({ id, tenantId: tenantA, institutionId, academicPeriodId });
+    }
     const service = new TimetableService(repository);
     const schedule = await service.createBellSchedule(tenantA, {
       institutionId,

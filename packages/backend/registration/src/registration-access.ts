@@ -79,7 +79,7 @@ export function assertRegistrationAccess(roles: unknown, action: RegistrationAct
 }
 
 /**
- * Public registration surfaces (apply, tracking, school finder, language).
+ * Public registration surfaces (apply, tracking, school finder, language, branding).
  * These must remain callable without staff roles.
  */
 export function isPublicRegistrationPath(path: string): boolean {
@@ -98,6 +98,10 @@ export function isPublicRegistrationPath(path: string): boolean {
   if (under.startsWith('/schools/search')) return true;
   if (under.startsWith('/form-config/')) return true;
   if (under === '/language') return true;
+  // PRC-M132: public, Host-resolved, allow-listed branding for SSR first paint.
+  if (under === '/branding') return true;
+  // PRC-M332: bot-challenge issuance for anonymous submit.
+  if (under === '/challenge') return true;
   return false;
 }
 

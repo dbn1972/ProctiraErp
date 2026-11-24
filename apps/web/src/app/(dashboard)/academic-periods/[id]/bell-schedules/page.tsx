@@ -15,6 +15,8 @@ import { listInstitutions } from '@/lib/api/institutions';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { listBellSchedules, listPeriods } from '@/lib/api/timetable';
 import { resolveEntityLabel } from '@/lib/entity-label';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,10 @@ interface PageProps {
 }
 
 export default async function BellSchedulesPage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('academic-periods', '/academic-periods'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const academicPeriodId = params.id;
 

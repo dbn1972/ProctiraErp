@@ -22,20 +22,20 @@ describe('resolveRedirectBase (PRC-L225)', () => {
     get: (name: string) => h[name.toLowerCase()] ?? null,
   });
 
-  it('prefers X-Forwarded-Host/Proto over the internal request origin', () => {
+  it('uses the forwarded host only in local/dev, never in a deployed env', () => {
     const base = resolveRedirectBase(
       'http://0.0.0.0:3002/track/lookup',
       headers({ 'x-forwarded-host': 'apply.school.example', 'x-forwarded-proto': 'https' }),
-      {},
+      { NODE_ENV: 'development' },
     );
     expect(base.origin).toBe('https://apply.school.example');
   });
 
-  it('defaults forwarded proto to https when absent', () => {
+  it('defaults forwarded proto to https when absent (local/dev)', () => {
     const base = resolveRedirectBase(
       'http://0.0.0.0:3002/track/lookup',
       headers({ 'x-forwarded-host': 'apply.school.example' }),
-      {},
+      { NODE_ENV: 'development' },
     );
     expect(base.origin).toBe('https://apply.school.example');
   });
@@ -48,7 +48,9 @@ describe('resolveRedirectBase (PRC-L225)', () => {
   });
 
   it('falls back to the request URL for local/dev', () => {
-    const base = resolveRedirectBase('http://localhost:3002/track/lookup', headers({}), {});
+    const base = resolveRedirectBase('http://localhost:3002/track/lookup', headers({}), {
+      NODE_ENV: 'development',
+    });
     expect(base.origin).toBe('http://localhost:3002');
   });
 });

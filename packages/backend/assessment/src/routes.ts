@@ -24,8 +24,12 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { assessmentAuditContextOf } from './assessment-audit.js';
-import { installAssessmentRouteGuard } from './assessment-http-guard.js';
-import type { AssessmentService } from './assessment-service.js';
+import { installAssessmentRouteGuard, requireAssessmentAction } from './assessment-http-guard.js';
+import {
+  requireAssessmentOwnership,
+  type AssessmentTeachingScope,
+} from './assessment-ownership.js';
+import { ReferenceNotFoundError, type AssessmentService } from './assessment-service.js';
 import {
   CreateGradingSchemeSchema,
   UpdateGradingSchemeSchema,
@@ -45,6 +49,11 @@ import {
   type OutcomeParams,
 } from './schemas.js';
 
+/** M4-P3 / #739: fixed copy plus the request's correlation id, as the gateway's FK mapping. */
+function sendReferenceNotFound(reply: FastifyReply, error: ReferenceNotFoundError) {
+  return reply.status(422).send({ ...error.toJSON(), correlationId: String(reply.request.id) });
+}
+
 /**
  * Options for registering assessment routes.
  */
@@ -56,6 +65,8 @@ export interface AssessmentRoutesOptions {
   assessmentItemsPrefix?: string;
   /** Route prefix for outcomes (default: '/outcomes') */
   outcomesPrefix?: string;
+  /** PRC-M160: teacher -> subject ownership lookup (gateway Postgres directory). */
+  teachingScope?: AssessmentTeachingScope | null;
 }
 
 /**
@@ -162,6 +173,7 @@ export async function registerAssessmentRoutes(
     gradingSchemesPrefix = '/grading-schemes',
     assessmentItemsPrefix = '/assessment-items',
     outcomesPrefix = '/outcomes',
+    teachingScope = null,
   } = options;
 
   // ─── Grading Scheme Routes ─────────────────────────────────────────────
@@ -176,6 +188,7 @@ export async function registerAssessmentRoutes(
       request: FastifyRequest<{ Body: CreateGradingSchemeInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireAssessmentAction(request, reply, 'assessment.configure')) return;
       const result = validate(CreateGradingSchemeSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -310,6 +323,7 @@ export async function registerAssessmentRoutes(
       request: FastifyRequest<{ Params: GradingSchemeParams; Body: UpdateGradingSchemeInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireAssessmentAction(request, reply, 'assessment.configure')) return;
       const paramsResult = validate(GradingSchemeParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -366,6 +380,7 @@ export async function registerAssessmentRoutes(
       request: FastifyRequest<{ Params: GradingSchemeParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireAssessmentAction(request, reply, 'assessment.configure')) return;
       const paramsResult = validate(GradingSchemeParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -432,6 +447,12 @@ export async function registerAssessmentRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          subjectIds: [result.data.subjectId],
+        }))
+      )
+        return;
 
       try {
         const items = await assessmentService.defineAssessmentItems(
@@ -448,6 +469,7 @@ export async function registerAssessmentRoutes(
           items: items.map(formatAssessmentItemResponse),
         });
       } catch (error: unknown) {
+        if (error instanceof ReferenceNotFoundError) return sendReferenceNotFound(reply, error);
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -536,11 +558,18 @@ export async function registerAssessmentRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          subjectIds: [result.data.subjectId],
+        }))
+      )
+        return;
 
       try {
         const outcome = await assessmentService.createOutcome(tenantId, result.data);
         return reply.status(201).send(formatOutcomeResponse(outcome));
       } catch (error: unknown) {
+        if (error instanceof ReferenceNotFoundError) return sendReferenceNotFound(reply, error);
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
         }
@@ -596,6 +625,7 @@ export async function registerAssessmentRoutes(
       request: FastifyRequest<{ Params: OutcomeParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireAssessmentAction(request, reply, 'assessment.configure')) return;
       const paramsResult = validate(OutcomeParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({

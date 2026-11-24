@@ -57,6 +57,13 @@ export interface AuditLogEntry {
   chainSeq: number | null;
   prevHash: string | null;
   entryHash: string | null;
+  /**
+   * PRC-M200 keyed chain. Identifies the HMAC key that signed `entryHash`.
+   * `null` on legacy rows written before the keyed cut-over (whose `entryHash`
+   * is the unkeyed sha256 of {@link computeEntryHash}); every row sealed after
+   * the cut-over carries a non-null key id and an HMAC `entryHash`.
+   */
+  keyId?: string | null;
 }
 
 /**

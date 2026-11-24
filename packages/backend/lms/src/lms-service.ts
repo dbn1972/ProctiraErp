@@ -14,6 +14,7 @@ import {
   BusinessRuleError,
   ConflictError,
   ErrorCode,
+  isProductionLike,
   NotFoundError,
   ValidationError,
   type PaginatedResult,
@@ -374,18 +375,77 @@ export interface LmsAuditEntry {
  */
 export type LmsAuditSink = (entry: LmsAuditEntry) => Promise<void>;
 
+/**
+ * PRC-M299: learner -> enrolment (topic 3 Option A). Answers whether a learner
+ * principal (JWT sub) is ENROLLED in a section or an institution. The gateway
+ * wires a Postgres directory over section_enrollments / enrollments.
+ */
+export interface LmsLearnerMembership {
+  inSection(tenantId: string, learnerUserId: string, sectionId: string): Promise<boolean>;
+  inInstitution(tenantId: string, learnerUserId: string, institutionId: string): Promise<boolean>;
+}
+
 export interface LmsServiceOptions {
   auditSink?: LmsAuditSink | null;
+  /** PRC-M299: omitted -> production-like envs refuse learner writes (503). */
+  learnerMembership?: LmsLearnerMembership | null;
+  /** Defaults to process.env.NODE_ENV (tests override). */
+  nodeEnv?: string;
 }
 
 export class LmsService {
   private readonly auditSink: LmsAuditSink | null;
+
+  private readonly learnerMembership: LmsLearnerMembership | null;
+  private readonly nodeEnv: string | undefined;
 
   constructor(
     private readonly repository: LmsRepository,
     options: LmsServiceOptions = {},
   ) {
     this.auditSink = options.auditSink ?? null;
+    this.learnerMembership = options.learnerMembership ?? null;
+    this.nodeEnv = 'nodeEnv' in options ? options.nodeEnv : process.env.NODE_ENV;
+  }
+
+  /**
+   * PRC-M299: a learner (non-staff) acts on a section's / school's work only
+   * when ENROLLED there: the section when the target names one, otherwise its
+   * institution. Board/tenant-wide targets with neither have no class binding.
+   */
+  private async assertLearnerMember(
+    tenantId: string,
+    actor: LmsActor,
+    target: { sectionId?: string | null; institutionId?: string | null },
+  ): Promise<void> {
+    if (canAuthor(actor)) return;
+    const sectionId = target.sectionId ?? null;
+    const institutionId = target.institutionId ?? null;
+    if (!sectionId && !institutionId) return;
+    const membership = this.learnerMembership;
+    if (!membership) {
+      if (isProductionLike(this.nodeEnv)) {
+        throw new AppError(
+          'Learner enrolment lookup is not configured; learner actions are unavailable',
+          'SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+      return;
+    }
+    const userId = actor.userId;
+    const member =
+      !!userId &&
+      (sectionId
+        ? await membership.inSection(tenantId, userId, sectionId)
+        : await membership.inInstitution(tenantId, userId, institutionId!));
+    if (!member) {
+      throw new ForbiddenError(
+        sectionId
+          ? 'You are not enrolled in the section of this work'
+          : 'You are not enrolled in this school',
+      );
+    }
   }
 
   /** PRC-M527: no sink configured means no behaviour change. */
@@ -729,6 +789,7 @@ export class LmsService {
     const assignment = await this.requireAssignment(tenantId, assignmentId, actor);
     assertOwnLearnerRecord(actor, input.studentId, 'Students can only submit their own work');
     assertInstitutionAllowed(actor, input.institutionId);
+    await this.assertLearnerMember(tenantId, actor, assignment);
     if (assignment.status !== 'published') {
       throw new BusinessRuleError('Assignment is not open for submissions');
     }
@@ -1426,13 +1487,14 @@ export class LmsService {
     input: UploadFileInput,
     actor: LmsActor,
   ): Promise<AssignmentFileEntity> {
-    await this.requireAssignment(tenantId, assignmentId, actor);
+    const assignment = await this.requireAssignment(tenantId, assignmentId, actor);
     if (input.submissionId) {
       const sub = await this.repository.findSubmissionById(tenantId, input.submissionId);
       if (!sub) throw new NotFoundError('Submission not found');
       if (isLearner(actor) && sub.studentId !== actor.userId) {
         throw new ForbiddenError('Students can only upload to their own submission');
       }
+      await this.assertLearnerMember(tenantId, actor, assignment);
     } else if (!canAuthor(actor)) {
       throw new ForbiddenError('Only staff can attach files to an assignment');
     }
@@ -1609,6 +1671,7 @@ export class LmsService {
     if (discussion.locked && !canAuthor(actor)) {
       throw new ForbiddenError('This discussion is locked');
     }
+    await this.assertLearnerMember(tenantId, actor, { institutionId: discussion.institutionId });
     if (input.parentId) {
       const parent = await this.repository.findDiscussionPost(tenantId, input.parentId);
       if (!parent || parent.discussionId !== discussionId) {

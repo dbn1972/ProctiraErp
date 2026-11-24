@@ -38,6 +38,17 @@ ingress:
     enabled: true
     secretName: proctira-prod-tls
 
+# PRC-L565: the Route 53 DNS-01 ClusterIssuer stays DISABLED in production
+# until the hosted zone ID and the IRSA role ARN are provisioned (decision
+# register ## 41, Topic 25 — WAITING_ON_INPUT). Production keeps using the
+# externally-managed `letsencrypt-prod` ClusterIssuer referenced by the
+# ingress annotation. Flip `enabled: true` and fill `hostedZoneID` + the
+# `role.roleArn` together, then repoint `ingress.annotations.cert-manager.io/
+# cluster-issuer` at `certManager.clusterIssuer.name`.
+certManager:
+  clusterIssuer:
+    enabled: false
+
 # PRC-M523/M522: production NetworkPolicy. The datastore egress rule stays
 # the public-443 ipBlock below because production's actual datastore network
 # location (in-cluster vs. managed/VPC-peered RDS/ElastiCache per
@@ -216,41 +227,7 @@ developerPortal:
     minAvailable: 1
 
 # -- Backend domain services (W1-OPS-16: disabled in production; lab-only templates)
-institutionService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-    targetMemoryUtilizationPercentage: 75
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
 studentService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-    targetMemoryUtilizationPercentage: 75
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
-staffService:
   enabled: false
   replicaCount: 3
   autoscaling:
@@ -283,22 +260,6 @@ assessmentService:
       cpu: '2'
       memory: 1Gi
 
-attendanceService:
-  enabled: false
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 12
-    targetCPUUtilizationPercentage: 65
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '2'
-      memory: 1Gi
-
 examinationService:
   enabled: false
   replicaCount: 2
@@ -314,38 +275,6 @@ examinationService:
     limits:
       cpu: '2'
       memory: 1Gi
-
-workflowService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-  resources:
-    requests:
-      cpu: 300m
-      memory: 512Mi
-    limits:
-      cpu: '1'
-      memory: 1Gi
-
-notificationService:
-  enabled: false
-  replicaCount: 2
-  autoscaling:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 8
-    targetCPUUtilizationPercentage: 70
-  resources:
-    requests:
-      cpu: 200m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
 
 reportService:
   enabled: false
@@ -447,6 +376,9 @@ dr:
   image:
     tag: sha-pending
   backup:
+    # PRC-M624 (DECISION_REGISTER ## 41): 35-day production retention floor for
+    # both the on-volume prune and the independent offsite Object Lock.
+    retentionDays: 35
     encrypt:
       enabled: true
     offsite:
@@ -455,7 +387,13 @@ dr:
       uri: s3://proctira-prod-pg-backups/logical/
       sse: AES256
       objectLock:
+        # PRC-M624: GOVERNANCE for the first 30 days after go-live, then
+        # COMPLIANCE. pg-backup.sh flips the mode once today's UTC date reaches
+        # governanceUntil (set it to go-live + 30 days). While governanceUntil
+        # is empty the pipeline keeps this GOVERNANCE value (WAITING_ON_INPUT:
+        # the production go-live date is not yet known).
         mode: GOVERNANCE
-        retainDays: 30
+        governanceUntil: '' # YYYY-MM-DD; go-live + 30 days
+        retainDays: 35
   phiRetention:
     apply: true

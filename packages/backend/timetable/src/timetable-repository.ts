@@ -206,6 +206,11 @@ export interface TimetableRepository {
 
   listRooms(tenantId: string, filter?: ListRoomsFilter): Promise<RoomEntity[]>;
   getRoom(tenantId: string, id: string): Promise<RoomEntity | null>;
+  /**
+   * FKB-094: true when the subject exists (not deleted) in this tenant. Another tenant's
+   * subject and an unknown id both answer false.
+   */
+  subjectExists(tenantId: string, id: string): Promise<boolean>;
   createRoom(row: RoomEntity): Promise<RoomEntity>;
 
   listSections(tenantId: string, filter?: ListSectionsFilter): Promise<SectionEntity[]>;

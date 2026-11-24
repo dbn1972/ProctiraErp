@@ -3,7 +3,6 @@
  */
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { FEE_LIST_PAGE_SIZE, listFeePlansResult, listInvoicesPageResult } from '@/lib/api/fees';
 import {
   buildHref,
@@ -25,6 +24,8 @@ import { RefundDialog } from '../_components/refund-dialog';
 import { getLocale } from 'next-intl/server';
 
 import { formatAmount } from '../_components/format-amount';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,10 @@ export default async function FeesInvoicesPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
-  await requireSession();
+  // A-batch: check before any fees read.
+  if (!(await hasDashboardDomainRouteAccess('fees', '/fees'))) {
+    return <RouteAccessDenied />;
+  }
   const locale = await getLocale();
   const params = (await searchParams) ?? {};
   const page = readPage(params);

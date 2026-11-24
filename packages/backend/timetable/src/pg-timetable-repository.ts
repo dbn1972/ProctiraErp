@@ -3,6 +3,7 @@
  * Aligns with db/sql/003_sis_timetable_schedule_schema.sql:
  *   bell_schedules, bell_periods, section_meetings, substitutions, rooms, sections
  */
+import { NotFoundError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type pg from 'pg';
 
@@ -56,6 +57,40 @@ async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
   } catch (error) {
     if (isUndefinedTable(error)) {
       throw new TimetableSchemaMissingError();
+    }
+    throw error;
+  }
+}
+
+/** `<child>_<column>` -> [parent label, caller-supplied id] for {@link withParentFkAs404}. */
+type ParentRefs = Record<string, readonly [string, string | null | undefined]>;
+
+function meetingParentRefs(row: Partial<SectionMeetingEntity>): ParentRefs {
+  return {
+    section_meetings_bell_period_id: ['Bell period', row.periodId],
+    section_meetings_room_id: ['Room', row.roomId],
+    section_meetings_section_id: ['Section', row.sectionId],
+    section_meetings_subject_id: ['Subject', row.subjectId],
+  };
+}
+
+/**
+ * FKB-091..094/FKB-096: a parent FK violation (id-only `_fkey` or tenant-composite
+ * `_tenant_fk`, e.g. a parent deleted after the service lookup) becomes the same 404 the
+ * tenant-scoped lookup gives. Other FKs (staff, tenant) are rethrown unchanged and keep the
+ * route's 23503 mapping.
+ */
+async function withParentFkAs404<T>(parents: ParentRefs, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    const pgErr = error as { code?: string; constraint?: string } | null;
+    if (pgErr?.code === '23503') {
+      const key = /^(.*)_(fkey|tenant_fk)$/.exec(String(pgErr.constraint ?? ''))?.[1];
+      const parent = key ? parents[key] : undefined;
+      if (parent?.[1]) {
+        throw new NotFoundError(`${parent[0]} with id '${parent[1]}' not found`);
+      }
     }
     throw error;
   }
@@ -628,7 +663,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createMeeting(row: SectionMeetingEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(row.tenantId, MEETING_INSERT_SQL, meetingInsertParams(row));
+      const result = await withParentFkAs404(meetingParentRefs(row), () =>
+        this.query(row.tenantId, MEETING_INSERT_SQL, meetingInsertParams(row)),
+      );
       const inserted = result.rows[0] as Record<string, unknown>;
       // Re-read with join for institution/period denorm fields.
       const full = await this.getMeeting(row.tenantId, String(inserted.id));
@@ -674,7 +711,9 @@ export class PgTimetableRepository implements TimetableRepository {
         );
         const existing = (existingResult.rows as Record<string, unknown>[]).map(mapMeeting);
         await clashCheck(existing);
-        const inserted = await client.query(MEETING_INSERT_SQL, meetingInsertParams(candidate));
+        const inserted = await withParentFkAs404(meetingParentRefs(candidate), () =>
+          client.query(MEETING_INSERT_SQL, meetingInsertParams(candidate)),
+        );
         const insertedRow = inserted.rows[0] as Record<string, unknown>;
         const fullResult = await client.query(
           `${MEETING_SELECT} WHERE sm.tenant_id = $1 AND sm.id = $2 AND sm.deleted_at IS NULL`,
@@ -729,7 +768,9 @@ export class PgTimetableRepository implements TimetableRepository {
             (existingResult.rows as Record<string, unknown>[]).map(mapMeeting),
             candidate,
           );
-          const inserted = await client.query(MEETING_INSERT_SQL, meetingInsertParams(candidate));
+          const inserted = await withParentFkAs404(meetingParentRefs(candidate), () =>
+            client.query(MEETING_INSERT_SQL, meetingInsertParams(candidate)),
+          );
           const insertedRow = inserted.rows[0] as Record<string, unknown>;
           const fullResult = await client.query(
             `${MEETING_SELECT} WHERE sm.tenant_id = $1 AND sm.id = $2 AND sm.deleted_at IS NULL`,
@@ -799,7 +840,9 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(opts.expectedUpdatedAt);
         sql += ` AND updated_at = $11::timestamptz`;
       }
-      const result = await this.query(tenantId, sql, params);
+      const result = await withParentFkAs404(meetingParentRefs(patch), () =>
+        this.query(tenantId, sql, params),
+      );
       if ((result.rowCount ?? 0) === 0) {
         const again = await this.getMeeting(tenantId, id);
         if (!again) return null;
@@ -937,6 +980,17 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
+  async subjectExists(tenantId: string, id: string) {
+    return withSchemaCheck(async () => {
+      const result = await this.query(
+        tenantId,
+        `SELECT 1 FROM subjects WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+        [tenantId, id],
+      );
+      return result.rows.length > 0;
+    });
+  }
+
   async createRoom(row: RoomEntity) {
     return withSchemaCheck(async () => {
       const result = await this.query(
@@ -1003,7 +1057,10 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createSection(row: SectionEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(row.tenantId, SECTION_INSERT_SQL, sectionInsertParams(row));
+      const result = await withParentFkAs404(
+        { sections_default_room_id: ['Room', row.defaultRoomId] },
+        () => this.query(row.tenantId, SECTION_INSERT_SQL, sectionInsertParams(row)),
+      );
       return mapSection(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -1056,7 +1113,10 @@ export class PgTimetableRepository implements TimetableRepository {
         sql += ` AND updated_at = $12::timestamptz`;
       }
       sql += ` RETURNING *`;
-      const result = await this.query(tenantId, sql, params);
+      const result = await withParentFkAs404(
+        { sections_default_room_id: ['Room', patch.defaultRoomId] },
+        () => this.query(tenantId, sql, params),
+      );
       if ((result.rowCount ?? 0) === 0) {
         const again = await this.getSection(tenantId, id);
         if (!again) return null;

@@ -46,13 +46,13 @@ export function isBlobNotFound(err: unknown): boolean {
 
 export interface StudentBlobStore {
   put(key: string, data: Buffer, contentType: string, tenantId: string): Promise<string>;
-  get(key: string): Promise<Buffer | null>;
-  getSignedUrl?(key: string, expiresIn?: number): Promise<string | null>;
+  get(key: string, tenantId: string): Promise<Buffer | null>;
+  getSignedUrl?(key: string, tenantId: string, expiresIn?: number): Promise<string | null>;
   /**
    * PRC-M386: remove a blob (erasure / orphan compensation). Missing objects
    * are a no-op; backend failures throw {@link StudentBlobStorageError}.
    */
-  delete(key: string): Promise<void>;
+  delete(key: string, tenantId: string): Promise<void>;
 }
 
 export class InMemoryStudentBlobStore implements StudentBlobStore {
@@ -89,7 +89,7 @@ export class LocalDiskStudentBlobStore implements StudentBlobStore {
     return key;
   }
 
-  async get(key: string): Promise<Buffer | null> {
+  async get(key: string, _tenantId?: string): Promise<Buffer | null> {
     try {
       return await readFile(this.pathFor(key));
     } catch (err) {
@@ -97,7 +97,7 @@ export class LocalDiskStudentBlobStore implements StudentBlobStore {
       throw new StudentBlobStorageError();
     }
   }
-  async delete(key: string): Promise<void> {
+  async delete(key: string, _tenantId?: string): Promise<void> {
     try {
       await rm(this.pathFor(key));
     } catch (err) {
@@ -119,9 +119,9 @@ export class StorageAdapterStudentBlobStore implements StudentBlobStore {
     return result.key;
   }
 
-  async get(key: string): Promise<Buffer | null> {
+  async get(key: string, tenantId: string): Promise<Buffer | null> {
     try {
-      const stream = await this.adapter.download(key);
+      const stream = await this.adapter.download(key, tenantId);
       return await streamToBuffer(stream);
     } catch (err) {
       if (isBlobNotFound(err)) return null;
@@ -129,17 +129,21 @@ export class StorageAdapterStudentBlobStore implements StudentBlobStore {
     }
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string, tenantId: string): Promise<void> {
     try {
-      await this.adapter.delete(key);
+      await this.adapter.delete(key, tenantId);
     } catch (err) {
       if (isBlobNotFound(err)) return;
       throw new StudentBlobStorageError();
     }
   }
-  async getSignedUrl(key: string, expiresIn = SIGNED_URL_TTL_SECONDS): Promise<string | null> {
+  async getSignedUrl(
+    key: string,
+    tenantId: string,
+    expiresIn = SIGNED_URL_TTL_SECONDS,
+  ): Promise<string | null> {
     try {
-      return await this.adapter.getSignedUrl(key, expiresIn);
+      return await this.adapter.getSignedUrl(key, expiresIn, tenantId);
     } catch {
       return null;
     }

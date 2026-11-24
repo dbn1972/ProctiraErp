@@ -34,7 +34,7 @@ export {
   hasCurriculumAccess,
   normalizeCurriculumRoles,
 } from './curriculum-access.js';
-export type { CurriculumAction } from './curriculum-access.js';
+export type { CurriculumAction, CurriculumTeachingScope } from './curriculum-access.js';
 export {
   curriculumActionForMethod,
   curriculumRequestRoles,

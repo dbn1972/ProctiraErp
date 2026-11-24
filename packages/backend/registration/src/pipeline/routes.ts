@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { parseListPage } from '../pagination.js';
 import { enforceAdmissionsRouteAccess } from '../registration-http-guard.js';
+import { ReferenceNotFoundError, referenceNotFoundBody } from '../tenant-references.js';
 
 import type { AdmissionsPipelineService } from './pipeline-service.js';
 import {
@@ -41,6 +42,10 @@ function tenantOf(request: FastifyRequest): string | null {
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
+  if (error instanceof ReferenceNotFoundError) {
+    // AD-T1: #739 safe form (fixed copy + correlation id).
+    return reply.status(error.statusCode).send(referenceNotFoundBody(error, reply.request));
+  }
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
   }

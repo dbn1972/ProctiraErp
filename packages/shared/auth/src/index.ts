@@ -55,6 +55,43 @@ export type {
   AreaHierarchyResolver,
 } from './rbac.js';
 
+// JWKS access-token verification for BFF/console shells (PRC-L254, PRC-L202)
+export {
+  createJwksVerifier,
+  decodeJwtUnverified,
+  loadJwksVerifierConfig,
+  resolveShellTokenVerification,
+  verifyShellAccessToken,
+  JwksTokenError,
+  __resetShellTokenVerifierCache,
+} from './jwks-verifier.js';
+export type {
+  JwksVerifier,
+  JwksVerifierConfig,
+  JwksTokenErrorCode,
+  ShellTokenResult,
+  ShellTokenVerification,
+  VerifiedJwtClaims,
+  VerifyOptions,
+} from './jwks-verifier.js';
+// Hostel / transport staff grants shared by the gateway and web registries (H-D2, T-O1)
+export {
+  applyCampusDomainRoleGrants,
+  CAMPUS_BASE_READ_ROLE_IDS,
+  CAMPUS_DOMAIN_ROLE_GRANTS,
+  CAMPUS_READ_ONLY_ROLE_IDS,
+  HOSTEL_STAFF_ROLE_IDS,
+  TRANSPORT_STAFF_ROLE_IDS,
+} from './campus-domain-roles.js';
+export type { CampusDomainRoleGrant } from './campus-domain-roles.js';
+// Finance role fees grants shared by the gateway and web registries (F-D3)
+export {
+  applyFeesDomainRoleGrants,
+  FEES_BASE_READ_ROLE_IDS,
+  FEES_DOMAIN_ROLE_GRANTS,
+  FEES_READ_ONLY_ROLE_IDS,
+  FEES_STAFF_ROLE_IDS,
+} from './fees-domain-roles.js';
 // Password strength scoring (Task 49.6)
 export { scorePassword, scorePasswordDetails } from './scorePassword.js';
 export type {

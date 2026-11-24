@@ -12,7 +12,10 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import {
+  canonicalizeDocumentTenantId,
+  DocumentOwnershipConflictError,
   PgDocumentCollection,
+  withPgTenant,
   withPlatformScope,
   type PgPoolWithConnect,
   type PgQueryable,
@@ -21,8 +24,13 @@ import {
 import type { BuiltInRoleSeed } from './in-memory-roles-repository.js';
 import type {
   RoleEntity,
+  RolesAuditDirective,
   RolesRepository,
+  RolesTxnAuditEvent,
+  RolesTxnAuditPort,
   UserListFilter,
+  UserQuery,
+  UserQueryWindow,
   UserRecord,
 } from './roles-repository.js';
 
@@ -48,6 +56,25 @@ function toDoc(entity: RoleEntity): RoleDoc {
   };
 }
 
+/** PRC-M026: JSON keys of the matchable user attributes (fixed; never user input). */
+const PG_USER_ATTRIBUTE = {
+  email: 'email',
+  externalId: 'externalId',
+  displayName: 'displayName',
+} as const satisfies Record<Exclude<NonNullable<UserQuery['match']>['attribute'], 'id'>, string>;
+
+/** PRC-L171: true when a stored built-in role differs from its current seed. */
+export function builtInDrifted(
+  stored: { name: string; permissions: Array<{ resource: string; action: string }> },
+  def: BuiltInRoleSeed,
+): boolean {
+  if (stored.name !== def.roleName) return true;
+  const key = (p: { resource: string; action: string }) => `${p.resource}:${p.action}`;
+  const have = new Set(stored.permissions.map(key));
+  const want = new Set(def.permissions.map(key));
+  return have.size !== want.size || [...want].some((k) => !have.has(k));
+}
+
 export class PgRolesRepository implements RolesRepository {
   private readonly roles: PgDocumentCollection<RoleDoc>;
   private readonly users: PgDocumentCollection<UserRecord>;
@@ -60,14 +87,82 @@ export class PgRolesRepository implements RolesRepository {
   private readonly userEmailGuards: PgDocumentCollection<{ userId: string }>;
   private readonly seeded = new Set<string>();
 
+  /**
+   * PRC-L264: when set, role/user mutations append their high-risk audit row on
+   * the same transaction client as the document write (see
+   * {@link supportsTransactionalAudit}).
+   */
+  private readonly txnAudit?: RolesTxnAuditPort;
+
   constructor(
     private readonly pool: PgPoolWithConnect | PgQueryable,
     private readonly seed: BuiltInRoleSeed[] = [],
+    txnAudit?: RolesTxnAuditPort,
   ) {
     this.roles = new PgDocumentCollection<RoleDoc>(pool, 'tenant.roles');
     this.users = new PgDocumentCollection<UserRecord>(pool, 'tenant.users');
     this.roleNameGuards = new PgDocumentCollection<{ roleId: string }>(pool, 'tenant.role_names');
     this.userEmailGuards = new PgDocumentCollection<{ userId: string }>(pool, 'tenant.user_emails');
+    this.txnAudit = txnAudit;
+  }
+
+  /** PRC-L264: the Postgres repository writes audit rows in the mutation's txn. */
+  get supportsTransactionalAudit(): boolean {
+    return Boolean(this.txnAudit);
+  }
+
+  /**
+   * PRC-L264: append the high-risk audit row on the same transaction `client`
+   * as the mutation. No-op when no port is wired or no directive was supplied
+   * (the caller then keeps the post-hoc path). A throw here rolls the whole
+   * transaction back, so the mutation cannot commit unaudited.
+   */
+  private async appendAuditInTxn(
+    client: PgQueryable,
+    tenantId: string,
+    entityType: 'role' | 'user',
+    entityId: string,
+    operation: RolesTxnAuditEvent['operation'],
+    audit: RolesAuditDirective | undefined,
+  ): Promise<void> {
+    if (!this.txnAudit || !audit) return;
+    const event: RolesTxnAuditEvent = {
+      tenantId,
+      entityType,
+      entityId,
+      operation,
+      beforeValues: audit.beforeValues,
+      afterValues: audit.afterValues,
+      metadata: audit.metadata,
+      actorId: audit.actorId,
+      ipAddress: audit.ipAddress,
+      requestId: audit.requestId,
+    };
+    await this.txnAudit.appendAuditInTxn(client, event);
+  }
+
+  /**
+   * PRC-H116: tenant-owned upsert of a `control_plane_documents` row on the
+   * caller's transaction client (same SQL as `PgDocumentCollection.put`, so an
+   * existing row owned by a different scope is never re-parented).
+   */
+  private async putDocInTxn(
+    client: PgQueryable,
+    collection: string,
+    id: string,
+    owner: string,
+    data: unknown,
+  ): Promise<void> {
+    const res = await client.query(
+      `INSERT INTO control_plane_documents (collection, id, tenant_id, data)
+       VALUES ($1, $2, $3, $4::jsonb)
+       ON CONFLICT (collection, id)
+       DO UPDATE SET data = EXCLUDED.data, updated_at = now()
+       WHERE control_plane_documents.tenant_id IS NOT DISTINCT FROM EXCLUDED.tenant_id
+       RETURNING id`,
+      [collection, id, owner, JSON.stringify(data)],
+    );
+    if (!res.rows[0]) throw new DocumentOwnershipConflictError(collection, id);
   }
 
   private roleNameGuardId(tenantId: string, name: string): string {
@@ -87,7 +182,7 @@ export class PgRolesRepository implements RolesRepository {
     const now = new Date().toISOString();
     for (const def of this.seed) {
       const id = `${tenantId}::${def.roleId}`;
-      await this.roles.insertIfAbsent(
+      const stored = await this.roles.insertIfAbsent(
         id,
         {
           id,
@@ -102,6 +197,20 @@ export class PgRolesRepository implements RolesRepository {
         },
         tenantId,
       );
+      // PRC-L171: built-in roles are read-only, so the current seed is authoritative.
+      // A tenant seeded by an older release gets the built-in's new name / permissions.
+      if (stored.builtIn && builtInDrifted(stored, def)) {
+        await this.roles.put(
+          id,
+          {
+            ...stored,
+            name: def.roleName,
+            permissions: def.permissions.map((p) => ({ ...p })),
+            updatedAt: now,
+          },
+          tenantId,
+        );
+      }
     }
     this.seeded.add(tenantId);
   }
@@ -142,6 +251,7 @@ export class PgRolesRepository implements RolesRepository {
    */
   async createRoleIfNameAbsent(
     data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>,
+    audit?: RolesAuditDirective,
   ): Promise<RoleEntity | null> {
     await this.ensureSeeded(data.tenantId);
     const guardId = this.roleNameGuardId(data.tenantId, data.name);
@@ -153,6 +263,18 @@ export class PgRolesRepository implements RolesRepository {
     if (winner.roleId !== data.id) return null;
     const now = new Date();
     const entity: RoleEntity = { ...data, createdAt: now, updatedAt: now };
+    // PRC-L264: when a txn-audit port is wired, write the role document and its
+    // high-risk audit row in ONE transaction. The name guard above is a
+    // separate atomic reservation (released on rollback-less delete); the role
+    // row + audit row are the pair that must commit atomically.
+    if (this.supportsTransactionalAudit && audit) {
+      const owner = canonicalizeDocumentTenantId(entity.tenantId);
+      await withPgTenant(this.pool, owner, async (client) => {
+        await this.putDocInTxn(client, 'tenant.roles', entity.id, owner, toDoc(entity));
+        await this.appendAuditInTxn(client, owner, 'role', entity.id, 'CREATE', audit);
+      });
+      return entity;
+    }
     await this.roles.put(entity.id, toDoc(entity), entity.tenantId);
     return entity;
   }
@@ -161,6 +283,7 @@ export class PgRolesRepository implements RolesRepository {
     tenantId: string,
     id: string,
     data: Partial<Omit<RoleEntity, 'id' | 'tenantId' | 'builtIn' | 'createdAt' | 'updatedAt'>>,
+    audit?: RolesAuditDirective,
   ): Promise<RoleEntity | null> {
     const existing = await this.findRoleById(tenantId, id);
     if (!existing) return null;
@@ -172,14 +295,35 @@ export class PgRolesRepository implements RolesRepository {
         : existing.permissions,
       updatedAt: new Date(),
     };
+    if (this.supportsTransactionalAudit && audit) {
+      const owner = canonicalizeDocumentTenantId(tenantId);
+      await withPgTenant(this.pool, owner, async (client) => {
+        await this.putDocInTxn(client, 'tenant.roles', id, owner, toDoc(next));
+        await this.appendAuditInTxn(client, owner, 'role', id, 'UPDATE', audit);
+      });
+      return next;
+    }
     await this.roles.put(id, toDoc(next), tenantId);
     return next;
   }
 
-  async deleteRole(tenantId: string, id: string): Promise<boolean> {
+  async deleteRole(tenantId: string, id: string, audit?: RolesAuditDirective): Promise<boolean> {
     const existing = await this.findRoleById(tenantId, id);
     if (!existing) return false;
-    await this.roles.delete(id, { tenantId });
+    if (this.supportsTransactionalAudit && audit) {
+      // PRC-L264: the role deletion and its audit row commit atomically.
+      const owner = canonicalizeDocumentTenantId(tenantId);
+      await withPgTenant(this.pool, owner, async (client) => {
+        await client.query(
+          `DELETE FROM control_plane_documents
+            WHERE collection = 'tenant.roles' AND id = $1 AND tenant_id IS NOT DISTINCT FROM $2`,
+          [id, owner],
+        );
+        await this.appendAuditInTxn(client, owner, 'role', id, 'DELETE', audit);
+      });
+    } else {
+      await this.roles.delete(id, { tenantId });
+    }
     // PRC-L371: release the name guard (idempotent) so the name can be reused.
     await this.roleNameGuards.delete(this.roleNameGuardId(tenantId, existing.name), { tenantId });
     const users = await this.users.byTenant(tenantId);
@@ -202,26 +346,107 @@ export class PgRolesRepository implements RolesRepository {
     filter: UserListFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<UserRecord>> {
-    let rows = await this.users.byTenant(tenantId);
-    if (filter.search?.trim()) {
-      const q = filter.search.trim().toLowerCase();
-      rows = rows.filter(
-        (u) => u.email.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q),
+    // PRC-L171: filter, order and page in SQL on the tenant-bound connection
+    // instead of loading the tenant's whole user directory per request.
+    const page = Math.max(1, Math.trunc(pagination.page ?? 1));
+    const pageSize = Math.max(1, Math.trunc(pagination.pageSize ?? 20));
+    const owner = canonicalizeDocumentTenantId(tenantId);
+    const params: unknown[] = [owner];
+    const where = [`collection = 'tenant.users'`, `tenant_id = $1`];
+    const search = filter.search?.trim().toLowerCase();
+    if (search) {
+      params.push(`%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      where.push(
+        `(lower(COALESCE(data->>'email', '')) LIKE $${params.length}
+          OR lower(COALESCE(data->>'displayName', '')) LIKE $${params.length})`,
       );
     }
-    if (filter.roleId) rows = rows.filter((u) => u.roleIds.includes(filter.roleId!));
-    if (filter.status) rows = rows.filter((u) => u.status === filter.status);
-    rows.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    if (filter.roleId) {
+      params.push(filter.roleId);
+      where.push(`(data->'roleIds') ? $${params.length}`);
+    }
+    if (filter.status) {
+      params.push(filter.status);
+      where.push(`data->>'status' = $${params.length}`);
+    }
+    const whereSql = where.join(' AND ');
+    return withPgTenant(this.pool, owner, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM control_plane_documents WHERE ${whereSql}`,
+        params,
+      );
+      const totalItems = Number((count.rows[0] as { total: number }).total);
+      const res = await client.query(
+        `SELECT data FROM control_plane_documents
+          WHERE ${whereSql}
+          ORDER BY data->>'displayName' ASC, id ASC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, pageSize, (page - 1) * pageSize],
+      );
+      const data = (res.rows as Array<{ data: UserRecord }>).map((r) => ({
+        ...r.data,
+        roleIds: [...(r.data.roleIds ?? [])],
+      }));
+      return {
+        data,
+        meta: {
+          page,
+          pageSize,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
+        },
+      };
+    });
+  }
 
-    const page = pagination.page ?? 1;
-    const pageSize = pagination.pageSize ?? 20;
-    const totalItems = rows.length;
-    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    const offset = (page - 1) * pageSize;
-    return {
-      data: rows.slice(offset, offset + pageSize),
-      meta: { page, pageSize, totalItems, totalPages },
-    };
+  /**
+   * PRC-M026: the SCIM filter and window run in SQL on the tenant-bound
+   * connection (RLS on control_plane_documents), so one lookup or one page
+   * never loads the tenant's whole directory into the gateway.
+   */
+  async queryUsers(
+    tenantId: string,
+    query: UserQuery,
+    window: UserQueryWindow,
+  ): Promise<{ data: UserRecord[]; total: number }> {
+    const owner = canonicalizeDocumentTenantId(tenantId);
+    const params: unknown[] = [owner];
+    const where = [`collection = 'tenant.users'`, `tenant_id = $1`];
+    if (query.roleId) {
+      params.push(query.roleId);
+      where.push(`(data->'roleIds') ? $${params.length}`);
+    }
+    if (query.match) {
+      params.push(query.match.value);
+      const column =
+        query.match.attribute === 'id'
+          ? 'id'
+          : `COALESCE(data->>'${PG_USER_ATTRIBUTE[query.match.attribute]}', '')`;
+      where.push(`lower(${column}) = lower($${params.length})`);
+    }
+    params.push(Math.max(0, Math.trunc(window.limit)), Math.max(0, Math.trunc(window.offset)));
+    const sql = `SELECT data, COUNT(*) OVER () AS total
+                   FROM control_plane_documents
+                  WHERE ${where.join(' AND ')}
+                  ORDER BY data->>'displayName' ASC, id ASC
+                  LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    return withPgTenant(this.pool, owner, async (client) => {
+      const res = await client.query(sql, params);
+      const rows = res.rows as Array<{ data: UserRecord; total: string | number }>;
+      if (rows.length > 0) {
+        return {
+          data: rows.map((r) => ({ ...r.data, roleIds: [...(r.data.roleIds ?? [])] })),
+          total: Number(rows[0]!.total),
+        };
+      }
+      if (window.offset <= 0) return { data: [], total: 0 };
+      // A window past the end still reports the real total.
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM control_plane_documents WHERE ${where.join(' AND ')}`,
+        params.slice(0, -2),
+      );
+      return { data: [], total: Number((count.rows[0] as { total: number }).total) };
+    });
   }
 
   async findUserById(tenantId: string, id: string): Promise<UserRecord | null> {
@@ -259,10 +484,20 @@ export class PgRolesRepository implements RolesRepository {
     tenantId: string,
     userId: string,
     roleIds: string[],
+    audit?: RolesAuditDirective,
   ): Promise<UserRecord | null> {
     const existing = await this.findUserById(tenantId, userId);
     if (!existing) return null;
-    return this.users.put(userId, { ...existing, roleIds: [...roleIds] }, tenantId);
+    const next: UserRecord = { ...existing, roleIds: [...roleIds] };
+    if (this.supportsTransactionalAudit && audit) {
+      const owner = canonicalizeDocumentTenantId(tenantId);
+      await withPgTenant(this.pool, owner, async (client) => {
+        await this.putDocInTxn(client, 'tenant.users', userId, owner, next);
+        await this.appendAuditInTxn(client, owner, 'user', userId, 'UPDATE', audit);
+      });
+      return next;
+    }
+    return this.users.put(userId, next, tenantId);
   }
 
   /** PRC-M026: `SELECT … FOR UPDATE` serialises concurrent membership changes per user. */

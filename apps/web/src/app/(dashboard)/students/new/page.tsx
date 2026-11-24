@@ -9,6 +9,8 @@ import { getStudentCustomFields } from '@/lib/api/students';
 
 import { StudentForm } from '../_components/student-form';
 import type { StudentFormValues } from '@/lib/validation/student-schema';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,10 @@ const EMPTY_VALUES: StudentFormValues = {
 };
 
 export default async function NewStudentPage() {
+  // A-batch: check before any student read.
+  if (!(await hasDashboardDomainRouteAccess('students', '/students'))) {
+    return <RouteAccessDenied />;
+  }
   const customFields = await getStudentCustomFields();
 
   return (

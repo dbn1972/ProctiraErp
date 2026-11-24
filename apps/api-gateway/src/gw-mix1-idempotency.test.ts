@@ -3,10 +3,20 @@
  * replay happens after RBAC and keys are partitioned per principal.
  */
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { authHeaders, createTestConfig } from './__tests__/gateway-test-kit.js';
 import { buildApp } from './app.js';
+
+// UAT-API-006: in-memory composition. vi.hoisted runs before the imports and
+// removes a runner-exported DATABASE_URL / REDIS_URL, so REDIS_URL does not select
+// the shared Redis idempotency store, whose keys outlive the test run and replay
+// into the next one. A local packages/shared/database/.env can still set
+// DATABASE_URL during import (Prisma client autoload), as before.
+vi.hoisted(() => {
+  delete process.env['DATABASE_URL'];
+  delete process.env['REDIS_URL'];
+});
 
 delete process.env['DATABASE_URL'];
 

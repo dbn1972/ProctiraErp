@@ -127,13 +127,14 @@ describe('decideApplicationAction (PRC-L412)', () => {
     expect(res.message).toMatch(/instalment scheduled/i);
   });
 
-  it('maps a GatewayError message on reject', async () => {
+  it('maps a failed reject to fixed conflict copy, never the gateway text (RAW-WEB)', async () => {
     rejectScholarshipApplication.mockRejectedValue(
       new GatewayError({ status: 409, code: 'CONFLICT', message: 'Already decided' }),
     );
     const res = await decideApplicationAction({ applicationId: FAILED_ID, decision: 'reject' });
     expect(res.status).toBe('error');
-    expect(res.message).toBe('Already decided');
+    expect(res.message).toMatch(/^This conflicts with an existing record\..*\(ref /);
+    expect(res.message).not.toContain('Already decided');
   });
 
   it('rejects an over-long comment', async () => {

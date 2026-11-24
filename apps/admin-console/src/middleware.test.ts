@@ -29,41 +29,45 @@ function loginRedirect(res: Response): URL | null {
 }
 
 describe('admin console middleware', () => {
-  it('redirects to /login with a sanitised returnTo when no cookie is present', () => {
-    const url = loginRedirect(middleware(request('/tenants/tnt_001')));
+  it('redirects to /login with a sanitised returnTo when no cookie is present', async () => {
+    const url = loginRedirect(await middleware(request('/tenants/tnt_001')));
     expect(url?.pathname).toBe('/login');
     expect(url?.searchParams.get('returnTo')).toBe('/tenants/tnt_001');
   });
 
-  it('lets a fresh token through (with a non-ASCII base64url claim)', () => {
-    const token = jwt({ sub: 'op-1', name: 'Zoë Ødegård', exp: now() + 600 });
-    const res = middleware(request('/tenants', token));
+  it('lets a fresh token through (with a non-ASCII base64url claim)', async () => {
+    const token = jwt({ sub: 'op-1', tenantId: 'platform', name: 'Zoë Ødegård', exp: now() + 600 });
+    const res = await middleware(request('/tenants', token));
     expect(res.headers.get('location')).toBeNull();
   });
 
-  it('treats a token inside the 30 s expiry buffer as expired', () => {
-    const res = middleware(request('/tenants', jwt({ sub: 'op-1', exp: now() + 10 })));
+  it('treats a token inside the 30 s expiry buffer as expired', async () => {
+    const res = await middleware(
+      request('/tenants', jwt({ sub: 'op-1', tenantId: 'platform', exp: now() + 10 })),
+    );
     expect(loginRedirect(res)?.pathname).toBe('/login');
   });
 
-  it('rejects an expired token', () => {
-    const res = middleware(request('/plugins', jwt({ sub: 'op-1', exp: now() - 60 })));
+  it('rejects an expired token', async () => {
+    const res = await middleware(
+      request('/plugins', jwt({ sub: 'op-1', tenantId: 'platform', exp: now() - 60 })),
+    );
     expect(loginRedirect(res)?.pathname).toBe('/login');
   });
 
-  it.each(['not-a-jwt', 'a.b', 'x.!!!.y', ''])('rejects malformed token %j', (token) => {
-    const res = middleware(request('/plans', token || undefined));
+  it.each(['not-a-jwt', 'a.b', 'x.!!!.y', ''])('rejects malformed token %j', async (token) => {
+    const res = await middleware(request('/plans', token || undefined));
     expect(loginRedirect(res)?.pathname).toBe('/login');
   });
 
-  it('does not reflect an open-redirect returnTo', () => {
-    const url = loginRedirect(middleware(request('//evil/x')));
+  it('does not reflect an open-redirect returnTo', async () => {
+    const url = loginRedirect(await middleware(request('//evil/x')));
     expect(url?.host).toBe('admin.example');
     expect(url?.searchParams.get('returnTo')?.startsWith('//')).toBeFalsy();
   });
 
-  it('serves public paths without a session', () => {
-    expect(middleware(request('/login')).headers.get('location')).toBeNull();
-    expect(middleware(request('/forbidden')).headers.get('location')).toBeNull();
+  it('serves public paths without a session', async () => {
+    expect((await middleware(request('/login'))).headers.get('location')).toBeNull();
+    expect((await middleware(request('/forbidden'))).headers.get('location')).toBeNull();
   });
 });

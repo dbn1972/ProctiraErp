@@ -9,17 +9,21 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 
-import { requireSession } from '@/lib/auth/server';
 import { listLibraryHoldsResult, listLibraryItemsResult } from '@/lib/api/library';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { PlaceHoldForm } from '../_components/place-hold-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryHoldsPage() {
-  await requireSession();
+  // A-batch: check before any library read.
+  if (!(await hasDashboardDomainRouteAccess('library', '/library'))) {
+    return <RouteAccessDenied />;
+  }
   const [itemsResult, holdsResult, studentOptions] = await Promise.all([
     listLibraryItemsResult(),
     listLibraryHoldsResult(),

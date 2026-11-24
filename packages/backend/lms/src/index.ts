@@ -13,6 +13,7 @@ export {
   type LmsActor,
   type LmsAuditEntry,
   type LmsAuditSink,
+  type LmsLearnerMembership,
   type LmsServiceOptions,
   type AssignmentWithQuestions,
   type StudentProgress,
@@ -86,3 +87,11 @@ export {
   requireLmsAction,
   enforceLmsRouteAccess,
 } from './lms-http-guard.js';
+export {
+  prepareLmsFileSigningAtStartup,
+  resetDevLmsFileSigningForTests,
+  isLmsFileSigningKeyMissingError,
+  LmsFileSigningKeyMissingError,
+  LMS_FILE_SIGNING_KEY_MISSING_MESSAGE,
+  type LmsFileSigningLog,
+} from './lms-file-store.js';

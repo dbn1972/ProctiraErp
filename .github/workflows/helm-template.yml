@@ -179,12 +179,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5
         with:
           version: 'v3.14.0'
 
       # PRC-L182: deploy-secrets-gate-check parses deploy.yml via the `yaml` package.
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: '10.33.2'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -213,6 +213,13 @@ jobs:
         run: node --test tools/scripts/check-dev-secrets-scope.test.mjs
       - name: Fail when a dev placeholder credential leaks outside overlays/development (PRC-L475)
         run: node tools/scripts/check-dev-secrets-scope.mjs
+      # PRC-L565: tools/scripts/__tests__ is not reached by `turbo run test`;
+      # run the DNS-01 ClusterIssuer render contract here, where helm is installed.
+      - name: Unit-test DNS-01 ClusterIssuer render (PRC-L565)
+        run: npx vitest run tools/scripts/__tests__/helm-cluster-issuer.test.ts
+      # PRC-M624: Object Lock GOVERNANCE->COMPLIANCE switch and 35-day prod floor.
+      - name: Unit-test backup Object Lock governance (PRC-M624)
+        run: node --test tools/scripts/__tests__/backup-object-lock-governance.test.mjs
       - name: Lint + template charts (deploy path check)
         run: |
           ./tools/scripts/helm-template-check.sh

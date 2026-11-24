@@ -22,6 +22,8 @@ import type { AcademicPeriod } from '@/lib/institutions/types';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 
 import { ResultsEntryGrid } from '../_components/results-entry-grid';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +40,10 @@ function readStringParam(params: Awaited<PageProps['searchParams']>, key: string
 }
 
 export default async function AssessmentResultsPage(props: PageProps) {
+  // A-batch: check before any assessment read.
+  if (!(await hasDashboardDomainRouteAccess('assessments', '/assessments'))) {
+    return <RouteAccessDenied />;
+  }
   const searchParams = await props.searchParams;
   const subjectId = readStringParam(searchParams, 'subjectId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');

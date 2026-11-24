@@ -272,7 +272,7 @@ export function FormBuilder({
 
   const errorSummaryHeadingId = `${useId()}-error-summary`;
   const errorSummaryItems = allFields.flatMap((field) => {
-    const fieldError = get(errors, field.name) as { message?: unknown } | undefined;
+    const fieldError: { message?: unknown } | undefined = get(errors, field.name);
     if (!fieldError || !isFieldVisible(field)) return [];
     return [{ field, message: String(fieldError.message ?? '') }];
   });
@@ -283,7 +283,7 @@ export function FormBuilder({
     const fieldId = `field-${field.name}`;
     const errorId = `${fieldId}-error`;
     const helpId = `${fieldId}-help`;
-    const error = get(errors, field.name) as { message?: unknown } | undefined;
+    const error: { message?: unknown } | undefined = get(errors, field.name);
     const validation = validationByField.get(field.name) ?? {};
 
     const ariaDescribedBy =

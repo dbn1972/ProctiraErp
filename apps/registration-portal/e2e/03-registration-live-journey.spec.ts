@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { liveJourneyGate } from './helpers/live-gate';
 
 /**
  * PRC-M568 — live public admissions journey: submit -> track, plus negatives.
@@ -11,16 +12,48 @@ import { expect, test } from '@playwright/test';
  *
  * Fail closed: on main (GITHUB_REF=refs/heads/main) or with
  * E2E_REQUIRE_LIVE=1 a missing backend is a failure, not a silent skip.
+ * Backend-less lanes on main opt out only with E2E_LIVE_LANE=none, which
+ * E2E_REQUIRE_LIVE=1 overrides (see helpers/live-gate.ts).
  */
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
-const REQUIRE_LIVE =
-  process.env.E2E_REQUIRE_LIVE === '1' || process.env.GITHUB_REF === 'refs/heads/main';
+const LIVE_GATE = liveJourneyGate();
 const INSTITUTION_ID = process.env.E2E_REGISTRATION_INSTITUTION_ID ?? '';
 const TYPE = process.env.E2E_REGISTRATION_TYPE ?? 'primary';
 
+/**
+ * Fills step 1 and moves to /documents.
+ *
+ * RegistrationProvider replaces the whole draft in its mount effect, so a fill
+ * that lands before that effect runs is lost (CI run 43360874584: First Name
+ * "Required", URL stayed on step 1). Wait until React has hydrated the form
+ * (a click before that submits the form natively and drops ?institutionId),
+ * then fill and press Next until step 2 loads.
+ */
+async function completePersonalStep(
+  page: Page,
+  applicant: { lastName: string; dob: string; gender: 'male' | 'female' },
+) {
+  await page.waitForFunction(() => {
+    const button = document.querySelector('main form button[type="submit"]');
+    return !!button && Object.keys(button).some((key) => key.startsWith('__reactProps$'));
+  });
+  await expect(async () => {
+    if (/\/documents/.test(page.url())) return;
+    const step = { timeout: 2_000 };
+    await page.getByLabel(/first name/i).fill('E2E', step);
+    await page.getByLabel(/last name/i).fill(applicant.lastName, step);
+    await page.getByLabel(/date of birth/i).fill(applicant.dob, step);
+    await page.locator('#gender').selectOption(applicant.gender, step);
+    await page.getByLabel(/guardian name/i).fill('E2E Guardian', step);
+    await page.getByLabel(/guardian phone/i).fill('+911234567890', step);
+    await page.getByRole('button', { name: /^next$/i }).click(step);
+    await expect(page).toHaveURL(/\/documents/, { timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 test.describe('Registration Portal — live gate', () => {
   test('live journey is configured where it is required', () => {
-    test.skip(!REQUIRE_LIVE, 'live journey not required on this ref');
+    test.skip(!LIVE_GATE.required, LIVE_GATE.reason);
     expect(BACKEND_READY, 'E2E_BACKEND_READY must be set on main / E2E_REQUIRE_LIVE').toBe(true);
     expect(INSTITUTION_ID, 'E2E_REGISTRATION_INSTITUTION_ID must be seeded').not.toBe('');
   });
@@ -32,23 +65,38 @@ test.describe('Registration Portal — live submit and track', () => {
 
   const dob = '2018-04-12';
   let trackingNumber = '';
+  let submittedBody = '';
 
   test('applicant submits and receives a tracking number', async ({ page }) => {
     expect(INSTITUTION_ID, 'E2E_REGISTRATION_INSTITUTION_ID must be seeded').not.toBe('');
     await page.goto(`/apply/${TYPE}?institutionId=${encodeURIComponent(INSTITUTION_ID)}`);
-    await page.getByLabel(/first name/i).fill('E2E');
-    await page.getByLabel(/last name/i).fill(`Applicant${Date.now() % 100000}`);
-    await page.getByLabel(/date of birth/i).fill(dob);
-    await page.locator('#gender').selectOption('female');
-    await page.getByLabel(/guardian name/i).fill('E2E Guardian');
-    await page.getByLabel(/guardian phone/i).fill('+911234567890');
-    await page.getByRole('button', { name: /^next$/i }).click();
+    await completePersonalStep(page, {
+      lastName: `Applicant${Date.now() % 100000}`,
+      dob,
+      gender: 'female',
+    });
 
     await expect(page).toHaveURL(/\/documents/);
     await page.getByRole('button', { name: /^next$/i }).click();
 
     await expect(page).toHaveURL(/\/review/);
+    // UAT-9b: the harness gateway requires the PRC-M332 bot challenge, so the
+    // portal must fetch one and send the solved token with the submit.
+    const challenge = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === '/api/registrations/challenge' &&
+        r.request().method() === 'GET',
+    );
+    const submit = page.waitForRequest(
+      (r) => new URL(r.url()).pathname === '/api/registrations' && r.method() === 'POST',
+    );
     await page.getByRole('button', { name: /^submit$/i }).click();
+    expect((await challenge).status(), 'GET /registrations/challenge').toBe(200);
+    const submitted = await submit;
+    expect(submitted.headers()['x-registration-challenge'], 'solved challenge header').toMatch(
+      /\S/,
+    );
+    submittedBody = submitted.postData() ?? '';
 
     await expect(page).toHaveURL(/\/apply\/success/, { timeout: 30_000 });
     const number = page.getByText(/^REG-[A-Z0-9]{8}$/);
@@ -76,20 +124,38 @@ test.describe('Registration Portal — live submit and track', () => {
     await expect(page.getByText(/pending review|under review/i)).toHaveCount(0);
   });
 
+  test('a submit without the bot challenge is refused (PRC-M332)', async ({ page }) => {
+    expect(submittedBody, 'the first test captured the portal submit body').not.toBe('');
+    await page.goto('/track');
+    // The body the portal sent, through the same-origin proxy, with a fresh
+    // Idempotency-Key and no x-registration-challenge header.
+    const res = await page.evaluate(
+      async ({ body, key }) => {
+        const r = await fetch('/api/registrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+          body,
+        });
+        return { status: r.status, body: (await r.json().catch(() => null)) as unknown };
+      },
+      { body: submittedBody, key: `e2e-no-challenge-${Date.now()}` },
+    );
+    expect(res.status, JSON.stringify(res.body)).toBe(400);
+    expect(res.body).toMatchObject({ code: 'CHALLENGE_REQUIRED' });
+  });
+
   test('backend down: submit shows an error instead of a fake success', async ({ page }) => {
     expect(INSTITUTION_ID).not.toBe('');
     await page.route(/\/api\/registrations(\?|$)/, (route) =>
       route.request().method() === 'POST' ? route.abort('connectionrefused') : route.continue(),
     );
     await page.goto(`/apply/${TYPE}?institutionId=${encodeURIComponent(INSTITUTION_ID)}`);
-    await page.getByLabel(/first name/i).fill('E2E');
-    await page.getByLabel(/last name/i).fill('Down');
-    await page.getByLabel(/date of birth/i).fill(dob);
-    await page.locator('#gender').selectOption('male');
-    await page.getByLabel(/guardian name/i).fill('E2E Guardian');
-    await page.getByLabel(/guardian phone/i).fill('+911234567890');
+    await completePersonalStep(page, { lastName: 'Down', dob, gender: 'male' });
+    // Wait for each step: a second "Next" clicked before the client-side
+    // navigation lands hits the previous step's button (UAT-API-004 flake).
+    await expect(page).toHaveURL(/\/documents/);
     await page.getByRole('button', { name: /^next$/i }).click();
-    await page.getByRole('button', { name: /^next$/i }).click();
+    await expect(page).toHaveURL(/\/review/);
     await page.getByRole('button', { name: /^submit$/i }).click();
     await expect(page.getByRole('alert').first()).toBeVisible();
     await expect(page).not.toHaveURL(/\/apply\/success/);

@@ -51,7 +51,10 @@ test('required_sql_migrations lists every non-seed db/sql file (incl. 104 and la
   const listed = r.stdout.trim().split('\n');
   assert.deepEqual(listed, expectedSqlSet());
   assert.ok(listed.includes('104_scholarship_application_documents.sql'));
-  assert.ok(!listed.some((f) => /_seed\.sql$/.test(f)));
+  // Demo seeds are NNNb_*_seed.sql only (apply-sql.sh, check-no-runtime-ddl.mjs).
+  // A numbered migration whose name merely ends in _seed.sql is still required.
+  assert.ok(!listed.some((f) => /^[0-9]+b_.*_seed\.sql$/.test(f)));
+  assert.ok(listed.includes('295_audit_chain_cutover_seed.sql'));
 });
 
 test('required_sql_migrations fails closed on a missing or empty directory', () => {

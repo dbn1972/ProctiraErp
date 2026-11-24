@@ -38,13 +38,14 @@ describe('staff leave actions (PRC-L412)', () => {
     expect(res.id).toBe('leave-1');
   });
 
-  it('maps a GatewayError message when create fails', async () => {
+  it('maps a failed create to fixed conflict copy, never the gateway text (RAW-WEB)', async () => {
     createStaffLeave.mockRejectedValue(
       new GatewayError({ status: 409, code: 'OVERLAP', message: 'Overlapping leave' }),
     );
     const res = await createStaffLeaveAction({} as never);
     expect(res.status).toBe('error');
-    expect(res.message).toBe('Overlapping leave');
+    expect(res.message).toMatch(/^This conflicts with an existing record\..*\(ref /);
+    expect(res.message).not.toContain('Overlapping leave');
   });
 
   it('reports an approval decision', async () => {
@@ -61,12 +62,13 @@ describe('staff leave actions (PRC-L412)', () => {
     expect(res.message).toMatch(/rejected/i);
   });
 
-  it('maps a GatewayError message when a decision fails', async () => {
+  it('maps a refused decision to fixed permission copy, never the gateway text (RAW-WEB)', async () => {
     decideStaffLeave.mockRejectedValue(
       new GatewayError({ status: 403, code: 'FORBIDDEN', message: 'Not your report' }),
     );
     const res = await decideStaffLeaveAction('leave-1', 'approved');
     expect(res.status).toBe('error');
-    expect(res.message).toBe('Not your report');
+    expect(res.message).toMatch(/^You do not have permission to make this change\..*\(ref /);
+    expect(res.message).not.toContain('Not your report');
   });
 });

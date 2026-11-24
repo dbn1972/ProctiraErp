@@ -18,12 +18,13 @@ data:
   TENANT_HEADER_NAME: 'x-tenant-id'
   S3_REGION: 'us-east-1'
   S3_FORCE_PATH_STYLE: 'true'
-  # PRC-M524 (PARTIAL): left empty at base (sandbox-safe placeholder); every
-  # deployed overlay must patch these to the real tenant/portal domains and
-  # ingress controller CIDR (the gateway's CORS plugin takes a literal
-  # origin list; no wildcard-subdomain matching). The gateway does not yet
-  # refuse to boot in production with this unset — see the ledger residual
-  # in docs/audits/remediation/CANONICAL_LEDGER.csv.
+  # PRC-M524: left empty at base; every deployed overlay must patch these to
+  # the real tenant/portal domains and the ingress controller CIDR (the
+  # gateway's CORS plugin takes a literal origin list; no wildcard-subdomain
+  # matching). The api-gateway refuses to boot in a deployed environment
+  # (NODE_ENV other than development/test, or APP_ENV=staging/production)
+  # when either value is empty or CORS_ORIGINS contains `*`
+  # (apps/api-gateway/src/config.ts resolveCorsOrigins/resolveTrustedProxyCidrs).
   CORS_ORIGINS: ''
   TRUSTED_PROXY_CIDRS: ''
 # G-703: the `proctira-secrets` Secret is NOT shipped from base. Each overlay

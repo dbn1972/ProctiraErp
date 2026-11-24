@@ -10,8 +10,11 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { AdmissionsCrmStore } from './admissions-crm-store.js';
-import { createAdmissionsPipelineStore } from './create-registration-repository.js';
+import { InMemoryAdmissionsCrmStore, type AdmissionsCrmStore } from './admissions-crm-store.js';
+import {
+  createAdmissionsPipelineStore,
+  createTenantReferenceChecker,
+} from './create-registration-repository.js';
 import {
   AdmissionsPipelineService,
   type AssertOfferFeePaid,
@@ -30,6 +33,7 @@ import {
   type PublicTenantResolver,
   type RegistrationSessionStore,
 } from './routes.js';
+import type { TenantReferenceChecker } from './tenant-references.js';
 
 /**
  * Options for the registration plugin.
@@ -60,6 +64,11 @@ export interface RegistrationPluginOptions {
   reconcileOfferResources?: ReconcileOfferResources;
   /** PRC-H079: validate a staff-supplied offerFeeInvoiceId belongs to the application. */
   verifyOfferFeeInvoiceOwnership?: VerifyOfferFeeInvoiceOwnership;
+  /**
+   * AD-T1: tenant ownership of institution / period / grade ids named by staff writes.
+   * Defaults via {@link createTenantReferenceChecker} (PG when `DATABASE_URL` is set).
+   */
+  referenceChecker?: TenantReferenceChecker;
   /** Route prefix for registration endpoints (default: '/registrations') */
   prefix?: string;
   /** Staff admissions CRM prefix (default: '/admissions') */
@@ -104,6 +113,7 @@ export const registrationPlugin = fp(
       assertOfferFeePaid,
       reconcileOfferResources,
       verifyOfferFeeInvoiceOwnership,
+      referenceChecker,
       prefix = '/registrations',
       admissionsPrefix = '/admissions',
       publicTenantResolver,
@@ -111,8 +121,16 @@ export const registrationPlugin = fp(
     } = options;
 
     // Shared CRM so waitlist enqueue (staff) and seat-release promote (pipeline) see one queue.
-    const crm = crmStore; // RegistrationService defaults to in-memory when undefined
-    const registrationService = new RegistrationService(repository, crm, options.documentStorage);
+    // PRC-L142: the plugin owns the default, so the pipeline gets the same instance without
+    // reaching into RegistrationService's private field.
+    const crm = crmStore ?? new InMemoryAdmissionsCrmStore();
+    const references = referenceChecker ?? createTenantReferenceChecker();
+    const registrationService = new RegistrationService(
+      repository,
+      crm,
+      options.documentStorage,
+      references,
+    );
 
     // Decorate fastify with the registration service
     fastify.decorate('registrationService', registrationService);
@@ -132,10 +150,10 @@ export const registrationPlugin = fp(
       enrolOnAccept,
       createOfferFeeInvoice,
       assertOfferFeePaid,
-      // Prefer the same store RegistrationService uses (including its default in-memory).
-      (registrationService as unknown as { crm: AdmissionsCrmStore }).crm,
+      crm,
       reconcileOfferResources,
       verifyOfferFeeInvoiceOwnership,
+      references,
     );
     await registerAdmissionsPipelineRoutes(fastify, {
       service: pipelineService,

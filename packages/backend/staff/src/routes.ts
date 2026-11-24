@@ -213,7 +213,11 @@ export async function registerStaffRoutes(
           ))
         )
           return reply;
-        const staff = await staffService.update(tenantId, paramsResult.data.id, bodyResult.data);
+        const staff = await staffService.update(tenantId, paramsResult.data.id, bodyResult.data, {
+          actorId: getActorId(request),
+          ipAddress: request.ip ?? null,
+          requestId: request.id ?? null,
+        });
         return reply.status(200).send(formatStaffResponse(staff));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -270,12 +274,15 @@ export async function registerStaffRoutes(
         ids = await onLeaveStaffIds(tenantId, new Date().toISOString().slice(0, 10));
       }
 
+      const maskIdentity = !canViewStaffIdentity(staffRequestRoles(request));
       const result = await staffService.list(
         tenantId,
         {
           status: query.status as 'ACTIVE' | 'INACTIVE' | undefined,
           position: query.position,
           search: query.search,
+          // HN-F4-R4: a caller who sees masked identity numbers cannot search by them.
+          matchIdentityNumber: !maskIdentity,
           institutionId: query.institutionId,
           ...(type === 'TEACHING' || type === 'NON_TEACHING' ? { staffType: type } : {}),
           ...(ids ? { ids } : {}),
@@ -283,7 +290,6 @@ export async function registerStaffRoutes(
         { page, pageSize, sortBy, sortOrder },
       );
 
-      const maskIdentity = !canViewStaffIdentity(staffRequestRoles(request));
       return reply.status(200).send({
         data: result.data.map((entity) => formatStaffResponse(entity, { maskIdentity })),
         meta: result.meta,
@@ -347,6 +353,11 @@ export async function registerStaffRoutes(
           paramsResult.data.id,
           bodyResult.data,
           getActorId(request),
+          {
+            actorId: getActorId(request),
+            ipAddress: request.ip ?? null,
+            requestId: request.id ?? null,
+          },
         );
         return reply.status(200).send(view);
       } catch (error: unknown) {
@@ -483,7 +494,11 @@ export async function registerStaffRoutes(
           ))
         )
           return reply;
-        await staffService.delete(tenantId, paramsResult.data.id);
+        await staffService.delete(tenantId, paramsResult.data.id, {
+          actorId: getActorId(request),
+          ipAddress: request.ip ?? null,
+          requestId: request.id ?? null,
+        });
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {

@@ -9,14 +9,20 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
-import { listTransportRoutes } from '@/lib/api/transport';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
+import { listTransportRoutesWithTotal } from '@/lib/api/transport';
+import { listCountCopy } from '../_components/list-count';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransportRoutesPage() {
-  await requireSession();
-  const routes = await listTransportRoutes();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
+  const list = await listTransportRoutesWithTotal();
+  const routes = list.items;
 
   return (
     <div className="space-y-6 p-6">
@@ -40,7 +46,7 @@ export default async function TransportRoutesPage() {
           <CardDescription>
             {routes.length === 0
               ? 'No routes yet — create the first corridor for this tenant.'
-              : `${routes.length} route${routes.length === 1 ? '' : 's'} for this tenant.`}
+              : listCountCopy(list, { one: 'route', many: 'routes' }, ' for this tenant')}
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { requireSession } from '@/lib/auth/server';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 import { getTransportRoute } from '@/lib/api/transport';
 import { listRouteStops } from '@/lib/transport/api';
 import { StopsManager } from '../../../_components/stops-manager';
@@ -13,7 +14,10 @@ interface PageProps {
 }
 
 export default async function TransportRouteStopsPage(props: PageProps) {
-  await requireSession();
+  // T-D1: check before any transport or student-directory read.
+  if (!(await hasDashboardDomainRouteAccess('transport', '/transport'))) {
+    return <RouteAccessDenied />;
+  }
   const { id } = await props.params;
   const route = await getTransportRoute(id);
   if (!route) notFound();

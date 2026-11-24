@@ -16,6 +16,7 @@ export default async function StudentHomeworkPage() {
       testId="student-homework"
       status={studentStatus(result)}
       errorMessage={result.message}
+      correlationId={result.correlationId}
       emptyMessage="No published homework yet."
       hasRows={items.length > 0}
     >

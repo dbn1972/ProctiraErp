@@ -14,6 +14,7 @@ import type {
   StudentEntity,
   StudentFilter,
   StudentRepository,
+  StudentSearchOptions,
   StudentUpdateOptions,
 } from './student-repository.js';
 import { StaleStudentUpdateError, updatedAtMatches } from './student-repository.js';
@@ -142,7 +143,10 @@ export class InMemoryStudentRepository implements StudentRepository {
         (entity) =>
           entity.firstName.toLowerCase().includes(searchLower) ||
           entity.lastName.toLowerCase().includes(searchLower) ||
-          (entity.nationalId && entity.nationalId.toLowerCase().includes(searchLower)),
+          // HN-F4-R3: national ID matches only for callers allowed to see it.
+          (filter.matchNationalId === true &&
+            !!entity.nationalId &&
+            entity.nationalId.toLowerCase().includes(searchLower)),
       );
     }
     if (filter.institutionId) {
@@ -184,15 +188,20 @@ export class InMemoryStudentRepository implements StudentRepository {
     tenantId: string,
     query: string,
     pagination: PaginationOptions,
+    options: StudentSearchOptions = {},
   ): Promise<PaginatedResult<StudentEntity>> {
     const queryLower = query.toLowerCase();
     let items = Array.from(this.students.values()).filter((entity) => entity.tenantId === tenantId);
 
-    // Full-text search simulation: match on firstName, lastName, or nationalId
+    // Full-text search simulation: match on the name, and on nationalId only when
+    // the caller may view it (HN-F4-R3).
     items = items.filter((entity) => {
       const fullName = `${entity.firstName} ${entity.lastName}`.toLowerCase();
       const nationalId = (entity.nationalId ?? '').toLowerCase();
-      return fullName.includes(queryLower) || nationalId.includes(queryLower);
+      return (
+        fullName.includes(queryLower) ||
+        (options.matchNationalId === true && nationalId.includes(queryLower))
+      );
     });
 
     // Sort by relevance (simple: exact match first, then alphabetical)

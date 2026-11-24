@@ -24,10 +24,16 @@ import { humanizeStatus } from '@/lib/status-label';
 
 import { ReportScheduleForm } from './schedule-form';
 import { RunDueButton, ScheduleRowActions } from './schedule-actions';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ReportSchedulesPage() {
+  // A-batch: check before any report read.
+  if (!(await hasDashboardDomainRouteAccess('reports', '/reports'))) {
+    return <RouteAccessDenied />;
+  }
   const [{ schedules, source }, { templates }, { runs }] = await Promise.all([
     listReportSchedules(),
     listReportTemplates(),

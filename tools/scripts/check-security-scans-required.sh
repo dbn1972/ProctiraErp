@@ -68,6 +68,15 @@ grep -qF -- '--log-opts "${PR_BASE_SHA}..${PR_HEAD_SHA}"' "$SCANS_WF" \
   && grep -qF -- 'PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}' "$SCANS_WF" \
   && grep -qF -- 'PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}' "$SCANS_WF" \
   || die "secret scan must cover the complete pull-request base-to-head graph"
+# UAT-ENV-014: on push, scan the full ancestry of the pushed commit, not every fetched ref.
+grep -qF -- 'elif [ "${EVENT_NAME}" = "push" ]; then' "$SCANS_WF" \
+  && grep -qF -- '--log-opts "${PUSH_SHA}"' "$SCANS_WF" \
+  && grep -qF -- 'PUSH_SHA: ${{ github.sha }}' "$SCANS_WF" \
+  || die "secret scan on push must cover the full history of the pushed commit only"
+# gitleaks 8.21.2 reports "no leaks found" and exits 0 for an unknown --log-opts revision,
+# so the push scan must prove the commit exists before scanning (UAT-ENV-014 review r1).
+grep -qF -- 'git cat-file -e "${PUSH_SHA}^{commit}"' "$SCANS_WF" \
+  || die "secret scan on push must fail closed when the pushed commit is not in the checkout"
 if grep -qE -- '--no-merges|--first-parent' "$SCANS_WF"; then
   die "secret scan must not omit merged source commits"
 fi

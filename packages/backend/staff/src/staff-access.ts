@@ -32,12 +32,16 @@ const ADMIN_ROLES = [
   'school-admin',
 ] as const;
 
+/**
+ * PRC-L364: HR writers. registrar and admissions_officer stay, matching the approved D2 role
+ * catalogue (topic 3 Option A: both hold staff:manage) and the gateway STAFF_HR_PERMISSIONS;
+ * school_admin comes from ADMIN_ROLES only (it was listed twice).
+ */
 const HR_OFFICER_ROLES = [
   'hr_officer',
   'staff_admin',
   'registrar',
   'admissions_officer',
-  'school_admin',
   ...ADMIN_ROLES,
 ] as const;
 
@@ -53,6 +57,11 @@ const ACTION_ROLES: Record<StaffAction, readonly string[]> = {
   'staff.read': [...new Set<string>([...HR_OFFICER_ROLES, 'bursar', 'finance_officer'])],
   'staff.appraisal.decide': ['hr_officer', 'staff_admin', ...ADMIN_ROLES],
 };
+
+/** PRC-L364: the role ids allowed to perform `action` (each listed once). */
+export function staffActionRoles(action: StaffAction): readonly string[] {
+  return ACTION_ROLES[action];
+}
 
 /**
  * PRC-H088: pick the HR-route action from the request path + method. Payroll is gated on every

@@ -44,8 +44,9 @@ function headers(tenantId = TENANT_A) {
 async function ensurePeriod(request: APIRequestContext): Promise<string> {
   // PRC-L122: academic years are overlap-checked per tenant, and
   // tools/e2e/seed-e2e-tenants.sql already seeds a baseline "E2E Academic
-  // Year" for TENANT_A with this exact 2026-04-01..2027-03-31 window, so a
-  // blind create here collides with it (and with every other spec sharing
+  // Year" for TENANT_A with a rolling window around today (CURRENT_DATE - 180
+  // .. CURRENT_DATE + 184, SP-R2), so a blind now-centred create here
+  // collides with it (and with every other spec sharing
   // TENANT_A). Reuse the shared year instead (see ensureSharedAcademicYear's
   // doc comment).
   const period = await ensureSharedAcademicYear(request, GATEWAY_URL, headers());
@@ -197,12 +198,35 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
   test('cross-tenant: tenant B sees none of tenant A academics or infrastructure', async ({
     request,
   }) => {
-    await ensurePeriod(request);
+    const periodA = await ensurePeriod(request);
+    // Specs 107, 114 and 115 create tenant-B academic years in the same run DB
+    // (#760, #765), so an empty tenant-B list is order-dependent. The isolation
+    // property is "no tenant A row is visible to tenant B".
+    const periodsA = await request.get(`${GATEWAY_URL}/api/v1/academic-periods`, {
+      headers: headers(),
+    });
+    expect(periodsA.status()).toBe(200);
+    const idsA = new Set(((await periodsA.json()) as Array<{ id: string }>).map((r) => r.id));
+    expect(idsA.has(periodA), 'tenant A list contains its own period').toBe(true);
+
     const periods = await request.get(`${GATEWAY_URL}/api/v1/academic-periods`, {
       headers: headers(TENANT_B),
     });
     expect(periods.status()).toBe(200);
-    expect(await periods.json()).toEqual([]);
+    const rowsB = (await periods.json()) as Array<{ id: string; code: string; tenantId: string }>;
+    expect(
+      rowsB.filter((r) => r.tenantId !== TENANT_B),
+      'tenant B list has no foreign-tenant rows',
+    ).toEqual([]);
+    expect(
+      rowsB.filter((r) => idsA.has(r.id)),
+      'tenant B list has none of tenant A ids',
+    ).toEqual([]);
+
+    const directRead = await request.get(`${GATEWAY_URL}/api/v1/academic-periods/${periodA}`, {
+      headers: headers(TENANT_B),
+    });
+    expect(directRead.status(), 'tenant B cannot read tenant A period by id').toBe(404);
 
     const hierarchy = await request.get(
       `${GATEWAY_URL}/api/v1/infrastructure/hierarchy/${INSTITUTION_A}`,

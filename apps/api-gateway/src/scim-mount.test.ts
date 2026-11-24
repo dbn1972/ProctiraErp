@@ -79,9 +79,24 @@ describe('G-924 SCIM 2.0 mount', () => {
     'content-type': 'application/scim+json',
   });
 
+  // PRC-M027: SCIM authenticates with a dedicated token a tenant admin issues.
+  const scimTokens = new Map<string, string>();
+  const scimHeaders = (tenantId = TENANT_A) => ({
+    authorization: `Bearer ${scimTokens.get(tenantId)}`,
+    'content-type': 'application/scim+json',
+  });
   beforeAll(async () => {
     app = await buildApp({ config: config() });
     await app.ready();
+    for (const tenantId of [TENANT_A, TENANT_B]) {
+      const issued = await app.inject({
+        method: 'POST',
+        url: '/api/v1/tenant/scim-token',
+        headers: headers('admin', tenantId),
+      });
+      expect(issued.statusCode, issued.body).toBe(201);
+      scimTokens.set(tenantId, (issued.json() as { token: string }).token);
+    }
   });
 
   afterAll(async () => {
@@ -92,7 +107,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const spc = await app.inject({
       method: 'GET',
       url: '/api/v1/scim/v2/ServiceProviderConfig',
-      headers: headers('admin'),
+      headers: scimHeaders(),
     });
     expect(spc.statusCode, spc.body).toBe(200);
     expect(spc.headers['content-type']).toContain('application/scim+json');
@@ -101,7 +116,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const types = await app.inject({
       method: 'GET',
       url: '/api/v1/scim/v2/ResourceTypes',
-      headers: headers('admin'),
+      headers: scimHeaders(),
     });
     expect(types.json().Resources.map((r: { id: string }) => r.id)).toEqual(['User', 'Group']);
   });
@@ -110,7 +125,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/api/v1/scim/v2/Users',
-      headers: headers('admin'),
+      headers: scimHeaders(),
       payload: {
         schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
         userName: 'Ann.Teacher@school.org',
@@ -127,7 +142,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const dup = await app.inject({
       method: 'POST',
       url: '/api/v1/scim/v2/Users',
-      headers: headers('admin'),
+      headers: scimHeaders(),
       payload: { userName: 'ann.teacher@school.org' },
     });
     expect(dup.statusCode).toBe(409);
@@ -136,7 +151,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const found = await app.inject({
       method: 'GET',
       url: `/api/v1/scim/v2/Users?filter=${encodeURIComponent('userName eq "ann.teacher@school.org"')}`,
-      headers: headers('admin'),
+      headers: scimHeaders(),
     });
     expect(found.statusCode).toBe(200);
     expect(found.json().totalResults).toBe(1);
@@ -145,7 +160,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const groups = await app.inject({
       method: 'GET',
       url: '/api/v1/scim/v2/Groups',
-      headers: headers('admin'),
+      headers: scimHeaders(),
     });
     expect(groups.statusCode).toBe(200);
     const teacherGroup = groups
@@ -156,7 +171,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const membership = await app.inject({
       method: 'PATCH',
       url: `/api/v1/scim/v2/Groups/${teacherGroup.id}`,
-      headers: headers('admin'),
+      headers: scimHeaders(),
       payload: {
         schemas: [PATCH],
         Operations: [{ op: 'add', path: 'members', value: [{ value: user.id }] }],
@@ -168,7 +183,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const deactivated = await app.inject({
       method: 'PATCH',
       url: `/api/v1/scim/v2/Users/${user.id}`,
-      headers: headers('admin'),
+      headers: scimHeaders(),
       payload: { schemas: [PATCH], Operations: [{ op: 'replace', path: 'active', value: false }] },
     });
     expect(deactivated.statusCode, deactivated.body).toBe(200);
@@ -180,7 +195,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const removed = await app.inject({
       method: 'PATCH',
       url: `/api/v1/scim/v2/Groups/${teacherGroup.id}`,
-      headers: headers('admin'),
+      headers: scimHeaders(),
       payload: {
         schemas: [PATCH],
         Operations: [{ op: 'remove', path: `members[value eq "${user.id}"]` }],
@@ -192,7 +207,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const deleted = await app.inject({
       method: 'DELETE',
       url: `/api/v1/scim/v2/Users/${user.id}`,
-      headers: headers('admin'),
+      headers: scimHeaders(),
     });
     expect(deleted.statusCode).toBe(204);
 
@@ -200,7 +215,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const otherTenant = await app.inject({
       method: 'GET',
       url: `/api/v1/scim/v2/Users/${user.id}`,
-      headers: headers('admin', TENANT_B),
+      headers: scimHeaders(TENANT_B),
     });
     expect(otherTenant.statusCode).toBe(404);
   });
@@ -209,7 +224,7 @@ describe('G-924 SCIM 2.0 mount', () => {
     const badFilter = await app.inject({
       method: 'GET',
       url: `/api/v1/scim/v2/Users?filter=${encodeURIComponent('userName co "ann"')}`,
-      headers: headers('admin'),
+      headers: scimHeaders(),
     });
     expect(badFilter.statusCode).toBe(400);
     expect(badFilter.json().scimType).toBe('invalidFilter');
@@ -217,18 +232,24 @@ describe('G-924 SCIM 2.0 mount', () => {
     const badPatch = await app.inject({
       method: 'PATCH',
       url: '/api/v1/scim/v2/Users/00000000-0000-4000-8000-000000000000',
-      headers: headers('admin'),
+      headers: scimHeaders(),
       payload: { Operations: [] },
     });
     expect(badPatch.statusCode).toBe(400);
   });
 
-  it('denies a teacher (no user:manage)', async () => {
+  it('denies a teacher (no user:manage): no SCIM token, and a JWT never works on SCIM', async () => {
+    const issue = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tenant/scim-token',
+      headers: headers('teacher'),
+    });
+    expect(issue.statusCode).toBe(403);
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/scim/v2/Users',
       headers: headers('teacher'),
     });
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(401);
   });
 });

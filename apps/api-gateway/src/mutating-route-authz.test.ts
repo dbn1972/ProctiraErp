@@ -123,6 +123,18 @@ describe('W1-SEC-02 mutating-route authz inventory', () => {
     });
   });
 
+  it('PRC-M027: SCIM token issue/revoke need user:manage (tenant admin)', () => {
+    expect(resolveExactMutatingAuthz('POST', '/api/v1/tenant/scim-token')).toMatchObject({
+      resource: 'user',
+      action: 'manage',
+      ruleId: 'tenant.scim-token.issue',
+    });
+    expect(resolveExactMutatingAuthz('DELETE', '/api/v1/tenant/scim-token')).toMatchObject({
+      resource: 'user',
+      action: 'manage',
+      ruleId: 'tenant.scim-token.revoke',
+    });
+  });
   it('fails closed when mutating path has no inventory rule', () => {
     const gate = evaluateExactMutatingAuthzGate({
       method: 'POST',

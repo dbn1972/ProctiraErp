@@ -18,6 +18,8 @@ import { getGradingScheme } from '@/lib/api/assessments';
 import type { GradingSchemeFormValues } from '@/lib/validation/assessment-schema';
 
 import { GradingSchemeForm } from '../../../_components/grading-scheme-form';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,10 @@ interface PageProps {
 }
 
 export default async function EditGradingSchemePage(props: PageProps) {
+  // A-batch: check before any assessment read.
+  if (!(await hasDashboardDomainRouteAccess('assessments', '/assessments'))) {
+    return <RouteAccessDenied />;
+  }
   const params = await props.params;
   const scheme = await getGradingScheme(params.id);
   if (!scheme) {

@@ -47,6 +47,10 @@ export const DYNAMIC_SQL_ALLOWLIST = new Map([
     'packages/backend/staff/src/prisma-staff-repository.ts',
     'PRC-L153/L246 pg-style `executor.query(text, values)` on the tenant-bound staff transaction; its only caller (pg-hr-ops-store insertContract) passes static parameterised DML checked at its own call site',
   ],
+  [
+    'packages/backend/student/src/prisma-student-repository.ts',
+    'PRC-M013 pg-style `client.query(text, values)` executor adapter over the tenant-bound student transaction; its only caller (the injected StudentTxnAuditPort from @proctira/backend-audit) passes static parameterised audit DML checked at its own call site',
+  ],
 ]);
 const DDL_LITERAL =
   /^\s*(?:CREATE|ALTER|DROP|TRUNCATE|COMMENT\s+ON|GRANT|REVOKE|DO\s+\$|REINDEX|CLUSTER|VACUUM)\b/i;

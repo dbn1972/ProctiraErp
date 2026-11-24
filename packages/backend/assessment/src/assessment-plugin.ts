@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { AssessmentAuditSink } from './assessment-audit.js';
+import type { AssessmentPortalBinding, AssessmentTeachingScope } from './assessment-ownership.js';
 import type {
   GradingSchemeRepository,
   AssessmentItemRepository,
@@ -81,6 +82,17 @@ export interface AssessmentPluginOptions {
    * generation and downloads. Omitted: no audit events (unchanged behaviour).
    */
   auditSink?: AssessmentAuditSink | null;
+  /**
+   * PRC-M160 / PRC-L274: teacher -> subject / student ownership lookup. Teacher-only roles
+   * may only write for subjects they teach and only read a student's comments, grades and
+   * report cards when they teach that student. Omitted: production-like envs fail closed (503).
+   */
+  teachingScope?: AssessmentTeachingScope | null;
+  /**
+   * PRC-L274: students a guardian / parent / student may read, so the report-card PDF
+   * download serves families their own cards. Omitted: portal callers get 404.
+   */
+  portalBinding?: AssessmentPortalBinding | null;
   /** Route prefix for grading schemes (default: '/grading-schemes') */
   gradingSchemesPrefix?: string;
   /** Route prefix for assessment items (default: '/assessment-items') */
@@ -138,6 +150,10 @@ export const assessmentPlugin = fp(
       reportCardsPrefix = '/report-cards',
     } = options;
 
+    // PRC-M161: one directory instance backs report-card names and result student checks;
+    // M4-P3: it also backs the subject / period tenant checks on items and outcomes.
+    const resolvedDirectory =
+      reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory;
     // Create assessment service instance
     const assessmentService = new AssessmentService(
       gradingSchemeRepository,
@@ -146,7 +162,7 @@ export const assessmentPlugin = fp(
       // PRC-H037/H038: enables the in-use guards (block item replace / scheme
       // edit-delete once results exist).
       resultRepository,
-      { auditSink },
+      { auditSink, referenceDirectory: resolvedDirectory },
     );
 
     // Decorate fastify with the assessment service
@@ -158,13 +174,11 @@ export const assessmentPlugin = fp(
       gradingSchemesPrefix,
       assessmentItemsPrefix,
       outcomesPrefix,
+      teachingScope: options.teachingScope ?? null,
     });
 
     // Register result routes if result repository is provided
     let resultService: ResultService | undefined;
-    // PRC-M161: one directory instance backs report-card names and result student checks.
-    const resolvedDirectory =
-      reportCardDirectory === undefined ? createReportCardDirectory() : reportCardDirectory;
     if (resultRepository) {
       resultService = new ResultService(
         resultRepository,
@@ -178,6 +192,7 @@ export const assessmentPlugin = fp(
       await registerResultRoutes(fastify, {
         resultService,
         resultsPrefix,
+        teachingScope: options.teachingScope ?? null,
       });
     }
 
@@ -246,6 +261,8 @@ export const assessmentPlugin = fp(
       await registerReportCardRoutes(fastify, {
         reportCardService,
         prefix: reportCardsPrefix,
+        teachingScope: options.teachingScope ?? null,
+        portalBinding: options.portalBinding ?? null,
       });
     }
   },

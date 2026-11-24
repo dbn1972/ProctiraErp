@@ -17,8 +17,10 @@ import {
   RolloverCard,
 } from '@/components/institutions/academic-calendar-panel';
 import { listInstitutions } from '@/lib/api/institutions';
-import { ApiClientError, listAcademicPeriods, listCalendarEvents } from '@/lib/institutions/api';
+import { listAcademicPeriods, listCalendarEvents } from '@/lib/institutions/api';
 import type { AcademicPeriod, CalendarEvent } from '@/lib/institutions/types';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
+import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +45,10 @@ const KIND_LABELS: Record<AcademicPeriod['kind'], string> = {
 };
 
 export default async function AcademicCalendarPage(props: PageProps) {
+  // A-batch: check before any institution read.
+  if (!(await hasDashboardDomainRouteAccess('academic-periods', '/academic-periods'))) {
+    return <RouteAccessDenied />;
+  }
   const { id } = await props.params;
   if (!UUID_RE.test(id)) notFound();
 
@@ -75,10 +81,10 @@ export default async function AcademicCalendarPage(props: PageProps) {
   try {
     events = await listCalendarEvents(period.id);
   } catch (error) {
-    eventsError =
-      error instanceof ApiClientError
-        ? error.message
-        : 'The academic calendar service is currently unavailable.';
+    // D1-T5: fixed copy on screen; the failure goes to the server log.
+    // eslint-disable-next-line no-console
+    console.error('[academic-calendar] load failed', error);
+    eventsError = 'The academic calendar service is currently unavailable.';
   }
 
   let institutions: Array<{ id: string; name: string }> = [];

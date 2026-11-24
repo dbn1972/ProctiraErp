@@ -657,6 +657,8 @@ export async function registerTimetableRoutes(
   fastify.get(`${prefix}/substitutions`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    // S-D2: rows carry why a teacher is absent; substitution-desk roles only.
+    if (!requireAction(request, reply, 'substitution.read')) return;
     try {
       const query = request.query as {
         institutionId?: string;

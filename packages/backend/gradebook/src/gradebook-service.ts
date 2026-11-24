@@ -37,7 +37,7 @@ import {
   type GradeWorkflowAction,
 } from './grade-workflow.js';
 import { hasInstitutionWideGradeWriteRole } from './gradebook-access.js';
-import { GradeLockedError } from './gradebook-errors.js';
+import { GradeLockedError, ReferenceNotFoundError } from './gradebook-errors.js';
 import type {
   CreditRuleEntity,
   ExportJobEntity,
@@ -483,6 +483,11 @@ export class GradebookService {
   }
 
   async createCreditRule(tenantId: string, input: CreateCreditRuleInput) {
+    // FKB-015: the board must be this tenant's; another tenant's board and an unknown id
+    // give the same 404 (the id-only FK would accept another tenant's board).
+    if (input.boardId && !(await this.repo.getBoard(tenantId, input.boardId))) {
+      throw new NotFoundError(`Board with id '${input.boardId}' not found`);
+    }
     const existing = await this.repo.getCreditRuleByCode(tenantId, input.code);
     if (existing) {
       throw new ValidationError(`Credit rule code ${input.code} already exists`);
@@ -978,6 +983,14 @@ export class GradebookService {
     // PRC-M265: the board must exist in this tenant (404, not an FK 400/500).
     if (!(await this.repo.getBoard(tenantId, input.boardId))) {
       throw new NotFoundError('Board not found');
+    }
+    // M4-P2: the student and the institution must belong to this tenant. Another tenant's id
+    // and an unknown id get the same 422, so the response is no existence oracle.
+    if (!(await this.repo.studentExists(tenantId, input.studentId))) {
+      throw new ReferenceNotFoundError();
+    }
+    if (input.institutionId && !(await this.repo.getInstitution(tenantId, input.institutionId))) {
+      throw new ReferenceNotFoundError();
     }
     const now = nowIso();
     let job = await this.repo.createExportJob({
