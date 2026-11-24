@@ -27,13 +27,15 @@ describe('PgStaffLeaveRepository balance concurrency (live)', () => {
     await repo.setBalance(tenantId, staffId, 'annual', 3);
 
     // Five 2-day requests against a 3-day balance: exactly one may be approved.
+    // Disjoint ranges (01-02, 03-04, ...): PRC-M373 rejects overlapping live leaves.
+    const day = (n: number) => `2026-10-${String(n).padStart(2, '0')}`;
     const leaves = await Promise.all(
       Array.from({ length: 5 }, (_, i) =>
         service.createLeave(tenantId, {
           staffId,
           leaveType: 'annual',
-          startDate: `2026-10-0${i + 1}`,
-          endDate: `2026-10-0${i + 2}`,
+          startDate: day(2 * i + 1),
+          endDate: day(2 * i + 2),
         }),
       ),
     );

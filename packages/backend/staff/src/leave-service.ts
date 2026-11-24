@@ -7,7 +7,9 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   InsufficientLeaveBalanceError,
   LeaveBalanceMissingError,
+  LeaveNotCancellableError,
   LeaveNotPendingError,
+  LeaveOverlapError,
   type StaffLeaveBalanceEntity,
   type StaffLeaveEntity,
   type StaffLeaveRepository,
@@ -21,6 +23,17 @@ import {
 } from './leave-schemas.js';
 import { emitStaffAudit, type StaffAuditOptions } from './staff-audit.js';
 import { assertStaffInTenant, type StaffExistsCheck } from './staff-reference.js';
+
+/**
+ * PRC-M373: a real calendar date in strict `YYYY-MM-DD` form. `Date.parse`
+ * alone accepts impossible days such as 2026-02-30 by rolling them over, so
+ * the parsed value must round-trip to the same string.
+ */
+export function isIsoCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const ms = Date.parse(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === value;
+}
 
 /** Inclusive calendar-day count between ISO dates (YYYY-MM-DD). */
 export function inclusiveLeaveDays(startDate: string, endDate: string): number {
@@ -127,6 +140,20 @@ export class StaffLeaveService {
   }
 
   async createLeave(tenantId: string, input: CreateStaffLeaveInput) {
+    // PRC-M373: reject impossible dates (2026-02-30, 2026-13-01) before anything else.
+    const badDates = (['startDate', 'endDate'] as const).filter(
+      (f) => !isIsoCalendarDate(input[f]),
+    );
+    if (badDates.length > 0) {
+      throw new ValidationError(
+        'Leave dates must be real calendar dates (YYYY-MM-DD)',
+        badDates.map((field) => ({
+          field,
+          rule: 'date',
+          message: `${field} must be a real calendar date in YYYY-MM-DD form`,
+        })),
+      );
+    }
     await assertStaffInTenant(this.staffExists, tenantId, input.staffId);
     if (input.endDate < input.startDate) {
       throw new BusinessRuleError('End date must be on or after start date');
@@ -144,18 +171,24 @@ export class StaffLeaveService {
       }
     }
 
-    return this.repository.createLeave({
-      id: uuidv4(),
-      tenantId,
-      staffId: input.staffId,
-      leaveType,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      reason: input.reason ?? null,
-      status: 'pending',
-      decidedBy: null,
-      decidedAt: null,
-    });
+    try {
+      return await this.repository.createLeave({
+        id: uuidv4(),
+        tenantId,
+        staffId: input.staffId,
+        leaveType,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: input.reason ?? null,
+        status: 'pending',
+        decidedBy: null,
+        decidedAt: null,
+      });
+    } catch (error) {
+      // PRC-M373: one pending/approved leave per staff member per day.
+      if (error instanceof LeaveOverlapError) throw new ConflictError(error.message);
+      throw error;
+    }
   }
 
   /** PRC-M379: bounded list with total. */
@@ -188,6 +221,10 @@ export class StaffLeaveService {
     }
     if (leave.status !== 'pending') {
       throw new ConflictError(`Leave is already ${leave.status}`);
+    }
+    // PRC-M373: separation of duties: nobody decides their own leave.
+    if (await this.repository.isStaffLinkedToPrincipal(tenantId, leave.staffId, actorId)) {
+      throw new ConflictError('A leave request cannot be decided by the staff member it is for');
     }
     const status = input.status as StaffLeaveStatus;
     const debitDays =
@@ -229,6 +266,44 @@ export class StaffLeaveService {
             'set it via PUT /staff/:id/leave-balances before approving',
         );
       }
+      throw error;
+    }
+  }
+
+  /**
+   * PRC-M373: cancel a pending or approved leave. Cancelling an approved
+   * balance-tracked leave credits back the days its approval debited, in the
+   * same transaction as the status change.
+   */
+  async cancelLeave(tenantId: string, leaveId: string, actorId: string): Promise<StaffLeaveEntity> {
+    const leave = await this.repository.findLeaveById(leaveId, tenantId);
+    if (!leave) {
+      throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+    }
+    const creditDaysIfApproved = requiresBalance(leave.leaveType)
+      ? inclusiveLeaveDays(leave.startDate, leave.endDate)
+      : null;
+    try {
+      const result = await this.repository.cancelLeaveAtomically(tenantId, leaveId, {
+        cancelledBy: actorId,
+        cancelledAt: new Date(),
+        creditDaysIfApproved,
+      });
+      if (!result) throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+      await emitStaffAudit(this.options.auditSink, {
+        tenantId,
+        action: 'leave.cancel',
+        entityType: 'staff_leave',
+        entityId: leaveId,
+        actorId,
+        operation: 'UPDATE',
+        before: { status: result.previousStatus },
+        after: { status: result.leave.status, creditedDays: result.creditedDays },
+        metadata: { staffId: leave.staffId, leaveType: leave.leaveType },
+      });
+      return result.leave;
+    } catch (error) {
+      if (error instanceof LeaveNotCancellableError) throw new ConflictError(error.message);
       throw error;
     }
   }

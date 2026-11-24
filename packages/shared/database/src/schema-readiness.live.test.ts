@@ -89,6 +89,6 @@ describe.skipIf(!DATABASE_URL)('UP-P0-02 runtime schema readiness (live)', () =>
   it('requires the strict-FK repair and current schema marker', () => {
     expect(REQUIRED_RUNTIME_MIGRATIONS).toContain('082_repair_strict_tenant_fk_validate.sql');
     expect(REQUIRED_RUNTIME_MIGRATIONS).toContain('092_hostel_assignment_uniqueness.sql');
-    expect(REQUIRED_RUNTIME_MIGRATIONS.at(-1)).toBe('310_outbox_redrive_audit_mirror.sql');
+    expect(REQUIRED_RUNTIME_MIGRATIONS.at(-1)).toBe('311_staff_leave_overlap_cancel.sql');
   });
 });

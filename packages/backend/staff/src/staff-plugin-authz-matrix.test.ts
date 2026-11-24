@@ -56,6 +56,7 @@ const ROUTE_ACTIONS: Record<string, Classification> = {
   // leave-routes.ts
   'POST /staff/leaves': 'staff.hr.write',
   'POST /staff/leaves/:id/decide': 'staff.hr.write',
+  'POST /staff/leaves/:id/cancel': 'staff.hr.write',
   'GET /staff/leaves': 'gateway-read',
   // PRC-H091 (#499): per-staff leave balances are HR data; reads are gated like writes.
   'GET /staff/:id/leave-balances': 'staff.hr.write',

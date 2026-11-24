@@ -16,7 +16,11 @@ import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import {
   InsufficientLeaveBalanceError,
   LeaveBalanceMissingError,
+  LeaveNotCancellableError,
   LeaveNotPendingError,
+  LeaveOverlapError,
+  type CancelLeaveAtomicInput,
+  type CancelLeaveResult,
   type DecideLeaveAtomicInput,
   type StaffLeaveBalanceEntity,
   type StaffLeaveEntity,
@@ -26,6 +30,9 @@ import {
 } from './leave-repository.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
+
+/** PRC-M373: EXCLUDE constraint from db/sql/311 (one live leave per staff per day). */
+const LEAVE_OVERLAP_CONSTRAINT = 'staff_leave_requests_no_overlap_excl';
 
 const ensureStaffLeaveSchemaReady = createDatabaseSchemaReadinessCheck('staff leave', 'staffLeave');
 
@@ -92,26 +99,34 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
     data: Omit<StaffLeaveEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<StaffLeaveEntity> {
     await this.ensureSchema();
-    return this.withTenant(data.tenantId, async (client) => {
-      const result = await client.query(
-        `INSERT INTO staff_leave_requests (
-           id, tenant_id, staff_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at
-         ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10) RETURNING *`,
-        [
-          data.id,
-          data.tenantId,
-          data.staffId,
-          data.leaveType,
-          data.startDate,
-          data.endDate,
-          data.reason,
-          data.status,
-          data.decidedBy,
-          data.decidedAt,
-        ],
-      );
-      return mapLeave(result.rows[0] as Record<string, unknown>);
-    });
+    try {
+      return await this.withTenant(data.tenantId, async (client) => {
+        const result = await client.query(
+          `INSERT INTO staff_leave_requests (
+             id, tenant_id, staff_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at
+           ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10) RETURNING *`,
+          [
+            data.id,
+            data.tenantId,
+            data.staffId,
+            data.leaveType,
+            data.startDate,
+            data.endDate,
+            data.reason,
+            data.status,
+            data.decidedBy,
+            data.decidedAt,
+          ],
+        );
+        return mapLeave(result.rows[0] as Record<string, unknown>);
+      });
+    } catch (error) {
+      const pgErr = error as { code?: string; constraint?: string };
+      if (pgErr.code === '23P01' && pgErr.constraint === LEAVE_OVERLAP_CONSTRAINT) {
+        throw new LeaveOverlapError(data.staffId, data.startDate, data.endDate);
+      }
+      throw error;
+    }
   }
 
   async listLeavesPage(tenantId: string, window: PageWindow): Promise<PagedRows<StaffLeaveEntity>> {
@@ -332,6 +347,70 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
       );
       if (!result.rows[0]) throw new LeaveNotPendingError(leave.status);
       return mapLeave(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async cancelLeaveAtomically(
+    tenantId: string,
+    leaveId: string,
+    input: CancelLeaveAtomicInput,
+  ): Promise<CancelLeaveResult | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const locked = await client.query(
+        `SELECT * FROM staff_leave_requests WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+        [leaveId, tenantId],
+      );
+      if (!locked.rows[0]) return null;
+      const leave = mapLeave(locked.rows[0] as Record<string, unknown>);
+      if (leave.status !== 'pending' && leave.status !== 'approved') {
+        throw new LeaveNotCancellableError(leave.status);
+      }
+      let creditedDays = 0;
+      const credit = input.creditDaysIfApproved;
+      if (leave.status === 'approved' && credit !== null && credit > 0) {
+        // Restore exactly what the approval debited; the balance row existed then
+        // (approval requires it), so an upsert only matters if it was removed since.
+        await client.query(
+          `INSERT INTO staff_leave_balances (tenant_id, staff_id, leave_type, balance_days, updated_at)
+           VALUES ($1, $2, $3, $4, now())
+           ON CONFLICT (tenant_id, staff_id, leave_type) DO UPDATE SET
+             balance_days = staff_leave_balances.balance_days + EXCLUDED.balance_days,
+             updated_at = now()`,
+          [tenantId, leave.staffId, leave.leaveType, credit],
+        );
+        creditedDays = credit;
+      }
+      const result = await client.query(
+        `UPDATE staff_leave_requests
+            SET status = 'cancelled', cancelled_by = $3, cancelled_at = $4, updated_at = now()
+          WHERE id = $1 AND tenant_id = $2 AND status = $5
+          RETURNING *`,
+        [leaveId, tenantId, input.cancelledBy, input.cancelledAt, leave.status],
+      );
+      if (!result.rows[0]) throw new LeaveNotCancellableError(leave.status);
+      return {
+        leave: mapLeave(result.rows[0] as Record<string, unknown>),
+        previousStatus: leave.status,
+        creditedDays,
+      };
+    });
+  }
+
+  async isStaffLinkedToPrincipal(
+    tenantId: string,
+    staffId: string,
+    principalId: string,
+  ): Promise<boolean> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT 1 FROM staff
+          WHERE tenant_id = $1 AND id = $2 AND user_id IS NOT NULL AND user_id::text = $3
+          LIMIT 1`,
+        [tenantId, staffId, principalId],
+      );
+      return result.rows.length > 0;
     });
   }
 }

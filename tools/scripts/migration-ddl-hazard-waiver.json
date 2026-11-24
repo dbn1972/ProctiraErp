@@ -116,6 +116,13 @@
       "reason": "PRC-L555: ADD CONSTRAINT grading_scale_bands_no_overlap_excl EXCLUDE USING gist (grading_scale_id =, numrange(min_percent, max_percent, '[]') &&) so one grading scale cannot carry overlapping bands. Postgres has no NOT VALID for EXCLUDE, so the add is a blocking ACCESS EXCLUSIVE build with no online equivalent. grading_scale_bands is a small per-board reference table (tens of rows per tenant), so the window is brief. The in-file preflight (FORCE RLS lifted and restored in the same transaction) refuses to add the constraint over existing overlaps; the bands seeded by db/seeds/002, 003 and 006 were checked and have none.",
       "maintenanceWindow": "PRC-L555 remediation window (small reference table; brief ACCESS EXCLUSIVE acceptable)",
       "approvedBy": "audit-gap-fast-mode batch (migration/audit-schema-wave4-b), pending human reviewer sign-off in the PR"
+    },
+    {
+      "path": "db/sql/311_staff_leave_overlap_cancel.sql",
+      "hazards": ["blocking_unique_or_pk"],
+      "reason": "PRC-M373: ADD CONSTRAINT staff_leave_requests_no_overlap_excl EXCLUDE USING gist (tenant_id =, staff_id =, daterange(start_date, end_date, '[]') &&) WHERE status IN ('pending','approved') so one staff member cannot hold two live leaves over the same day. Postgres has no NOT VALID for EXCLUDE, so the add is a blocking ACCESS EXCLUSIVE build with no online equivalent. staff_leave_requests is a per-staff HR table (a few rows per staff per year; no seed rows), so the window is brief. The in-file preflight (FORCE RLS lifted and restored in the same transaction) refuses to add the constraint over existing overlaps; it never deletes or edits data.",
+      "maintenanceWindow": "PRC-M373 remediation window (small HR table; brief ACCESS EXCLUSIVE acceptable)",
+      "approvedBy": "audit-gap-fast-mode batch (fix/schema-tenancy-rls-batch1), pending human reviewer sign-off in the PR"
     }
   ]
 }

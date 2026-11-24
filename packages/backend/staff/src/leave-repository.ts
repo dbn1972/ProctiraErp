@@ -65,6 +65,47 @@ export class LeaveBalanceMissingError extends Error {
   }
 }
 
+/**
+ * PRC-M373: the staff member already has a pending or approved leave that
+ * shares at least one day with the requested range.
+ */
+export class LeaveOverlapError extends Error {
+  constructor(
+    public readonly staffId: string,
+    public readonly startDate: string,
+    public readonly endDate: string,
+  ) {
+    super(
+      `Staff '${staffId}' already has a pending or approved leave overlapping ${startDate}..${endDate}`,
+    );
+    this.name = 'LeaveOverlapError';
+  }
+}
+
+/** PRC-M373: only pending or approved leave can be cancelled. */
+export class LeaveNotCancellableError extends Error {
+  constructor(public readonly currentStatus: StaffLeaveStatus) {
+    super(`Leave is already ${currentStatus}`);
+    this.name = 'LeaveNotCancellableError';
+  }
+}
+
+export interface CancelLeaveAtomicInput {
+  cancelledBy: string;
+  cancelledAt: Date;
+  /**
+   * Days to credit back when the leave was approved (the days its approval
+   * debited). Ignored for a pending leave, which never debited anything.
+   */
+  creditDaysIfApproved: number | null;
+}
+
+export interface CancelLeaveResult {
+  leave: StaffLeaveEntity;
+  previousStatus: StaffLeaveStatus;
+  creditedDays: number;
+}
+
 export interface DecideLeaveAtomicInput {
   status: StaffLeaveStatus;
   decidedBy: string;
@@ -86,7 +127,31 @@ export interface StaffLeaveRepository {
     leaveId: string,
     input: DecideLeaveAtomicInput,
   ): Promise<StaffLeaveEntity | null>;
+  /**
+   * Throws {@link LeaveOverlapError} when the staff member already has a
+   * pending or approved leave sharing a day with the new one (PRC-M373).
+   */
   createLeave(data: Omit<StaffLeaveEntity, 'createdAt' | 'updatedAt'>): Promise<StaffLeaveEntity>;
+  /**
+   * PRC-M373: in ONE transaction lock the leave, require pending or approved,
+   * credit `creditDaysIfApproved` back to the balance when it was approved and
+   * set it cancelled. Returns null when the leave does not exist. Throws
+   * {@link LeaveNotCancellableError}.
+   */
+  cancelLeaveAtomically(
+    tenantId: string,
+    leaveId: string,
+    input: CancelLeaveAtomicInput,
+  ): Promise<CancelLeaveResult | null>;
+  /**
+   * PRC-M373: true when `principalId` (JWT sub) is the login linked to the
+   * staff record (`staff.user_id`), i.e. the leave is the caller's own.
+   */
+  isStaffLinkedToPrincipal(
+    tenantId: string,
+    staffId: string,
+    principalId: string,
+  ): Promise<boolean>;
   listLeaves(tenantId: string): Promise<StaffLeaveEntity[]>;
   /** PRC-M379: bounded list with total for GET /staff/leaves. */
   listLeavesPage(tenantId: string, window: PageWindow): Promise<PagedRows<StaffLeaveEntity>>;
