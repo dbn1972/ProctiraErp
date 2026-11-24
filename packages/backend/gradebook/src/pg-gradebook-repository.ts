@@ -2,7 +2,7 @@
  * Postgres-backed gradebook store (raw `pg` — no Prisma).
  * Aligns with db/sql/003_sis_timetable_schedule_schema.sql (+ 004 indexes).
  */
-import { ConflictError, ValidationError } from '@proctira/common';
+import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type pg from 'pg';
 
@@ -90,6 +90,23 @@ function fkColumn(constraint: string | undefined): string | null {
     constraint ?? '',
   );
   return match ? match[1]! : null;
+}
+
+/**
+ * FKB-015: a board FK violation on a credit rule (id-only `_fkey` or tenant-composite
+ * `_tenant_fk`, e.g. a board deleted after the service lookup) becomes the same 404 the
+ * tenant-scoped lookup gives. Anything else is rethrown unchanged.
+ */
+function rethrowCreditRuleBoardFk(error: unknown, boardId: string | null): never {
+  const pgErr = error as { code?: string; constraint?: string } | null;
+  if (
+    boardId &&
+    pgErr?.code === '23503' &&
+    /^credit_rules_board_id_(fkey|tenant_fk)$/.test(String(pgErr.constraint ?? ''))
+  ) {
+    throw new NotFoundError(`Board with id '${boardId}' not found`);
+  }
+  throw error;
 }
 
 async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
@@ -533,7 +550,7 @@ export class PgGradebookRepository implements GradebookRepository, GradebookSect
           row.createdAt,
           row.updatedAt,
         ],
-      );
+      ).catch((error: unknown) => rethrowCreditRuleBoardFk(error, row.boardId));
       return mapCredit(res.rows[0] as Record<string, unknown>);
     });
   }

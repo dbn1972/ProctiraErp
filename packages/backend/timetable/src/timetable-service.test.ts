@@ -16,6 +16,15 @@ const studentA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const studentB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const studentC = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
+/** Meetings resolve their section inside the tenant (PR B1): seed the fixed section ids. */
+function repoWithSections(): InMemoryTimetableRepository {
+  const repo = new InMemoryTimetableRepository();
+  for (const id of [sectionA, sectionB]) {
+    repo.seedSection({ id, tenantId, institutionId, academicPeriodId });
+  }
+  return repo;
+}
+
 describe('TimetableService', () => {
   it('CRUD bell schedule + periods', async () => {
     const service = new TimetableService(new InMemoryTimetableRepository());
@@ -40,7 +49,7 @@ describe('TimetableService', () => {
   });
 
   it('rejects teacher double-book with TIMETABLE_CLASH (409 semantics)', async () => {
-    const service = new TimetableService(new InMemoryTimetableRepository());
+    const service = new TimetableService(repoWithSections());
     const schedule = await service.createBellSchedule(tenantId, {
       institutionId,
       academicPeriodId,
@@ -85,7 +94,7 @@ describe('TimetableService', () => {
   });
 
   it('rejects substitute clash when substitute already teaches that slot', async () => {
-    const service = new TimetableService(new InMemoryTimetableRepository());
+    const service = new TimetableService(repoWithSections());
     const schedule = await service.createBellSchedule(tenantId, {
       institutionId,
       academicPeriodId,
@@ -135,7 +144,7 @@ describe('TimetableService', () => {
   });
 
   it('rejects room double-book with TIMETABLE_CLASH (409 semantics)', async () => {
-    const service = new TimetableService(new InMemoryTimetableRepository());
+    const service = new TimetableService(repoWithSections());
     const schedule = await service.createBellSchedule(tenantId, {
       institutionId,
       academicPeriodId,
@@ -574,7 +583,7 @@ describe('G-917 generation jobs + absences', () => {
   });
 
   it('lists affected periods after marking a teacher absent', async () => {
-    const repo = new InMemoryTimetableRepository();
+    const repo = repoWithSections();
     const service = new TimetableService(repo);
     const schedule = await service.createBellSchedule(tenantId, {
       institutionId,
@@ -682,7 +691,7 @@ describe('G-917 generation jobs + absences', () => {
    * substitute." hasSubstitute is additive (rows are never filtered out, only annotated).
    */
   it('flags affected periods already covered by a substitution (PRC-L175 part 2)', async () => {
-    const service = new TimetableService(new InMemoryTimetableRepository());
+    const service = new TimetableService(repoWithSections());
     const schedule = await service.createBellSchedule(tenantId, {
       institutionId,
       academicPeriodId,

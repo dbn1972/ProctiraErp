@@ -69,6 +69,20 @@ export function evaluateGate(gate, runs, now) {
   };
 }
 
+/** Verdict for a gate whose list-runs request returned HTTP 404 (fails closed). */
+export function workflowNotFoundVerdict(gate) {
+  return {
+    workflow: gate.workflow,
+    ok: false,
+    reasons: [
+      `workflow not found: GET /actions/workflows/${gate.workflow}/runs returned HTTP 404 ` +
+        '(file missing or renamed on the default branch, or the token cannot read it)',
+    ],
+    latest: null,
+    lastSuccessAt: null,
+  };
+}
+
 export function issueTitle(workflow) {
   return `Scheduled gate failing: ${workflow}`;
 }
@@ -150,7 +164,13 @@ export async function run({
       'GET',
       `/actions/workflows/${encodeURIComponent(gate.workflow)}/runs?event=schedule&per_page=30`,
     );
-    const verdict = evaluateGate(gate, data?.workflow_runs ?? [], now);
+    // The client maps a GET 404 to null; the list-runs endpoint otherwise
+    // always returns a JSON body. A 404 means the workflow was not found, which
+    // must not be reported as "no successful scheduled run".
+    const verdict =
+      data === null
+        ? workflowNotFoundVerdict(gate)
+        : evaluateGate(gate, data.workflow_runs ?? [], now);
     verdicts.push(verdict);
     log(
       `${verdict.ok ? 'OK     ' : 'FLAGGED'} ${gate.workflow}${verdict.ok ? '' : ` — ${verdict.reasons.join('; ')}`}`,

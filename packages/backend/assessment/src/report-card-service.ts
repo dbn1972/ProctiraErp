@@ -424,6 +424,8 @@ export class ReportCardService {
       }
     }
 
+    await this.assertStudentsInTenant(tenantId, [input.studentId]);
+
     // PRC-M166: reuse an in-flight job for the same card instead of duplicating it.
     const staleBefore = this.staleBefore();
     const inFlight = (
@@ -535,6 +537,9 @@ export class ReportCardService {
       }
     }
 
+    // FKB-082: one unknown student rejects the whole batch before any job is created.
+    await this.assertStudentsInTenant(tenantId, input.studentIds);
+
     const jobs: ReportCardJobEntity[] = [];
 
     // PRC-M166: in-flight jobs for this period/template/institution, by student.
@@ -635,6 +640,21 @@ export class ReportCardService {
       jobsCreated: jobs.length,
       jobs,
     };
+  }
+
+  /**
+   * FKB-082: every student must belong to this tenant. Another tenant's student and an
+   * unknown id give the same 404 (the id-only FK would accept another tenant's student).
+   */
+  private async assertStudentsInTenant(
+    tenantId: string,
+    studentIds: readonly string[],
+  ): Promise<void> {
+    const existing = await this.jobRepo.findExistingStudentIds(tenantId, studentIds);
+    const missing = studentIds.find((id) => !existing.has(id));
+    if (missing !== undefined) {
+      throw new NotFoundError(`Student with id '${missing}' not found`);
+    }
   }
 
   /**
