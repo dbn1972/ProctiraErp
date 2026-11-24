@@ -97,6 +97,26 @@ export const institutionPlugin = fp(
       academicsPrefixes = {},
     } = options;
 
+    // Request-scoped tenant for stores whose contract has no tenant argument
+    // (infrastructure, the tenant-bound Prisma behind the area hierarchy and
+    // academics). Callback-style hook so `run` wraps the rest of the request
+    // lifecycle, mirroring @fastify/request-context.
+    // PRC-L325 (topic 4 option A): the tenant is only `request.tenantId`, which
+    // the gateway's tenant plugin resolves from the verified token or a
+    // verified host mapping; there is no `request.user.tenantId` fallback. The
+    // value is read on each access, not captured once at onRequest, so a later
+    // hook that re-resolves the tenant is seen by every query. Registered before
+    // any route so the area hierarchy has a tenant even with `academics: false`.
+    fastify.addHook('onRequest', (request, _reply, done) => {
+      tenantContext.run(
+        {
+          get tenantId() {
+            return (request as { tenantId?: string }).tenantId || undefined;
+          },
+        },
+        done,
+      );
+    });
     // Create institution service instance
     const institutionService = new InstitutionService(repository);
 
@@ -126,16 +146,6 @@ export const institutionPlugin = fp(
       academics === true ? createAcademicsDeps({ institutionRepository: repository }) : academics;
     // PRC-L121: fail registration (startup) when required academics tables are missing.
     if (deps.ready) await deps.ready();
-
-    // Request-scoped tenant for stores whose contract has no tenant argument
-    // (infrastructure). Callback-style hook so `run` wraps the rest of the
-    // request lifecycle, mirroring @fastify/request-context.
-    fastify.addHook('onRequest', (request, _reply, done) => {
-      const tenantId =
-        (request as { tenantId?: string }).tenantId ??
-        (request as { user?: { tenantId?: string } }).user?.tenantId;
-      tenantContext.run({ tenantId }, done);
-    });
 
     const academicPeriodService = new AcademicPeriodService({ prisma: deps.prisma });
     fastify.decorate('academicPeriodService', academicPeriodService);

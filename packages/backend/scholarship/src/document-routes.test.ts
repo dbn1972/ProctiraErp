@@ -356,6 +356,75 @@ describe('scholarship document routes', () => {
     expect(allowed.statusCode).toBe(201);
   });
 
+  it('returns 404 for every document action routed through another application (PRC-M632)', async () => {
+    app = await buildApp({
+      tenantId: TENANT_A,
+      roles: ['scholarship_officer'],
+      sub: 'reviewer-1',
+      documents,
+      blobs,
+      repository,
+    });
+    const programId = await openProgram(app);
+    const draftFor = async (applicantId: string) => {
+      const draft = await app.inject({
+        method: 'POST',
+        url: '/scholarships/applications',
+        payload: {
+          programId,
+          applicantId,
+          institutionId: INSTITUTION,
+          academicRecords: [{ institutionName: 'Sunrise', educationLevel: 'secondary' }],
+          financialInfo: {},
+          documents: [],
+          asDraft: true,
+        },
+      });
+      expect(draft.statusCode).toBe(201);
+      return draft.json().id as string;
+    };
+    const applicationA = await draftFor(STUDENT_A);
+    const applicationB = await draftFor(STUDENT_B);
+    const file = multipart('marksheet', 'marks.pdf', 'application/pdf', PLACEHOLDER_PDF);
+    const uploaded = await app.inject({
+      method: 'POST',
+      url: `/scholarships/applications/${applicationB}/documents`,
+      payload: file.payload,
+      headers: { 'content-type': file.contentType },
+    });
+    expect(uploaded.statusCode).toBe(201);
+    const documentOfB = uploaded.json().id as string;
+    const viaA = `/scholarships/applications/${applicationA}/documents/${documentOfB}`;
+
+    const verify = await app.inject({ method: 'POST', url: `${viaA}/verify` });
+    expect(verify.statusCode).toBe(404);
+    const reject = await app.inject({
+      method: 'POST',
+      url: `${viaA}/reject`,
+      payload: { reason: 'Unreadable scan' },
+    });
+    expect(reject.statusCode).toBe(404);
+    const download = await app.inject({ method: 'GET', url: `${viaA}/download` });
+    expect(download.statusCode).toBe(404);
+    const content = await app.inject({ method: 'GET', url: `${viaA}/content` });
+    expect(content.statusCode).toBe(404);
+    expect(content.body.startsWith('%PDF')).toBe(false);
+    const removed = await app.inject({ method: 'DELETE', url: viaA });
+    expect(removed.statusCode).toBe(404);
+
+    const row = documents.rows.get(documentOfB);
+    expect(row?.verificationStatus).toBe('PENDING');
+    expect(row?.deletedAt ?? null).toBeNull();
+    expect(documents.audits.some((entry) => entry.operation === 'UPDATE')).toBe(false);
+
+    const own = await app.inject({
+      method: 'POST',
+      url: `/scholarships/applications/${applicationB}/documents/${documentOfB}/verify`,
+    });
+    expect(own.statusCode).toBe(200);
+    expect(own.json().verificationStatus).toBe('VERIFIED');
+  });
+
   it('blocks submit when a required document was rejected', async () => {
     app = await buildApp({
       tenantId: TENANT_A,

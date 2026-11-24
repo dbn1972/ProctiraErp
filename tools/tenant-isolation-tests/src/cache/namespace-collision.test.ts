@@ -1,144 +1,179 @@
 /**
  * Category 6 — Cache namespace collision tests.
  *
- * Verifies that Redis-style cache keys are always namespaced per tenant
- * (`tenant:{tenantId}:{key}`) so that:
+ * PRC-M614: drives the product cache (`@proctira/cache`): the key builders
+ * (`tenantKey`, `listKey`, `configKey`) and `CacheClient` with tenant-scope
+ * enforcement on, over an in-process Redis stand-in. It verifies that:
  *   • the same logical key never returns another tenant's value;
- *   • flushing one tenant cannot wipe another tenant;
- *   • raw keys leaving the cache always carry their tenant id.
+ *   • invalidating one tenant's keys cannot wipe another tenant;
+ *   • raw keys leaving the cache always carry their tenant id;
+ *   • unscoped keys and tenant-wildcard patterns are refused.
  *
  * Charter: Section 39 (Tenant Isolation Verification)
  * Validates: Requirements 4.7, 24.6 (tenant-namespaced cache)
  */
-
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  CacheClient,
+  type CacheClientOptions,
+  configKey,
+  listKey,
+  tenantKey,
+} from '@proctira/cache';
 import * as fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 
 import {
-  TenantNamespacedCache,
   assertContainsTenant,
   assertNoForeignTenantInString,
-  cacheKeyArb,
   distinctTenantPairArb,
 } from '../helpers/index.js';
 
-describe('Category 6 — Cache Namespace Collision', () => {
-  let cache: TenantNamespacedCache;
+/** In-process stand-in for the ioredis calls CacheClient makes. */
+class FakeRedis {
+  readonly store = new Map<string, string>();
+  async get(key: string) {
+    return this.store.get(key) ?? null;
+  }
+  async set(key: string, value: string) {
+    this.store.set(key, value);
+    return 'OK';
+  }
+  async del(...keys: string[]) {
+    let removed = 0;
+    for (const key of keys) if (this.store.delete(key)) removed += 1;
+    return removed;
+  }
+  async scan(_cursor: string, _match: 'MATCH', pattern: string) {
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    const matcher = new RegExp(`^${escaped}$`);
+    return ['0', [...this.store.keys()].filter((key) => matcher.test(key))] as [string, string[]];
+  }
+}
 
-  beforeEach(() => {
-    cache = new TenantNamespacedCache();
+function productCache() {
+  const redis = new FakeRedis();
+  const cache = new CacheClient({
+    redis: redis as unknown as CacheClientOptions['redis'],
+    requireTenantScope: true,
+    defaultTtlSeconds: 60,
   });
+  return { redis, cache };
+}
 
-  it('same logical key for two tenants never collides', () => {
-    fc.assert(
-      fc.property(
+const entityArb = fc.constantFrom('student', 'staff', 'institution', 'attendance');
+const idArb = fc.stringMatching(/^[a-z0-9-]{1,24}$/);
+
+describe('Category 6 — Cache Namespace Collision (product @proctira/cache)', () => {
+  it('same logical key for two tenants never collides', async () => {
+    await fc.assert(
+      fc.asyncProperty(
         distinctTenantPairArb,
-        cacheKeyArb,
+        entityArb,
+        idArb,
         fc.string({ minLength: 1, maxLength: 80 }),
         fc.string({ minLength: 1, maxLength: 80 }),
-        ({ tenantA, tenantB }, key, valueA, valueB) => {
-          cache.clear();
-          cache.set(tenantA, key, valueA);
-          cache.set(tenantB, key, valueB);
-
-          expect(cache.get(tenantA, key)).toBe(valueA);
-          expect(cache.get(tenantB, key)).toBe(valueB);
+        async ({ tenantA, tenantB }, entity, id, valueA, valueB) => {
+          const { cache } = productCache();
+          await cache.set(tenantKey(tenantA, entity, id), valueA);
+          await cache.set(tenantKey(tenantB, entity, id), valueB);
+          expect(await cache.get(tenantKey(tenantA, entity, id))).toBe(valueA);
+          expect(await cache.get(tenantKey(tenantB, entity, id))).toBe(valueB);
         },
       ),
       { numRuns: 100 },
     );
   });
 
-  it('cache miss for tenant B when only tenant A populated the key', () => {
-    fc.assert(
-      fc.property(
+  it('cache miss for tenant B when only tenant A populated the key', async () => {
+    await fc.assert(
+      fc.asyncProperty(
         distinctTenantPairArb,
-        cacheKeyArb,
-        fc.string({ minLength: 1, maxLength: 50 }),
-        ({ tenantA, tenantB }, key, value) => {
-          cache.clear();
-          cache.set(tenantA, key, value);
-          expect(cache.get(tenantB, key)).toBeUndefined();
-          expect(cache.get(tenantA, key)).toBe(value);
+        entityArb,
+        idArb,
+        async ({ tenantA, tenantB }, entity, id) => {
+          const { cache } = productCache();
+          await cache.set(tenantKey(tenantA, entity, id), { owner: tenantA });
+          expect(await cache.get(tenantKey(tenantB, entity, id))).toBeNull();
+          let fetched = 0;
+          const value = await cache.getOrSet(
+            listKey(tenantB, entity, 'page-1'),
+            async () => {
+              fetched += 1;
+              return { owner: tenantB };
+            },
+            60,
+          );
+          expect(fetched).toBe(1);
+          expect(value).toEqual({ owner: tenantB });
         },
       ),
       { numRuns: 100 },
     );
   });
 
-  it('deleting tenant A`s key does not affect tenant B', () => {
-    fc.assert(
-      fc.property(
+  it('invalidating tenant A`s keys does not affect tenant B', async () => {
+    await fc.assert(
+      fc.asyncProperty(
         distinctTenantPairArb,
-        cacheKeyArb,
-        fc.string({ minLength: 1, maxLength: 50 }),
-        fc.string({ minLength: 1, maxLength: 50 }),
-        ({ tenantA, tenantB }, key, valueA, valueB) => {
-          cache.clear();
-          cache.set(tenantA, key, valueA);
-          cache.set(tenantB, key, valueB);
-
-          cache.delete(tenantA, key);
-          expect(cache.get(tenantA, key)).toBeUndefined();
-          expect(cache.get(tenantB, key)).toBe(valueB);
-        },
-      ),
-      { numRuns: 100 },
-    );
-  });
-
-  it('flushing a tenant only removes that tenant`s keys', () => {
-    fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        fc.uniqueArray(cacheKeyArb, { minLength: 1, maxLength: 6 }),
-        fc.uniqueArray(cacheKeyArb, { minLength: 1, maxLength: 6 }),
-        ({ tenantA, tenantB }, keysA, keysB) => {
-          cache.clear();
-
-          for (const key of keysA) cache.set(tenantA, key, `a:${key}`);
-          for (const key of keysB) cache.set(tenantB, key, `b:${key}`);
-
-          const removed = cache.flushTenant(tenantA);
-          expect(removed).toBe(keysA.length);
-
-          for (const key of keysA) expect(cache.get(tenantA, key)).toBeUndefined();
-          for (const key of keysB) expect(cache.get(tenantB, key)).toBe(`b:${key}`);
+        fc.uniqueArray(idArb, { minLength: 1, maxLength: 6 }),
+        fc.uniqueArray(idArb, { minLength: 1, maxLength: 6 }),
+        async ({ tenantA, tenantB }, idsA, idsB) => {
+          const { cache } = productCache();
+          for (const id of idsA) await cache.set(tenantKey(tenantA, 'student', id), `a:${id}`);
+          for (const id of idsB) await cache.set(tenantKey(tenantB, 'student', id), `b:${id}`);
+          const removed = await cache.invalidatePattern(`t:${tenantA}:student:*`);
+          expect(removed).toBe(idsA.length);
+          for (const id of idsA)
+            expect(await cache.get(tenantKey(tenantA, 'student', id))).toBeNull();
+          for (const id of idsB) {
+            expect(await cache.get(tenantKey(tenantB, 'student', id))).toBe(`b:${id}`);
+          }
         },
       ),
       { numRuns: 50 },
     );
   });
 
-  it('every raw cache key carries its tenant id and never the other tenant`s id', () => {
-    fc.assert(
-      fc.property(distinctTenantPairArb, cacheKeyArb, ({ tenantA, tenantB }, key) => {
-        cache.clear();
-        cache.set(tenantA, key, 'a');
-        cache.set(tenantB, key, 'b');
-
-        const rawKeys = cache.rawKeys();
-        expect(rawKeys).toHaveLength(2);
-        const keyA = rawKeys.find((k) => k.includes(tenantA));
-        const keyB = rawKeys.find((k) => k.includes(tenantB));
-        expect(keyA).toBeDefined();
-        expect(keyB).toBeDefined();
-
-        assertContainsTenant('cache:key', tenantA, keyA!);
-        assertContainsTenant('cache:key', tenantB, keyB!);
-        assertNoForeignTenantInString('cache:key', tenantA, keyA!, [tenantB]);
-        assertNoForeignTenantInString('cache:key', tenantB, keyB!, [tenantA]);
+  it('every raw cache key carries its tenant id and never the other tenant`s id', async () => {
+    await fc.assert(
+      fc.asyncProperty(distinctTenantPairArb, idArb, async ({ tenantA, tenantB }, id) => {
+        const { redis, cache } = productCache();
+        await cache.set(tenantKey(tenantA, 'student', id), 'a');
+        await cache.set(tenantKey(tenantB, 'student', id), 'b');
+        await cache.set(configKey(tenantA, 'grading-scale'), 'a');
+        const rawKeys = [...redis.store.keys()];
+        expect(rawKeys).toHaveLength(3);
+        for (const key of rawKeys) {
+          const owner = key.includes(tenantA) ? tenantA : tenantB;
+          const other = owner === tenantA ? tenantB : tenantA;
+          assertContainsTenant('cache:key', owner, key);
+          assertNoForeignTenantInString('cache:key', owner, key, [other]);
+        }
       }),
       { numRuns: 100 },
     );
   });
 
-  it('the cache key builder is deterministic and matches the documented format', () => {
+  it('the key builders match the documented formats and refuse a missing tenant', () => {
     fc.assert(
-      fc.property(fc.uuid(), cacheKeyArb, (tenantId, key) => {
-        expect(TenantNamespacedCache.buildKey(tenantId, key)).toBe(`tenant:${tenantId}:${key}`);
+      fc.property(fc.uuid(), entityArb, idArb, (tenantId, entity, id) => {
+        expect(tenantKey(tenantId, entity, id)).toBe(`t:${tenantId}:${entity}:${id}`);
+        expect(listKey(tenantId, entity, id)).toBe(`lst:${tenantId}:${entity}:${id}`);
+        expect(configKey(tenantId, entity)).toBe(`cfg:${tenantId}:${entity}`);
       }),
       { numRuns: 100 },
     );
+    expect(() => tenantKey('', 'student', '1')).toThrow();
+    expect(() => tenantKey('  ', 'student', '1')).toThrow();
+  });
+
+  it('refuses unscoped keys and tenant-wildcard invalidation', async () => {
+    const { redis, cache } = productCache();
+    await cache.set(tenantKey('00000000-0000-4000-8000-0000000000a1', 'student', '1'), 'a');
+    await cache.set(tenantKey('00000000-0000-4000-8000-0000000000b2', 'student', '1'), 'b');
+    await expect(cache.get('student:1')).rejects.toThrow();
+    await expect(cache.set('student:1', 'x')).rejects.toThrow();
+    await expect(cache.invalidatePattern('t:*:student:*')).rejects.toThrow();
+    expect(redis.store.size).toBe(2);
   });
 });

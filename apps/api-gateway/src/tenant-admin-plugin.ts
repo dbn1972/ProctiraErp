@@ -26,7 +26,11 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import { DEFAULT_ROLES, type PermissionAction } from '@proctira/backend-auth';
+import {
+  DEFAULT_ROLES,
+  type PermissionAction,
+  type SubjectSessionRevocationStore,
+} from '@proctira/backend-auth';
 import {
   createRolesRepository,
   createTenantRepository,
@@ -128,6 +132,11 @@ export interface TenantAdminPluginOptions {
    * `scimTokenStore` decorator; without one the token routes are not mounted.
    */
   scimTokenStore?: ScimTokenStore;
+  /**
+   * PRC-M027: per-subject session revocation used by SCIM deprovisioning. Defaults to the
+   * gateway's `subjectSessionRevocationStore` decorator.
+   */
+  subjectSessionRevocation?: SubjectSessionRevocationStore;
   /** PRC-L003: shared tenant service; defaults to the `fastify.tenantService` decorator. */
   tenantService?: TenantService;
   /**
@@ -424,6 +433,11 @@ export const tenantAdminPlugin = fp(
       await fastify.register(scimPlugin, {
         rolesService,
         prefix: options.scimPrefix ?? '/scim/v2',
+        subjectRevocation:
+          options.subjectSessionRevocation ??
+          (fastify.hasDecorator('subjectSessionRevocationStore')
+            ? fastify.subjectSessionRevocationStore
+            : undefined),
       });
     }
   },
@@ -434,5 +448,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     /** PRC-M027: hashed SCIM provisioning token store (decorated by app.ts). */
     scimTokenStore: ScimTokenStore;
+    /** PRC-M027: per-subject session revocation (decorated by app.ts). */
+    subjectSessionRevocationStore: SubjectSessionRevocationStore;
   }
 }

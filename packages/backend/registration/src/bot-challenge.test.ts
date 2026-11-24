@@ -15,6 +15,7 @@ import {
   solveRegistrationChallenge,
 } from './bot-challenge.js';
 import { InMemoryRegistrationRepository } from './in-memory-repository.js';
+import { PublicRegistrationThrottle } from './public-throttle.js';
 import { RegistrationService } from './registration-service.js';
 import {
   InMemorySessionStore,
@@ -87,6 +88,7 @@ async function build(challenge: RegistrationRoutesOptions['submitChallenge'] = {
     registrationService: new RegistrationService(repo),
     publicTenantResolver: { resolveHostname: async () => TENANT },
     sessionStore: new InMemorySessionStore(),
+    publicThrottle: new PublicRegistrationThrottle(),
     submitChallenge: {
       secret: SECRET,
       nonceStore: new InMemoryChallengeNonceStore(),

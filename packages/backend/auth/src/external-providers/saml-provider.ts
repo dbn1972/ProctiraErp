@@ -18,8 +18,18 @@ import { deflateRawSync } from 'node:zlib';
 import { v4 as uuidv4 } from 'uuid';
 
 import { NodeSamlResponseParser } from './node-saml-response-parser.js';
+import {
+  parsePendingAuthState,
+  PENDING_AUTH_STATE_TTL_SECONDS,
+  pendingAuthStateKey,
+  resolveAssertionReplayStore,
+  resolvePendingAuthStateStore,
+  SAML_ASSERTION_REPLAY_TTL_SECONDS,
+} from './pending-auth-state.js';
 import type {
+  AssertionReplayStore,
   ExternalAuthProvider,
+  PendingAuthStateStore,
   SAMLProviderConfig,
   AuthInitiationResult,
   AuthCallbackParams,
@@ -203,13 +213,13 @@ export class SAMLProvider implements ExternalAuthProvider {
   private readonly responseParser: SAMLResponseParser;
   private readonly attributeMapping: Required<NonNullable<SAMLProviderConfig['attributeMapping']>>;
 
-  // Store relay states for validation
-  private readonly pendingRequests = new Map<
-    string,
-    { tenantId: string; requestId: string; createdAt: number }
-  >();
-  /** PRC-M587: consumed Assertion IDs (replay cache, pruned with pending requests). */
-  private readonly seenAssertions = new Map<string, number>();
+  /**
+   * PRC-M589: RelayState -> pending AuthnRequest and the PRC-M587 Assertion-ID
+   * replay cache live in replica-shared stores (Redis when deployed), so the
+   * ACS callback can be served by any replica and a replay is refused on all.
+   */
+  private readonly stateStore: PendingAuthStateStore;
+  private readonly replayStore: AssertionReplayStore;
   constructor(config: SAMLProviderConfig, responseParser?: SAMLResponseParser) {
     // PRC-M587: refuse to run without a signature-verifying parser. The built-in
     // regex parser accepts forged, unsigned assertions.
@@ -220,6 +230,14 @@ export class SAMLProvider implements ExternalAuthProvider {
         'SAML_UNVERIFIED_PARSER',
       );
     }
+    this.stateStore = resolvePendingAuthStateStore(
+      config.stateStore,
+      `SAML provider ${config.providerId}`,
+    );
+    this.replayStore = resolveAssertionReplayStore(
+      config.replayStore,
+      `SAML provider ${config.providerId}`,
+    );
     this.config = config;
     this.providerId = config.providerId;
     this.displayName = config.displayName;
@@ -240,9 +258,12 @@ export class SAMLProvider implements ExternalAuthProvider {
     const requestId = `_${uuidv4()}`;
     const relayState = uuidv4();
 
-    // Store relay state for callback validation
-    this.pendingRequests.set(relayState, { tenantId, requestId, createdAt: Date.now() });
-    this.cleanupPendingRequests();
+    // Store relay state for callback validation (single use, 10-minute TTL).
+    await this.stateStore.put(
+      pendingAuthStateKey(this.providerId, relayState),
+      JSON.stringify({ tenantId, requestId }),
+      PENDING_AUTH_STATE_TTL_SECONDS,
+    );
 
     // Generate AuthnRequest XML
     const authnRequest = this.generateAuthnRequest(requestId);
@@ -282,7 +303,10 @@ export class SAMLProvider implements ExternalAuthProvider {
         'SAML_MISSING_RELAY_STATE',
       );
     }
-    const storedRequest = this.pendingRequests.get(params.relayState);
+    const storedRequest = parsePendingAuthState<{ tenantId: string; requestId: string }>(
+      await this.stateStore.take(pendingAuthStateKey(this.providerId, params.relayState)),
+      ['tenantId', 'requestId'],
+    );
     if (!storedRequest) {
       throw new ExternalAuthError(
         'Invalid or expired relay state',
@@ -290,7 +314,6 @@ export class SAMLProvider implements ExternalAuthProvider {
         'SAML_INVALID_RELAY_STATE',
       );
     }
-    this.pendingRequests.delete(params.relayState);
     if (storedRequest.tenantId !== tenantId) {
       throw new ExternalAuthError(
         'Tenant mismatch in SAML callback',
@@ -309,14 +332,19 @@ export class SAMLProvider implements ExternalAuthProvider {
         'SAML_IN_RESPONSE_TO_MISMATCH',
       );
     }
-    if (!parsed.assertionId || this.seenAssertions.has(parsed.assertionId)) {
+    if (
+      !parsed.assertionId ||
+      !(await this.replayStore.claim(
+        `${this.providerId}:${parsed.assertionId}`,
+        SAML_ASSERTION_REPLAY_TTL_SECONDS,
+      ))
+    ) {
       throw new ExternalAuthError(
         'SAML assertion is missing an ID or was already used',
         this.providerId,
         'SAML_ASSERTION_REPLAY',
       );
     }
-    this.seenAssertions.set(parsed.assertionId, Date.now());
 
     // Extract user profile from attributes
     const profile = this.buildProfile(parsed);
@@ -386,22 +414,6 @@ export class SAMLProvider implements ExternalAuthProvider {
   <saml:Issuer>${this.config.issuer}</saml:Issuer>
   <samlp:NameIDPolicy Format="${nameIdFormat}" AllowCreate="true"/>
 </samlp:AuthnRequest>`;
-  }
-
-  /**
-   * Clean up expired pending requests (older than 10 minutes).
-   */
-  private cleanupPendingRequests(): void {
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    for (const [state, data] of this.pendingRequests.entries()) {
-      if (data.createdAt < tenMinutesAgo) {
-        this.pendingRequests.delete(state);
-      }
-    }
-    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    for (const [id, at] of this.seenAssertions.entries()) {
-      if (at < dayAgo) this.seenAssertions.delete(id);
-    }
   }
 }
 

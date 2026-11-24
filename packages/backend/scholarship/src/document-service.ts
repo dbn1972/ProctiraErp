@@ -236,28 +236,45 @@ export class ScholarshipDocumentService {
     return publicDocument(deleted);
   }
 
-  async verify(tenantId: string, documentId: string, actor: ScholarshipActor) {
-    return this.decide(tenantId, documentId, actor, 'VERIFIED', null);
+  /**
+   * PRC-M539: `application` is the route's `:id`. A document that belongs to
+   * another application (even in the same tenant) is reported as not found.
+   */
+  async verify(
+    tenantId: string,
+    documentId: string,
+    actor: ScholarshipActor,
+    application: Pick<ScholarshipApplicationEntity, 'id'>,
+  ) {
+    return this.decide(tenantId, documentId, actor, application, 'VERIFIED', null);
   }
 
-  async reject(tenantId: string, documentId: string, actor: ScholarshipActor, reason: string) {
+  async reject(
+    tenantId: string,
+    documentId: string,
+    actor: ScholarshipActor,
+    application: Pick<ScholarshipApplicationEntity, 'id'>,
+    reason: string,
+  ) {
     const trimmed = reason.trim();
     if (!trimmed) {
       throw new ValidationError('A rejection reason is required', [
         { field: 'reason', rule: 'required', message: 'Say why this document is rejected' },
       ]);
     }
-    return this.decide(tenantId, documentId, actor, 'REJECTED', trimmed);
+    return this.decide(tenantId, documentId, actor, application, 'REJECTED', trimmed);
   }
 
   private async decide(
     tenantId: string,
     documentId: string,
     actor: ScholarshipActor,
+    application: Pick<ScholarshipApplicationEntity, 'id'>,
     status: 'VERIFIED' | 'REJECTED',
     reason: string | null,
   ) {
     const row = await this.requireRow(tenantId, documentId);
+    if (row.applicationId !== application.id) throw new NotFoundError('Document not found');
     if (row.verificationStatus !== 'PENDING') {
       throw new BusinessRuleError(
         `Document is already ${row.verificationStatus}. Only pending documents can be reviewed.`,
