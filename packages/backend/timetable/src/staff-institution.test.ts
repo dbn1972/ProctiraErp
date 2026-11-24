@@ -18,7 +18,9 @@ const sectionA = '77777777-7777-4777-8777-777777777777';
 const membership: Record<string, string> = { [staffA]: instA, [staffA2]: instA, [staffB]: instB };
 
 async function setup() {
-  const service = new TimetableService(new InMemoryTimetableRepository(), undefined, {
+  const repo = new InMemoryTimetableRepository();
+  repo.seedSection({ id: sectionA, tenantId, institutionId: instA, academicPeriodId });
+  const service = new TimetableService(repo, undefined, {
     staffBelongsToInstitution: async (_t, staffId, institutionId) =>
       membership[staffId] === institutionId,
   });

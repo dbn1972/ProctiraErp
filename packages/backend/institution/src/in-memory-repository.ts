@@ -17,6 +17,8 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
   private institutions: Map<string, InstitutionEntity> = new Map();
   private enrollmentCounts: Map<string, number> = new Map();
   private staffAssignmentCounts: Map<string, number> = new Map();
+  /** FKB-047: areaId -> tenantId; when empty every area is accepted (unit-test default). */
+  private areas: Map<string, string> = new Map();
 
   async create(
     data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>,
@@ -66,6 +68,11 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
       return null;
     }
     return entity;
+  }
+
+  async areaExists(areaId: string, tenantId: string): Promise<boolean> {
+    if (this.areas.size === 0) return true;
+    return this.areas.get(areaId) === tenantId;
   }
 
   async findByCode(code: string, tenantId: string): Promise<InstitutionEntity | null> {
@@ -163,9 +170,15 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
     this.staffAssignmentCounts.set(institutionId, count);
   }
 
+  /** Register an area for {@link areaExists}; once any area is seeded, unknown ids are rejected. */
+  seedArea(areaId: string, tenantId: string): void {
+    this.areas.set(areaId, tenantId);
+  }
+
   clear(): void {
     this.institutions.clear();
     this.enrollmentCounts.clear();
     this.staffAssignmentCounts.clear();
+    this.areas.clear();
   }
 }

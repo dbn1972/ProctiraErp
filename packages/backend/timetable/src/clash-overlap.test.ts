@@ -13,7 +13,11 @@ const sectionA = '77777777-7777-4777-8777-777777777777';
 const sectionB = '88888888-8888-4888-8888-888888888888';
 
 async function setup() {
-  const service = new TimetableService(new InMemoryTimetableRepository());
+  const repo = new InMemoryTimetableRepository();
+  for (const id of [sectionA, sectionB]) {
+    repo.seedSection({ id, tenantId, institutionId, academicPeriodId: termA });
+  }
+  const service = new TimetableService(repo);
   const juniors = await service.createBellSchedule(tenantId, {
     institutionId,
     academicPeriodId: termA,

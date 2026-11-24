@@ -56,7 +56,7 @@ test('an in-progress newer run does not hide the latest completed verdict', () =
   assert.equal(bad.ok, false);
 });
 
-function fakeGitHub({ runsByWorkflow, label = true, openIssues = [] }) {
+function fakeGitHub({ runsByWorkflow, label = true, openIssues = [], missing = [] }) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     const u = new URL(url);
@@ -70,6 +70,7 @@ function fakeGitHub({ runsByWorkflow, label = true, openIssues = [] }) {
     const wf = /\/actions\/workflows\/([^/]+)\/runs$/.exec(u.pathname);
     if (method === 'GET' && wf) {
       assert.equal(u.searchParams.get('event'), 'schedule');
+      if (missing.includes(decodeURIComponent(wf[1]))) return json(404, { message: 'Not Found' });
       return json(200, { workflow_runs: runsByWorkflow[decodeURIComponent(wf[1])] ?? [] });
     }
     if (method === 'GET' && u.pathname.endsWith(`/labels/${ISSUE_LABEL}`)) {
@@ -136,6 +137,31 @@ test('run: an existing open issue gets a comment instead of a duplicate', async 
   const posts = gh.calls.filter((c) => c.method === 'POST');
   assert.equal(posts.length, 1);
   assert.ok(posts[0].path.endsWith('/issues/7/comments'));
+});
+
+test('run: a 404 on the runs listing is flagged as workflow not found, not "no runs"', async () => {
+  const gh = fakeGitHub({
+    runsByWorkflow: { 'supply-chain.yml': [runAt(6, 'success')] },
+    missing: ['restore-drill.yml'],
+  });
+  const lines = [];
+  const { flagged } = await run({
+    registry,
+    repo: 'o/r',
+    token: 't',
+    now: NOW,
+    dryRun: true,
+    fetchImpl: gh.fetchImpl,
+    log: (l) => lines.push(l),
+  });
+  assert.deepEqual(
+    flagged.map((f) => f.workflow),
+    ['restore-drill.yml'],
+  );
+  assert.equal(flagged[0].reasons.length, 1);
+  assert.match(flagged[0].reasons[0], /workflow not found: .*restore-drill\.yml.* HTTP 404/);
+  assert.doesNotMatch(flagged[0].reasons.join(' '), /no successful scheduled run/);
+  assert.ok(lines.some((l) => /^FLAGGED restore-drill\.yml — workflow not found/.test(l)));
 });
 
 test('run --dry-run performs no writes', async () => {
