@@ -4,6 +4,7 @@
  */
 import {
   MemoryAccessTokenRevocationStore,
+  MemorySubjectSessionRevocationStore,
   MemoryTenantSessionRevocationStore,
 } from '@proctira/backend-auth';
 import type { FastifyRequest } from 'fastify';
@@ -98,6 +99,8 @@ describe('MFA_EXPOSE_OTP production guard (G-731)', () => {
         config,
         accessTokenRevocationStore: new MemoryAccessTokenRevocationStore(),
         tenantSessionRevocationStore: new MemoryTenantSessionRevocationStore(),
+        // PRC-M027: the per-subject revocation store has the same production requirement.
+        subjectSessionRevocationStore: new MemorySubjectSessionRevocationStore(),
       }),
     ).rejects.toThrow(/MFA_EXPOSE_OTP/);
   });

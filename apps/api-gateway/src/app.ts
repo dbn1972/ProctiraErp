@@ -29,9 +29,11 @@ import {
   authPlugin,
   createAccessTokenRevocationStore,
   createKeycloakIdentityStore,
+  createSubjectSessionRevocationStore,
   createTenantSessionRevocationStore,
   DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
   isIssuedBeforeTenantRevocation,
+  isSubjectTokenRevoked,
   createOtpChallengeStore,
   createPreMfaTicketCodecFromEnv,
   createSmsProviderFromEnv,
@@ -48,6 +50,7 @@ import {
   registerMfaRoutes,
   RedisWebTicketStore,
   type AccessTokenRevocationStore,
+  type SubjectSessionRevocationStore,
   type TenantSessionRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
@@ -196,6 +199,8 @@ export interface BuildAppOptions {
   tenantDefaultsSeeder?: TenantDefaultsSeeder;
   /** PRC-H008: tenant-wide session revocation store override (tests / DI). */
   tenantSessionRevocationStore?: TenantSessionRevocationStore;
+  /** PRC-M027: per-subject (SCIM deprovision) revocation store override (tests / DI). */
+  subjectSessionRevocationStore?: SubjectSessionRevocationStore;
   /** PRC-H008: override TENANT_SUSPEND_BLOCK_AUTH (default true) for tests / DI. */
   tenantSuspendBlocksAuth?: boolean;
   /** PRC-M027 / PRC-L298: credential-principal dependencies (tests / DI). */
@@ -429,6 +434,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       redis: rateLimitRedis,
       NODE_ENV: process.env['NODE_ENV'] ?? config.env,
     });
+
+  // PRC-M027: SCIM deprovision revokes the subject's sessions through a shared (Redis) entry
+  // keyed by tenant + email, the link between the directory record and the login identity.
+  const subjectSessionRevocation =
+    options.subjectSessionRevocationStore ??
+    createSubjectSessionRevocationStore({
+      redis: rateLimitRedis,
+      NODE_ENV: process.env['NODE_ENV'] ?? config.env,
+    });
+  if (!app.hasDecorator('subjectSessionRevocationStore')) {
+    app.decorate('subjectSessionRevocationStore', subjectSessionRevocation);
+  }
 
   // 4b. W3-D1: reject unbounded list pageSize before domain handlers run
   await app.register(paginationCapPlugin);
@@ -911,6 +928,41 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       }
     });
   }
+  // 8-pre-b. PRC-M027 — a user deprovisioned through SCIM loses every session: while the
+  // directory record is suspended all of the subject's tokens are refused (also ones minted by
+  // a later refresh); after reprovisioning only tokens issued before the deprovision stay dead.
+  app.addHook('onRequest', async (request, reply) => {
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    const user = request.user as
+      { tenantId?: string; email?: string; iat?: number } | null | undefined;
+    const tenantId = user?.tenantId;
+    const email = typeof user?.email === 'string' ? user.email.trim() : '';
+    if (!tenantId || !email) return;
+    let revoked: boolean;
+    try {
+      revoked = isSubjectTokenRevoked(
+        user?.iat,
+        await subjectSessionRevocation.subjectRevocation(tenantId, email),
+      );
+    } catch (error) {
+      request.log.error({ err: error }, 'subject revocation lookup failed');
+      return reply.status(503).send({
+        code: 'SESSION_STATUS_UNAVAILABLE',
+        message: 'Session status could not be verified; try again shortly',
+        statusCode: 503,
+      });
+    }
+    if (revoked) {
+      return reply.status(401).send({
+        code: 'SESSION_REVOKED',
+        message: 'This session was ended; sign in again',
+        statusCode: 401,
+      });
+    }
+  });
   // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth); reads stay allowed.
   // PRC-H008 / PRC-H098: status is resolved from the tenant store (TTL cache, invalidated on
   // lifecycle transitions — wired after tenantLifecyclePlugin below), not only an env list.

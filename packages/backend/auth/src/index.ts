@@ -83,6 +83,20 @@ export type {
   RedisLikeForTenantSessionRevocation,
   TenantSessionRevocationStore,
 } from './tenant-session-revocation.js';
+// PRC-M027: per-subject (SCIM deprovision) session revocation
+export {
+  DEFAULT_SUBJECT_REVOCATION_TTL_SECONDS,
+  MemorySubjectSessionRevocationStore,
+  RedisSubjectSessionRevocationStore,
+  createSubjectSessionRevocationStore,
+  isSubjectTokenRevoked,
+  subjectRevocationKey,
+} from './subject-session-revocation.js';
+export type {
+  RedisLikeForSubjectRevocation,
+  SubjectRevocationEntry,
+  SubjectSessionRevocationStore,
+} from './subject-session-revocation.js';
 
 // Session Service
 export { SessionService } from './session-service.js';
