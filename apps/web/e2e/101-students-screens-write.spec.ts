@@ -32,12 +32,12 @@ import {
  * screen's form, confirms the result on screen, then reads the stored value back through
  * the gateway. Every student a test creates is deleted in `finally`.
  *
- * Known open defects (defects.md) are asserted only in patches/: the edit form does not
- * send If-Match (I1), an "Update existing" import that carries institution_code or
- * guardian columns drops the admission number or the guardians (I2, I3), enrollment
- * accepts a class from another institution (I4), the profile status pill after
- * graduation (P7), the transfer copy that promises an approval step (P2) and the import
- * duplicate table that names the existing student by raw id (P8).
+ * The M1-I1..I3 tests cover the fixed record-integrity defects (stale edit refused,
+ * import "Update existing" keeps the admission number and guardians).
+ *
+ * Known open defects (defects.md) are asserted only in patches/: the profile status pill
+ * after graduation (P7), the transfer copy that promises an approval step (P2) and the
+ * import duplicate table that names the existing student by raw id (P8).
  */
 
 /** Value of one import result tile (`Total rows`, `Imported`, `Errors`, `Duplicates`). */
@@ -146,6 +146,38 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
     }
   });
 
+  test('M1-I1 a save from a stale edit form is refused instead of overwriting a newer save', async ({
+    page,
+    browser,
+    request,
+  }) => {
+    const tag = newTag();
+    const admin = stAdmin(`st-admin-${tag}`);
+    const s = await seedStudent(request, admin, tag);
+    const otherContext = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+    try {
+      const second = await otherContext.newPage();
+      await openAs(page, admin);
+      await openAs(second, admin);
+      await page.goto(`/students/${s.id}/edit`, { waitUntil: 'load' });
+      await second.goto(`/students/${s.id}/edit`, { waitUntil: 'load' });
+      const first = await hydratedForm(page, 'student-form');
+      const stale = await hydratedForm(second, 'student-form');
+      await first.locator('#lastName').fill('First');
+      await first.getByRole('button', { name: 'Save changes' }).click();
+      await expect(page).toHaveURL(new RegExp(`/students/${s.id}$`), { timeout: 30_000 });
+      await stale.locator('[id="guardians.0.contactPhone"]').fill(`000-${tag}-8`);
+      await stale.getByRole('button', { name: 'Save changes' }).click();
+      await expect
+        .soft(stale.getByRole('alert'), 'the stale save is refused')
+        .toContainText('This conflicts with an existing record.', { timeout: 30_000 });
+      const stored = await getJson<Row>(request, admin, `/students/${s.id}`);
+      expect(stored.lastName, 'the newer save survives').toBe('First');
+    } finally {
+      await otherContext.close();
+      await deleteStudents(request, admin, [s.id]);
+    }
+  });
   test('/students/[id]/enroll places the student in a class', async ({ page, request }) => {
     const tag = newTag();
     const admin = stAdmin(`st-admin-${tag}`);
@@ -324,6 +356,59 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
     }
   });
 
+  test('M1-I3 an "Update existing" import with guardian columns keeps the other guardian', async ({
+    page,
+    request,
+  }) => {
+    test.slow();
+    const tag = newTag();
+    const admin = stAdmin(`st-admin-${tag}`);
+    const s = await seedStudent(request, admin, tag);
+    const [g0, g1] = [s.guardians[0]!, s.guardians[1]!];
+    try {
+      const workbook = await buildImportWorkbook([
+        {
+          first_name: s.firstName,
+          last_name: s.lastName,
+          date_of_birth: s.dateOfBirth,
+          national_id: s.nationalId,
+          guardian_name: `${g0.firstName} ${g0.lastName}`,
+          guardian_phone: `000-${tag}-6`,
+        },
+      ]);
+      await openAs(page, admin);
+      await page.goto('/students/import', { waitUntil: 'load' });
+      await waitForReact(page.locator('#import-file'));
+      await chooseOption(page, 'duplicateResolution', 'Update existing records');
+      await page.locator('#import-file').setInputFiles({
+        name: `st-${tag}-guardians.xlsx`,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: workbook,
+      });
+      await page.getByRole('button', { name: 'Start import' }).click();
+      await page.getByTestId('bulk-import-confirm-confirm').click();
+      await expect(
+        page
+          .locator('p.uppercase', { hasText: /^Duplicates$/ })
+          .locator('xpath=following-sibling::p[1]'),
+      ).toHaveText('1', { timeout: 60_000 });
+      const stored = await getJson<Row>(request, admin, `/students/${s.id}`);
+      const guardians = stored.guardians as Row[];
+      expect
+        .soft(guardians, 'the other guardian is kept')
+        .toContainEqual(expect.objectContaining({ ...g1 }));
+      expect.soft(guardians, 'the updated guardian keeps relationship and email').toContainEqual(
+        expect.objectContaining({
+          firstName: g0.firstName,
+          relationship: g0.relationship,
+          contactEmail: g0.contactEmail,
+          contactPhone: `000-${tag}-6`,
+        }),
+      );
+    } finally {
+      await deleteStudents(request, admin, [s.id]);
+    }
+  });
   test('/students/import with "Update existing" updates the matched student', async ({
     page,
     request,
@@ -375,6 +460,51 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
     }
   });
 
+  test('M1-I2 an "Update existing" import with institution_code keeps the admission number', async ({
+    page,
+    request,
+  }) => {
+    test.slow();
+    const tag = newTag();
+    const admin = stAdmin(`st-admin-${tag}`);
+    const s = await seedStudent(request, admin, tag);
+    try {
+      const workbook = await buildImportWorkbook([
+        {
+          first_name: s.firstName,
+          last_name: 'Updated',
+          date_of_birth: s.dateOfBirth,
+          national_id: s.nationalId,
+          institution_code: 'E2E-SCH-001',
+        },
+      ]);
+      await openAs(page, admin);
+      await page.goto('/students/import', { waitUntil: 'load' });
+      await waitForReact(page.locator('#import-file'));
+      await chooseOption(page, 'duplicateResolution', 'Update existing records');
+      await page.locator('#import-file').setInputFiles({
+        name: `st-${tag}-code.xlsx`,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: workbook,
+      });
+      await page.getByRole('button', { name: 'Start import' }).click();
+      await page.getByTestId('bulk-import-confirm-confirm').click();
+      await expect(
+        page
+          .locator('p.uppercase', { hasText: /^Duplicates$/ })
+          .locator('xpath=following-sibling::p[1]'),
+      ).toHaveText('1', { timeout: 60_000 });
+      const stored = await getJson<Row>(request, admin, `/students/${s.id}`);
+      expect(stored.lastName).toBe('Updated');
+      expect
+        .soft((stored.customData as Row).admissionNo, 'admission number kept')
+        .toBe(s.admissionNo);
+      await page.goto(`/students/${s.id}`, { waitUntil: 'load' });
+      await expect.soft(page.getByText(`Adm. ${s.admissionNo}`, { exact: true })).toBeVisible();
+    } finally {
+      await deleteStudents(request, admin, [s.id]);
+    }
+  });
   test('/students/[id] Graduate closes the active enrollment', async ({ page, request }) => {
     const tag = newTag();
     const admin = stAdmin(`st-admin-${tag}`);
