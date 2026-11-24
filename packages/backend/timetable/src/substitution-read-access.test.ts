@@ -27,6 +27,12 @@ afterEach(async () => {
 
 async function build(): Promise<FastifyInstance> {
   const repository = new InMemoryTimetableRepository();
+  repository.seedSection({
+    id: SECTION,
+    tenantId: TENANT_A,
+    institutionId: INST,
+    academicPeriodId: TERM,
+  });
   const service = new TimetableService(repository);
   const schedule = await service.createBellSchedule(TENANT_A, {
     institutionId: INST,
