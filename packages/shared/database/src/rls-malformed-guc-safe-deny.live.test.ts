@@ -161,4 +161,18 @@ describe.skipIf(!DATABASE_URL)('PRC-L294 RLS malformed-GUC safe-deny (live)', ()
     );
     expect(rows[0]!.count).toBe('0');
   });
+
+  // PRC-L294 residual: the finding counted ten policies and 240 fixed nine.
+  // Rather than name a tenth, prove no policy on any table reads the tenant
+  // GUC and casts to uuid (same rule as tools/scripts/check-rls-uuid-cast.mjs).
+  it('catalog has no policy anywhere that casts the tenant GUC to uuid', async () => {
+    const { rows } = await pool.query<{ policy: string }>(
+      `SELECT schemaname || '.' || tablename || ' ' || policyname AS policy
+         FROM pg_policies
+        WHERE (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~* '::\\s*uuid|\\mas\\s+uuid\\M'
+          AND (coalesce(qual, '') || ' ' || coalesce(with_check, ''))
+              ~* 'app\\.(current_)?tenant_id|\\mapp_tenant_id\\s*\\(\\s*\\)'`,
+    );
+    expect(rows.map((r) => r.policy)).toEqual([]);
+  });
 });
