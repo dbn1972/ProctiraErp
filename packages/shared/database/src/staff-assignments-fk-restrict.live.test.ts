@@ -154,7 +154,12 @@ describe.skipIf(!live)('PRC-L297 staff_assignments FK RESTRICT (live)', () => {
         `EXPLAIN (COSTS OFF) SELECT id FROM staff WHERE tenant_id = $1 AND user_id = $2`,
         [TENANT, randomUUID()],
       );
-      expect(rows.map((r) => r['QUERY PLAN']).join('\n')).toMatch(/uq_staff_user_id_per_tenant/);
+      // The planner may pick any tenant-leading index (uq_staff_user_id_per_tenant
+      // or staff_tenant_id_id_uidx on a small table); what matters is that the
+      // lookup is an index condition on tenant_id, never a tenant-less scan.
+      const plan = rows.map((r) => r['QUERY PLAN']).join('\n');
+      expect(plan).toMatch(/Index Cond: \(+tenant_id = /);
+      expect(plan).not.toMatch(/staff_user_id_idx/);
     } finally {
       await client.query('ROLLBACK').catch(() => undefined);
       client.release();

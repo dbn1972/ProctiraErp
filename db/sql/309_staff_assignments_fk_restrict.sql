@@ -57,6 +57,15 @@ BEGIN
        'FOREIGN KEY (tenant_id, staff_id) REFERENCES staff (tenant_id, id)')
     ) AS s(conname, def)
   LOOP
+    -- Only change FKs that exist (098 / 255 create them); never add one here.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+       WHERE conrelid = 'public.staff_assignments'::regclass
+         AND conname = spec.conname
+    ) THEN
+      RAISE NOTICE 'PRC-L297: % absent, not created here', spec.conname;
+      CONTINUE;
+    END IF;
     IF EXISTS (
       SELECT 1 FROM pg_constraint
        WHERE conrelid = 'public.staff_assignments'::regclass
