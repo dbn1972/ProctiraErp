@@ -25,10 +25,13 @@ const ADMIN_ROLES = [
   'school-admin',
 ] as const;
 
+/**
+ * PRC-L347: `financial_aid_officer` / `aid_officer` were dropped. The realm
+ * names that officer `scholarship_officer`; neither alias is a realm or
+ * gateway-registry role, so no token carrying them reached this guard.
+ */
 const SCHOLARSHIP_OFFICER_ROLES = [
   'scholarship_officer',
-  'financial_aid_officer',
-  'aid_officer',
   'bursar',
   'finance_officer',
   'accountant',
@@ -43,8 +46,6 @@ const ACTION_ROLES: Record<ScholarshipAction, readonly string[]> = {
   'application.submit': SCHOLARSHIP_OFFICER_ROLES,
   'application.decide': [
     'scholarship_officer',
-    'financial_aid_officer',
-    'aid_officer',
     'bursar',
     'finance_officer',
     'principal',
@@ -52,8 +53,6 @@ const ACTION_ROLES: Record<ScholarshipAction, readonly string[]> = {
   ],
   'disbursement.manage': [
     'scholarship_officer',
-    'financial_aid_officer',
-    'aid_officer',
     'bursar',
     'finance_officer',
     'accountant',
