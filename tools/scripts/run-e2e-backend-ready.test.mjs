@@ -97,8 +97,8 @@ test('workflow only allows a skip when the operator disabled require_live', () =
   assert.equal(harness.env.E2E_ALLOW_SKIP, "${{ steps.mode.outputs.allow_skip || '0' }}");
 });
 
-// UAT-ENV-015: the shards run @proctira/web on `next dev` (the harness builds only
-// api-gateway). In the nightly on 87bd3a6f (run 43423176859) 16f:57 timed out on all
+// UAT-ENV-015: the shards then ran @proctira/web on `next dev` (they now build it and
+// serve `next start`, see below). In the nightly on 87bd3a6f (run 43423176859) 16f:57 timed out on all
 // three attempts with 15-16 s requests. One worker per shard cuts runner contention;
 // the UAT runner uses one worker and passes.
 test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
@@ -648,17 +648,20 @@ test('skip gate: the merged gate still fails an empty run', async () => {
 
 // Review r1 issue 4: the harness uses merged mode on an unsharded run. PATH
 // stubs for pnpm/curl/psql replace the gateway and Playwright; the real gate runs.
-function runStubbedHarness(fixture, shard) {
+function runStubbedHarness(fixture, shard, extraEnv = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pw-harness-stub-'));
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   const stub = (name, body) =>
     writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+  const pnpmLog = join(dir, 'pnpm.log');
   stub(
     'pnpm',
     [
+      'echo "$*" >>"$STUB_PNPM_LOG"',
       'case "$*" in',
       '  *"api-gateway build"*) exit 0 ;;',
+      '  *"@proctira/web build"*) exit 0 ;;',
       '  *"api-gateway start"*) exec sleep 60 ;;',
       '  *"playwright test"*) cp "$STUB_FIXTURE" "$PLAYWRIGHT_JSON_OUTPUT_FILE"; exit 0 ;;',
       '  *) echo "unexpected pnpm $*" >&2; exit 99 ;;',
@@ -673,7 +676,7 @@ function runStubbedHarness(fixture, shard) {
   stub('psql', 'exit 0');
   const fixturePath = join(dir, 'fixture.json');
   writeFileSync(fixturePath, JSON.stringify(fixture));
-  return runHarness({
+  const r = runHarness({
     PATH: `${bin}:${process.env.PATH}`,
     DATABASE_URL: 'postgresql://stub/stub',
     E2E_GATEWAY_URL: 'http://127.0.0.1:59998',
@@ -683,7 +686,11 @@ function runStubbedHarness(fixture, shard) {
     PLAYWRIGHT_SHARD: shard,
     STUB_FIXTURE: fixturePath,
     STUB_CURL_COUNT: join(dir, 'curl.count'),
+    STUB_PNPM_LOG: pnpmLog,
+    ...extraEnv,
   });
+  r.pnpmCalls = existsSync(pnpmLog) ? readFileSync(pnpmLog, 'utf8').trim().split('\n') : [];
+  return r;
 }
 
 test('harness gates an unsharded run in merged mode and a shard in shard mode', () => {
@@ -700,6 +707,35 @@ test('harness gates an unsharded run in merged mode and a shard in shard mode', 
   assert.equal(shard.status, 0, shard.stdout + shard.stderr);
   assert.match(shard.stdout, /Skip gate \(UAT-ENV-007, mode shard\)/);
   assert.match(shard.stdout, /mode=shard executed=1 skipped=1/);
+});
+
+// The shards serve @proctira/web from `next start`, not `next dev`: under `next dev`,
+// Next.js 15.5 restarts the server when heap use passes 80%, and nightly 45196358759 hit
+// ERR_CONNECTION_REFUSED (34:273) and a 90 s cold recompile (93:214). playwright.config.ts
+// picks `next start` only when CI is set and .next/BUILD_ID exists, so in CI the harness
+// must build web before Playwright starts. Without CI it keeps `next dev` and builds nothing.
+test('in CI the harness builds @proctira/web before Playwright; locally it does not', () => {
+  const fixture = pwReport([[...PASS_A, 'expected']]);
+  const ci = runStubbedHarness(fixture, '1/4', { CI: 'true', PLAYWRIGHT_BASE_URL: '' });
+  assert.equal(ci.status, 0, ci.stdout + ci.stderr);
+  const webBuild = ci.pnpmCalls.findIndex((c) => c === '--filter @proctira/web build');
+  const playwright = ci.pnpmCalls.findIndex((c) => c.includes('playwright test'));
+  assert.ok(webBuild >= 0, `CI run builds web: ${ci.pnpmCalls.join(' | ')}`);
+  assert.ok(webBuild < playwright, 'web is built before Playwright starts the web server');
+  for (const env of [{ CI: '' }, { CI: 'true', PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:59997' }]) {
+    const r = runStubbedHarness(fixture, '1/4', env);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(
+      !r.pnpmCalls.some((c) => c.includes('@proctira/web build')),
+      `no web build for ${JSON.stringify(env)}: ${r.pnpmCalls.join(' | ')}`,
+    );
+  }
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const harness = (wf.jobs['e2e-backend-ready-shard'].steps ?? []).find((s) =>
+    (s.run ?? '').includes('run-e2e-backend-ready.sh'),
+  );
+  assert.ok(harness.env?.CI, 'shard harness step sets CI, so the config picks next start');
+  assert.equal(harness.env?.PLAYWRIGHT_BASE_URL, undefined, 'shards start their own web server');
 });
 
 test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=on (PRC-L461)', () => {

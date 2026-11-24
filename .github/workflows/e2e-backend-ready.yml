@@ -412,12 +412,14 @@ jobs:
           # demo rows sets ALLOW_SUNRISE_DEMO_SEED=1 instead.
           E2E_SKIP_SUNRISE_SEED: '1'
           PLAYWRIGHT_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
-          # UAT-ENV-015: one worker per shard to cut runner contention. The web
-          # server is `next dev` (routes compile on first request); in nightly
-          # 43423176859, 16f:57 timed out on all three attempts with 15-16 s
-          # requests. Shards still run as four parallel jobs; expected 10-20 min
-          # of Playwright per shard (to be confirmed on the first runs).
+          # UAT-ENV-015: one worker per shard to cut runner contention. When this
+          # was set the web server was `next dev` (routes compile on first
+          # request); in nightly 43423176859, 16f:57 timed out on all three
+          # attempts with 15-16 s requests.
           PLAYWRIGHT_WORKERS: '1'
+          # CI makes the harness run `next build` for @proctira/web, and makes
+          # playwright.config.ts serve it with `next start`. `next dev` restarted
+          # on heap pressure in nightly 45196358759 (34:273, 93:214).
           CI: true
 
       - name: Upload shard Playwright report
