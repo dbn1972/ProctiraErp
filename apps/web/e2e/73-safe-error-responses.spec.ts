@@ -1,9 +1,11 @@
 /**
  * PR-4 safe error responses — live gateway + Postgres (nightly).
  *
- * H-D4a: a write whose `studentId` references no student hits a foreign key. The gateway
- * (e2e runs it in development mode, where raw text used to pass through) must answer a 4xx
- * with a safe code, a fixed message and a correlation id, and no SQL or constraint text.
+ * H-D4a: a write whose `studentId` references no student must answer a safe 4xx with no SQL or
+ * constraint text (e2e runs the gateway in development mode, where raw text used to pass
+ * through). Non-hostel FK writes keep the #739 form: 422 REFERENCE_NOT_FOUND with a fixed
+ * message and a correlation id. Hostel writes map a missing parent (id-only or tenant-composite
+ * FK) to 404 NOT_FOUND (#736, H-D3), the same for a random id and another tenant's id.
  * P-O1: a parent applying for a linked child who has no enrolment gets the actionable
  * enrolment message on screen, not "Validation failed".
  *
@@ -24,6 +26,7 @@ const GATEWAY =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const DB_TEXT = /constraint|foreign key|_fkey|violates|relation "|column "|SQLSTATE/i;
+const HOSTEL_FK_TEXT = /_tenant_fk|hostel_leaves|student_id/i;
 const ENROLMENT_COPY =
   'This child is not enrolled yet. Contact the school to complete enrolment before applying.';
 type Role = { roleId: string; roleName: string; areaId: null };
@@ -98,6 +101,13 @@ function expectSafeReferenceError(r: { status: number; body: string }, label: st
   expect(typeof json.correlationId, `${label} correlationId`).toBe('string');
   expect(String(json.correlationId).length, `${label} correlationId`).toBeGreaterThan(0);
 }
+function expectSafeNotFound(r: { status: number; body: string }, label: string): void {
+  expect(r.status, `${label}: ${r.body.slice(0, 300)}`).toBe(404);
+  expect(r.body, `${label} body`).not.toMatch(DB_TEXT);
+  expect(r.body, `${label} body`).not.toMatch(HOSTEL_FK_TEXT);
+  const json = JSON.parse(r.body) as { code?: string };
+  expect(json.code, label).toBe('NOT_FOUND');
+}
 test.describe('Safe error responses — live (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires the live gateway and Postgres');
   test('H-D4a writes with a random studentId get a safe 4xx without database text', async ({
@@ -109,14 +119,15 @@ test.describe('Safe error responses — live (E2E_BACKEND_READY)', () => {
     expect(hostel.status, hostel.body).toBe(201);
     const hostelId = (JSON.parse(hostel.body) as { id: string }).id;
     const missingStudent = randomUUID();
-    // Hostel write: real hostel, random student (the FK path from H-D4).
+    // Hostel write: real hostel, random student. The hostel repository maps the student FK
+    // violation to 404 NOT_FOUND (#736, H-D3), not the gateway FK mapper's 422.
     const leave = await post(request, '/hostel/leaves', admin, {
       studentId: missingStudent,
       hostelId,
       startDate: utcDay(2),
       endDate: utcDay(3),
     });
-    expectSafeReferenceError(leave, 'POST /hostel/leaves');
+    expectSafeNotFound(leave, 'POST /hostel/leaves');
     // Non-hostel write: a staff-created guardian link to a random student.
     const link = await post(
       request,
