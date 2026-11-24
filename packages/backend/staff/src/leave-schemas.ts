@@ -4,6 +4,7 @@
 import { Type, type Static } from '@sinclair/typebox';
 
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const ISO_DATE_PATTERN = '^[0-9]{4}-[0-9]{2}-[0-9]{2}$';
 
 export const CreateStaffLeaveSchema = Type.Object({
   staffId: Type.String({ pattern: UUID_PATTERN }),
@@ -16,8 +17,9 @@ export const CreateStaffLeaveSchema = Type.Object({
       Type.Literal('other'),
     ]),
   ),
-  startDate: Type.String({ minLength: 10, maxLength: 10 }),
-  endDate: Type.String({ minLength: 10, maxLength: 10 }),
+  // PRC-M373: strict YYYY-MM-DD; the service also rejects impossible days.
+  startDate: Type.String({ pattern: ISO_DATE_PATTERN }),
+  endDate: Type.String({ pattern: ISO_DATE_PATTERN }),
   reason: Type.Optional(Type.String({ maxLength: 1000 })),
 });
 

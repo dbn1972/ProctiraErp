@@ -867,6 +867,13 @@ jobs:
         env:
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
 
+      # PRC-L294: no RLS policy may cast the tenant GUC to uuid (a malformed
+      # GUC would raise 22P02 instead of denying).
+      - name: Prove no RLS policy casts the tenant GUC to uuid (live catalog)
+        run: node tools/scripts/check-rls-uuid-cast.mjs --live --require-live
+        env:
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+
       # Every apply-sql.sh invocation in CI sets APPLY_STRICT_FKS=1, so CI only
       # ever exercised one of the script's two configurations. The other one --
       # the default a developer gets from a bare `bash tools/scripts/apply-sql.sh`
@@ -1466,6 +1473,11 @@ jobs:
 
       - name: Fail when tenant-scoped tables lack leading tenant_id indexes
         run: node tools/scripts/check-tenant-id-indexes.mjs
+      # PRC-L294: new policies must not cast the tenant GUC to uuid.
+      - name: Unit-test RLS tenant-GUC uuid-cast gate
+        run: node --test tools/scripts/check-rls-uuid-cast.test.mjs
+      - name: Fail when a new policy casts the tenant GUC to uuid
+        run: node tools/scripts/check-rls-uuid-cast.mjs
 
       # PRC-M205: demo/fixture tenants belong in NNNb_*_seed.sql, never schema migrations.
       - name: Unit-test migration tenant-insert gate

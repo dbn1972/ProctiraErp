@@ -1,5 +1,5 @@
 /**
- * Staff leave routes — list/create/decide.
+ * Staff leave routes — list/create/decide/cancel.
  */
 import { AppError } from '@proctira/common';
 import { validate, validateQuery } from '@proctira/validation';
@@ -234,6 +234,58 @@ export async function registerStaffLeaveRoutes(
           tenantId,
           paramsResult.data.id,
           bodyResult.data,
+          getActorId(request),
+        );
+        return reply.status(200).send(formatLeave(leave));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  // PRC-M373: cancel a pending or approved leave (an approved one gets its
+  // debited days back). Same guards as decide: staff.hr.write + school scope.
+  fastify.post(
+    `${prefix}/leaves/:id/cancel`,
+    async function cancelLeaveHandler(
+      request: FastifyRequest<{ Params: StaffLeaveParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(StaffLeaveParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid leave ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const existing = await leaveService.getLeave(tenantId, paramsResult.data.id);
+        if (
+          !(await assertStaffWritableOr404(
+            request,
+            reply,
+            staffService,
+            tenantId,
+            existing.staffId,
+          ))
+        )
+          return reply;
+        const leave = await leaveService.cancelLeave(
+          tenantId,
+          paramsResult.data.id,
           getActorId(request),
         );
         return reply.status(200).send(formatLeave(leave));
