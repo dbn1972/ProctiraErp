@@ -37,7 +37,6 @@ describe('assessment-access privilege preservation (D2)', () => {
       'academic_coordinator',
       'academic-coordinator',
       'examinations_officer',
-      'registrar',
       'admin',
       'super-admin',
       'super_admin',
@@ -52,6 +51,13 @@ describe('assessment-access privilege preservation (D2)', () => {
     }
   });
 
+  it('registrar reads but does not author assessment data (PRC-M160 on main)', () => {
+    expect(hasAssessmentAccess(['registrar'], 'assessment.read')).toBe(true);
+    expect(hasAssessmentAccess(['registrar'], 'assessment.write')).toBe(false);
+  });
+  it('examinations_officer holds assessment.configure, as exam_officer did', () => {
+    expect(hasAssessmentAccess(['examinations_officer'], 'assessment.configure')).toBe(true);
+  });
   it('does NOT admit platform_admin (tenant isolation); system_admin unchanged', () => {
     expect(hasAssessmentAccess(['platform_admin'], 'assessment.write')).toBe(false);
     expect(hasAssessmentAccess(['platform_admin'], 'assessment.read')).toBe(false);

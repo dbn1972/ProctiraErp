@@ -40,8 +40,7 @@ const ASSESSMENT_AUTHOR_ROLES = ASSESSMENT_STAFF_ROLES.filter((role) => role !==
 const ASSESSMENT_CONFIG_ROLES = [
   'academic_coordinator',
   'academic-coordinator',
-  'exam_officer',
-  'exam-officer',
+  'examinations_officer',
   ...ADMIN_ROLES,
 ] as const;
 const ACTION_ROLES: Record<AssessmentAction, readonly string[]> = {
