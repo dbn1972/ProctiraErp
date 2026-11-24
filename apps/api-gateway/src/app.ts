@@ -29,6 +29,7 @@ import {
   authPlugin,
   createAccessTokenRevocationStore,
   createKeycloakIdentityStore,
+  createMfaCompletionTicketIssuer,
   createSubjectSessionRevocationStore,
   createTenantSessionRevocationStore,
   DEFAULT_TENANT_SESSION_REVOCATION_TTL_SECONDS,
@@ -48,6 +49,7 @@ import {
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
+  MemoryWebTicketStore,
   RedisWebTicketStore,
   type AccessTokenRevocationStore,
   type SubjectSessionRevocationStore,
@@ -573,6 +575,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/api/v1/registrations/*',
   ];
 
+  // PRC-M497: OTP send/verify are bound to a login through the pre-MFA ticket
+  // (MFA_PRE_TICKET_SECRET; never JWT_SECRET). Without the secret in a deployed
+  // environment no ticket is minted or accepted, so OTP send stays fail-closed (401).
+  const preMfaTicket = createPreMfaTicketCodecFromEnv(process.env);
+  if (!preMfaTicket) {
+    app.log.warn('MFA_PRE_TICKET_SECRET is not set; SMS OTP send/verify stay disabled (PRC-M497)');
+  }
+  // PRC-M497: single-use login-completion tickets, shared across replicas through Redis.
+  const mfaCompletionStore = rateLimitRedis
+    ? new RedisWebTicketStore(rateLimitRedis, 'auth:mfa-complete:')
+    : new MemoryWebTicketStore();
+
   if (keycloak) {
     // G-704: identities persist in Postgres when DATABASE_URL is set.
     const identityStore = createKeycloakIdentityStore();
@@ -593,6 +607,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       tenantDirectory: getTenantRepository(),
       // PRC-M500: one-time login tickets must be redeemable on any replica.
       ...(rateLimitRedis ? { webTicketStore: new RedisWebTicketStore(rateLimitRedis) } : {}),
+      // PRC-M497: /password mints the pre-MFA ticket; /password/mfa redeems completion tickets.
+      ...(preMfaTicket ? { preMfaTicket } : {}),
+      mfaCompletionStore,
       // PRC-H008 / PRC-H098: suspended tenants cannot sign in or refresh.
       tenantAuthGate: suspendBlocksAuth ? (tenantId) => resolveTenantBlocked(tenantId) : undefined,
       tenantSessionRevocation: suspendBlocksAuth ? tenantSessionRevocation : undefined,
@@ -661,14 +678,17 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     // PRC-M498: throttled sends / lockouts are alertable (SMS pumping, guessing).
     onAbuseSignal: (signal) => app.log.warn({ otpAbuse: signal }, 'otp abuse signal'),
   });
-  // PRC-M497: OTP send/verify are bound to a login through the pre-MFA ticket
-  // (MFA_PRE_TICKET_SECRET; never JWT_SECRET). Without the secret in a deployed
-  // environment no ticket is accepted, so OTP send stays fail-closed (401).
-  const preMfaTicket = createPreMfaTicketCodecFromEnv(process.env);
-  if (!preMfaTicket) {
-    app.log.warn('MFA_PRE_TICKET_SECRET is not set; SMS OTP send/verify stay disabled (PRC-M497)');
-  }
-  const mfaRouteOptions = { otpService, ...(preMfaTicket ? { preMfaTicket } : {}) };
+  // PRC-M497: the Keycloak /password step mints the pre-MFA ticket (above); /auth/mfa/verify
+  // answers with a completion ticket that /auth/password/mfa redeems for the held tokens.
+  const mfaRouteOptions = {
+    otpService,
+    ...(preMfaTicket
+      ? {
+          preMfaTicket,
+          issueCompletionTicket: createMfaCompletionTicketIssuer(mfaCompletionStore),
+        }
+      : {}),
+  };
   await registerMfaRoutes(app, { ...mfaRouteOptions, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { ...mfaRouteOptions, prefix: '/auth' });
 

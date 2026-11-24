@@ -183,6 +183,7 @@ export type {
 export { keycloakAuthPlugin } from './keycloak/plugin.js';
 export type { KeycloakAuthPluginOptions } from './keycloak/plugin.js';
 export {
+  createMfaCompletionTicketIssuer,
   MemoryWebTicketStore,
   RedisWebTicketStore,
   registerKeycloakAuthRoutes,
