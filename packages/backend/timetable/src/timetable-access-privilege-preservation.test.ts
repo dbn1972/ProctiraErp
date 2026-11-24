@@ -21,7 +21,7 @@ describe('timetable-access privilege preservation (D2)', () => {
   });
 
   it('every previously-admitted scheduler/admin role still has write + publish', () => {
-    for (const role of ['registrar', 'scheduler', 'timetable_officer', 'admin', 'principal']) {
+    for (const role of ['registrar', 'timetable_officer', 'admin', 'principal']) {
       expect(hasTimetableAccess([role], 'schedule.write'), role).toBe(true);
       expect(hasTimetableAccess([role], 'schedule.publish'), role).toBe(true);
     }

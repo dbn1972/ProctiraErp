@@ -10,8 +10,8 @@ import { assertTimetableAccess, hasTimetableAccess } from './timetable-access.js
 const NON_STAFF_ROLES = ['student', 'parent', 'guardian', 'alumni', 'unknown_role'];
 const SCHEDULER_ROLES = [
   'registrar',
-  'scheduler',
   'timetable_officer',
+  'platform_admin',
   'admin',
   'super-admin',
   'super_admin',
@@ -19,7 +19,7 @@ const SCHEDULER_ROLES = [
   'principal',
   'school_admin',
 ];
-const NON_SCHEDULER_STAFF_ROLES = ['teacher', 'staff', 'staff_admin', 'hod', 'coordinator'];
+const NON_SCHEDULER_STAFF_ROLES = ['teacher', 'staff', 'staff_admin', 'hod'];
 
 describe('timetable-access (PRC-L503)', () => {
   describe('schedule.write', () => {
@@ -69,5 +69,20 @@ describe('timetable-access (PRC-L503)', () => {
     expect(hasTimetableAccess([], 'schedule.write')).toBe(false);
     expect(hasTimetableAccess(undefined, 'schedule.write')).toBe(false);
     expect(hasTimetableAccess(null, 'schedule.read')).toBe(false);
+  });
+});
+
+// PRC-L174: roles that no realm or gateway role spells get nothing.
+describe('timetable-access role vocabulary (PRC-L174)', () => {
+  it.each(['scheduler', 'coordinator'])('%s is not a timetable role', (role) => {
+    for (const action of ['schedule.read', 'schedule.write', 'schedule.publish'] as const) {
+      expect(hasTimetableAccess([role], action), `${role} ${action}`).toBe(false);
+    }
+  });
+
+  it('the realm spellings keep their access', () => {
+    expect(hasTimetableAccess(['timetable_officer'], 'schedule.publish')).toBe(true);
+    expect(hasTimetableAccess(['platform_admin'], 'schedule.write')).toBe(true);
+    expect(hasTimetableAccess(['admin'], 'substitution.read')).toBe(true);
   });
 });
