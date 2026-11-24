@@ -418,6 +418,14 @@ jobs:
           # requests. Shards still run as four parallel jobs; expected 10-20 min
           # of Playwright per shard (to be confirmed on the first runs).
           PLAYWRIGHT_WORKERS: '1'
+          # `next dev` restarts once used heap passes 80% of its limit, and its
+          # default limit is half of RAM (8 GB on this 16 GB runner). PR shards 3
+          # and 4 restarted mid-run on every PR run, and nightly 45196358759 lost
+          # 34:273 and 93:214 to restarts. 12 GB moves the restart to 9.6 GB of
+          # used heap. Measured locally on PR shard 4, the heaviest: 7.8 GB used
+          # heap, 11.9 GB RSS, no restart. Next's restart stays the backstop
+          # against running the runner out of memory.
+          E2E_WEB_MAX_OLD_SPACE_MB: '12288'
           CI: true
 
       - name: Upload shard Playwright report
