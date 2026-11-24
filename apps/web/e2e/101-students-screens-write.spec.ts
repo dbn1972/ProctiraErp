@@ -407,6 +407,51 @@ test.describe('Students screens — write (E2E_BACKEND_READY)', () => {
     }
   });
 
+  test('M1-I2 an "Update existing" import with institution_code keeps the admission number', async ({
+    page,
+    request,
+  }) => {
+    test.slow();
+    const tag = newTag();
+    const admin = stAdmin(`st-admin-${tag}`);
+    const s = await seedStudent(request, admin, tag);
+    try {
+      const workbook = await buildImportWorkbook([
+        {
+          first_name: s.firstName,
+          last_name: 'Updated',
+          date_of_birth: s.dateOfBirth,
+          national_id: s.nationalId,
+          institution_code: 'E2E-SCH-001',
+        },
+      ]);
+      await openAs(page, admin);
+      await page.goto('/students/import', { waitUntil: 'load' });
+      await waitForReact(page.locator('#import-file'));
+      await chooseOption(page, 'duplicateResolution', 'Update existing records');
+      await page.locator('#import-file').setInputFiles({
+        name: `st-${tag}-code.xlsx`,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        buffer: workbook,
+      });
+      await page.getByRole('button', { name: 'Start import' }).click();
+      await page.getByTestId('bulk-import-confirm-confirm').click();
+      await expect(
+        page
+          .locator('p.uppercase', { hasText: /^Duplicates$/ })
+          .locator('xpath=following-sibling::p[1]'),
+      ).toHaveText('1', { timeout: 60_000 });
+      const stored = await getJson<Row>(request, admin, `/students/${s.id}`);
+      expect(stored.lastName).toBe('Updated');
+      expect
+        .soft((stored.customData as Row).admissionNo, 'admission number kept')
+        .toBe(s.admissionNo);
+      await page.goto(`/students/${s.id}`, { waitUntil: 'load' });
+      await expect.soft(page.getByText(`Adm. ${s.admissionNo}`, { exact: true })).toBeVisible();
+    } finally {
+      await deleteStudents(request, admin, [s.id]);
+    }
+  });
   test('/students/[id] Graduate closes the active enrollment', async ({ page, request }) => {
     const tag = newTag();
     const admin = stAdmin(`st-admin-${tag}`);
