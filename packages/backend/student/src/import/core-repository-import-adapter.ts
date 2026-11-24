@@ -95,15 +95,52 @@ function toEntityPatch(data: RecordInput): Partial<StudentEntity> {
   return patch;
 }
 
+function fullNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 /**
- * M1-I2: an "Update existing records" row changes only the columns it carries.
- * `customData` keys are merged over the stored ones, so the admission number
- * survives an `institution_code` column.
+ * M1-I3: an import row names one guardian. Update that guardian's phone when
+ * the name matches a stored guardian (keeping id, relationship and email), or
+ * add the row's guardian; every other guardian is kept.
+ */
+function mergeGuardians(
+  stored: StudentEntity['guardians'],
+  guardianName: string,
+  guardianPhone: string | null | undefined,
+): StudentEntity['guardians'] {
+  const key = fullNameKey(guardianName);
+  const index = stored.findIndex((g) => fullNameKey(`${g.firstName} ${g.lastName}`) === key);
+  if (index >= 0) {
+    if (!guardianPhone) return stored;
+    return stored.map((g, i) => (i === index ? { ...g, contactPhone: guardianPhone } : g));
+  }
+  const { firstName, lastName } = splitName(guardianName);
+  return [
+    ...stored,
+    {
+      id: randomUUID(),
+      firstName,
+      lastName,
+      relationship: 'guardian',
+      ...(guardianPhone ? { contactPhone: guardianPhone } : {}),
+    },
+  ];
+}
+
+/**
+ * M1-I2 / M1-I3: an "Update existing records" row changes only the columns it
+ * carries. `customData` keys are merged over the stored ones (the admission
+ * number survives an `institution_code` column) and guardians are merged, not
+ * replaced.
  */
 function toUpdatePatch(current: StudentEntity, data: RecordInput): Partial<StudentEntity> {
   const patch = toEntityPatch(data);
   if (patch.customData !== undefined) {
     patch.customData = { ...(current.customData ?? {}), ...patch.customData };
+  }
+  if (data.guardianName) {
+    patch.guardians = mergeGuardians(current.guardians, data.guardianName, data.guardianPhone);
   }
   return patch;
 }
@@ -116,7 +153,7 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
     const bulk = core.bulkWrite?.bind(core);
     if (bulk) {
       this.bulkImport = async (tenantId, ops) => {
-        // M1-I2: merge over the stored row; the batch is conditional on that
+        // M1-I2/I3: merge over the stored row; the batch is conditional on that
         // row's updatedAt, so a concurrent edit aborts it (409) instead of being lost.
         const updates = [];
         for (const { id, data } of ops.updates) {

@@ -1,7 +1,7 @@
 /**
- * M1-I2: an "Update existing records" import changes only the columns the row
- * carries. customData keys (the admission number) are merged into the stored
- * student, never replaced.
+ * M1-I2 / M1-I3: an "Update existing records" import changes only the columns
+ * the row carries. customData keys (the admission number) and guardians are
+ * merged into the stored student, never replaced.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -72,7 +72,7 @@ async function reload(core: CoreInMemoryStudentRepository, id: string): Promise<
   return entity;
 }
 
-describe('import "update existing" merges (M1-I2)', () => {
+describe('import "update existing" merges (M1-I2, M1-I3)', () => {
   it('an institution_code column keeps the admission number and other customData keys', async () => {
     const { core, service, stored } = await setup();
     const result = await service.processRows(
@@ -91,7 +91,37 @@ describe('import "update existing" merges (M1-I2)', () => {
     });
   });
 
-  it('a row without customData columns leaves customData and guardians untouched', async () => {
+  it('a guardian row matching a stored guardian updates only that phone', async () => {
+    const { core, service, stored } = await setup();
+    await service.processRows(
+      TENANT,
+      [updateRow({ guardianName: '  mara   GUARDIAN ', guardianPhone: '000-999' })],
+      { duplicateResolution: 'update' },
+    );
+    const after = await reload(core, stored.id);
+    expect(after.guardians).toEqual([{ ...MOTHER, contactPhone: '000-999' }, FATHER]);
+    expect(after.customData['admissionNo']).toBe('ADM-2026-0007');
+  });
+
+  it('a guardian row with a new name adds that guardian and keeps the others', async () => {
+    const { core, service, stored } = await setup();
+    await service.processRows(
+      TENANT,
+      [updateRow({ guardianName: 'Gale Keeper', guardianPhone: '000-333' })],
+      { duplicateResolution: 'update' },
+    );
+    const after = await reload(core, stored.id);
+    expect(after.guardians).toHaveLength(3);
+    expect(after.guardians.slice(0, 2)).toEqual([MOTHER, FATHER]);
+    expect(after.guardians[2]).toMatchObject({
+      firstName: 'Gale',
+      lastName: 'Keeper',
+      relationship: 'guardian',
+      contactPhone: '000-333',
+    });
+  });
+
+  it('a row without guardian or customData columns leaves both untouched', async () => {
     const { core, service, stored } = await setup();
     await service.processRows(TENANT, [updateRow({})], { duplicateResolution: 'update' });
     const after = await reload(core, stored.id);
@@ -101,10 +131,14 @@ describe('import "update existing" merges (M1-I2)', () => {
 
   it('the non-batch update path merges the same way', async () => {
     const { core, adapter, stored } = await setup();
-    await adapter.update(TENANT, stored.id, { institutionCode: 'E2E-SCH-001' });
+    await adapter.update(TENANT, stored.id, {
+      institutionCode: 'E2E-SCH-001',
+      guardianName: 'Ferd Guardian',
+      guardianPhone: '000-444',
+    });
     const after = await reload(core, stored.id);
     expect(after.customData['admissionNo']).toBe('ADM-2026-0007');
-    expect(after.customData['institutionCode']).toBe('E2E-SCH-001');
+    expect(after.guardians).toEqual([MOTHER, { ...FATHER, contactPhone: '000-444' }]);
   });
 
   it('a concurrent edit between the merge read and the write aborts the batch', async () => {
