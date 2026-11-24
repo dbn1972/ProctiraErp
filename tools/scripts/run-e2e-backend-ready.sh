@@ -236,17 +236,6 @@ trap cleanup EXIT
 echo "==> Building api-gateway runtime bundle"
 pnpm --filter @proctira/api-gateway build
 
-# In CI, serve @proctira/web from a production build. playwright.config.ts
-# picks `next start` when CI is set and .next/BUILD_ID exists (e2e/web-server-command.ts).
-# Under `next dev`, Next.js 15.5 restarts the server when heap use passes 80%; nightly
-# 45196358759 then hit ERR_CONNECTION_REFUSED (34:273) and a 90 s cold recompile (93:214).
-# Building on every run keeps `next start` from serving a stale .next. Local runs without
-# CI keep `next dev`, and PLAYWRIGHT_BASE_URL means no local web server at all.
-if [[ -n "${CI:-}" && -z "${PLAYWRIGHT_BASE_URL:-}" ]]; then
-  echo "==> Building @proctira/web for next start (NEXT_PUBLIC_GATEWAY_URL is inlined at build)"
-  pnpm --filter @proctira/web build
-fi
-
 # Every spec shares one JWT subject per tenant, and the rate limiter buckets by
 # tenant:sub (not IP). With the default 100 req/min the Next.js server-side
 # fan-out (page + chain verify + retention + ...) trips RATE_LIMIT_EXCEEDED

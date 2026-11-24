@@ -44,11 +44,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Kept at 90s for the CI job that still serves `next dev` — `Visual Regression` builds
-  // nothing, so first visits there compile routes and server actions on a shared runner.
-  // The turbo-driven Integration Tests job and `E2E Backend Ready` (whose harness runs
-  // `next build`) serve a prebuilt app and do not need this headroom; the budget stays
-  // uniform rather than branching a second time on the same condition.
+  // Kept at 90s for the CI jobs that still serve `next dev` — `E2E Backend Ready` and
+  // `Visual Regression` build nothing, so first visits there compile routes and server
+  // actions on a 2-core runner shared with the gateway, Postgres and Redis. The
+  // turbo-driven Integration Tests job serves a prebuilt app and does not need this
+  // headroom; the budget stays uniform rather than branching a second time on the same
+  // condition.
   timeout: process.env.CI ? 90_000 : 30_000,
   expect: { timeout: process.env.CI ? 20_000 : 5_000 },
   // PLAYWRIGHT_SHARD (CI live gate) adds the blob reporter. Default blob names

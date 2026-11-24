@@ -12,9 +12,8 @@
  *   Could not find a production build in the '.next' directory
  *
  * Both run `pnpm --filter @proctira/web exec playwright test` directly rather than through
- * turbo — `tools/scripts/run-e2e-backend-ready.sh` then built only `@proctira/api-gateway`
- * (it now also builds web in CI), and `visual-regression.yml` builds nothing — while GitHub
- * Actions sets `CI` on every runner.
+ * turbo — `tools/scripts/run-e2e-backend-ready.sh` builds only `@proctira/api-gateway`, and
+ * `visual-regression.yml` builds nothing — while GitHub Actions sets `CI` on every runner.
  * `E2E Backend Ready` is a hard pull-request gate, so that predicate would have broken
  * every PR.
  *
