@@ -8,16 +8,13 @@
  * 1. Collecting policies at each scope level (platform, tenant, institution)
  * 2. Filtering by effective dates
  * 3. Resolving conflicts using priority (higher priority wins)
- * 4. Merging rules from all applicable levels (more specific scope overrides)
+ * 4. Merging rules from all applicable levels: higher priority wins, then the
+ *    more specific scope (PRC-M630); nested objects merge key by key
  *
  * Charter: Section 27 (Security and Compliance)
  */
-import type {
-  PolicyEntity,
-  PolicyAssignmentEntity,
-  PolicyRepository,
-} from './policy-repository.js';
-import type { PolicyType, PolicyScope, PolicyEvaluationResponse } from './schemas.js';
+import type { PolicyEntity, PolicyRepository } from './policy-repository.js';
+import type { PolicyType, PolicyEvaluationResponse } from './schemas.js';
 
 /**
  * Context for policy evaluation.
@@ -31,14 +28,6 @@ export interface PolicyEvaluationContext {
   institutionId?: string;
   /** Evaluation timestamp (defaults to now) */
   evaluationDate?: Date;
-}
-
-/**
- * Result of policy evaluation at a single scope level.
- */
-interface ScopeLevelResult {
-  scope: PolicyScope;
-  policy: PolicyEntity | null;
 }
 
 /**
@@ -178,19 +167,26 @@ export class PolicyEvaluationEngine {
   }
 
   /**
-   * Merge rules from multiple policies in inheritance order.
-   * Later (more specific) policies override earlier (less specific) ones.
-   * Null policies are skipped.
+   * Merge rules from the inheritance chain (given in specificity order:
+   * platform, tenant, institution). Null policies are skipped.
+   *
+   * PRC-M630: policies are applied in ascending priority, so a value from a
+   * higher-priority policy is never overwritten by a lower-priority one at a
+   * more specific scope; at equal priority the more specific scope wins. Nested
+   * objects are merged key by key instead of being replaced wholesale.
    */
   private mergeRules(policies: (PolicyEntity | null)[]): Record<string, unknown> {
-    const merged: Record<string, unknown> = {};
+    const ordered = policies
+      .map((policy, specificity) => ({ policy, specificity }))
+      .filter((entry): entry is { policy: PolicyEntity; specificity: number } =>
+        Boolean(entry.policy?.rules),
+      )
+      .sort((a, b) => a.policy.priority - b.policy.priority || a.specificity - b.specificity);
 
-    for (const policy of policies) {
-      if (policy && policy.rules) {
-        Object.assign(merged, policy.rules);
-      }
+    let merged: Record<string, unknown> = {};
+    for (const { policy } of ordered) {
+      merged = deepMergeRules(merged, policy.rules);
     }
-
     return merged;
   }
 
@@ -214,4 +210,30 @@ export class PolicyEvaluationEngine {
       updatedAt: entity.updatedAt.toISOString(),
     };
   }
+}
+
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+/** Deep-merge `override` onto `base` (arrays and scalars replace). Inputs are not mutated. */
+function deepMergeRules(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    if (UNSAFE_KEYS.has(key)) continue;
+    const current = result[key];
+    result[key] =
+      isPlainObject(current) && isPlainObject(value) ? deepMergeRules(current, value) : value;
+  }
+  return result;
 }

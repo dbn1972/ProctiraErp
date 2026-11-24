@@ -4,7 +4,7 @@
  * POST   /students          - Create a new student
  * PUT    /students/:id      - Update a student
  * GET    /students          - List students (paginated, filterable)
- * GET    /students/search   - Full-text search on name and national ID
+ * GET    /students/search   - Full-text search on name (national ID for registrar/admin)
  * GET    /students/:id      - Get a single student
  * DELETE /students/:id      - Delete a student (soft delete)
  */
@@ -326,7 +326,7 @@ export async function registerStudentRoutes(
 
   /**
    * GET /students/search
-   * Full-text search on student name and national ID.
+   * Full-text search on student name; national ID only for registrar/admin (HN-F4-R3).
    * Must be registered before GET /students/:id to avoid route conflict.
    */
   fastify.get(
@@ -362,7 +362,13 @@ export async function registerStudentRoutes(
         const page = Number(query.page) || 1;
         const pageSize = Number(query.pageSize) || 20;
 
-        const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
+        // HN-F4-R3: national ID is searchable only by roles that may view it.
+        const result = await studentService.search(
+          tenantId,
+          query.q.trim(),
+          { page, pageSize },
+          { matchNationalId: mayViewNationalId(roles) },
+        );
 
         return reply.status(200).send({
           data: result.data.map((s) => maskStudentPii(formatStudentResponse(s), roles)),
@@ -419,6 +425,8 @@ export async function registerStudentRoutes(
           {
             gender: query.gender,
             search: query.search,
+            // HN-F4-R3: national ID is searchable only by roles that may view it.
+            matchNationalId: mayViewNationalId(roles),
             institutionId: query.institutionId,
             ids,
           },

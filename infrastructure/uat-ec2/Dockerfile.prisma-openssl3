@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+# UAT-only stop-gap layer (UATENV-D01): Prisma engine for OpenSSL 3 on Alpine
+# =============================================================================
+# The Release Dockerfiles for api-gateway, etl-worker and exam-document-worker
+# run `prisma generate` in a stage without the `openssl` package, so Prisma
+# falls back to the OpenSSL 1.1 musl engine (libquery_engine-linux-musl.so.node).
+# The node:20-alpine runner only ships libssl.so.3, so the services crash at
+# boot ("Error loading shared library libssl.so.1.1").
+#
+# tools/scripts/uatenv/uatenv-lib.sh (uatenv_patch_prisma_openssl) applies this
+# layer on top of the Release image ONLY when the image still has the 1.1
+# engine and no libssl.so.1.1; once the Dockerfiles are fixed on main the check
+# finds nothing to patch and this file is unused.
+# =============================================================================
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+RUN apk add --no-cache openssl \
+ && cd /app/packages/shared/database \
+ && ./node_modules/.bin/prisma generate >/dev/null \
+ && ls /app/node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/ | grep -q 'libquery_engine-linux-musl-openssl-3.0.x.so.node'
+USER fastify
+LABEL com.proctira.uatenv.patch="prisma-openssl3"

@@ -159,6 +159,29 @@ export interface NettableScholarshipDisbursement {
   paymentStatus: string;
   currency?: string | null;
   paidDate?: string | null;
+  /**
+   * F-D2: set on rows returned by `listNettableScholarshipDisbursements` — paise already
+   * credited to invoices and paise still waiting for the student's next open invoice.
+   */
+  nettedCents?: number;
+  remainingCents?: number;
+}
+
+/**
+ * F-D1/F-D2: outcome of one scholarship netting call. `appliedCents` is credited by this
+ * call; `nettedCents` / `remainingCents` are the disbursement totals after it.
+ * `discountCents` keeps its PRC-H020 meaning: the credit applied now, or the stored
+ * credit when the call is a replay (`idempotent: true`).
+ */
+export interface ScholarshipNettingResult {
+  concession: FeeConcessionEntity | null;
+  invoice: FeeInvoiceEntity | null;
+  discountCents: number;
+  appliedCents: number;
+  amountCents: number;
+  nettedCents: number;
+  remainingCents: number;
+  idempotent: boolean;
 }
 /** PRC-H020: injected by the gateway; backed by the scholarship repository. */
 export interface ScholarshipDisbursementLookup {
@@ -1950,8 +1973,17 @@ export class FeesService {
   }
 
   /**
-   * G-1 scholarship netting — credit an open fee invoice from a paid disbursement.
-   * Idempotent on `disbursementId` (reason marker).
+   * G-1 scholarship netting — credit open fee invoices from a paid disbursement.
+   *
+   * F-D1: the credit is the disbursement amount in exact integer paise, whatever the
+   * invoice type (structure, plan or ad-hoc). It is never priced on a fee structure.
+   * F-D2: one call credits at most the chosen invoice's open amount (face − collected).
+   * Any remainder stays on the disbursement (`remainingCents`) and a later call credits it
+   * to the student's next open invoice. A disbursement is netted only once its full amount
+   * has been applied. Each credited invoice gets one netting row (unique per disbursement
+   * and invoice, db/sql/305), and the read-check-write runs under a per-disbursement lock,
+   * so double clicks, retries, outbox redelivery and concurrent calls never credit more
+   * than the disbursement amount.
    */
   async applyScholarshipNetting(
     tenantId: string,
@@ -1964,87 +1996,147 @@ export class FeesService {
       currency?: string;
     },
     audit?: FeesMoneyAuditSink,
-  ) {
+  ): Promise<ScholarshipNettingResult> {
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
       throw new BusinessRuleError('Scholarship netting amountCents must be a positive integer');
     }
-    const marker = `scholarship_netting:${input.disbursementId}`;
-    const prior = await this.repository.findConcessionBySourceDisbursementId(
+    const isNettable = (row: FeeInvoiceEntity) => row.status === 'open' || row.status === 'overdue';
+    // Netting rows need a structure FK. Ad-hoc and plan invoices have none, so their rows
+    // reference the SCHOLARSHIP_NET structure (FK only; its price is never used). Resolved
+    // before the lock so the locked transaction never waits on a second pool connection.
+    const preview = await this.repository.listInvoicesForStudentIds(tenantId, [input.studentId]);
+    const structureless = preview.find(
+      (row) => row.structureId == null && (row.id === input.invoiceId || isNettable(row)),
+    );
+    const anchorId = structureless
+      ? (
+          await this.scholarshipNetStructure(
+            tenantId,
+            actorId,
+            input.currency ?? structureless.currency,
+          )
+        ).id
+      : null;
+
+    return this.repository.withScholarshipDisbursementLock(
       tenantId,
       input.disbursementId,
-    );
-    if (prior) {
-      const invoice = prior.invoiceId
-        ? await this.repository.findInvoiceById(prior.invoiceId, tenantId)
-        : null;
-      return {
-        concession: prior,
-        invoice,
-        // PRC-H020: replay reports the stored credit, never the caller-supplied amount.
-        discountCents: prior.amountCents ?? 0,
-        idempotent: true as const,
-      };
-    }
-
-    const invoices = await this.repository.listInvoicesForStudentIds(tenantId, [input.studentId]);
-    const invoice =
-      (input.invoiceId ? invoices.find((row) => row.id === input.invoiceId) : undefined) ??
-      invoices.find((row) => row.status === 'open' || row.status === 'overdue') ??
-      null;
-
-    let structureId = invoice?.structureId ?? null;
-    if (!structureId) {
-      const existing = (await this.repository.listFeeStructures(tenantId)).find(
-        (s) => s.code === 'SCHOLARSHIP_NET',
-      );
-      const structure =
-        existing ??
-        (await this.createFeeStructure(tenantId, actorId, {
-          code: 'SCHOLARSHIP_NET',
-          name: 'Scholarship netting',
-          category: 'scholarship',
-          amountCents: 0,
-          currency: input.currency ?? invoice?.currency ?? 'INR',
-        }));
-      structureId = structure.id;
-    }
-
-    if (!invoice) {
-      const concession = await this.applyConcession(
-        tenantId,
-        actorId,
-        {
-          studentId: input.studentId,
-          structureId,
-          kind: 'amount',
+      async (tx) => {
+        const rows = await tx.listConcessionsBySourceDisbursementId(tenantId, input.disbursementId);
+        const live = rows.filter((row) => row.status !== 'rejected');
+        const nettedBefore = live.reduce((sum, row) => sum + (row.amountCents ?? 0), 0);
+        const remainingBefore = Math.max(0, input.amountCents - nettedBefore);
+        const totals = (appliedCents: number) => ({
+          appliedCents,
           amountCents: input.amountCents,
-          reason: `${marker} (no open invoice — credit reserved)`,
-          sourceDisbursementId: input.disbursementId,
-          autoApprove: true,
-        },
-        audit,
-      );
-      return { ...concession, idempotent: false as const };
-    }
+          nettedCents: nettedBefore + appliedCents,
+          remainingCents: Math.max(0, remainingBefore - appliedCents),
+        });
+        // Nothing credited by this call. With prior rows this is a replay: PRC-H020 reports
+        // the stored credit, never the caller-supplied amount.
+        const noCredit = async (): Promise<ScholarshipNettingResult> => {
+          const last = rows.at(-1) ?? null;
+          const invoice = last?.invoiceId
+            ? await tx.findInvoiceById(last.invoiceId, tenantId)
+            : null;
+          return {
+            concession: last,
+            invoice,
+            discountCents: nettedBefore,
+            ...totals(0),
+            idempotent: rows.length > 0,
+          };
+        };
+        // W2-FIN-08: a reversed disbursement is never netted again; a fully netted one is a replay.
+        if (rows.length > 0 && live.length === 0) return noCredit();
+        if (remainingBefore === 0) return noCredit();
 
-    return {
-      ...(await this.applyConcession(
-        tenantId,
-        actorId,
-        {
-          studentId: input.studentId,
-          structureId,
-          invoiceId: invoice.id,
-          kind: 'amount',
-          amountCents: Math.min(input.amountCents, invoice.amountCents),
-          reason: marker,
-          sourceDisbursementId: input.disbursementId,
-          autoApprove: true,
-        },
-        audit,
-      )),
-      idempotent: false as const,
-    };
+        const invoices = await tx.listInvoicesForStudentIds(tenantId, [input.studentId]);
+        const credited = new Set(live.map((row) => row.invoiceId));
+        const target =
+          (input.invoiceId
+            ? invoices.find((row) => row.id === input.invoiceId && !credited.has(row.id))
+            : undefined) ??
+          invoices.find((row) => isNettable(row) && !credited.has(row.id)) ??
+          null;
+        // No open invoice: the full remainder stays on the disbursement for the next one.
+        if (!target) return noCredit();
+
+        const structureId =
+          target.structureId ??
+          anchorId ??
+          (await tx.listFeeStructures(tenantId)).find((s) => s.code === 'SCHOLARSHIP_NET')?.id;
+        if (!structureId) {
+          // The invoice appeared after the pre-lock read; a retry creates the anchor first.
+          throw new BusinessRuleError('Scholarship netting structure is not ready; retry netting');
+        }
+
+        return tx.withInvoiceLock(tenantId, target.id, async (lockedTx, locked) => {
+          if (locked.invoice.status !== 'open') {
+            throw new BusinessRuleError('Concession can only recompute dues on an open invoice');
+          }
+          // Never credit more than is still open on the invoice (never below cash collected).
+          const unpaid = Math.max(0, locked.invoice.amountCents - locked.paidCents);
+          const credit = Math.min(remainingBefore, unpaid);
+          if (credit === 0) return noCredit();
+          const concession = await lockedTx.createConcession({
+            id: uuidv4(),
+            tenantId,
+            studentId: input.studentId,
+            structureId,
+            invoiceId: target.id,
+            kind: 'amount',
+            percent: null,
+            // The row records exactly the paise credited to this invoice.
+            amountCents: credit,
+            reason: `scholarship_netting:${input.disbursementId}`,
+            sourceDisbursementId: input.disbursementId,
+            approverId: actorId,
+            status: 'approved',
+            createdBy: actorId,
+          });
+          const applied = await this.applyConcessionLocked(
+            lockedTx,
+            locked,
+            tenantId,
+            actorId,
+            concession,
+            credit,
+            'scholarship_netting',
+            audit,
+          );
+          return {
+            concession: applied.concession,
+            invoice: applied.invoice,
+            discountCents: applied.discountCents,
+            ...totals(applied.discountCents),
+            idempotent: false,
+          };
+        });
+      },
+    );
+  }
+
+  /** Anchor structure for netting rows on invoices that have no fee structure. */
+  private async scholarshipNetStructure(tenantId: string, actorId: string, currency: string) {
+    const find = async () =>
+      (await this.repository.listFeeStructures(tenantId)).find((s) => s.code === 'SCHOLARSHIP_NET');
+    const existing = await find();
+    if (existing) return existing;
+    try {
+      return await this.createFeeStructure(tenantId, actorId, {
+        code: 'SCHOLARSHIP_NET',
+        name: 'Scholarship netting',
+        category: 'scholarship',
+        amountCents: 0,
+        currency,
+      });
+    } catch (error) {
+      // A concurrent netting created it first (code/validity overlap is rejected).
+      const winner = await find();
+      if (winner) return winner;
+      throw error;
+    }
   }
 
   /**
@@ -2095,7 +2187,11 @@ export class FeesService {
       audit,
     );
   }
-  /** PRC-H020: paid disbursements for the tenant that have not yet been netted. */
+  /**
+   * PRC-H020: paid disbursements for the tenant that still have paise to net.
+   * F-D2: a partly netted disbursement stays listed with `nettedCents` / `remainingCents`;
+   * fully netted and reversed (W2-FIN-08) disbursements are not listed.
+   */
   async listNettableScholarshipDisbursements(
     tenantId: string,
     lookup: ScholarshipDisbursementLookup,
@@ -2106,14 +2202,20 @@ export class FeesService {
     for (const row of rows) {
       if (row.tenantId !== tenantId || row.paymentStatus !== 'paid') continue;
       if (filter.studentId && row.studentId !== filter.studentId) continue;
-      const prior = await this.repository.findConcessionBySourceDisbursementId(tenantId, row.id);
-      if (!prior) nettable.push(row);
+      const netting = await this.repository.listConcessionsBySourceDisbursementId(tenantId, row.id);
+      const live = netting.filter((c) => c.status !== 'rejected');
+      if (netting.length > 0 && live.length === 0) continue;
+      const nettedCents = live.reduce((sum, c) => sum + (c.amountCents ?? 0), 0);
+      const remainingCents = Math.max(0, row.amountCents - nettedCents);
+      if (remainingCents > 0) nettable.push({ ...row, nettedCents, remainingCents });
     }
     return nettable;
   }
+
   /**
    * W2-FIN-08: reverse a prior scholarship netting when a paid disbursement is cancelled/failed.
-   * Restores invoice face and posts the inverse journal (DR AR / CR fee_revenue).
+   * F-D2: every invoice the disbursement credited is restored by the paise it received, with
+   * the inverse journal (DR AR / CR fee_revenue); an invoice settled by the credit reopens.
    */
   async reverseScholarshipNetting(
     tenantId: string,
@@ -2121,75 +2223,100 @@ export class FeesService {
     input: { disbursementId: string },
     audit?: FeesMoneyAuditSink,
   ) {
-    const prior = await this.repository.findConcessionBySourceDisbursementId(
+    // PRC-H058: per-disbursement lock, then each invoice lock; face restore + journal +
+    // concession rejection + audit for every row commit together.
+    return this.repository.withScholarshipDisbursementLock(
       tenantId,
       input.disbursementId,
-    );
-    if (!prior) {
-      return { reversed: false as const, concession: null, invoice: null };
-    }
-    if (prior.status === 'rejected') {
-      return {
-        reversed: true as const,
-        concession: prior,
-        invoice: null,
-        idempotent: true as const,
-      };
-    }
-
-    const discountCents = prior.kind === 'amount' ? (prior.amountCents ?? 0) : 0;
-    if (!Number.isInteger(discountCents) || discountCents <= 0) {
-      throw new BusinessRuleError('Cannot reverse scholarship netting without a positive amount');
-    }
-
-    const existing = prior.invoiceId
-      ? await this.repository.findInvoiceById(prior.invoiceId, tenantId)
-      : null;
-
-    // PRC-H058: face restore + journal + concession rejection commit together.
-    const reverse = async (tx: FeesRepository, invoice: FeeInvoiceEntity | null) => {
-      let restored: FeeInvoiceEntity | null = null;
-      if (invoice) {
-        restored = await tx.updateInvoice(invoice.id, tenantId, {
-          amountCents: invoice.amountCents + discountCents,
-          ...(invoice.status === 'written_off' ? { status: 'open' as const } : {}),
-        });
-        await this.postJournal(
-          tx,
-          restored!,
-          actorId,
-          'scholarship netting reversed',
-          [
-            ['accounts_receivable', 'debit'],
-            ['fee_revenue', 'credit'],
-          ],
+      async (tx) => {
+        const rows = await tx.listConcessionsBySourceDisbursementId(tenantId, input.disbursementId);
+        if (rows.length === 0) {
+          return { reversed: false as const, concession: null, invoice: null };
+        }
+        const live = rows.filter((row) => row.status !== 'rejected');
+        if (live.length === 0) {
+          return {
+            reversed: true as const,
+            concession: rows.at(-1) ?? null,
+            invoice: null,
+            idempotent: true as const,
+          };
+        }
+        let concession: FeeConcessionEntity | null = null;
+        let invoice: FeeInvoiceEntity | null = null;
+        let discountCents = 0;
+        for (const row of live) {
+          const amount = row.kind === 'amount' ? (row.amountCents ?? 0) : 0;
+          if (!Number.isInteger(amount) || amount <= 0) {
+            throw new BusinessRuleError(
+              'Cannot reverse scholarship netting without a positive amount',
+            );
+          }
+          if (!row.invoiceId) {
+            // Legacy reserved row: no invoice was credited, nothing to restore.
+            const rejected = await tx.updateConcession(row.id, tenantId, { status: 'rejected' });
+            await audit?.(tx, {
+              kind: 'scholarship_netting_reversal',
+              entityId: row.id,
+              invoiceId: null,
+              amountCents: 0,
+              beforeStatus: row.status,
+              afterStatus: 'rejected',
+            });
+            concession = rejected ?? concession;
+            continue;
+          }
+          const reversed = await tx.withInvoiceLock(
+            tenantId,
+            row.invoiceId,
+            async (lockedTx, locked) => {
+              const nextAmount = locked.invoice.amountCents + amount;
+              const reopen =
+                locked.invoice.status === 'written_off' ||
+                (locked.invoice.status === 'paid' && nextAmount > locked.paidCents);
+              const restored = await lockedTx.updateInvoice(locked.invoice.id, tenantId, {
+                amountCents: nextAmount,
+                ...(reopen ? { status: 'open' as const } : {}),
+              });
+              await this.postJournal(
+                lockedTx,
+                restored!,
+                actorId,
+                'scholarship netting reversed',
+                [
+                  ['accounts_receivable', 'debit'],
+                  ['fee_revenue', 'credit'],
+                ],
+                amount,
+              );
+              const rejected = await lockedTx.updateConcession(row.id, tenantId, {
+                status: 'rejected',
+              });
+              // PRC-L306: reversal audit commits or rolls back with the face restore + journal.
+              await audit?.(lockedTx, {
+                kind: 'scholarship_netting_reversal',
+                entityId: row.id,
+                invoiceId: locked.invoice.id,
+                amountCents: amount,
+                beforeStatus: row.status,
+                afterStatus: 'rejected',
+              });
+              return { restored, rejected };
+            },
+          );
+          concession = reversed.rejected ?? concession;
+          invoice = reversed.restored ?? invoice;
+          discountCents += amount;
+        }
+        return {
+          reversed: true as const,
+          concession,
+          invoice,
           discountCents,
-        );
-      }
-      const rejectedRow = await tx.updateConcession(prior.id, tenantId, { status: 'rejected' });
-      // PRC-L306: reversal audit commits or rolls back with the face restore + journal.
-      await audit?.(tx, {
-        kind: 'scholarship_netting_reversal',
-        entityId: prior.id,
-        invoiceId: invoice?.id ?? null,
-        amountCents: invoice ? discountCents : 0,
-        beforeStatus: prior.status,
-        afterStatus: 'rejected',
-      });
-      return { invoice: restored, rejected: rejectedRow };
-    };
-    const { invoice, rejected } = existing
-      ? await this.repository.withInvoiceLock(tenantId, existing.id, (tx, locked) =>
-          reverse(tx, locked.invoice),
-        )
-      : await this.repository.runInTransaction(tenantId, (tx) => reverse(tx, null));
-    return {
-      reversed: true as const,
-      concession: rejected ?? prior,
-      invoice,
-      discountCents,
-      idempotent: false as const,
-    };
+          idempotent: false as const,
+        };
+      },
+    );
   }
 
   /** G-5 — clone fee structures (+ instalments) into a target academic period. */

@@ -21,6 +21,7 @@ export type {
   StudentGuardian,
   IdentityDocument,
   StudentFilter,
+  StudentSearchOptions,
   StudentRepository as CoreStudentRepository,
   StudentUpdateOptions,
   StudentTxnAuditEvent,

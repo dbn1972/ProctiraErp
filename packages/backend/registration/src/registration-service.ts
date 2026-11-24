@@ -57,6 +57,7 @@ import type {
   SchoolFinderQuery,
 } from './schemas.js';
 import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES, TRACKING_NUMBER_PREFIX } from './schemas.js';
+import { assertTenantReferences, type TenantReferenceChecker } from './tenant-references.js';
 
 /**
  * Generates a unique tracking number in the format REG-XXXXXXXX
@@ -435,14 +436,18 @@ export function computeSubmissionPayloadHash(input: SubmitRegistrationInput): st
 export class RegistrationService {
   private readonly crm: AdmissionsCrmStore;
   private readonly documentStorage?: RegistrationDocumentStorage;
+  /** AD-T1: interview-slot institution must belong to the caller's tenant. */
+  private readonly references?: TenantReferenceChecker;
 
   constructor(
     private readonly repository: RegistrationRepository,
     crmStore?: AdmissionsCrmStore,
     documentStorage?: RegistrationDocumentStorage,
+    references?: TenantReferenceChecker,
   ) {
     this.crm = crmStore ?? new InMemoryAdmissionsCrmStore();
     this.documentStorage = documentStorage;
+    this.references = references;
   }
 
   /**
@@ -878,6 +883,9 @@ export class RegistrationService {
     if (endsAt <= startsAt) {
       throw new BusinessRuleError('Interview slot end must be after start');
     }
+    await assertTenantReferences(this.references, tenantId, {
+      institutionId: input.institutionId,
+    });
     return this.crm.createSlot({ tenantId, ...input });
   }
 

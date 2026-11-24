@@ -6,6 +6,7 @@ import { dateOfBirthErrors, parseTimestamp } from '../input-validation.js';
 import { MAX_LIST_PAGE_SIZE, toPageResult, type ListPage } from '../pagination.js';
 import type { RegistrationEntity, RegistrationRepository } from '../registration-repository.js';
 import { generateTrackingNumber } from '../registration-service.js';
+import { assertTenantReferences, type TenantReferenceChecker } from '../tenant-references.js';
 
 import {
   buildOfferDocument,
@@ -227,11 +228,21 @@ export class AdmissionsPipelineService {
     private readonly crm?: AdmissionsCrmStore,
     private readonly reconcileOfferResources?: ReconcileOfferResources,
     private readonly verifyOfferFeeInvoiceOwnership?: VerifyOfferFeeInvoiceOwnership,
+    /**
+     * AD-T1: institution / period / grade ids a write names must belong to the caller's
+     * tenant. The registration plugin always wires one; when omitted nothing is checked.
+     */
+    private readonly references?: TenantReferenceChecker,
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
     const dobErrors = dateOfBirthErrors(input.dateOfBirth);
     if (dobErrors.length > 0) throw new ValidationError('Invalid date of birth', dobErrors);
+    await assertTenantReferences(this.references, tenantId, {
+      institutionId: input.institutionId,
+      academicPeriodId: input.academicPeriodId,
+      gradeId: input.gradeId,
+    });
     const now = new Date();
     const record: EnquiryRecord = {
       id: uuidv4(),
@@ -408,6 +419,11 @@ export class AdmissionsPipelineService {
   }
 
   async upsertSeat(tenantId: string, input: UpsertSeatMatrixDto): Promise<SeatAvailability> {
+    await assertTenantReferences(this.references, tenantId, {
+      institutionId: input.institutionId,
+      academicPeriodId: input.academicPeriodId,
+      gradeId: input.gradeId,
+    });
     const now = new Date();
     const saved = await this.store.upsertSeat({
       id: uuidv4(),
@@ -433,6 +449,10 @@ export class AdmissionsPipelineService {
 
   async setPlacement(tenantId: string, applicationId: string, input: ApplicationPlacementDto) {
     const application = await this.requireApplication(tenantId, applicationId);
+    await assertTenantReferences(this.references, tenantId, {
+      academicPeriodId: input.academicPeriodId,
+      gradeId: input.gradeId,
+    });
     const saved = await this.store.upsertPlacement({
       applicationId,
       tenantId,
@@ -461,6 +481,11 @@ export class AdmissionsPipelineService {
         { field: 'weights', rule: 'sum', message: 'interviewWeight + testWeight must equal 1' },
       ]);
     }
+    await assertTenantReferences(this.references, tenantId, {
+      institutionId: input.institutionId,
+      academicPeriodId: input.academicPeriodId,
+      gradeId: input.gradeId,
+    });
 
     const placements = await this.store.listPlacements(tenantId, {
       institutionId: input.institutionId,
