@@ -352,6 +352,8 @@ test.describe('Parent portal screens — read path (E2E_BACKEND_READY)', () => {
     const tag = newTag();
     const family = await createFamily(request, { childCount: 1, tag });
     const [c1] = family.children as [Family['children'][0]];
+    // PRC-M299 (#766): a learner submits only when ENROLLED in the assignment's school.
+    await enrolInSharedYear(request, tag, [c1.id]);
     const hwTitle = `PP HW ${tag}`;
     const quizTitle = `PP Quiz ${tag}`;
     await createAssignment(request, { kind: 'homework', title: hwTitle });
