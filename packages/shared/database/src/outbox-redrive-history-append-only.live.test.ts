@@ -219,4 +219,138 @@ describe.skipIf(!DATABASE_URL)('PRC-L093 outbox redrive_history append-only (liv
       client.release();
     }
   });
+
+  // -------------------------------------------------------------------------
+  // PRC-L093 residual (db/sql/310): each appended redrive entry is mirrored
+  // into audit_ingest_queue, which the audit ingest drain seals into
+  // audit_log_entries.
+  // -------------------------------------------------------------------------
+  const MIGRATION_310 = '310_outbox_redrive_audit_mirror.sql';
+  const MIRROR_TRIGGER = 'trg_transactional_outbox_redrive_audit_mirror';
+
+  function load310(): string {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+    return readFileSync(path.join(root, 'db/sql', MIGRATION_310), 'utf8');
+  }
+
+  /** The exact UPDATE OutboxStore.requeueFailed issues on its platform client. */
+  async function requeueAsPlatform(client: pg.PoolClient, ids: string[]): Promise<number> {
+    await client.query(`SELECT set_config('app.tenant_id', '', true)`);
+    await client.query(`SELECT set_config('app.platform_admin', '1', true)`);
+    const res = await client.query(
+      `UPDATE transactional_outbox
+          SET status = 'pending',
+              attempts = 0,
+              last_error = NULL,
+              available_at = now(),
+              redrive_history = redrive_history || jsonb_build_object(
+                'at', $2::text, 'actor', $3::text, 'reason', $4::text, 'fromAttempts', attempts
+              )
+        WHERE id = ANY($1::uuid[]) AND status = 'failed'`,
+      [ids, '2026-11-24T00:00:00Z', 'ops-l093', 'operator redrive'],
+    );
+    return res.rowCount ?? 0;
+  }
+
+  async function queuedFor(
+    client: pg.PoolClient,
+    tenantId: string,
+    rowId: string,
+  ): Promise<
+    {
+      entity_type: string;
+      operation: string;
+      user_id: string | null;
+      actor_kind: string;
+      reason: string;
+      history_index: number;
+    }[]
+  > {
+    await client.query(`SELECT set_config('app.platform_admin', '', true)`);
+    await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+    const { rows } = await client.query(
+      `SELECT entity_type, operation, user_id, actor_kind,
+              metadata->>'reason' AS reason, (metadata->>'historyIndex')::int AS history_index
+         FROM audit_ingest_queue
+        WHERE entity_id = $1 AND sealed_at IS NULL
+        ORDER BY id`,
+      [rowId],
+    );
+    return rows;
+  }
+
+  it.skipIf(!MIGRATOR_DATABASE_URL)(
+    'RED: without the 310 trigger a redrive leaves no audit record',
+    async () => {
+      const m = migrator!;
+      try {
+        await m.query(`DROP TRIGGER IF EXISTS ${MIRROR_TRIGGER} ON transactional_outbox`);
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const { tenantId, rowId } = await seedOutboxRow(client, []);
+          expect(await requeueAsPlatform(client, [rowId])).toBe(1);
+          expect(await queuedFor(client, tenantId, rowId)).toEqual([]);
+        } finally {
+          await client.query('ROLLBACK').catch(() => undefined);
+          client.release();
+        }
+      } finally {
+        await m.query(load310());
+      }
+    },
+  );
+
+  it('GREEN: a platform-scoped redrive of two tenants enqueues one audit row per tenant', async () => {
+    if (migrator) await migrator.query(load310());
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const a = await seedOutboxRow(client, [
+        { at: '2026-01-01T00:00:00Z', actor: 'ops-1', reason: 'first', fromAttempts: 5 },
+      ]);
+      const b = await seedOutboxRow(client, []);
+
+      expect(await requeueAsPlatform(client, [a.rowId, b.rowId])).toBe(2);
+      // The trigger restores the caller's (empty) tenant binding.
+      const bound = await client.query<{ t: string | null }>(
+        `SELECT NULLIF(current_setting('app.tenant_id', true), '') AS t`,
+      );
+      expect(bound.rows[0]!.t).toBeNull();
+
+      const expected = (historyIndex: number) => ({
+        entity_type: 'transactional_outbox',
+        operation: 'UPDATE',
+        user_id: 'ops-l093',
+        actor_kind: 'outbox:redrive',
+        reason: 'operator redrive',
+        history_index: historyIndex,
+      });
+      // Only the new entry is mirrored; the pre-existing one is not re-enqueued.
+      expect(await queuedFor(client, a.tenantId, a.rowId)).toEqual([expected(1)]);
+      expect(await queuedFor(client, b.tenantId, b.rowId)).toEqual([expected(0)]);
+      // RLS still isolates the queue: tenant A cannot see B's audit row.
+      expect(await queuedFor(client, a.tenantId, b.rowId)).toEqual([]);
+    } finally {
+      await client.query('ROLLBACK').catch(() => undefined);
+      client.release();
+    }
+  });
+
+  it('GREEN: an update that does not touch redrive_history enqueues nothing', async () => {
+    if (migrator) await migrator.query(load310());
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { tenantId, rowId } = await seedOutboxRow(client, []);
+      await client.query(
+        `UPDATE transactional_outbox SET status = 'pending', attempts = 1 WHERE id = $1`,
+        [rowId],
+      );
+      expect(await queuedFor(client, tenantId, rowId)).toEqual([]);
+    } finally {
+      await client.query('ROLLBACK').catch(() => undefined);
+      client.release();
+    }
+  });
 });

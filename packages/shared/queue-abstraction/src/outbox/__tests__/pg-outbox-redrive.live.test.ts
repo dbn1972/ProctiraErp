@@ -69,7 +69,15 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
           createdIds,
         ]);
       }
-      await client.query(`DELETE FROM tenants WHERE id = ANY($1::uuid[])`, [[TENANT_A, TENANT_B]]);
+      // PRC-L093 (db/sql/310): each redrive is mirrored into audit_ingest_queue,
+      // whose tenant FK (like every audit_* tenant FK) blocks deleting a tenant
+      // that has audit history. Keep the probe tenants in that case; the ids
+      // are fixed and beforeAll re-inserts with ON CONFLICT DO NOTHING.
+      await client
+        .query(`DELETE FROM tenants WHERE id = ANY($1::uuid[])`, [[TENANT_A, TENANT_B]])
+        .catch((e: { code?: string }) => {
+          if (e.code !== '23503') throw e;
+        });
     } finally {
       client.release();
     }
