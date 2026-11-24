@@ -740,7 +740,7 @@ test('E2E_WEB_MAX_OLD_SPACE_MB reaches the Playwright command as --max-old-space
   const harness = (wf.jobs['e2e-backend-ready-shard'].steps ?? []).find((s) =>
     (s.run ?? '').includes('run-e2e-backend-ready.sh'),
   );
-  assert.equal(harness.env?.E2E_WEB_MAX_OLD_SPACE_MB, '12288');
+  assert.equal(harness.env?.E2E_WEB_MAX_OLD_SPACE_MB, '11264');
 });
 
 test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=on (PRC-L461)', () => {

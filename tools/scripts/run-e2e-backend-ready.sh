@@ -54,7 +54,7 @@ for arg in "$@"; do
   case "$arg" in
     --skip-stack) SKIP_STACK=1 ;;
     --help|-h)
-      sed -n '2,43p' "$0"
+      sed -n '2,46p' "$0"
       exit 0
       ;;
     *)
