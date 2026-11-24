@@ -11,7 +11,6 @@ const NON_STAFF_ROLES = ['student', 'parent', 'guardian', 'alumni', 'unknown_rol
 const SCHEDULER_ROLES = [
   'registrar',
   'timetable_officer',
-  'platform_admin',
   'admin',
   'super-admin',
   'super_admin',
@@ -82,7 +81,10 @@ describe('timetable-access role vocabulary (PRC-L174)', () => {
 
   it('the realm spellings keep their access', () => {
     expect(hasTimetableAccess(['timetable_officer'], 'schedule.publish')).toBe(true);
-    expect(hasTimetableAccess(['platform_admin'], 'schedule.write')).toBe(true);
+    expect(hasTimetableAccess(['system_admin'], 'schedule.write')).toBe(true);
+    // D2 CORRECTION: the control-plane operator gets no tenant timetable data.
+    expect(hasTimetableAccess(['platform_admin'], 'schedule.write')).toBe(false);
+    expect(hasTimetableAccess(['platform_admin'], 'schedule.read')).toBe(false);
     expect(hasTimetableAccess(['admin'], 'substitution.read')).toBe(true);
   });
 });

@@ -16,7 +16,6 @@ const ADMIN_ROLES = [
   'super-admin',
   'super_admin',
   'system_admin',
-  'platform_admin',
   'principal',
   'school_admin',
 ] as const;
@@ -24,8 +23,9 @@ const ADMIN_ROLES = [
 /**
  * PRC-L174: `scheduler` (the realm spells it `timetable_officer`) and
  * `coordinator` were dropped; neither is a realm or gateway-registry role, so
- * no token carrying them reached this guard. `platform_admin` is in
- * ADMIN_ROLES (D2). `hod` / `academic_coordinator` and the legacy admin
+ * no token carrying them reached this guard. `platform_admin` is NOT in
+ * ADMIN_ROLES (D2 CORRECTION: control-plane operator, no tenant timetable
+ * data); tenant admins (`admin`, `system_admin`) are. `hod` / `academic_coordinator` and the legacy admin
  * spellings are shared with report/assessment/curriculum/lms and wait on the
  * catalogue decision for those roles.
  */

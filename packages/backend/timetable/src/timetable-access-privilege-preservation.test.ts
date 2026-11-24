@@ -1,8 +1,9 @@
 /**
  * D2 role-catalogue normalization (PRC-M015, PRC-L174) — timetable privilege-preservation.
  *
- * Only change: system_admin -> platform_admin ADD in ADMIN_ROLES. Proves platform_admin is now
- * admitted for every timetable action and system_admin retains its grants.
+ * D2 CORRECTION: platform_admin (cross-tenant control-plane operator) is NOT in ADMIN_ROLES,
+ * so it gets no tenant timetable data. system_admin (per-tenant admin) keeps every action.
+ * Fails while platform_admin is in ADMIN_ROLES.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -11,10 +12,10 @@ import { hasTimetableAccess, type TimetableAction } from './timetable-access.js'
 const ALL_ACTIONS: TimetableAction[] = ['schedule.write', 'schedule.publish', 'schedule.read'];
 
 describe('timetable-access privilege preservation (D2)', () => {
-  it('admits platform_admin alongside system_admin for every action', () => {
+  it('denies platform_admin (tenant isolation) and keeps system_admin for every action', () => {
     for (const action of ALL_ACTIONS) {
       expect(hasTimetableAccess(['platform_admin'], action), `platform_admin -> ${action}`).toBe(
-        true,
+        false,
       );
       expect(hasTimetableAccess(['system_admin'], action), `system_admin -> ${action}`).toBe(true);
     }
