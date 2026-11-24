@@ -16,6 +16,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { assessmentAuditContextOf } from './assessment-audit.js';
 import { installAssessmentRouteGuard } from './assessment-http-guard.js';
 import {
+  requireAssessmentOwnership,
+  type AssessmentTeachingScope,
+} from './assessment-ownership.js';
+import {
   EnterSingleResultSchema,
   BulkResultEntrySchema,
   StudentResultsQuerySchema,
@@ -34,6 +38,8 @@ export interface ResultRoutesOptions {
   resultService: ResultService;
   /** Route prefix for results (default: '/results') */
   resultsPrefix?: string;
+  /** PRC-M160 / PRC-L274: teacher -> subject / student ownership lookup. */
+  teachingScope?: AssessmentTeachingScope | null;
 }
 
 /**
@@ -52,7 +58,7 @@ export async function registerResultRoutes(
 ): Promise<void> {
   // W1-SEC-02: package-level RBAC; PRC-L083: installed once per instance.
   installAssessmentRouteGuard(fastify);
-  const { resultService, resultsPrefix = '/results' } = options;
+  const { resultService, resultsPrefix = '/results', teachingScope = null } = options;
 
   /**
    * POST /results
@@ -84,6 +90,12 @@ export async function registerResultRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          subjectIds: [result.data.subjectId],
+        }))
+      )
+        return;
 
       try {
         const entry = await resultService.enterSingleResult(
@@ -137,6 +149,12 @@ export async function registerResultRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          subjectIds: [result.data.subjectId],
+        }))
+      )
+        return;
 
       try {
         const response = await resultService.enterBulkResults(
@@ -194,6 +212,12 @@ export async function registerResultRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(request, reply, tenantId, teachingScope, {
+          subjectIds: [body.subjectId],
+        }))
+      )
+        return;
 
       try {
         const response = await resultService.importFromExcel(
@@ -243,6 +267,18 @@ export async function registerResultRoutes(
           statusCode: 400,
         });
       }
+      if (
+        !(await requireAssessmentOwnership(
+          request,
+          reply,
+          tenantId,
+          teachingScope,
+          result.data.studentId
+            ? { studentIds: [result.data.studentId] }
+            : { subjectIds: [result.data.subjectId] },
+        ))
+      )
+        return;
 
       try {
         if (result.data.studentId) {

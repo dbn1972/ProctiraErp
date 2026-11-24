@@ -5,6 +5,14 @@ import { AppError } from '@proctira/common';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { assertAssessmentAccess, type AssessmentAction } from './assessment-access.js';
+import { isAssessmentPortalReader } from './assessment-ownership.js';
+
+declare module 'fastify' {
+  interface FastifyContextConfig {
+    /** PRC-L274: portal readers pass the package role guard; the handler binds them. */
+    assessmentPortalRead?: boolean;
+  }
+}
 
 export function assessmentRequestRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
@@ -55,6 +63,14 @@ export function installAssessmentRouteGuard(fastify: FastifyInstance): void {
   if (guardedInstances.has(fastify)) return;
   guardedInstances.add(fastify);
   fastify.addHook('preHandler', async (request, reply) => {
+    // PRC-L274: portal readers reach routes that bind them to their own students.
+    if (
+      request.routeOptions.config.assessmentPortalRead === true &&
+      request.method === 'GET' &&
+      isAssessmentPortalReader(assessmentRequestRoles(request))
+    ) {
+      return;
+    }
     if (!enforceAssessmentRouteAccess(request, reply)) {
       return reply;
     }

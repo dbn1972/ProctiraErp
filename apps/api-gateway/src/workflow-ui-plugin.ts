@@ -246,10 +246,12 @@ export const workflowUiPlugin = fp(
     fastify.get('/workflows/definitions', async (request, reply) => {
       const tenantId = assertWorkflowAccess(request, reply);
       if (!tenantId) return;
-      const definitions = await store.listDefinitions(tenantId);
-      return reply.send({
-        data: definitions.map(stripTenant),
-      });
+      // PRC-M022: paged with totals, like instances and approvals.
+      const pagination = parsePagination(request.query);
+      const page = store.listDefinitionsPage
+        ? await store.listDefinitionsPage(tenantId, pagination)
+        : pageOf(await store.listDefinitions(tenantId), pagination);
+      return reply.send({ data: page.data.map(stripTenant), meta: page.meta });
     });
 
     fastify.get<{ Params: { id: string } }>(

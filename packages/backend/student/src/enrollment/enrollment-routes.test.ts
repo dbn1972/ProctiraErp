@@ -52,6 +52,12 @@ describe('Enrollment Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = TENANT_ID;
+      // PRC-M545: enrollment mutations need a registrar/admin role in-plugin.
+      (request as unknown as { user: unknown }).user = {
+        sub: 'registrar-1',
+        tenantId: TENANT_ID,
+        roles: [request.headers['x-test-role'] ?? 'registrar'],
+      };
     });
 
     await registerEnrollmentRoutes(app, { enrollmentService });
@@ -205,6 +211,69 @@ describe('Enrollment Routes', () => {
       });
 
       expect(response.statusCode).toBe(422);
+    });
+  });
+
+  describe('in-plugin role gate on enrollment mutations (PRC-M545)', () => {
+    const createPayload = () => ({
+      studentId: uuid(),
+      institutionId: INSTITUTION_ID,
+      gradeId: GRADE_ID,
+      classId: CLASS_ID,
+      academicPeriodId: ACADEMIC_PERIOD_ID,
+      enrolledAt: '2024-01-15',
+    });
+
+    it('a teacher cannot create, change status, bulk-update or transfer (403)', async () => {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/enrollments',
+        payload: createPayload(),
+      });
+      expect(created.statusCode).toBe(201);
+      const id = (JSON.parse(created.body) as { id: string }).id;
+      const headers = { 'x-test-role': 'teacher' };
+      const attempts = [
+        { method: 'POST' as const, url: '/enrollments', payload: createPayload() },
+        {
+          method: 'POST' as const,
+          url: `/enrollments/${id}/status`,
+          payload: { status: 'WITHDRAWN', effectiveDate: '2024-06-01', reason: 'x' },
+        },
+        {
+          method: 'POST' as const,
+          url: '/enrollments/bulk-status',
+          payload: { enrollmentIds: [id], status: 'WITHDRAWN', effectiveDate: '2024-06-01' },
+        },
+        {
+          method: 'POST' as const,
+          url: '/enrollments/transfer',
+          payload: {
+            studentId: STUDENT_ID,
+            sourceEnrollmentId: id,
+            destinationInstitutionId: INSTITUTION_ID,
+            transferDate: '2024-06-01',
+          },
+        },
+      ];
+      for (const attempt of attempts) {
+        const res = await app.inject({ ...attempt, headers });
+        expect(res.statusCode, attempt.url).toBe(403);
+        expect(JSON.parse(res.body)).toMatchObject({ code: 'FORBIDDEN' });
+      }
+      const after = await app.inject({ method: 'GET', url: `/enrollments/${id}`, headers });
+      expect(after.statusCode).toBe(200);
+      expect((JSON.parse(after.body) as { status: string }).status).toBe('ENROLLED');
+    });
+
+    it('a guardian cannot create an enrollment (403)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/enrollments',
+        headers: { 'x-test-role': 'guardian' },
+        payload: createPayload(),
+      });
+      expect(res.statusCode).toBe(403);
     });
   });
 

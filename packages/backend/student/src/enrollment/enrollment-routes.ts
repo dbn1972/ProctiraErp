@@ -17,6 +17,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { denyUnlessStudentWriter } from '../student-access.js';
+
 import type {
   EnrollmentEntity,
   EnrollmentHistoryEntity,
@@ -125,6 +127,7 @@ export async function registerEnrollmentRoutes(
       request: FastifyRequest<{ Body: CreateEnrollmentInput }>,
       reply: FastifyReply,
     ) {
+      if (!denyUnlessStudentWriter(request, reply, 'enrollment.write')) return;
       const result = validate(CreateEnrollmentSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -261,6 +264,7 @@ export async function registerEnrollmentRoutes(
       request: FastifyRequest<{ Params: EnrollmentParams; Body: UpdateEnrollmentStatusInput }>,
       reply: FastifyReply,
     ) {
+      if (!denyUnlessStudentWriter(request, reply, 'enrollment.write')) return;
       const paramsResult = validate(EnrollmentParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -316,6 +320,7 @@ export async function registerEnrollmentRoutes(
       request: FastifyRequest<{ Body: BulkUpdateEnrollmentStatusInput }>,
       reply: FastifyReply,
     ) {
+      if (!denyUnlessStudentWriter(request, reply, 'enrollment.write')) return;
       const bodyResult = validate(BulkUpdateEnrollmentStatusSchema, request.body);
       if (!bodyResult.success) {
         return reply.status(400).send({
@@ -354,6 +359,7 @@ export async function registerEnrollmentRoutes(
       request: FastifyRequest<{ Body: StudentTransferInput }>,
       reply: FastifyReply,
     ) {
+      if (!denyUnlessStudentWriter(request, reply, 'enrollment.write')) return;
       const result = validate(StudentTransferSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({

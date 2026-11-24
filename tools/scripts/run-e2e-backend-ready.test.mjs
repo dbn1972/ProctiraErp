@@ -73,6 +73,17 @@ test('harness gateway binds to loopback, not 0.0.0.0', () => {
   assert.match(text, /HOST="\$\{E2E_GATEWAY_HOST:-127\.0\.0\.1\}"/);
 });
 
+// PRC-M484: payInvoiceAction fails closed unless the web server is flagged for
+// sandbox payments; /parent/fees can only save through its Pay form with it set.
+test('harness enables sandbox fee payments for the E2E web server (parent fees form)', () => {
+  const text = readFileSync(script, 'utf8');
+  const flag = /export FEES_STAFF_SANDBOX_PAYMENTS="\$\{FEES_STAFF_SANDBOX_PAYMENTS:-true\}"/;
+  assert.match(text, flag);
+  const run = text.search(/playwright test /);
+  assert.ok(run > 0, 'harness runs playwright test');
+  assert.ok(text.search(flag) < run, 'flag is exported before playwright test starts');
+});
+
 test('workflow only allows a skip when the operator disabled require_live', () => {
   const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
   const steps = Object.values(wf.jobs).flatMap((j) => j.steps ?? []);
@@ -99,6 +110,32 @@ test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
   );
   assert.ok(harness, 'shard job runs the harness');
   assert.equal(harness.env?.PLAYWRIGHT_WORKERS, '1');
+});
+
+// Parent portal screen -> API -> DB coverage (57 read, 58 form saves, 59 privacy/tenancy).
+// All three always run nightly. Integration bundle 2026-11-23: the owner's PR shard
+// budget rule keeps specs nightly-only unless they were already in PR_SPECS on main, so
+// the PR subset is empty (the measured 15.96-min figure below assumed them in PR_SPECS).
+// Adding one to PR_SPECS is a visible change here.
+const PARENT_SCREEN_SPECS = [
+  '57-parent-portal-screens-read.spec.ts',
+  '58-parent-portal-screens-write.spec.ts',
+  '59-parent-portal-privacy-tenancy.spec.ts',
+];
+const PARENT_SCREEN_PR_SUBSET = [];
+test('parent portal screen specs are in the nightly set (and the measured PR subset)', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of PARENT_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.equal(
+      pr.includes(`e2e/${file}`),
+      PARENT_SCREEN_PR_SUBSET.includes(file),
+      `PR_SPECS membership of e2e/${file} matches the measured subset`,
+    );
+  }
 });
 
 // Student portal screen -> API -> DB coverage (60 read, 61 privacy/tenancy).
@@ -140,6 +177,24 @@ test('transport screen specs run nightly and are not in PR_SPECS', () => {
   const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
   const pr = wf.env.PR_SPECS.split(/\s+/);
   for (const file of TRANSPORT_SCREEN_SPECS) {
+    assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
+    assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
+    assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);
+  }
+});
+// Students screen -> API -> DB coverage (100 read, 101 form saves, 102 privacy/tenancy).
+// Nightly only: the PR shard time budget is used by the parent and student portal
+// screen specs. Moving one into PR_SPECS is a visible change here.
+const STUDENTS_SCREEN_SPECS = [
+  '100-students-screens-read.spec.ts',
+  '101-students-screens-write.spec.ts',
+  '102-students-privacy-tenancy.spec.ts',
+];
+test('students screen specs run nightly and are not in PR_SPECS', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const nightly = wf.env.NIGHTLY_SPECS.split(/\s+/);
+  const pr = wf.env.PR_SPECS.split(/\s+/);
+  for (const file of STUDENTS_SCREEN_SPECS) {
     assert.ok(existsSync(join(e2eDir, file)), `apps/web/e2e/${file} exists`);
     assert.ok(nightly.includes(`e2e/${file}`), `NIGHTLY_SPECS has e2e/${file}`);
     assert.ok(!pr.includes(`e2e/${file}`), `PR_SPECS must not have e2e/${file}`);

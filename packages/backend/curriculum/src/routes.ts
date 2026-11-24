@@ -1,10 +1,14 @@
 /**
  * Curriculum Fastify routes (G-923). Prefix default: `/curriculum`
  */
-import { AppError, assertInstitutionInScope } from '@proctira/common';
+import { AppError, assertInstitutionInScope, isProductionLike } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import {
+  hasInstitutionWideCurriculumRole,
+  type CurriculumTeachingScope,
+} from './curriculum-access.js';
 import { enforceCurriculumRouteAccess } from './curriculum-http-guard.js';
 import {
   CoverageQuerySchema,
@@ -37,6 +41,8 @@ function sendValidationError(reply: FastifyReply, message: string, errors: unkno
 export interface CurriculumRoutesOptions {
   service: CurriculumService;
   prefix?: string;
+  /** PRC-M194: teacher -> subject ownership lookup (gateway Postgres directory). */
+  teachingScope?: CurriculumTeachingScope | null;
 }
 
 function tenantOf(request: FastifyRequest): string | null {
@@ -152,6 +158,58 @@ export async function registerCurriculumRoutes(
     } catch (error) {
       if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
       throw error;
+    }
+  });
+
+  // PRC-M194: a teacher-only caller writes units, lesson plans, coverage and outcomes only
+  // for subjects it teaches. The subject comes from the body (create) or the addressed row.
+  // Unknown rows fall through so the handler answers its own 404. Without a lookup,
+  // production-like environments fail closed (503).
+  const unitsRoute = `${fastify.prefix}${prefix}/units`;
+  const outcomesRoute = `${fastify.prefix}${prefix}/outcomes`;
+  const outcomeRoute = `${outcomesRoute}/:id`;
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (request.method === 'GET' || request.method === 'HEAD') return;
+    const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+    if (hasInstitutionWideCurriculumRole(user?.roles)) return;
+    const tenantId = tenantOf(request);
+    if (!tenantId) return;
+    const routeUrl = request.routeOptions.url ?? '';
+    const id = (request.params as { id?: unknown } | undefined)?.id;
+    let subjectId: string | null = null;
+    if (routeUrl === unitsRoute || routeUrl === outcomesRoute) {
+      const body = request.body as { subjectId?: unknown } | undefined;
+      if (typeof body?.subjectId !== 'string') return; // handler validation answers 400
+      subjectId = body.subjectId;
+    } else if (typeof id === 'string' && routeUrl.startsWith(`${unitRoute}`)) {
+      try {
+        subjectId = (await service.getUnit(tenantId, id)).subjectId;
+      } catch (error) {
+        if (error instanceof AppError) return;
+        throw error;
+      }
+    } else if (typeof id === 'string' && routeUrl === planRoute) {
+      subjectId = await service.lessonPlanSubject(tenantId, id);
+    } else if (typeof id === 'string' && routeUrl === outcomeRoute) {
+      subjectId = await service.outcomeSubject(tenantId, id);
+    }
+    if (!subjectId) return;
+    const scope = options.teachingScope;
+    if (!scope) {
+      if (!isProductionLike(process.env.NODE_ENV)) return;
+      return reply.status(503).send({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Curriculum ownership lookup is not configured; this action is unavailable',
+        statusCode: 503,
+      });
+    }
+    const principal = actorId(request);
+    if (!principal || !(await scope.teachesSubject(tenantId, [principal], subjectId))) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'Forbidden: you do not teach this subject',
+        statusCode: 403,
+      });
     }
   });
 

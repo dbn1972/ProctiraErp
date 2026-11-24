@@ -63,6 +63,18 @@ const PG_USER_ATTRIBUTE = {
   displayName: 'displayName',
 } as const satisfies Record<Exclude<NonNullable<UserQuery['match']>['attribute'], 'id'>, string>;
 
+/** PRC-L171: true when a stored built-in role differs from its current seed. */
+export function builtInDrifted(
+  stored: { name: string; permissions: Array<{ resource: string; action: string }> },
+  def: BuiltInRoleSeed,
+): boolean {
+  if (stored.name !== def.roleName) return true;
+  const key = (p: { resource: string; action: string }) => `${p.resource}:${p.action}`;
+  const have = new Set(stored.permissions.map(key));
+  const want = new Set(def.permissions.map(key));
+  return have.size !== want.size || [...want].some((k) => !have.has(k));
+}
+
 export class PgRolesRepository implements RolesRepository {
   private readonly roles: PgDocumentCollection<RoleDoc>;
   private readonly users: PgDocumentCollection<UserRecord>;
@@ -170,7 +182,7 @@ export class PgRolesRepository implements RolesRepository {
     const now = new Date().toISOString();
     for (const def of this.seed) {
       const id = `${tenantId}::${def.roleId}`;
-      await this.roles.insertIfAbsent(
+      const stored = await this.roles.insertIfAbsent(
         id,
         {
           id,
@@ -185,6 +197,20 @@ export class PgRolesRepository implements RolesRepository {
         },
         tenantId,
       );
+      // PRC-L171: built-in roles are read-only, so the current seed is authoritative.
+      // A tenant seeded by an older release gets the built-in's new name / permissions.
+      if (stored.builtIn && builtInDrifted(stored, def)) {
+        await this.roles.put(
+          id,
+          {
+            ...stored,
+            name: def.roleName,
+            permissions: def.permissions.map((p) => ({ ...p })),
+            updatedAt: now,
+          },
+          tenantId,
+        );
+      }
     }
     this.seeded.add(tenantId);
   }
@@ -320,26 +346,57 @@ export class PgRolesRepository implements RolesRepository {
     filter: UserListFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<UserRecord>> {
-    let rows = await this.users.byTenant(tenantId);
-    if (filter.search?.trim()) {
-      const q = filter.search.trim().toLowerCase();
-      rows = rows.filter(
-        (u) => u.email.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q),
+    // PRC-L171: filter, order and page in SQL on the tenant-bound connection
+    // instead of loading the tenant's whole user directory per request.
+    const page = Math.max(1, Math.trunc(pagination.page ?? 1));
+    const pageSize = Math.max(1, Math.trunc(pagination.pageSize ?? 20));
+    const owner = canonicalizeDocumentTenantId(tenantId);
+    const params: unknown[] = [owner];
+    const where = [`collection = 'tenant.users'`, `tenant_id = $1`];
+    const search = filter.search?.trim().toLowerCase();
+    if (search) {
+      params.push(`%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      where.push(
+        `(lower(COALESCE(data->>'email', '')) LIKE $${params.length}
+          OR lower(COALESCE(data->>'displayName', '')) LIKE $${params.length})`,
       );
     }
-    if (filter.roleId) rows = rows.filter((u) => u.roleIds.includes(filter.roleId!));
-    if (filter.status) rows = rows.filter((u) => u.status === filter.status);
-    rows.sort((a, b) => a.displayName.localeCompare(b.displayName));
-
-    const page = pagination.page ?? 1;
-    const pageSize = pagination.pageSize ?? 20;
-    const totalItems = rows.length;
-    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    const offset = (page - 1) * pageSize;
-    return {
-      data: rows.slice(offset, offset + pageSize),
-      meta: { page, pageSize, totalItems, totalPages },
-    };
+    if (filter.roleId) {
+      params.push(filter.roleId);
+      where.push(`(data->'roleIds') ? $${params.length}`);
+    }
+    if (filter.status) {
+      params.push(filter.status);
+      where.push(`data->>'status' = $${params.length}`);
+    }
+    const whereSql = where.join(' AND ');
+    return withPgTenant(this.pool, owner, async (client) => {
+      const count = await client.query(
+        `SELECT COUNT(*)::int AS total FROM control_plane_documents WHERE ${whereSql}`,
+        params,
+      );
+      const totalItems = Number((count.rows[0] as { total: number }).total);
+      const res = await client.query(
+        `SELECT data FROM control_plane_documents
+          WHERE ${whereSql}
+          ORDER BY data->>'displayName' ASC, id ASC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, pageSize, (page - 1) * pageSize],
+      );
+      const data = (res.rows as Array<{ data: UserRecord }>).map((r) => ({
+        ...r.data,
+        roleIds: [...(r.data.roleIds ?? [])],
+      }));
+      return {
+        data,
+        meta: {
+          page,
+          pageSize,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
+        },
+      };
+    });
   }
 
   /**
