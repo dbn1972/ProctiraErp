@@ -42,7 +42,8 @@ describe('Assessment Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
         sub: 'test-user',
-        roles: ['teacher'],
+        // PRC-M160: grading schemes and outcome deletes are coordinator configuration.
+        roles: ['academic_coordinator'],
       };
     });
 

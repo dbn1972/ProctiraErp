@@ -29,6 +29,9 @@
 #   E2E_REQUIRE_LIVE If 1, always fail closed (overrides E2E_ALLOW_SKIP)
 #   E2E_GATEWAY_HOST Bind address for the harness gateway (default 127.0.0.1)
 #   E2E_SKIP_STACK   If 1 (or --skip-stack), print skip summary and exit 0
+#   FEES_STAFF_SANDBOX_PAYMENTS  Default true: the E2E web server accepts
+#                    sandbox fee payments (parent fees Pay form, PRC-M484).
+#                    Set to false to test the fail-closed path.
 #   PLAYWRIGHT_SHARD Optional i/n (for example 2/4). Passed as --shard so CI
 #                    can split the same spec list. Every shard still receives
 #                    the full E2E_SPECS list; Playwright selects the slice.
@@ -79,6 +82,11 @@ export JWT_SECRET
 # without seeded password users set E2E_HS256_SESSION=1 to use the HS256 cookie.
 export E2E_HS256_SESSION="${E2E_HS256_SESSION:-}"
 export E2E_BACKEND_READY=1
+# PRC-M484: sandbox payments are allowed only on an explicitly flagged
+# non-production deployment. The harness web server is `next dev` (NODE_ENV
+# development) and isSandboxPaymentEnabled() still refuses under
+# NODE_ENV=production. Needed so /parent/fees saves through its Pay form.
+export FEES_STAFF_SANDBOX_PAYMENTS="${FEES_STAFF_SANDBOX_PAYMENTS:-true}"
 export E2E_GATEWAY_URL="$GATEWAY_URL"
 export NEXT_PUBLIC_GATEWAY_URL="${NEXT_PUBLIC_GATEWAY_URL:-$GATEWAY_URL}"
 export GATEWAY_URL="${GATEWAY_URL}"

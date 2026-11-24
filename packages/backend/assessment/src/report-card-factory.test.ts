@@ -33,7 +33,7 @@ describe('report-card repository factories (G-210)', () => {
         user?: { sub: string; roles: string[] };
       };
       context.tenantId = tenantId;
-      context.user = { sub: 'test-user', roles: ['teacher'] };
+      context.user = { sub: 'test-user', roles: ['academic_coordinator'] }; // PRC-M160: templates
     });
 
     await app.register(assessmentPlugin, {

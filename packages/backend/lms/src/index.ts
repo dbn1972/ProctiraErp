@@ -13,6 +13,7 @@ export {
   type LmsActor,
   type LmsAuditEntry,
   type LmsAuditSink,
+  type LmsLearnerMembership,
   type LmsServiceOptions,
   type AssignmentWithQuestions,
   type StudentProgress,

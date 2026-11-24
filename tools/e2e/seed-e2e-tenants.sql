@@ -178,4 +178,18 @@ ON CONFLICT (id) DO UPDATE
       capacity = GREATEST(sections.capacity, 5000),
       updated_at = now();
 
+-- PRC-M299: LMS learners submit and post only where they are ENROLLED. The e2e/26
+-- learner (LMS Learner) is enrolled in E2E-SEC-A, a section of the tenant A school.
+INSERT INTO section_enrollments (tenant_id, section_id, student_id, status)
+VALUES (
+  '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-00000000eec1',
+  'c4018ef3-2454-4ee0-b904-22add0d1c596',
+  'ENROLLED'
+)
+ON CONFLICT (section_id, student_id) DO UPDATE
+  SET status = 'ENROLLED',
+      withdrawn_at = NULL,
+      updated_at = now();
+
 COMMIT;

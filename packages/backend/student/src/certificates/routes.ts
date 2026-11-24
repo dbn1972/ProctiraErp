@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
+import { denyUnlessStudentWriter } from '../student-access.js';
+
 import type { LifecycleCertificateService } from './lifecycle-certificate-service.js';
 import type { LifecycleCertificateType } from './types.js';
 
@@ -79,6 +81,7 @@ export async function registerLifecycleCertificateRoutes(
   }>(`${prefix}/:studentId/certificates`, async (request, reply) => {
     const tid = requireTenantId(request as never, reply);
     if (!tid) return;
+    if (!denyUnlessStudentWriter(request, reply, 'certificate.write')) return;
     const cert = await service.issue(tid, actorId(request as never), {
       studentId: request.params.studentId,
       type: request.body.type,
@@ -120,6 +123,7 @@ export async function registerLifecycleCertificateRoutes(
     async (request, reply) => {
       const tid = requireTenantId(request as never, reply);
       if (!tid) return;
+      if (!denyUnlessStudentWriter(request, reply, 'certificate.write')) return;
       const cert = await service.revoke(tid, request.params.id, request.body?.reason ?? 'revoked');
       return reply.send(cert);
     },

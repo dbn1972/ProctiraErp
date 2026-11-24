@@ -65,3 +65,38 @@ export function assertCurriculumAccess(roles: unknown, action: CurriculumAction)
     );
   }
 }
+
+/**
+ * PRC-M194: teacher -> subject ownership (topic 3 Option A). Admin-tier roles,
+ * academic / curriculum coordinators and the registrar act across the
+ * institution; teacher-only roles (teacher, instructor, faculty) may write
+ * units, lesson plans, coverage and outcomes only for subjects they teach.
+ * Matched on role ids only, so a tenant-editable role name cannot lift a
+ * teacher out of the check.
+ */
+export interface CurriculumTeachingScope {
+  teachesSubject(
+    tenantId: string,
+    principalIds: readonly string[],
+    subjectId: string,
+  ): Promise<boolean>;
+}
+
+const INSTITUTION_WIDE_ROLE_IDS: ReadonlySet<string> = new Set(
+  CURRICULUM_STAFF_ROLES.filter(
+    (role) => role !== 'teacher' && role !== 'instructor' && role !== 'faculty',
+  ),
+);
+
+export function hasInstitutionWideCurriculumRole(roles: unknown): boolean {
+  if (!Array.isArray(roles)) return false;
+  return roles.some((r) => {
+    const id =
+      typeof r === 'string'
+        ? r
+        : r && typeof r === 'object'
+          ? (r as { roleId?: unknown }).roleId
+          : undefined;
+    return typeof id === 'string' && INSTITUTION_WIDE_ROLE_IDS.has(id.toLowerCase());
+  });
+}
