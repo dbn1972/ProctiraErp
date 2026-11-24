@@ -222,8 +222,14 @@ export class PrismaStudentRepository implements StudentRepository {
           if (data.tenantId !== tenantId) throw new Error('bulkWrite tenant mismatch');
           created.push(await this.createWith(tx, data));
         }
-        for (const { id, data } of ops.updates) {
-          const row = await this.updateWith(tx, id, tenantId, data);
+        for (const { id, data, expectedUpdatedAt } of ops.updates) {
+          const row = await this.updateWith(
+            tx,
+            id,
+            tenantId,
+            data,
+            expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+          );
           if (!row) throw new NotFoundError(`Student with id '${id}' not found`);
           updated.push(row);
         }

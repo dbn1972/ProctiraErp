@@ -497,6 +497,29 @@ test.describe('Students privacy and tenancy — live (E2E_BACKEND_READY)', () =>
     }
   });
 
+  test('M1-I4 enrollment refuses a class that belongs to another institution', async ({
+    request,
+  }) => {
+    const tag = newTag();
+    const admin = stAdmin(`st-admin-${tag}`);
+    const pl = await placement(request, admin);
+    const s = await seedStudent(request, admin, tag);
+    try {
+      const r = await probe(request, admin, 'POST', '/enrollments', {
+        studentId: s.id,
+        institutionId: pl.source.institutionId,
+        gradeId: pl.grade.id,
+        classId: pl.destination.classId,
+        academicPeriodId: pl.period.id,
+        enrolledAt: utcDate(0),
+      });
+      expect.soft(r.status, `${r.label}: ${r.body.slice(0, 200)}`).toBeGreaterThanOrEqual(400);
+      expect.soft(r.status).toBeLessThan(500);
+      expect(await enrollmentsOf(request, admin, s.id), 'no enrollment was created').toEqual([]);
+    } finally {
+      await deleteStudents(request, admin, [s.id]);
+    }
+  });
   test('a forged X-Tenant-ID header never switches the tenant', async ({ request }) => {
     const tag = newTag();
     const adminA = stAdmin(`st-a-admin-${tag}`, TENANT_A);

@@ -35,6 +35,9 @@
 #   PLAYWRIGHT_SHARD Optional i/n (for example 2/4). Passed as --shard so CI
 #                    can split the same spec list. Every shard still receives
 #                    the full E2E_SPECS list; Playwright selects the slice.
+#   E2E_WEB_MAX_OLD_SPACE_MB  Optional V8 heap limit (MB) for the Playwright run
+#                    and the `next dev` server it starts (--max-old-space-size).
+#                    Unset keeps Next's default of half of RAM.
 #   E2E_PLAYWRIGHT_JSON_REPORT  Playwright JSON report path (default
 #                    apps/web/test-results/e2e-backend-ready-report.json). After
 #                    Playwright, assert-playwright-skips.mjs fails the run on a
@@ -51,7 +54,7 @@ for arg in "$@"; do
   case "$arg" in
     --skip-stack) SKIP_STACK=1 ;;
     --help|-h)
-      sed -n '2,40p' "$0"
+      sed -n '2,46p' "$0"
       exit 0
       ;;
     *)
@@ -97,6 +100,12 @@ SPECS="${E2E_SPECS:-e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-modul
 PW_SHARD="${PLAYWRIGHT_SHARD:-}"
 if [[ -n "$PW_SHARD" && ! "$PW_SHARD" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]]; then
   echo "error: PLAYWRIGHT_SHARD must look like 1/4, got: ${PW_SHARD}" >&2
+  exit 2
+fi
+
+WEB_MAX_OLD_SPACE_MB="${E2E_WEB_MAX_OLD_SPACE_MB:-}"
+if [[ -n "$WEB_MAX_OLD_SPACE_MB" && ! "$WEB_MAX_OLD_SPACE_MB" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: E2E_WEB_MAX_OLD_SPACE_MB must be a whole number of MB, got: ${WEB_MAX_OLD_SPACE_MB}" >&2
   exit 2
 fi
 
@@ -298,7 +307,20 @@ fi
 # Remove a stale report first so a run that writes none fails the skip gate.
 PW_JSON_REPORT="${E2E_PLAYWRIGHT_JSON_REPORT:-$ROOT/apps/web/test-results/e2e-backend-ready-report.json}"
 rm -f "$PW_JSON_REPORT"
+# `next dev` (Next.js 15.5) exits and restarts after any request that leaves used V8 heap
+# above 80% of the heap limit (next/dist/server/lib/start-server.js). Without
+# --max-old-space-size, next dev sets the limit to half of RAM, 8 GB on a 16 GB runner.
+# Its heap grows with every compiled route, so the restart fired mid-shard and in-flight
+# tests got ERR_CONNECTION_REFUSED or a cold recompile past the 90 s timeout (nightly
+# 45196358759: 34:273, 93:214). E2E_WEB_MAX_OLD_SPACE_MB raises the limit for the
+# Playwright command only; Playwright passes NODE_OPTIONS on to the webServer command.
+PW_NODE_OPTIONS="${NODE_OPTIONS:-}"
+if [[ -n "$WEB_MAX_OLD_SPACE_MB" ]]; then
+  PW_NODE_OPTIONS="${PW_NODE_OPTIONS:+$PW_NODE_OPTIONS }--max-old-space-size=${WEB_MAX_OLD_SPACE_MB}"
+  echo "==> Web server heap limit: --max-old-space-size=${WEB_MAX_OLD_SPACE_MB}"
+fi
 # shellcheck disable=SC2086
+NODE_OPTIONS="$PW_NODE_OPTIONS" \
 PLAYWRIGHT_JSON_OUTPUT_FILE="$PW_JSON_REPORT" \
   pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium --workers="${PW_WORKERS}" "${PW_SHARD_ARGS[@]}" "${PW_GREP_ARGS[@]}"
 PW_EXIT=$?

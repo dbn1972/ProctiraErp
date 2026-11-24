@@ -101,6 +101,9 @@ export interface EnrollmentPlacementRefs {
   academicPeriodId: string;
 }
 export type EnrollmentPlacementRefKind = keyof EnrollmentPlacementRefs;
+/** M1-I4: `createEnrollment` refuses a class of another institution (422). */
+export const CLASS_OUTSIDE_INSTITUTION =
+  'Enrollment rejected: the class does not belong to the selected institution';
 export const PLACEMENT_REF_KINDS: readonly EnrollmentPlacementRefKind[] = [
   'studentId',
   'gradeId',
