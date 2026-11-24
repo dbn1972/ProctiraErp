@@ -3,6 +3,7 @@
  * IA: appeal ≡ re-evaluation; malpractice / formal appeals beyond re-eval = PRD-017 NON-GOAL.
  */
 import { notFound } from 'next/navigation';
+import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 
 import { ExamOpsPanel } from '@/components/examinations/exam-ops-panel';
 import {
@@ -14,6 +15,7 @@ import {
   listExamSessions,
   listExaminationCandidates,
 } from '@/lib/api/examinations';
+import { hasSessionPermission } from '@/lib/auth/require-permission';
 import {
   loadStaffDirectory,
   loadStudentOptions,
@@ -28,6 +30,16 @@ interface PageProps {
 
 export default async function ExaminationOpsPage(props: PageProps) {
   const params = await props.params;
+  // PRC-L237: exam ops is a management page; every control on it is an
+  // examination write, so read-only roles (teacher, staff, student) are denied.
+  if (!(await hasSessionPermission('examination', 'create'))) {
+    return (
+      <RouteAccessDenied
+        returnHref={`/examinations/${params.id}`}
+        returnLabel="Back to examination"
+      />
+    );
+  }
   const examination = await getExamination(params.id);
   if (!examination) notFound();
 

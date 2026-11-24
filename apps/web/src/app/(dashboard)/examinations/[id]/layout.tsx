@@ -11,6 +11,7 @@ import { ArrowLeft, FileText } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { getExamination } from '@/lib/api/examinations';
+import { hasSessionPermission } from '@/lib/auth/require-permission';
 
 import { ExamTabs } from './exam-tabs';
 
@@ -48,7 +49,10 @@ function formatDate(d: string): string {
 
 export default async function ExaminationDetailLayout({ params, children }: LayoutProps) {
   const { id } = await params;
-  const examination = await getExamination(id);
+  const [examination, canManage] = await Promise.all([
+    getExamination(id),
+    hasSessionPermission('examination', 'create'),
+  ]);
   if (!examination) notFound();
 
   return (
@@ -94,7 +98,7 @@ export default async function ExaminationDetailLayout({ params, children }: Layo
         </div>
 
         {/* ── Tabs ── */}
-        <ExamTabs examId={id} candidateCount={examination.candidateCount} />
+        <ExamTabs examId={id} candidateCount={examination.candidateCount} canManage={canManage} />
       </div>
 
       {children}
