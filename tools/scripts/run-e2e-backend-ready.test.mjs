@@ -648,15 +648,17 @@ test('skip gate: the merged gate still fails an empty run', async () => {
 
 // Review r1 issue 4: the harness uses merged mode on an unsharded run. PATH
 // stubs for pnpm/curl/psql replace the gateway and Playwright; the real gate runs.
-function runStubbedHarness(fixture, shard) {
+function runStubbedHarness(fixture, shard, extraEnv = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pw-harness-stub-'));
   const bin = join(dir, 'bin');
   mkdirSync(bin);
   const stub = (name, body) =>
     writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+  const pnpmLog = join(dir, 'pnpm.log');
   stub(
     'pnpm',
     [
+      'echo "$* |NODE_OPTIONS=${NODE_OPTIONS:-}" >>"$STUB_PNPM_LOG"',
       'case "$*" in',
       '  *"api-gateway build"*) exit 0 ;;',
       '  *"api-gateway start"*) exec sleep 60 ;;',
@@ -673,7 +675,7 @@ function runStubbedHarness(fixture, shard) {
   stub('psql', 'exit 0');
   const fixturePath = join(dir, 'fixture.json');
   writeFileSync(fixturePath, JSON.stringify(fixture));
-  return runHarness({
+  const r = runHarness({
     PATH: `${bin}:${process.env.PATH}`,
     DATABASE_URL: 'postgresql://stub/stub',
     E2E_GATEWAY_URL: 'http://127.0.0.1:59998',
@@ -683,7 +685,11 @@ function runStubbedHarness(fixture, shard) {
     PLAYWRIGHT_SHARD: shard,
     STUB_FIXTURE: fixturePath,
     STUB_CURL_COUNT: join(dir, 'curl.count'),
+    STUB_PNPM_LOG: pnpmLog,
+    ...extraEnv,
   });
+  r.pnpmCalls = existsSync(pnpmLog) ? readFileSync(pnpmLog, 'utf8').trim().split('\n') : [];
+  return r;
 }
 
 test('harness gates an unsharded run in merged mode and a shard in shard mode', () => {
@@ -700,6 +706,41 @@ test('harness gates an unsharded run in merged mode and a shard in shard mode', 
   assert.equal(shard.status, 0, shard.stdout + shard.stderr);
   assert.match(shard.stdout, /Skip gate \(UAT-ENV-007, mode shard\)/);
   assert.match(shard.stdout, /mode=shard executed=1 skipped=1/);
+});
+
+// `next dev` (Next.js 15.5) restarts once used heap passes 80% of its limit, which
+// defaults to half of RAM (8 GB on the 16 GB runner). PR shards 3 and 4 restarted on every
+// PR run, and nightly 45196358759 lost 34:273 (ERR_CONNECTION_REFUSED) and 93:214 (cold
+// recompile past 90 s) to it. The shards raise the limit through the harness.
+test('E2E_WEB_MAX_OLD_SPACE_MB reaches the Playwright command as --max-old-space-size', () => {
+  const fixture = pwReport([[...PASS_A, 'expected']]);
+  const playwrightCall = (r) => r.pnpmCalls.find((c) => c.includes('playwright test')) ?? '';
+  const raised = runStubbedHarness(fixture, '1/4', {
+    E2E_WEB_MAX_OLD_SPACE_MB: '12288',
+    NODE_OPTIONS: '--enable-source-maps',
+  });
+  assert.equal(raised.status, 0, raised.stdout + raised.stderr);
+  assert.match(
+    playwrightCall(raised),
+    /\|NODE_OPTIONS=--enable-source-maps --max-old-space-size=12288$/,
+    'appended to the caller NODE_OPTIONS',
+  );
+  // Only the Playwright command (and the web server it starts) gets the limit.
+  const others = raised.pnpmCalls.filter((c) => !c.includes('playwright test'));
+  assert.ok(others.length > 0, 'gateway build/start went through pnpm');
+  for (const c of others) assert.doesNotMatch(c, /max-old-space-size/, c);
+  const unset = runStubbedHarness(fixture, '1/4', { E2E_WEB_MAX_OLD_SPACE_MB: '' });
+  assert.equal(unset.status, 0, unset.stdout + unset.stderr);
+  assert.doesNotMatch(playwrightCall(unset), /max-old-space-size/, 'unset keeps the Next default');
+  const bad = runStubbedHarness(fixture, '1/4', { E2E_WEB_MAX_OLD_SPACE_MB: '12g' });
+  assert.equal(bad.status, 2, bad.stdout + bad.stderr);
+  assert.match(bad.stderr, /E2E_WEB_MAX_OLD_SPACE_MB must be a whole number of MB/);
+  assert.deepEqual(bad.pnpmCalls, [], 'a bad value fails before the stack starts');
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const harness = (wf.jobs['e2e-backend-ready-shard'].steps ?? []).find((s) =>
+    (s.run ?? '').includes('run-e2e-backend-ready.sh'),
+  );
+  assert.equal(harness.env?.E2E_WEB_MAX_OLD_SPACE_MB, '11264');
 });
 
 test('every workflow step that applies seed 006 binds proctira.allow_demo_seed=on (PRC-L461)', () => {
