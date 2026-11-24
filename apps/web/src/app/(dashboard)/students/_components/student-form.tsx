@@ -57,7 +57,10 @@ interface StudentFormProps {
   studentId?: string;
   initialValues: StudentFormValues;
   customFields: CustomFieldDefinition[];
-  /** Edit mode: the record's `updatedAt`; older drafts are discarded. */
+  /**
+   * Edit mode: the record's `updatedAt`; older drafts are discarded and the
+   * save sends it as `If-Match` (M1-I1), so a stale form cannot overwrite.
+   */
   recordUpdatedAt?: string;
 }
 
@@ -192,7 +195,7 @@ export function StudentForm({
       const result =
         mode === 'create'
           ? await createStudentAction(values)
-          : await updateStudentAction(studentId ?? '', values);
+          : await updateStudentAction(studentId ?? '', values, recordUpdatedAt);
       setServerState(result);
       if (result.status === 'error' && result.fieldErrors) {
         for (const [field, message] of Object.entries(result.fieldErrors)) {

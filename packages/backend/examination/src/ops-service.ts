@@ -42,8 +42,15 @@ import { generateSeatingPlan } from './seating-generator.js';
 
 export const DEFAULT_VARIANCE_TOLERANCE = 2;
 
-const MODERATOR_ROLES = new Set([
-  'moderator',
+/**
+ * Roles that may resolve a double-entry marks variance, after
+ * {@link normalizeRoleName}. PRC-M237: every entry is a realm / DEFAULT_ROLES
+ * role (`super_admin` is `super-admin` respelt, `super_administrator` and
+ * `administrator` are the DEFAULT_ROLES display names). `moderator` was
+ * dropped: no realm role, and the ops route gate (`ops.moderate`) never let it
+ * through, so moderation is held by examinations_officer and the admins.
+ */
+export const MODERATOR_ROLE_IDS: ReadonlySet<string> = new Set([
   'super_admin',
   'super_administrator',
   'administrator',
@@ -60,7 +67,7 @@ export function normalizeRoleName(role: string): string {
 }
 
 export function isModeratorRole(roles: string[]): boolean {
-  return roles.some((role) => MODERATOR_ROLES.has(normalizeRoleName(role)));
+  return roles.some((role) => MODERATOR_ROLE_IDS.has(normalizeRoleName(role)));
 }
 
 export interface ExamOpsActor {

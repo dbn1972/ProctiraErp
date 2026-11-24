@@ -5,6 +5,8 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { NotFoundError } from '@proctira/common';
+
 import { admissionNoOf } from '../admission-number.js';
 import type {
   StudentEntity,
@@ -93,6 +95,56 @@ function toEntityPatch(data: RecordInput): Partial<StudentEntity> {
   return patch;
 }
 
+function fullNameKey(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * M1-I3: an import row names one guardian. Update that guardian's phone when
+ * the name matches a stored guardian (keeping id, relationship and email), or
+ * add the row's guardian; every other guardian is kept.
+ */
+function mergeGuardians(
+  stored: StudentEntity['guardians'],
+  guardianName: string,
+  guardianPhone: string | null | undefined,
+): StudentEntity['guardians'] {
+  const key = fullNameKey(guardianName);
+  const index = stored.findIndex((g) => fullNameKey(`${g.firstName} ${g.lastName}`) === key);
+  if (index >= 0) {
+    if (!guardianPhone) return stored;
+    return stored.map((g, i) => (i === index ? { ...g, contactPhone: guardianPhone } : g));
+  }
+  const { firstName, lastName } = splitName(guardianName);
+  return [
+    ...stored,
+    {
+      id: randomUUID(),
+      firstName,
+      lastName,
+      relationship: 'guardian',
+      ...(guardianPhone ? { contactPhone: guardianPhone } : {}),
+    },
+  ];
+}
+
+/**
+ * M1-I2 / M1-I3: an "Update existing records" row changes only the columns it
+ * carries. `customData` keys are merged over the stored ones (the admission
+ * number survives an `institution_code` column) and guardians are merged, not
+ * replaced.
+ */
+function toUpdatePatch(current: StudentEntity, data: RecordInput): Partial<StudentEntity> {
+  const patch = toEntityPatch(data);
+  if (patch.customData !== undefined) {
+    patch.customData = { ...(current.customData ?? {}), ...patch.customData };
+  }
+  if (data.guardianName) {
+    patch.guardians = mergeGuardians(current.guardians, data.guardianName, data.guardianPhone);
+  }
+  return patch;
+}
+
 export class CoreRepositoryImportAdapter implements ImportStudentRepository {
   /** PRC-M384: present only when the core store can run one DB transaction. */
   readonly bulkImport?: (tenantId: string, ops: ImportBulkOps) => Promise<{ createdIds: string[] }>;
@@ -101,13 +153,22 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
     const bulk = core.bulkWrite?.bind(core);
     if (bulk) {
       this.bulkImport = async (tenantId, ops) => {
+        // M1-I2/I3: merge over the stored row; the batch is conditional on that
+        // row's updatedAt, so a concurrent edit aborts it (409) instead of being lost.
+        const updates = [];
+        for (const { id, data } of ops.updates) {
+          const current = await this.core.findById(id, tenantId);
+          if (!current) throw new NotFoundError(`Student with id '${id}' not found`);
+          updates.push({
+            id,
+            data: toUpdatePatch(current, data),
+            expectedUpdatedAt: current.updatedAt,
+          });
+        }
         // PRC-M547: sequential so admission numbers follow row order.
         const creates = [];
         for (const data of ops.creates) creates.push(await this.toNewEntity(tenantId, data));
-        const result = await bulk(tenantId, {
-          creates,
-          updates: ops.updates.map(({ id, data }) => ({ id, data: toEntityPatch(data) })),
-        });
+        const result = await bulk(tenantId, { creates, updates });
         return { createdIds: result.created.map((e) => e.id) };
       };
     }
@@ -181,7 +242,12 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
   }
 
   async update(tenantId: string, id: string, data: RecordInput): Promise<StudentRecord> {
-    const entity = await this.core.update(id, tenantId, toEntityPatch(data));
+    const current = await this.core.findById(id, tenantId);
+    const entity = current
+      ? await this.core.update(id, tenantId, toUpdatePatch(current, data), {
+          expectedUpdatedAt: current.updatedAt,
+        })
+      : null;
     if (!entity) {
       throw new Error(`Student with id '${id}' not found in tenant '${tenantId}'`);
     }

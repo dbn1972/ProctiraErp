@@ -23,6 +23,7 @@ import {
 } from '@proctira/ui/components';
 import { ResultsControls } from '@/components/examinations/exam-ops-controls';
 import { getExamination, getExaminationResultsView } from '@/lib/api/examinations';
+import { hasSessionPermission } from '@/lib/auth/require-permission';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions, withStudentLabels } from '@/lib/load-entity-labels';
 
@@ -40,9 +41,11 @@ export default async function ExaminationResultsPage(props: PageProps) {
   const params = await props.params;
   const examination = await getExamination(params.id);
   if (!examination) notFound();
-  const [view, studentOptions] = await Promise.all([
+  const [view, studentOptions, canManage] = await Promise.all([
     getExaminationResultsView(examination),
     loadStudentOptions(),
+    // PRC-L237: only examination writers see upload / publish.
+    hasSessionPermission('examination', 'create'),
   ]);
   // PRC-M083: result rows beyond the first directory page are resolved by id.
   const studentLabels = await withStudentLabels(
@@ -63,17 +66,20 @@ export default async function ExaminationResultsPage(props: PageProps) {
             .
           </CardDescription>
         </div>
-        <ResultsControls
-          examination={examination}
-          published={view.published}
-          subjects={view.subjects}
-        />
+        {canManage ? (
+          <ResultsControls
+            examination={examination}
+            published={view.published}
+            subjects={view.subjects}
+          />
+        ) : null}
       </CardHeader>
       <CardContent>
         {view.rows.length === 0 ? (
           <p className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
-            Results have not been entered yet. Use “Upload marks” to record scores for registered
-            candidates.
+            {canManage
+              ? 'Results have not been entered yet. Use “Upload marks” to record scores for registered candidates.'
+              : 'Results have not been entered yet.'}
           </p>
         ) : (
           <Table aria-label="Results">

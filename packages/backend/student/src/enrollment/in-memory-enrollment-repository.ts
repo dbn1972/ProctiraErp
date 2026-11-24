@@ -7,9 +7,10 @@
 import { randomUUID } from 'node:crypto';
 
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 
 import {
+  CLASS_OUTSIDE_INSTITUTION,
   PLACEMENT_REF_KINDS,
   type EnrollmentEntity,
   type EnrollmentFilter,
@@ -40,6 +41,8 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
   private studentNames: Map<string, { tenantId: string; name: string }> = new Map();
   /** PRC-M548: `<kind>:<id>` → owning tenant, for placement-reference checks. */
   private placementRefs: Map<string, string | null> = new Map();
+  /** M1-I4: class id → owning tenant and institution (see {@link addClass}). */
+  private classes: Map<string, { tenantId: string; institutionId: string }> = new Map();
 
   /**
    * PRC-H094: all-or-nothing like the Postgres transaction — state is
@@ -111,6 +114,11 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
     _history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity> {
+    // M1-I4: same rule as Postgres — a registered class of another institution is refused.
+    const cls = data.classId ? this.classes.get(data.classId) : undefined;
+    if (cls && cls.tenantId === data.tenantId && cls.institutionId !== data.institutionId) {
+      throw new BusinessRuleError(CLASS_OUTSIDE_INSTITUTION);
+    }
     if (data.status === 'ENROLLED') {
       const active = await this.findActiveEnrollment(
         data.tenantId,
@@ -339,6 +347,11 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     }
   }
 
+  /** M1-I4: register a class as belonging to `institutionId` in `tenantId`. */
+  addClass(id: string, tenantId: string, institutionId: string): void {
+    this.classes.set(id, { tenantId, institutionId });
+  }
+
   /** Add an institution to the in-memory store for transfer validation */
   addInstitution(
     id: string,
@@ -361,5 +374,6 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     this.institutions.clear();
     this.studentNames.clear();
     this.placementRefs.clear();
+    this.classes.clear();
   }
 }

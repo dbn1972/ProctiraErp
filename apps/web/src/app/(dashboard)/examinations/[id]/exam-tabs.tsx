@@ -8,9 +8,11 @@ import { cn } from '@/lib/utils';
 interface ExamTabsProps {
   examId: string;
   candidateCount?: number | null;
+  /** PRC-L237: show the management-only Exam ops tab. */
+  canManage?: boolean;
 }
 
-export function ExamTabs({ examId, candidateCount }: ExamTabsProps) {
+export function ExamTabs({ examId, candidateCount, canManage = true }: ExamTabsProps) {
   const pathname = usePathname();
   const base = `/examinations/${examId}`;
 
@@ -25,7 +27,7 @@ export function ExamTabs({ examId, candidateCount }: ExamTabsProps) {
     { key: 'candidates', href: `${base}/candidates`, label: 'Candidates', count: candidateCount },
     { key: 'results', href: `${base}/results`, label: 'Results' },
     { key: 'documents', href: `${base}/documents`, label: 'Documents' },
-    { key: 'ops', href: `${base}/ops`, label: 'Exam ops' },
+    ...(canManage ? [{ key: 'ops', href: `${base}/ops`, label: 'Exam ops' }] : []),
   ];
 
   return (

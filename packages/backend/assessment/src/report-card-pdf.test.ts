@@ -172,7 +172,7 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
         user: { sub: string; roles: string[] };
       };
       context.tenantId = tenantId;
-      context.user = { sub: 'test-user', roles: ['teacher', 'exam_officer'] };
+      context.user = { sub: 'test-user', roles: ['teacher', 'examinations_officer'] };
     });
     await registerReportCardRoutes(app, { reportCardService: service });
     await app.ready();

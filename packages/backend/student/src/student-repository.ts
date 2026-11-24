@@ -227,7 +227,12 @@ export interface StudentRepository {
 
 export interface StudentBulkWrite {
   creates: Array<Omit<StudentEntity, 'createdAt' | 'updatedAt'>>;
-  updates: Array<{ id: string; data: Partial<StudentEntity> }>;
+  /**
+   * `expectedUpdatedAt` (M1-I2/I3): the `updatedAt` the caller merged over; a
+   * row changed since then throws `StaleStudentUpdateError` and the whole
+   * batch rolls back.
+   */
+  updates: Array<{ id: string; data: Partial<StudentEntity>; expectedUpdatedAt?: Date }>;
 }
 
 export interface StudentBulkWriteResult {

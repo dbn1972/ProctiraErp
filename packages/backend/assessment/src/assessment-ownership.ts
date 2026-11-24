@@ -66,8 +66,7 @@ const INSTITUTION_WIDE_ROLE_IDS: ReadonlySet<string> = new Set([
   'school-admin',
   'academic_coordinator',
   'academic-coordinator',
-  'exam_officer',
-  'exam-officer',
+  'examinations_officer',
   'registrar',
 ]);
 

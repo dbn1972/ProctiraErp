@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ExaminationService } from './examination-service.js';
 import { InMemoryExaminationRepository } from './in-memory-repository.js';
-import { ExamOpsService, isModeratorRole } from './ops-service.js';
+import { ExamOpsService, isModeratorRole, MODERATOR_ROLE_IDS } from './ops-service.js';
 import { InMemoryExamOpsStore } from './ops-store.js';
 import { generateSeatingPlan } from './seating-generator.js';
 import type { CreateExaminationInput } from './schemas.js';
@@ -58,10 +58,26 @@ const MARKER_2 = { userId: randomUUID(), roles: ['Teacher'] };
 const TEACHER = { userId: randomUUID(), roles: ['Teacher'] };
 
 describe('isModeratorRole', () => {
-  it('accepts SUPER_ADMIN and moderator variants', () => {
+  it('accepts SUPER_ADMIN and the examinations officer', () => {
     expect(isModeratorRole(['SUPER_ADMIN'])).toBe(true);
-    expect(isModeratorRole(['moderator'])).toBe(true);
+    expect(isModeratorRole(['examinations_officer'])).toBe(true);
     expect(isModeratorRole(['Teacher'])).toBe(false);
+  });
+
+  // PRC-M237: only roles the realm can issue (in catalogue or DEFAULT_ROLES
+  // display-name spelling); `moderator` was never a realm role.
+  it('uses only realm role vocabulary', () => {
+    expect([...MODERATOR_ROLE_IDS].sort()).toEqual(
+      [
+        'admin',
+        'administrator',
+        'examinations_officer',
+        'principal',
+        'super_admin',
+        'super_administrator',
+      ].sort(),
+    );
+    expect(isModeratorRole(['moderator'])).toBe(false);
   });
 });
 
@@ -129,7 +145,7 @@ describe('ExamOpsService', () => {
         TENANT,
         examId,
         { candidateId, subjectId, finalMarks: 150 },
-        { userId: randomUUID(), roles: ['moderator'] },
+        { userId: randomUUID(), roles: ['examinations_officer'] },
       ),
     ).rejects.toMatchObject({ statusCode: 422 });
   });

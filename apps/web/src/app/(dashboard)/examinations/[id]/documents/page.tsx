@@ -24,6 +24,7 @@ import {
 } from '@proctira/ui/components';
 import { GenerateDocumentButtons } from '@/components/examinations/exam-ops-controls';
 import { listExaminationDocuments, type ExaminationDocument } from '@/lib/api/examinations';
+import { hasSessionPermission } from '@/lib/auth/require-permission';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -54,21 +55,27 @@ function formatDateTime(value: string): string {
 
 export default async function ExaminationDocumentsPage(props: PageProps) {
   const params = await props.params;
-  const documents = await listExaminationDocuments(params.id);
+  const [documents, canManage] = await Promise.all([
+    listExaminationDocuments(params.id),
+    // PRC-L237: only examination writers see the generate controls.
+    hasSessionPermission('examination', 'create'),
+  ]);
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Generate documents</CardTitle>
-          <CardDescription>
-            Produce admit cards, seating plans, or certificates for this examination.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GenerateDocumentButtons examinationId={params.id} />
-        </CardContent>
-      </Card>
+      {canManage ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Generate documents</CardTitle>
+            <CardDescription>
+              Produce admit cards, seating plans, or certificates for this examination.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <GenerateDocumentButtons examinationId={params.id} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

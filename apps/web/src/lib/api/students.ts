@@ -283,10 +283,20 @@ export async function createStudent(input: CreateStudentInput): Promise<Student>
   return result.data;
 }
 
-export async function updateStudent(id: string, input: UpdateStudentInput): Promise<Student> {
+/**
+ * M1-I1 / PRC-L365: `expectedUpdatedAt` (the `updatedAt` the edit form was
+ * loaded with) is sent as `If-Match`, so a save from a stale form gets 409
+ * instead of overwriting a newer save.
+ */
+export async function updateStudent(
+  id: string,
+  input: UpdateStudentInput,
+  expectedUpdatedAt?: string,
+): Promise<Student> {
   const result = await gatewayFetch<Student>(`/students/${encodeURIComponent(id)}`, {
     method: 'PUT',
     json: input,
+    ...(expectedUpdatedAt ? { headers: { 'If-Match': `"${expectedUpdatedAt}"` } } : {}),
   });
   if (!result.data) {
     throw new Error('Empty response from student-service');

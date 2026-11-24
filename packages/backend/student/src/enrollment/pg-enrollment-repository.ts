@@ -9,6 +9,7 @@ import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/commo
 import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
 
 import {
+  CLASS_OUTSIDE_INSTITUTION,
   PLACEMENT_REF_KINDS,
   type EnrollmentEntity,
   type EnrollmentFilter,
@@ -146,6 +147,21 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
   ): Promise<EnrollmentEntity> {
     try {
       return await this.withTenant(data.tenantId, async (client) => {
+        if (data.classId) {
+          // M1-I4: the class must belong to the enrollment's institution (same
+          // transaction as the insert, like the PRC-H094 transfer check).
+          const cls = await client.query(
+            `SELECT institution_id
+               FROM classes
+              WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+              LIMIT 1`,
+            [data.classId, data.tenantId],
+          );
+          const row = cls.rows[0] as { institution_id: unknown } | undefined;
+          if (row && String(row.institution_id) !== data.institutionId) {
+            throw new BusinessRuleError(CLASS_OUTSIDE_INSTITUTION);
+          }
+        }
         await bindEnrollmentHistoryGucs(client, history);
         const result = await client.query(
           `INSERT INTO enrollments (

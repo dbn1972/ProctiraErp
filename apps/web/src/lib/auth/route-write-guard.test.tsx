@@ -4,6 +4,7 @@
  */
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PermissionAction } from '@proctira/auth';
 import type { ServerSession } from '@/lib/auth/server';
 
 let current: ServerSession | null = null;
@@ -12,6 +13,8 @@ vi.mock('@/lib/auth/server', () => ({
   requireSession: vi.fn(async () => current),
 }));
 
+import LmsBankLayout from '@/app/(dashboard)/lms/bank/layout';
+import LmsRubricsLayout from '@/app/(dashboard)/lms/rubrics/layout';
 import { sessionHasPermission } from './permission-guards';
 import { RequireRoutePermission } from './route-write-guard';
 
@@ -31,9 +34,20 @@ function sessionWithRoles(roleIds: string[]): ServerSession {
   } as ServerSession;
 }
 
+/**
+ * Action each staff-tool layout gates on. LMS bank/rubrics use `update` because
+ * students hold `lms:create` for learner submissions (PRC-M015).
+ */
+const LAYOUT_ACTION: Record<string, PermissionAction> = {
+  lms: 'update',
+  library: 'create',
+  institution: 'create',
+};
+
 async function renderGuard(resource: string) {
   const ui = await RequireRoutePermission({
     resource,
+    action: LAYOUT_ACTION[resource],
     returnTo: '/x',
     children: <p>staff tool</p>,
   });
@@ -72,5 +86,20 @@ describe('RequireRoutePermission (PRC-M480)', () => {
     const teacher = sessionWithRoles(['teacher']);
     expect(sessionHasPermission(teacher, 'lms', 'update')).toBe(true);
     expect(sessionHasPermission(teacher, 'library', 'create')).toBe(false);
+  });
+
+  it.each([
+    ['/lms/bank', LmsBankLayout],
+    ['/lms/rubrics', LmsRubricsLayout],
+  ])('%s layout gates on lms:update', (_path, Layout) => {
+    const el = Layout({ children: null });
+    expect(el.type).toBe(RequireRoutePermission);
+    expect(el.props).toMatchObject({ resource: 'lms', action: LAYOUT_ACTION.lms });
+  });
+
+  it('students may submit LMS work but not author staff LMS tools', () => {
+    const student = sessionWithRoles(['student']);
+    expect(sessionHasPermission(student, 'lms', 'create')).toBe(true);
+    expect(sessionHasPermission(student, 'lms', 'update')).toBe(false);
   });
 });

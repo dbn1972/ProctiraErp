@@ -373,6 +373,11 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   // `@proctira/backend-staff` staff-access HR_OFFICER_ROLES (not only admin/principal).
   const STAFF_HR_PERMISSIONS: Permission[] = [{ resource: 'staff', action: 'manage' }];
   for (const roleId of ['hr_officer', 'staff_admin', 'registrar', 'admissions_officer'] as const) {
+    // PRC-M015: DEFAULT_ROLES now lists these ids too. Replace the entry rather
+    // than push a duplicate: the registry keeps the last duplicate, which would
+    // drop the campus/fees grants applied to the first one below.
+    const existing = roles.findIndex((role) => role.roleId === roleId);
+    if (existing >= 0) roles.splice(existing, 1);
     roles.push({
       roleId,
       roleName: roleId

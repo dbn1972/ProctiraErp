@@ -99,9 +99,15 @@ export async function createStudentAction(
 
 /* ------------------------------------------------------------------- Update */
 
+/**
+ * `expectedUpdatedAt` is the record's `updatedAt` when the edit form loaded.
+ * M1-I1: it is forwarded as `If-Match`; the API answers 409 when the record
+ * changed since, and the form shows the conflict copy instead of saving.
+ */
 export async function updateStudentAction(
   studentId: string,
   values: StudentFormValues,
+  expectedUpdatedAt?: string,
 ): Promise<ActionState<{ studentId: string }>> {
   const parsed = studentFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -113,7 +119,11 @@ export async function updateStudentAction(
   }
 
   try {
-    const student = await updateStudent(studentId, toUpdateInput(parsed.data));
+    const student = await updateStudent(
+      studentId,
+      toUpdateInput(parsed.data),
+      typeof expectedUpdatedAt === 'string' && expectedUpdatedAt ? expectedUpdatedAt : undefined,
+    );
     revalidatePath('/students');
     revalidatePath(`/students/${studentId}`);
     return {
