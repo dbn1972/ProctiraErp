@@ -27,6 +27,16 @@ export class InstitutionService {
   constructor(private readonly repository: InstitutionRepository) {}
 
   /**
+   * FKB-047: the area must belong to this tenant. Another tenant's area and an unknown id
+   * give the same 404 (the id-only FK would accept another tenant's area).
+   */
+  private async assertAreaInTenant(areaId: string, tenantId: string): Promise<void> {
+    if (!(await this.repository.areaExists(areaId, tenantId))) {
+      throw new NotFoundError(`Area with id '${areaId}' not found`);
+    }
+  }
+
+  /**
    * Create a new institution.
    *
    * Validates:
@@ -38,6 +48,8 @@ export class InstitutionService {
    * @throws ConflictError if code or name+area already exists
    */
   async create(tenantId: string, input: CreateInstitutionInput): Promise<InstitutionEntity> {
+    await this.assertAreaInTenant(input.areaId, tenantId);
+
     // Check per-tenant uniqueness of institution code
     const existingByCode = await this.repository.findByCode(input.code, tenantId);
     if (existingByCode) {
@@ -98,6 +110,9 @@ export class InstitutionService {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Institution with id '${id}' not found`);
+    }
+    if (input.areaId !== undefined) {
+      await this.assertAreaInTenant(input.areaId, tenantId);
     }
 
     // Check code uniqueness (per-tenant) if code is being changed

@@ -67,6 +67,12 @@ export interface InstitutionRepository {
   findById(id: string, tenantId: string): Promise<InstitutionEntity | null>;
 
   /**
+   * FKB-047: true when the geographic area exists (not deleted) in this tenant. Another
+   * tenant's area and an unknown id both answer false.
+   */
+  areaExists(areaId: string, tenantId: string): Promise<boolean>;
+
+  /**
    * Find an institution by code within a tenant.
    *
    * PRC-M287: the database enforces per-tenant uniqueness

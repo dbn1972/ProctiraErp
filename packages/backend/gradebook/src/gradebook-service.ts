@@ -483,6 +483,11 @@ export class GradebookService {
   }
 
   async createCreditRule(tenantId: string, input: CreateCreditRuleInput) {
+    // FKB-015: the board must be this tenant's; another tenant's board and an unknown id
+    // give the same 404 (the id-only FK would accept another tenant's board).
+    if (input.boardId && !(await this.repo.getBoard(tenantId, input.boardId))) {
+      throw new NotFoundError(`Board with id '${input.boardId}' not found`);
+    }
     const existing = await this.repo.getCreditRuleByCode(tenantId, input.code);
     if (existing) {
       throw new ValidationError(`Credit rule code ${input.code} already exists`);

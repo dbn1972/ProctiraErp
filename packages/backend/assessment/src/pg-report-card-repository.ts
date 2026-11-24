@@ -6,7 +6,7 @@
  * db/sql/024_wave7_domain_persistence_schema.sql. Every statement runs under
  * `withPgTenant` so the FORCEd RLS policies apply to the app role.
  */
-import { ConflictError } from '@proctira/common';
+import { ConflictError, NotFoundError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   withPgTenant,
@@ -392,6 +392,14 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
         .catch((error: unknown) => {
           // PRC-M166: db/sql/268 allows one `queued` job per card; the caller reuses it.
           const pgError = error as { code?: unknown; constraint?: unknown } | null;
+          // FKB-082: a student FK violation (id-only `_fkey` or tenant-composite `_tenant_fk`,
+          // e.g. a student deleted after the service check) is the same 404 the check gives.
+          if (
+            pgError?.code === '23503' &&
+            /^report_card_jobs_student_id_(fkey|tenant_fk)$/.test(String(pgError.constraint ?? ''))
+          ) {
+            throw new NotFoundError(`Student with id '${data.studentId}' not found`);
+          }
           if (
             pgError?.code === '23505' &&
             pgError.constraint === 'report_card_jobs_queued_card_uidx'
@@ -401,6 +409,21 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
           throw error;
         });
       return mapJob(res.rows[0] as Row);
+    });
+  }
+
+  async findExistingStudentIds(
+    tenantId: string,
+    studentIds: readonly string[],
+  ): Promise<Set<string>> {
+    if (studentIds.length === 0) return new Set();
+    return this.run(tenantId, async (c) => {
+      const res = await c.query(
+        `SELECT id::text AS id FROM students
+          WHERE tenant_id = $1::uuid AND id = ANY($2::uuid[]) AND deleted_at IS NULL`,
+        [tenantId, [...studentIds]],
+      );
+      return new Set((res.rows as Array<{ id: string }>).map((r) => r.id));
     });
   }
 
