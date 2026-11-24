@@ -100,6 +100,11 @@ regexes = [
   # file or .env template; not a credential for any real system.
   '''^test-key-k1-0123456789abcdef$''',
   '''^rotated-key-k2-fedcba9876543210$''',
+  # packages/backend/auth/src/keycloak/mfa-pre-ticket-completion.test.ts (PRC-M497, commit 42c4b514)
+  # HMAC key for an in-test createPreMfaTicketCodec. Referenced by zero non-test
+  # files; not in any manifest, Helm values file or .env template; not a
+  # credential for any real system.
+  '''^m497-pre-mfa-ticket-secret-0123456789$''',
 ]
 
 paths = [
