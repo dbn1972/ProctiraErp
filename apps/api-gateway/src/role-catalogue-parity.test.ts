@@ -87,6 +87,24 @@ describe('PRC-M015 role-catalogue parity', () => {
     }
   });
 
+  it('PRC-L276: attendance_officer is a realm role the gateway grants attendance only', () => {
+    expect(realmRoleNames).toContain('attendance_officer');
+    const registry = createGatewayRbacRegistry();
+    const roleCatalog = registry.getAllRoles();
+    expect(
+      mapKeycloakRoles(['attendance-officer'], { roleCatalog }).map((role) => role.roleId),
+    ).toEqual(['attendance_officer']);
+    for (const action of ['read', 'list', 'create', 'update'] as const) {
+      expect(registry.roleHasPermission('attendance_officer', 'attendance', action), action).toBe(
+        true,
+      );
+    }
+    const resources = new Set(
+      registry.getRole('attendance_officer')?.permissions.map((p) => p.resource),
+    );
+    expect([...resources]).toEqual(['attendance']);
+  });
+
   it('platform_admin and super-admin are the only holders of *:manage', () => {
     const wildcardManagers = DEFAULT_ROLES.filter((role) =>
       role.permissions.some((p) => p.resource === '*' && p.action === 'manage'),

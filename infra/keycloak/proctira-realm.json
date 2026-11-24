@@ -43,6 +43,7 @@
       { "name": "transport_admin", "description": "Transport administrator (transport staff)" },
       { "name": "accountant", "description": "Accountant (fees staff)" },
       { "name": "timetable_officer", "description": "Timetable / scheduling officer" },
+      { "name": "attendance_officer", "description": "Attendance officer" },
       { "name": "subject_teacher", "description": "Subject teacher" },
       { "name": "class_teacher", "description": "Class teacher" },
       { "name": "discipline_officer", "description": "Discipline officer (case worker)" },

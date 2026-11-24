@@ -48,6 +48,8 @@ export const KEYCLOAK_REALM_ROLES = [
   'transport_admin',
   'accountant',
   'timetable_officer',
+  // PRC-L276
+  'attendance_officer',
   'subject_teacher',
   'class_teacher',
   'discipline_officer',

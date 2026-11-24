@@ -537,6 +537,13 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
   { roleId: 'transport_admin', roleName: 'Transport Admin', permissions: [] },
   { roleId: 'accountant', roleName: 'Accountant', permissions: [] },
 
+  {
+    // PRC-L276: attendance-access.ts ATTENDANCE_WRITE/APPROVE_ROLES and
+    // ops-service approvers (mark, regularise, decide leave).
+    roleId: 'attendance_officer',
+    roleName: 'Attendance Officer',
+    permissions: [{ resource: 'attendance', action: 'manage' }],
+  },
   // --- Operations ------------------------------------------------------------
   {
     // etl-access gates pipeline management; gateway maps /pipelines -> `report`.
