@@ -1,8 +1,9 @@
 /**
  * D2 role-catalogue normalization (PRC-M015, PRC-L276) — registration privilege-preservation.
  *
- * Only change: system_admin -> platform_admin ADD in ADMIN_ROLES. Proves platform_admin is now
- * admitted for every registration/admissions staff action and system_admin retains its grants.
+ * D2 CORRECTION (PRC-M015): platform_admin (cross-tenant control-plane operator) is NOT in
+ * ADMIN_ROLES, so it gets no applicant/child PII. system_admin (per-tenant admin) keeps every
+ * registration/admissions staff action. Fails while platform_admin is in ADMIN_ROLES.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -16,10 +17,10 @@ const ALL_ACTIONS: RegistrationAction[] = [
 ];
 
 describe('registration-access privilege preservation (D2)', () => {
-  it('admits platform_admin alongside system_admin for every action', () => {
+  it('denies platform_admin (tenant isolation) and keeps system_admin for every action', () => {
     for (const action of ALL_ACTIONS) {
       expect(hasRegistrationAccess(['platform_admin'], action), `platform_admin -> ${action}`).toBe(
-        true,
+        false,
       );
       expect(hasRegistrationAccess(['system_admin'], action), `system_admin -> ${action}`).toBe(
         true,

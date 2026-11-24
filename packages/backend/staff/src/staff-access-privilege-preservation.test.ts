@@ -1,8 +1,9 @@
 /**
  * D2 role-catalogue normalization (PRC-M015) — staff module privilege-preservation proof.
  *
- * Only change here: system_admin -> platform_admin ADD in ADMIN_ROLES. Proves platform_admin
- * is now admitted for every staff action and that system_admin retains every grant.
+ * D2 CORRECTION (PRC-M015): platform_admin (cross-tenant control-plane operator) is NOT in
+ * ADMIN_ROLES, so it gets no tenant HR/staff records. system_admin (per-tenant admin) keeps
+ * every grant. Fails while platform_admin is in ADMIN_ROLES.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -21,9 +22,9 @@ const ALL_ACTIONS: StaffAction[] = [
 ];
 
 describe('staff-access privilege preservation (D2)', () => {
-  it('admits platform_admin for every staff action (additive with system_admin)', () => {
+  it('denies platform_admin (tenant isolation) and keeps system_admin for every action', () => {
     for (const action of ALL_ACTIONS) {
-      expect(hasStaffAccess(['platform_admin'], action), `platform_admin -> ${action}`).toBe(true);
+      expect(hasStaffAccess(['platform_admin'], action), `platform_admin -> ${action}`).toBe(false);
       expect(hasStaffAccess(['system_admin'], action), `system_admin -> ${action}`).toBe(true);
     }
   });
