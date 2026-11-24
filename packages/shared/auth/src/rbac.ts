@@ -430,29 +430,12 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
     permissions: [{ resource: 'staff', action: 'manage' }],
   },
 
-  // --- Finance (scholarship decide/disburse + staff.hr.read/payroll + fee reports) ---
-  {
-    roleId: 'bursar',
-    roleName: 'Bursar',
-    permissions: [
-      { resource: 'scholarship', action: 'read' },
-      { resource: 'scholarship', action: 'update' },
-      { resource: 'fees', action: 'read' },
-      { resource: 'staff', action: 'read' },
-      { resource: 'report', action: 'read' },
-    ],
-  },
-  {
-    roleId: 'finance_officer',
-    roleName: 'Finance Officer',
-    permissions: [
-      { resource: 'scholarship', action: 'read' },
-      { resource: 'scholarship', action: 'update' },
-      { resource: 'fees', action: 'read' },
-      { resource: 'staff', action: 'read' },
-      { resource: 'report', action: 'read' },
-    ],
-  },
+  // --- Finance -----------------------------------------------------------------
+  // PRC-M015: no permissions here. The gateway and web registries grant these
+  // roles exactly the F-D3 fees matrix (fees-domain-roles.ts: fees only, no
+  // other resource); a grant here would widen that matrix.
+  { roleId: 'bursar', roleName: 'Bursar', permissions: [] },
+  { roleId: 'finance_officer', roleName: 'Finance Officer', permissions: [] },
   {
     // Scholarship RBAC: programs, applications, disbursements, compliance.
     roleId: 'scholarship_officer',
@@ -529,21 +512,30 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
   },
 
   // --- Residential / facilities ---------------------------------------------
-  {
-    roleId: 'warden',
-    roleName: 'Warden',
-    permissions: [{ resource: 'hostel', action: 'manage' }],
-  },
+  // PRC-M015: warden and transport_officer get exactly the H-D2 / T-O1 campus
+  // matrix (campus-domain-roles.ts) from the gateway and web registries;
+  // `manage` here would add hostel/transport delete and export.
+  { roleId: 'warden', roleName: 'Warden', permissions: [] },
   {
     roleId: 'librarian',
     roleName: 'Librarian',
     permissions: [{ resource: 'library', action: 'manage' }],
   },
-  {
-    roleId: 'transport_officer',
-    roleName: 'Transport Officer',
-    permissions: [{ resource: 'transport', action: 'manage' }],
-  },
+  { roleId: 'transport_officer', roleName: 'Transport Officer', permissions: [] },
+  // PRC-M015: hostel / transport / fees staff roles the gateway registry gates
+  // on (campus-domain-roles.ts H-D2/T-O1, fees-domain-roles.ts F-D3). They
+  // carry no permissions here: the gateway and web registries add their
+  // least-privilege grants, so listing them only makes the realm able to issue
+  // them. Hyphen spellings (`hostel-warden`, ...) map onto these ids through
+  // canonicalRoleId().
+  { roleId: 'hostel_warden', roleName: 'Hostel Warden', permissions: [] },
+  { roleId: 'hostel_manager', roleName: 'Hostel Manager', permissions: [] },
+  { roleId: 'hostel_admin', roleName: 'Hostel Admin', permissions: [] },
+  { roleId: 'hostel_clerk', roleName: 'Hostel Clerk', permissions: [] },
+  { roleId: 'transport_manager', roleName: 'Transport Manager', permissions: [] },
+  { roleId: 'fleet_manager', roleName: 'Fleet Manager', permissions: [] },
+  { roleId: 'transport_admin', roleName: 'Transport Admin', permissions: [] },
+  { roleId: 'accountant', roleName: 'Accountant', permissions: [] },
 
   // --- Operations ------------------------------------------------------------
   {
@@ -640,7 +632,11 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
     permissions: [{ resource: 'report', action: 'read' }],
   },
 
-  // --- Portal actors (gateway-defined blocks, copied verbatim) ---------------
+  // --- Portal actors (gateway-defined blocks) ---------------------------------
+  // The gateway registry replaces these two entries with its own blocks, so
+  // they only drive the web nav and the role names. PRC-M015: fees, hostel and
+  // transport reads are left out because those packages deny portal roles and
+  // the web nav must not show the modules to them (F-D3, H-D1-R3).
   {
     roleId: 'parent',
     roleName: 'Parent',
@@ -654,7 +650,6 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       { resource: 'attendance', action: 'read' },
       { resource: 'assessment', action: 'read' },
       { resource: 'health', action: 'read' },
-      { resource: 'fees', action: 'read' },
       { resource: 'communication', action: 'read' },
       { resource: 'lms', action: 'read' },
       { resource: 'gradebook', action: 'read' },
@@ -680,10 +675,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       { resource: 'gradebook', action: 'read' },
       { resource: 'timetable', action: 'read' },
       { resource: 'examination', action: 'read' },
-      { resource: 'fees', action: 'read' },
       { resource: 'library', action: 'read' },
-      { resource: 'hostel', action: 'read' },
-      { resource: 'transport', action: 'read' },
       { resource: 'communication', action: 'read' },
       { resource: 'scholarship', action: 'read' },
       { resource: 'lms', action: 'read' },

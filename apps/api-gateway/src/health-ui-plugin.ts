@@ -10,6 +10,7 @@
  *    accommodation plans, screenings ← screening programs, counselling ←
  *    sessions. Live rows win on id collisions.
  */
+import { canonicalRoleId } from '@proctira/auth';
 import {
   canReadCounsellingReason,
   effectiveInstitutionIds,
@@ -81,8 +82,42 @@ function extractRoleNames(user: JwtUserLike | undefined): string[] {
     .filter(Boolean);
 }
 
-function hasHealthUiAccess(roles: string[]): boolean {
-  return roles.some((role) => HEALTH_UI_ROLES.has(role) || HEALTH_UI_ROLES.has(role.toUpperCase()));
+/**
+ * Health role ids in catalogue spelling (PRC-M015). A Keycloak-mapped role
+ * carries the catalogue id plus a display name (`school_nurse` / "School
+ * Nurse"), so matching on the name alone denied the realm's own health roles.
+ * `super-admin` is deliberately absent: a platform role gets no PHI through
+ * its role id (D2 CORRECTION).
+ */
+const HEALTH_UI_ROLE_IDS: ReadonlySet<string> = new Set([
+  'health_officer',
+  'school_nurse',
+  'nurse',
+  'health_admin',
+  'system_admin',
+  'counsellor',
+]);
+
+/** Domain role for each health role id (the legacy NURSE mapping kept). */
+const HEALTH_ROLE_ID_TO_DOMAIN: Readonly<Record<string, string>> = { nurse: 'school_nurse' };
+
+function extractHealthRoleIds(user: JwtUserLike | undefined): string[] {
+  if (!user?.roles) return [];
+  const ids = new Set<string>();
+  for (const role of user.roles) {
+    const raw = typeof role === 'string' ? role : role.roleId;
+    const id = raw ? canonicalRoleId(raw, HEALTH_UI_ROLE_IDS) : undefined;
+    if (id) ids.add(HEALTH_ROLE_ID_TO_DOMAIN[id] ?? id);
+  }
+  return [...ids];
+}
+
+function hasHealthUiAccess(user: JwtUserLike | undefined): boolean {
+  return (
+    extractRoleNames(user).some(
+      (role) => HEALTH_UI_ROLES.has(role) || HEALTH_UI_ROLES.has(role.toUpperCase()),
+    ) || extractHealthRoleIds(user).length > 0
+  );
 }
 
 function resolveTenantId(request: FastifyRequest): string | null {
@@ -114,7 +149,7 @@ function assertHealthAccess(
   },
 ): string | null {
   const user = (request as FastifyRequest & { user?: JwtUserLike }).user;
-  if (!hasHealthUiAccess(extractRoleNames(user))) {
+  if (!hasHealthUiAccess(user)) {
     deny(reply, 'HEALTH_ACCESS_DENIED', 'Not authorized to access health records');
     return null;
   }
@@ -317,6 +352,11 @@ export const healthUiPlugin = fp(
         };
         return map[role] ?? map[role.toUpperCase()] ?? role.toLowerCase();
       });
+      // PRC-M015: also carry health roles named by role id (Keycloak-mapped
+      // `health_admin` / "Health Administrator").
+      for (const id of extractHealthRoleIds(user)) {
+        if (!roles.includes(id)) roles.push(id);
+      }
       (
         request as FastifyRequest & {
           healthAccessContext?: {

@@ -43,6 +43,24 @@ describe('mapKeycloakRoles', () => {
       expect(assignment.roleName).toBe(definition?.roleName);
     }
   });
+  it('maps -/_ spellings and exam-officer synonyms onto catalogue ids (PRC-M015)', () => {
+    expect(
+      mapKeycloakRoles(['SUPER_ADMIN', 'hostel-warden', 'exam-officer', 'school-nurse']).map(
+        (role) => role.roleId,
+      ),
+    ).toEqual(['super-admin', 'hostel_warden', 'examinations_officer', 'school_nurse']);
+  });
+
+  it('keeps an exact catalogue spelling before trying another (PRC-M015)', () => {
+    const roleCatalog = [
+      { roleId: 'hostel_warden', roleName: 'Hostel Warden' },
+      { roleId: 'hostel-warden', roleName: 'Hostel-Warden' },
+    ];
+    expect(mapKeycloakRoles(['hostel-warden'], { roleCatalog })).toEqual([
+      { roleId: 'hostel-warden', roleName: 'Hostel-Warden', areaId: 'ROOT' },
+    ]);
+  });
+
   it('keeps every role in the supplied catalogue and drops the rest (UATENV-D07)', () => {
     const roleCatalog = [
       { roleId: 'admin', roleName: 'Administrator' },

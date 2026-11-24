@@ -19,7 +19,6 @@ const ADMIN_ROLES = [
   'super-admin',
   'super_admin',
   'system_admin',
-  'platform_admin',
   'system-admin',
   'principal',
   'school_admin',
@@ -39,7 +38,12 @@ const HOSTEL_STAFF_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
-const FEE_ROLES = ['bursar', 'finance_officer', 'accountant', ...HOSTEL_STAFF_ROLES] as const;
+const FEE_ROLES = [
+  'bursar',
+  'finance_officer',
+  'accountant',
+  ...HOSTEL_STAFF_ROLES,
+] as const;
 
 const ACTION_ROLES: Record<HostelAction, readonly string[]> = {
   'hostel.read': HOSTEL_STAFF_ROLES,
@@ -74,6 +78,10 @@ export function hasHostelAccess(roles: unknown, action: HostelAction): boolean {
 
 export function assertHostelAccess(roles: unknown, action: HostelAction): void {
   if (!hasHostelAccess(roles, action)) {
-    throw new AppError(`Forbidden: role cannot perform hostel action ${action}`, 'FORBIDDEN', 403);
+    throw new AppError(
+      `Forbidden: role cannot perform hostel action ${action}`,
+      'FORBIDDEN',
+      403,
+    );
   }
 }

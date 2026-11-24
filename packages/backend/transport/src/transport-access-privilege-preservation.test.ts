@@ -1,8 +1,9 @@
 /**
  * D2 role-catalogue normalization (PRC-M015, PRC-L391) — transport privilege-preservation.
  *
- * Only change: system_admin -> platform_admin ADD in ADMIN_ROLES. Proves platform_admin is now
- * admitted for every transport action and system_admin retains its grants.
+ * D2 CORRECTION: platform_admin is the control-plane operator and gets no tenant transport data
+ * (student routes, pickups); transport-access.ts lists no platform role, as on main (T-D1).
+ * system_admin keeps its grants.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -11,10 +12,10 @@ import { hasTransportAccess, type TransportAction } from './transport-access.js'
 const ALL_ACTIONS: TransportAction[] = ['transport.read', 'transport.write', 'transport.ops'];
 
 describe('transport-access privilege preservation (D2)', () => {
-  it('admits platform_admin alongside system_admin for every action', () => {
+  it('denies platform_admin and keeps system_admin for every action', () => {
     for (const action of ALL_ACTIONS) {
       expect(hasTransportAccess(['platform_admin'], action), `platform_admin -> ${action}`).toBe(
-        true,
+        false,
       );
       expect(hasTransportAccess(['system_admin'], action), `system_admin -> ${action}`).toBe(true);
     }

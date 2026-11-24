@@ -15,8 +15,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DEFAULT_ROLES } from '@proctira/auth';
-import { KEYCLOAK_REALM_ROLES } from '@proctira/backend-auth';
+import { DEFAULT_ROLES, canonicalRoleId } from '@proctira/auth';
+import { KEYCLOAK_REALM_ROLES, mapKeycloakRoles } from '@proctira/backend-auth';
 import { describe, expect, it } from 'vitest';
 
 import { createGatewayRbacRegistry } from './rbac-registry.js';
@@ -65,12 +65,25 @@ describe('PRC-M015 role-catalogue parity', () => {
     ]);
   });
 
-  it('every role id the gateway registry gates on exists in the realm catalogue', () => {
+  it('every role id the gateway registry gates on is a realm role, in some spelling', () => {
+    // The registry lists both spellings for hostel/transport staff
+    // (`hostel_warden`, `hostel-warden`); the realm defines one and
+    // canonicalRoleId maps the other onto it.
     const registry = createGatewayRbacRegistry();
-    const gatewayRoleIds = registry.getAllRoles().map((role) => role.roleId);
     const catalogueSet = new Set<string>(catalogue);
-    for (const roleId of gatewayRoleIds) {
-      expect(catalogueSet.has(roleId)).toBe(true);
+    const unknown = registry
+      .getAllRoles()
+      .map((role) => role.roleId)
+      .filter((roleId) => canonicalRoleId(roleId, catalogueSet) === undefined);
+    expect(unknown).toEqual([]);
+  });
+
+  it('a Keycloak token for each gateway role id keeps that role after mapping', () => {
+    const roleCatalog = createGatewayRbacRegistry().getAllRoles();
+    for (const { roleId } of roleCatalog) {
+      expect(mapKeycloakRoles([roleId], { roleCatalog }).map((role) => role.roleId)).toEqual([
+        roleId,
+      ]);
     }
   });
 
