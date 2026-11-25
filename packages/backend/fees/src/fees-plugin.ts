@@ -182,6 +182,24 @@ const CreateFeeStructureSchema = Type.Object({
   partCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 24 })),
 });
 
+/** PRC-L471: a successor version starts on validFrom; the prior window closes the day before. */
+const SupersedeFeeStructureSchema = Type.Object({
+  code: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  name: Type.String({ minLength: 1, maxLength: 500 }),
+  category: Type.String({ minLength: 1, maxLength: 120 }),
+  term: Type.Optional(Type.String({ maxLength: 64 })),
+  amountCents: Type.Integer({ minimum: 0 }),
+  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+  institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  validFrom: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
+  validTo: Type.Optional(
+    Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
+  ),
+});
+
 const GenerateInstalmentsSchema = Type.Object({
   partCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 24 })),
   shares: Type.Optional(Type.Array(Type.Number({ minimum: 0 }), { minItems: 1 })),
@@ -1181,6 +1199,55 @@ export const feesPlugin = fp(
             tenantId,
             getActorId(request),
             result.data,
+          );
+          return reply.status(201).send({
+            ...structure,
+            createdAt: structure.createdAt.toISOString(),
+            updatedAt: structure.updatedAt.toISOString(),
+          });
+        } catch (error: unknown) {
+          return sendFeesError(reply, error);
+        }
+      },
+    );
+
+    // PRC-L471: W1-DATA-07 supersede is reachable over HTTP (was service-only).
+    fastify.post(
+      `${prefix}/structures/:id/supersede`,
+      async function supersedeStructure(
+        request: FastifyRequest<{
+          Params: IdParams;
+          Body: CreateFeeStructureInput & { validFrom: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid structure ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(SupersedeFeeStructureSchema, request.body);
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
+        try {
+          const structure = await feesService.supersedeFeeStructure(
+            tenantId,
+            getActorId(request),
+            paramsResult.data.id,
+            bodyResult.data,
           );
           return reply.status(201).send({
             ...structure,

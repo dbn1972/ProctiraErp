@@ -821,8 +821,12 @@ export class FeesService {
     input: CreateFeeStructureInput & { validFrom: string },
   ) {
     const prior = await this.getFeeStructure(tenantId, structureId);
-    if (prior.code !== (input.code?.trim() || prior.code) && input.code) {
-      // successors keep the same logical code; ignore mismatched override by requiring match
+    // PRC-L471: successors keep the prior's logical code; a different code is refused
+    // (it would start a new structure lineage, not a new version).
+    if (input.code?.trim() && input.code.trim() !== prior.code) {
+      throw new BusinessRuleError(
+        `Cannot supersede: successor code must stay '${prior.code}' (got '${input.code.trim()}')`,
+      );
     }
     const code = prior.code;
     const validFrom = input.validFrom;
@@ -838,35 +842,50 @@ export class FeesService {
     const closeTo = new Date(`${validFrom}T00:00:00.000Z`);
     closeTo.setUTCDate(closeTo.getUTCDate() - 1);
     const closeToStr = closeTo.toISOString().slice(0, 10);
-    if (prior.validTo == null || prior.validTo >= validFrom) {
-      if (closeToStr < prior.validFrom) {
-        throw new ConflictError(
-          `Cannot supersede: successor validFrom ${validFrom} does not leave a non-overlapping prior window`,
-        );
-      }
-      await this.repository.closeFeeStructureValidTo(tenantId, prior.id, closeToStr);
+    const closesPrior = prior.validTo == null || prior.validTo >= validFrom;
+    if (closesPrior && closeToStr < prior.validFrom) {
+      throw new ConflictError(
+        `Cannot supersede: successor validFrom ${validFrom} does not leave a non-overlapping prior window`,
+      );
     }
 
-    return this.repository.createFeeStructure({
-      id: uuidv4(),
-      tenantId,
-      institutionId: input.institutionId ?? prior.institutionId,
-      academicPeriodId: input.academicPeriodId ?? prior.academicPeriodId,
-      gradeId: input.gradeId ?? prior.gradeId,
-      classId: input.classId ?? prior.classId,
-      category: input.category ?? prior.category,
-      term: input.term !== undefined ? input.term : prior.term,
-      code,
-      name: input.name,
-      amountCents: input.amountCents,
-      currency: input.currency ?? prior.currency,
-      status: 'active',
-      validFrom,
-      validTo,
-      version: prior.version + 1,
-      supersedesId: prior.id,
-      createdBy: actorId,
+    // PRC-L471: the prior window close and the successor insert commit together,
+    // so a failed insert never leaves the prior structure closed with no successor.
+    return this.repository.runInTransaction(tenantId, async (tx) => {
+      if (closesPrior) {
+        await tx.closeFeeStructureValidTo(tenantId, prior.id, closeToStr);
+      }
+      return tx.createFeeStructure({
+        id: uuidv4(),
+        tenantId,
+        institutionId: input.institutionId ?? prior.institutionId,
+        academicPeriodId: input.academicPeriodId ?? prior.academicPeriodId,
+        gradeId: input.gradeId ?? prior.gradeId,
+        classId: input.classId ?? prior.classId,
+        category: input.category ?? prior.category,
+        term: input.term !== undefined ? input.term : prior.term,
+        code,
+        name: input.name,
+        amountCents: input.amountCents,
+        currency: input.currency ?? prior.currency,
+        status: 'active',
+        validFrom,
+        validTo,
+        version: prior.version + 1,
+        supersedesId: prior.id,
+        createdBy: actorId,
+      });
     });
+  }
+
+  /**
+   * PRC-L471: calendar due date of an instalment — the structure's validFrom plus the
+   * instalment's dueOffsetDays (UTC calendar arithmetic, `YYYY-MM-DD`).
+   */
+  instalmentDueDate(structure: { validFrom: string }, dueOffsetDays: number): string {
+    const due = new Date(`${structure.validFrom}T00:00:00.000Z`);
+    due.setUTCDate(due.getUTCDate() + dueOffsetDays);
+    return due.toISOString().slice(0, 10);
   }
 
   async listFeeStructures(tenantId: string, options?: { asOf?: string }) {
@@ -899,12 +918,21 @@ export class FeesService {
       dueOffsetDays: input.dueOffsetDays?.[index] ?? index * 30,
       label: input.labels?.[index] ?? `Instalment ${index + 1}`,
     }));
-    return this.repository.replaceStructureInstalments(tenantId, structure.id, rows);
+    const saved = await this.repository.replaceStructureInstalments(tenantId, structure.id, rows);
+    return saved.map((row) => ({
+      ...row,
+      dueDate: this.instalmentDueDate(structure, row.dueOffsetDays),
+    }));
   }
 
   async listInstalments(tenantId: string, structureId: string) {
-    await this.getFeeStructure(tenantId, structureId);
-    return this.repository.listStructureInstalments(tenantId, structureId);
+    const structure = await this.getFeeStructure(tenantId, structureId);
+    const rows = await this.repository.listStructureInstalments(tenantId, structureId);
+    // PRC-L471: expose the instalment-driven due date, not only the raw offset.
+    return rows.map((row) => ({
+      ...row,
+      dueDate: this.instalmentDueDate(structure, row.dueOffsetDays),
+    }));
   }
 
   /**
@@ -1032,6 +1060,19 @@ export class FeesService {
         structure.id,
         studentIds,
       );
+      // PRC-L471: without an explicit dueAt, the invoice falls due on the structure's
+      // first instalment (validFrom + dueOffsetDays) instead of never falling due.
+      let dueAt: Date | null = input.dueAt ? new Date(input.dueAt) : null;
+      if (!dueAt) {
+        const [first] = [...(await tx.listStructureInstalments(tenantId, structure.id))].sort(
+          (a, b) => a.sequence - b.sequence,
+        );
+        if (first) {
+          dueAt = new Date(
+            `${this.instalmentDueDate(structure, first.dueOffsetDays)}T00:00:00.000Z`,
+          );
+        }
+      }
       for (const studentId of studentIds) {
         if (alreadyInvoiced.has(studentId)) {
           skipped.push(studentId);
@@ -1054,7 +1095,7 @@ export class FeesService {
           amountCents,
           currency: structure.currency,
           status: 'open',
-          dueAt: input.dueAt ? new Date(input.dueAt) : null,
+          dueAt,
           createdBy: actorId,
           invoiceNumber: invoiceNumberFor(invoiceId),
           structureId: structure.id,
