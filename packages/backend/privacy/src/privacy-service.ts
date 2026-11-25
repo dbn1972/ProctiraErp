@@ -1117,7 +1117,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
     // PRC-M322: once applied the raw values are no longer needed; redact them at rest.
     // PRC-L136: only an `approved` request is marked applied; a concurrent apply or
-    // reject that moved it first wins and this call reports 409 (one audit row).
+    // cancel that moved it first wins and this call reports 409 (one audit row).
+    // Known gap: the domain write above runs before this guard, so a cancel that wins
+    // leaves the value changed on a `cancelled` request with no "applied" audit row,
+    // and two concurrent applies both call the applier. Closing it needs a claim
+    // (in-flight status or lease) before the domain write, which the
+    // privacy_correction_status_check constraint does not allow without a migration.
     const applied = await this.repository.updateCorrectionRequest(
       requestId,
       tenantId,
