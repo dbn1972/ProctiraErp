@@ -1,13 +1,13 @@
 /**
  * PRC-M215 — live Postgres proof for the scholarship application document
- * retention default (db/sql/249, replaced by 313).
+ * retention default (db/sql/249, replaced by 319).
  *
  * A new INSERT without retention_until gets the DR35 default (uploaded_at +
  * 8 years; 249's interim default was 7 years), and an INSERT with an explicit
  * retention_until is not overwritten.
  *
  * Requires DATABASE_URL as proctira_app against a DB migrated through 104
- * (scholarship_application_documents), 249 and 313.
+ * (scholarship_application_documents), 249 and 319.
  */
 import { randomUUID } from 'node:crypto';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';

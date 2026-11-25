@@ -3,10 +3,10 @@
  * - the retention sweep erases the stored object, then the document row past
  *   its retention date, with a chained DELETE audit entry; a document inside
  *   its window stays;
- * - db/sql/313: deleting an application that still has documents is refused
+ * - db/sql/319: deleting an application that still has documents is refused
  *   (ON DELETE RESTRICT) instead of cascading away the rows and their keys.
  *
- * Requires DATABASE_URL as proctira_app against a DB migrated through 313.
+ * Requires DATABASE_URL as proctira_app against a DB migrated through 319.
  */
 import { randomUUID } from 'node:crypto';
 import { withPgTenant } from '@proctira/database';
@@ -108,7 +108,7 @@ describe.skipIf(!live)('PRC-M215 scholarship document retention sweep (live)', (
     expect(audit.rows.map((r) => (r as { operation: string }).operation)).toEqual(['DELETE']);
   });
 
-  it('refuses to delete an application that still has documents (313 RESTRICT)', async () => {
+  it('refuses to delete an application that still has documents (319 RESTRICT)', async () => {
     const fx = await seed();
     await expect(
       withPgTenant(pool, fx.tenantId, (client) =>

@@ -20,14 +20,14 @@ export interface ScholarshipApplicationDocument {
   rejectionReason: string | null;
   reviewedAt: Date | null;
   deletedAt: Date | null;
-  /** PRC-M215 (DR35, db/sql/249 + 313): erase object and row after this date. */
+  /** PRC-M215 (DR35, db/sql/249 + 319): erase object and row after this date. */
   retentionUntil?: Date | null;
 }
 
 /** PRC-M215 (DR35): scholarship supporting documents are kept 8 years, then erased. */
 export const SCHOLARSHIP_DOCUMENT_RETENTION_YEARS = 8;
 
-/** Mirrors the db/sql/313 insert default: uploaded date + 8 years (UTC date). */
+/** Mirrors the db/sql/319 insert default: uploaded date + 8 years (UTC date). */
 export function defaultDocumentRetentionUntil(uploadedAt: Date): Date {
   const until = new Date(
     Date.UTC(uploadedAt.getUTCFullYear(), uploadedAt.getUTCMonth(), uploadedAt.getUTCDate()),
