@@ -73,10 +73,11 @@ describe('privacy HTTP audit attribution (PRC-M323)', () => {
     });
     expect(exec.statusCode).toBe(200);
 
+    // PRC-M204: the correction requester is a different actor than the approver.
     const corr = await app.inject({
       method: 'POST',
       url: '/privacy/correction-requests',
-      headers,
+      headers: { ...headers, 'x-test-sub': 'requester-1' },
       payload: {
         subjectType: 'student',
         subjectId: 'stu-1',
@@ -120,7 +121,7 @@ describe('privacy HTTP audit attribution (PRC-M323)', () => {
     ]);
     // Request-driven events carry the real actor and caller ip.
     for (const e of correctionEvents) {
-      expect(e.userId).toBe('dpo-1');
+      expect(e.userId).toBe(e.operation === 'CREATE' ? 'requester-1' : 'dpo-1');
       expect(e.ipAddress).toBe(IP);
     }
     for (const e of erasureEvents.filter((x) => x.operation === 'CREATE')) {

@@ -101,3 +101,38 @@ describe('PRC-L336 privacy separation of duties', () => {
     await app.close();
   });
 });
+describe('PRC-M204 correction dual control and PII purge', () => {
+  let service: PrivacyService;
+  beforeEach(() => {
+    service = new PrivacyService(new InMemoryPrivacyRepository(), {
+      audit: new RecordingPrivacyAuditPort(),
+    });
+  });
+  async function correction(requestedBy: string) {
+    const req = await service.createCorrectionRequest({
+      tenantId: TENANT,
+      subjectType: 'student',
+      subjectId: 'stu-1',
+      fieldPath: 'first_name',
+      currentValue: 'Old Name',
+      requestedValue: 'New Name',
+      requestedBy,
+    });
+    await service.transitionCorrectionRequest(req.id, TENANT, 'under_review', 'reviewer');
+    return req;
+  }
+  it('the requester cannot approve their own correction request', async () => {
+    const req = await correction('clerk-1');
+    await expect(
+      service.transitionCorrectionRequest(req.id, TENANT, 'approved', 'clerk-1'),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect((await service.getCorrectionRequest(req.id, TENANT))?.status).toBe('under_review');
+    const approved = await service.transitionCorrectionRequest(req.id, TENANT, 'approved', 'dpo-2');
+    expect(approved.status).toBe('approved');
+  });
+  it.each(['rejected', 'cancelled'] as const)('a %s correction keeps no raw values', async (to) => {
+    const req = await correction('clerk-1');
+    const done = await service.transitionCorrectionRequest(req.id, TENANT, to, 'dpo-2');
+    expect(done).toMatchObject({ status: to, currentValue: null, requestedValue: '[REDACTED]' });
+  });
+});

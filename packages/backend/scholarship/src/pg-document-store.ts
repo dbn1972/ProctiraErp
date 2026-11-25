@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
 
 import {
   InMemoryScholarshipDocumentStore,
@@ -51,6 +51,12 @@ function mapRow(row: Record<string, unknown>): ScholarshipApplicationDocument {
         : row.deleted_at instanceof Date
           ? row.deleted_at
           : new Date(String(row.deleted_at)),
+    retentionUntil:
+      row.retention_until == null
+        ? null
+        : row.retention_until instanceof Date
+          ? row.retention_until
+          : new Date(String(row.retention_until)),
   };
 }
 
@@ -195,6 +201,49 @@ export class PgScholarshipDocumentStore implements ScholarshipDocumentStore {
     await withPgTenant(this.pool, audit.tenantId, async (client) => {
       await insertAudit(client, audit);
     });
+  }
+
+  async listPastRetention(
+    tenantId: string,
+    today: Date,
+    limit: number,
+  ): Promise<ScholarshipApplicationDocument[]> {
+    await this.ready();
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM scholarship_application_documents
+          WHERE tenant_id = $1 AND retention_until < $2::date
+          ORDER BY retention_until ASC, id ASC
+          LIMIT $3`,
+        [tenantId, today.toISOString().slice(0, 10), limit],
+      );
+      return result.rows.map((row) => mapRow(row as Record<string, unknown>));
+    });
+  }
+
+  async purge(tenantId: string, id: string, audit: ScholarshipDocumentAudit): Promise<boolean> {
+    await this.ready();
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `DELETE FROM scholarship_application_documents
+          WHERE tenant_id = $1 AND id = $2
+          RETURNING id`,
+        [tenantId, id],
+      );
+      if (result.rows.length === 0) return false;
+      await insertAudit(client, audit);
+      return true;
+    });
+  }
+
+  async listTenantIdsForRetention(): Promise<string[]> {
+    await this.ready();
+    // tenants RLS admits every row under app.platform_admin (db/sql/021); each
+    // per-tenant read/delete then runs with the tenant GUC bound.
+    const result = (await withPlatformScope(this.pool, (client) =>
+      client.query(`SELECT id::text AS id FROM tenants ORDER BY id`),
+    )) as { rows: Array<{ id: string }> };
+    return result.rows.map((row) => row.id);
   }
 }
 

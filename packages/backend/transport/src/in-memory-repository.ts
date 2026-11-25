@@ -485,16 +485,27 @@ export class InMemoryTransportRepository implements TransportRepository {
     }
     return out;
   }
-  async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
+  async listGpsPingsForVehicle(
+    tenantId: string,
+    vehicleId: string,
+    window: { since: Date; limit: number },
+  ): Promise<GpsPingEntity[]> {
     return Array.from(this.gpsPings.values())
-      .filter((e) => e.tenantId === tenantId && e.vehicleId === vehicleId)
-      .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime());
+      .filter(
+        (e) =>
+          e.tenantId === tenantId &&
+          e.vehicleId === vehicleId &&
+          e.recordedAt.getTime() >= window.since.getTime(),
+      )
+      .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())
+      .slice(0, window.limit);
   }
 
-  async listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]> {
+  async listLatestGpsPingPerVehicle(tenantId: string, since: Date): Promise<GpsPingEntity[]> {
     const latest = new Map<string, GpsPingEntity>();
     for (const ping of this.gpsPings.values()) {
       if (ping.tenantId !== tenantId) continue;
+      if (ping.recordedAt.getTime() < since.getTime()) continue;
       const prev = latest.get(ping.vehicleId);
       if (!prev || ping.recordedAt.getTime() > prev.recordedAt.getTime()) {
         latest.set(ping.vehicleId, ping);
@@ -503,6 +514,19 @@ export class InMemoryTransportRepository implements TransportRepository {
     return [...latest.values()];
   }
 
+  async purgeGpsPingsRecordedBefore(tenantId: string, cutoff: Date): Promise<number> {
+    let erased = 0;
+    for (const [id, ping] of this.gpsPings) {
+      if (ping.tenantId === tenantId && ping.recordedAt.getTime() < cutoff.getTime()) {
+        this.gpsPings.delete(id);
+        erased += 1;
+      }
+    }
+    return erased;
+  }
+  async listTenantIdsForGpsRetention(): Promise<string[]> {
+    return [...new Set([...this.gpsPings.values()].map((ping) => ping.tenantId))].sort();
+  }
   async upsertBusAttendance(
     data: Omit<BusAttendanceEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<BusAttendanceEntity> {

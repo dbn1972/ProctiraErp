@@ -266,9 +266,12 @@ jobs:
           echo "Encrypted round-trip OK" >> "$GITHUB_STEP_SUMMARY"
 
       # PRC-M623: the job refuses SUPERUSER/BYPASSRLS roles, so provision the
-      # dedicated NOSUPERUSER NOBYPASSRLS role on the restored copy (bootstrap +
-      # migration 312 grants) and run the dry-run as that role, the same
-      # credential shape as PHI_RETENTION_DATABASE_URL in production.
+      # dedicated NOSUPERUSER NOBYPASSRLS role on the restored copy and run the
+      # dry-run as that role, the same credential shape as
+      # PHI_RETENTION_DATABASE_URL in production. pg-restore.sh uses --no-acl,
+      # so the restored copy has none of its grants; the privilege sync that
+      # apply-sql.sh runs on every invocation re-applies them (the operator
+      # step in docs/BACKUP_RESTORE.md §3.5).
       - name: Provision the PHI retention role on the restored copy
         run: |
           set -euo pipefail
@@ -276,7 +279,7 @@ jobs:
           psql "$RESTORED_URL" -X -v ON_ERROR_STOP=1 -q -f db/bootstrap/01_runtime_roles.sql
           psql "$RESTORED_URL" -X -v ON_ERROR_STOP=1 -q \
             -c "ALTER ROLE proctira_phi_retention PASSWORD 'phi_retention_drill';"
-          psql "$RESTORED_URL" -X -v ON_ERROR_STOP=1 -q -f db/sql/312_phi_retention_role_grants.sql
+          MIGRATOR_DATABASE_URL="$RESTORED_URL" bash tools/scripts/apply-runtime-table-privileges.sh
           psql "$RESTORED_URL" -X -At -c "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles
             WHERE rolname = 'proctira_phi_retention';"
       - name: PHI retention dry-run against the restored copy

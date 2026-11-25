@@ -15,6 +15,7 @@ import {
   tenantWipeDisposition,
   type SubjectKind,
 } from './tenant-data-registry.js';
+import { studentConsentsAnonymizer } from './domain-anonymizers.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -259,7 +260,7 @@ describe('subject erasure link registry vs migration catalogue (PRC-H077)', () =
 
   it.each([
     'student_discipline_incidents',
-    'student_consents',
+    'transfer_records',
     'admission_offers',
     'lms_submissions',
     'report_card_teacher_comments',
@@ -267,4 +268,13 @@ describe('subject erasure link registry vs migration catalogue (PRC-H077)', () =
     const entry = SUBJECT_LINK_REGISTRY.student.find((l) => l.table === table);
     expect(entry?.handling).toBe('unhandled');
   });
+
+  it.each(['parent_consents', 'student_consents'])(
+    'PRC-M214: %s is handled by the consents anonymizer (DR44)',
+    (table) => {
+      const entry = SUBJECT_LINK_REGISTRY.student.find((l) => l.table === table);
+      expect(entry?.handling).toBe('handled');
+      expect(studentConsentsAnonymizer.covers).toContain(`${table}.student_id`);
+    },
+  );
 });

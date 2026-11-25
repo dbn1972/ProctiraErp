@@ -372,14 +372,31 @@ export async function applyConcession(
 
 export async function refundInvoice(
   invoiceId: string,
-  input: { amountCents: number; reason: string },
+  input: { paymentId: string; amountCents: number; reason: string },
   options?: MoneyMutationOptions,
-): Promise<{ id: string; amountCents: number }> {
-  const result = await gatewayFetch<{ id: string; amountCents: number }>(
+): Promise<{ id: string; amountCents: number; paymentId: string }> {
+  const result = await gatewayFetch<{ id: string; amountCents: number; paymentId: string }>(
     `/fees/invoices/${encodeURIComponent(invoiceId)}/refund`,
     { method: 'POST', json: input, headers: idempotencyHeaders(options) },
   );
   return throwIfMissing(result, 'Failed to record refund');
+}
+
+/** PRC-M090: a succeeded payment of one invoice and what is still refundable on it. */
+export interface RefundablePayment {
+  paymentId: string;
+  method: string;
+  amountCents: number;
+  refundedCents: number;
+  refundableCents: number;
+  paidAt: string;
+}
+
+export async function listRefundablePayments(invoiceId: string): Promise<RefundablePayment[]> {
+  const result = await gatewayFetch<{ data: RefundablePayment[] }>(
+    `/fees/invoices/${encodeURIComponent(invoiceId)}/payments`,
+  );
+  return throwIfMissing(result, 'Failed to load invoice payments').data;
 }
 
 export type DuesReportResult =

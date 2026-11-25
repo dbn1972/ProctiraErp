@@ -606,7 +606,11 @@ jobs:
 
           # Render preflight: fail before touching the cluster if the chart or
           # the value arguments are broken.
-          bash tools/scripts/deploy-platform-helm.sh template > /dev/null
+          bash tools/scripts/deploy-platform-helm.sh template > "${RUNNER_TEMP}/platform-render.yaml"
+          # PRC-M623 (N2): the chart cannot see existingSecret contents, so
+          # check the key the phi-retention CronJob reads exists in the cluster
+          # (prints only present/missing, never the value).
+          bash tools/scripts/check-phi-retention-secret-key.sh "${RUNNER_TEMP}/platform-render.yaml"
 
           # The release owns ONLY etl-worker, exam-document-worker and the DR
           # CronJobs: edge apps and the Ingress stay off (values-workers-only.yaml

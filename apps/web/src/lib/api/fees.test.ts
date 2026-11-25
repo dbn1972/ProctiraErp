@@ -48,11 +48,11 @@ describe('fees client — money mutations (PRC-M489)', () => {
   });
   it('refundInvoice encodes the id and sends integer cents with the reason', async () => {
     gatewayFetch.mockResolvedValueOnce(ok({ id: 'r-1', amountCents: 500 }));
-    await refundInvoice('inv/1', { amountCents: 500, reason: 'overpaid' });
+    await refundInvoice('inv/1', { paymentId: 'pay-1', amountCents: 500, reason: 'overpaid' });
     expect(gatewayFetch.mock.calls[0]![0]).toBe('/fees/invoices/inv%2F1/refund');
     expect(gatewayFetch.mock.calls[0]![1]).toMatchObject({
       method: 'POST',
-      json: { amountCents: 500, reason: 'overpaid' },
+      json: { paymentId: 'pay-1', amountCents: 500, reason: 'overpaid' },
     });
   });
   it('recordInvoicePayment unwraps the invoice and throws GatewayError on an empty body', async () => {

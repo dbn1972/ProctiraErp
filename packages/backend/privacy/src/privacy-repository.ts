@@ -33,6 +33,8 @@ export interface ErasureRequestEntity {
   reason: string | null;
   requestedBy: string;
   reviewedBy: string | null;
+  /** PRC-M204: approver, stamped by the database at approval (db/sql/315); PG repository only. */
+  approvedBy?: string | null;
   statusReason: string | null;
   completedAt: Date | null;
   createdAt: Date;
@@ -51,6 +53,8 @@ export interface CorrectionRequestEntity {
   status: CorrectionStatus;
   requestedBy: string;
   reviewedBy: string | null;
+  /** PRC-M204: approver, stamped by the database at approval (db/sql/315); PG repository only. */
+  approvedBy?: string | null;
   statusReason: string | null;
   appliedAt: Date | null;
   createdAt: Date;

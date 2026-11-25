@@ -72,6 +72,20 @@ function toDate(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
 }
 
+/**
+ * `YYYY-MM-DD` for a Postgres DATE column. node-pg parses DATE into a JS Date at
+ * local midnight, so `String(value).slice(0, 10)` would yield e.g. `Wed Nov 25`.
+ */
+export function pgDateOnly(value: unknown): string {
+  if (value instanceof Date) {
+    const y = String(value.getFullYear()).padStart(4, '0');
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(value).slice(0, 10);
+}
+
 function mapPlan(row: Record<string, unknown>): FeePlanEntity {
   return {
     id: String(row.id),
@@ -204,8 +218,8 @@ function mapStructure(row: Record<string, unknown>): FeeStructureEntity {
     validFrom:
       row.valid_from == null
         ? toDate(row.created_at).toISOString().slice(0, 10)
-        : String(row.valid_from).slice(0, 10),
-    validTo: row.valid_to == null ? null : String(row.valid_to).slice(0, 10),
+        : pgDateOnly(row.valid_from),
+    validTo: row.valid_to == null ? null : pgDateOnly(row.valid_to),
     version: row.version == null ? 1 : Number(row.version),
     supersedesId: row.supersedes_id == null ? null : String(row.supersedes_id),
     createdBy: row.created_by == null ? null : String(row.created_by),

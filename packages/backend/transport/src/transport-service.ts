@@ -98,6 +98,14 @@ export async function collectAllPages<T>(
   } as PaginatedResult<T>;
 }
 
+/** PRC-M451 (DR35): transport GPS / location pings are kept 90 days, then erased. */
+export const GPS_RETENTION_DAYS = 90;
+/** PRC-M451: most pings one vehicle-history read returns. */
+export const GPS_HISTORY_MAX_ROWS = 500;
+/** Pings recorded before this instant are past retention. */
+export function gpsRetentionCutoff(now: Date, retentionDays = GPS_RETENTION_DAYS): Date {
+  return new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+}
 /** PRC-M446: device clocks may run slightly fast; anything beyond this is rejected. */
 export const GPS_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 /** PRC-M446: reject pings older than this (stale replays would rewrite history). */
@@ -886,10 +894,42 @@ export class TransportService {
     return { data: results, vehicleId: device.vehicleId, deviceId: device.deviceId };
   }
 
+  /**
+   * PRC-M451 (DR35): erase this tenant's pings older than the retention window.
+   * Run by the transport plugin's retention sweep; returns the number erased.
+   */
+  async purgeExpiredGpsPings(tenantId: string, now = new Date()): Promise<number> {
+    return this.repository.purgeGpsPingsRecordedBefore(tenantId, gpsRetentionCutoff(now));
+  }
+
+  /** PRC-M451: one sweep over every tenant; a failing tenant does not stop the rest. */
+  async runGpsRetentionSweep(now = new Date()) {
+    const tenants = await this.repository.listTenantIdsForGpsRetention();
+    let erased = 0;
+    const failures: Array<{ tenantId: string; error: string }> = [];
+    for (const tenantId of tenants) {
+      try {
+        erased += await this.purgeExpiredGpsPings(tenantId, now);
+      } catch (error) {
+        failures.push({ tenantId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return { tenants: tenants.length, erased, failures };
+  }
+
+  /** PRC-M451: bounded vehicle ping history, newest first, inside the retention window. */
+  async listVehicleGpsHistory(tenantId: string, vehicleId: string, now = new Date()) {
+    return this.repository.listGpsPingsForVehicle(tenantId, vehicleId, {
+      since: gpsRetentionCutoff(now),
+      limit: GPS_HISTORY_MAX_ROWS,
+    });
+  }
+
   async getLiveMap(tenantId: string) {
     const [vehicles, pings, stops] = await Promise.all([
       collectAllPages((page) => this.repository.listVehicles(tenantId, {}, page)),
-      this.repository.listLatestGpsPingPerVehicle(tenantId),
+      // PRC-M451: a position past retention is never shown, even before the sweep erases it.
+      this.repository.listLatestGpsPingPerVehicle(tenantId, gpsRetentionCutoff(new Date())),
       this.repository.listAllStops(tenantId),
     ]);
     const vehicleById = new Map(vehicles.data.map((v) => [v.id, v]));
@@ -998,7 +1038,7 @@ export class TransportService {
     const tripDate = input.tripDate ?? now.toISOString().slice(0, 10);
     const [rules, pings, stops, routes, assignments] = await Promise.all([
       this.repository.listAlertRules(tenantId),
-      this.repository.listLatestGpsPingPerVehicle(tenantId),
+      this.repository.listLatestGpsPingPerVehicle(tenantId, gpsRetentionCutoff(now)),
       this.repository.listAllStops(tenantId),
       collectAllPages((page) => this.repository.listRoutes(tenantId, {}, page)),
       collectAllPages((page) =>

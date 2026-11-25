@@ -180,6 +180,9 @@ void main() {
       expect(queue.first.operation, SyncOperation.create);
       expect(queue.first.payload['status'], 'PRESENT');
       expect(queue.first.payload['studentId'], 'stu-1');
+      // PRC-M468 / DR45: the queued mark carries no device location.
+      expect(queue.first.payload.containsKey('latitude'), isFalse);
+      expect(queue.first.payload.containsKey('longitude'), isFalse);
 
       // Reloading the roster reflects the new status.
       final List<AttendanceRosterEntry> after = await repo.loadRoster(

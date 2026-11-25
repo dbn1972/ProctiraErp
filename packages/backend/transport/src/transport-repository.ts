@@ -342,8 +342,21 @@ export interface TransportRepository {
     tenantId: string,
     rows: Array<Omit<GpsPingEntity, 'createdAt'>>,
   ): Promise<Array<{ ping: GpsPingEntity; duplicate: boolean }>>;
-  listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]>;
-  listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]>;
+  /** PRC-M451: newest first, only pings recorded at/after `since`, at most `limit` rows. */
+  listGpsPingsForVehicle(
+    tenantId: string,
+    vehicleId: string,
+    window: { since: Date; limit: number },
+  ): Promise<GpsPingEntity[]>;
+  /** PRC-M451: latest ping per vehicle among pings recorded at/after `since`. */
+  listLatestGpsPingPerVehicle(tenantId: string, since: Date): Promise<GpsPingEntity[]>;
+  /**
+   * PRC-M451 (DR35): erase pings recorded before `cutoff`; returns the number
+   * erased. Erases nothing while the tenant is on legal hold.
+   */
+  purgeGpsPingsRecordedBefore(tenantId: string, cutoff: Date): Promise<number>;
+  /** PRC-M451: tenants the GPS retention sweep visits. */
+  listTenantIdsForGpsRetention(): Promise<string[]>;
 
   upsertBusAttendance(
     data: Omit<BusAttendanceEntity, 'createdAt' | 'updatedAt'>,

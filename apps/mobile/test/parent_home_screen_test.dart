@@ -66,6 +66,11 @@ class _FakeParentPortal implements ParentPortalRepository {
           .toList(growable: false),
     );
   }
+
+  @override
+  Future<ParentInvoice> payInvoiceSandbox({required String invoiceId}) {
+    throw UnimplementedError('read-only fake');
+  }
 }
 
 const LinkedChild _amina = LinkedChild(

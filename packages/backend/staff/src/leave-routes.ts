@@ -21,10 +21,12 @@ import {
   type StaffLeaveParams,
 } from './leave-schemas.js';
 import type { StaffLeaveService } from './leave-service.js';
+import { canViewStaffLeaveReason } from './staff-access.js';
 import {
   assertStaffWritableOr404,
   requireStaffAction,
   staffWritePreHandler,
+  staffRequestRoles,
 } from './staff-http-guard.js';
 import type { StaffService } from './staff-service.js';
 
@@ -64,20 +66,23 @@ function getActorId(request: FastifyRequest): string {
   return user?.sub ?? 'anonymous';
 }
 
-function formatLeave(entity: {
-  id: string;
-  tenantId: string;
-  staffId: string;
-  leaveType: string;
-  startDate: string;
-  endDate: string;
-  reason: string | null;
-  status: string;
-  decidedBy: string | null;
-  decidedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function formatLeave(
+  entity: {
+    id: string;
+    tenantId: string;
+    staffId: string;
+    leaveType: string;
+    startDate: string;
+    endDate: string;
+    reason: string | null;
+    status: string;
+    decidedBy: string | null;
+    decidedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  request: FastifyRequest,
+) {
   return {
     id: entity.id,
     tenantId: entity.tenantId,
@@ -85,7 +90,8 @@ function formatLeave(entity: {
     leaveType: entity.leaveType,
     startDate: entity.startDate,
     endDate: entity.endDate,
-    reason: entity.reason,
+    // PRC-M378: the free-text reason (often health detail) only for HR deciders.
+    reason: canViewStaffLeaveReason(staffRequestRoles(request)) ? entity.reason : null,
     status: entity.status,
     decidedBy: entity.decidedBy,
     decidedAt: entity.decidedAt?.toISOString() ?? null,
@@ -128,9 +134,10 @@ export async function registerStaffLeaveRoutes(
       }
       const w = toPageWindow(query.data);
       const { rows, total } = await leaveService.listLeavesPage(tenantId, w);
-      return reply
-        .status(200)
-        .send({ data: rows.map(formatLeave), meta: pageMeta(w.page, w.pageSize, total) });
+      return reply.status(200).send({
+        data: rows.map((row) => formatLeave(row, request)),
+        meta: pageMeta(w.page, w.pageSize, total),
+      });
     },
   );
 
@@ -172,7 +179,7 @@ export async function registerStaffLeaveRoutes(
         )
           return reply;
         const leave = await leaveService.createLeave(tenantId, result.data);
-        return reply.status(201).send(formatLeave(leave));
+        return reply.status(201).send(formatLeave(leave, request));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -236,7 +243,7 @@ export async function registerStaffLeaveRoutes(
           bodyResult.data,
           getActorId(request),
         );
-        return reply.status(200).send(formatLeave(leave));
+        return reply.status(200).send(formatLeave(leave, request));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -288,7 +295,7 @@ export async function registerStaffLeaveRoutes(
           paramsResult.data.id,
           getActorId(request),
         );
-        return reply.status(200).send(formatLeave(leave));
+        return reply.status(200).send(formatLeave(leave, request));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

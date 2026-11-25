@@ -200,22 +200,43 @@ CronJob must not use the backup credential. It connects as
 `proctira_phi_retention` (`NOSUPERUSER NOBYPASSRLS`, created by
 `tools/scripts/bootstrap-db-roles.sh`, password from
 `PHI_RETENTION_ROLE_PASSWORD`), binds `app.tenant_id` per tenant and is limited
-by the normal tenant policies. `db/sql/312_phi_retention_role_grants.sql` grants
-it SELECT on `tenants`, `students`, `privacy_legal_holds`; SELECT and DELETE on
-`counselling_sessions` and `health_special_needs_assessments`; INSERT on
-`audit_ingest_queue`. Run the role bootstrap before the migration; if 312 ran
-first, apply its GRANT block again as the migrator. Store the URL as
+by the normal tenant policies. `db/sql/312_phi_retention_role_grants.sql` and
+`db/sql/318_phi_retention_column_select.sql` grant it SELECT on
+`privacy_legal_holds`; column-level SELECT on `tenants (id, legal_hold)` and
+`students (id, date_of_birth)` only, the columns the job reads; SELECT and
+DELETE on `counselling_sessions` and `health_special_needs_assessments`; INSERT
+on `audit_ingest_queue`. `db/sql/313_privacy_legal_hold_guard.sql` grants it
+EXECUTE on `privacy_assert_no_legal_hold`, which the legal-hold triggers on the
+PHI tables call on every DELETE (without that grant every retention DELETE
+fails closed). 312 and 313 skip these grants when the role does not exist yet,
+so `tools/scripts/apply-sql.sh` re-applies all of them, the EXECUTE grant
+included, on every run (role-guarded, in
+`tools/scripts/apply-runtime-table-privileges.sh`). If the role was created
+after 312 or 313 ran, re-run `apply-sql.sh` as the migrator. Store the URL as
 `PHI_RETENTION_DATABASE_URL` (`secrets.phiRetentionDatabaseUrl`; the CronJob
 reads `dr.phiRetention.databaseUrlSecretKey`). Rendering fails when that key
-equals `dr.databaseUrlSecretKey`, and the job exits 1 when it connects as a
+equals `dr.databaseUrlSecretKey`, and, with a chart-managed Secret, when
+`secrets.phiRetentionDatabaseUrl` is empty. With `secrets.existingSecret` the
+chart cannot see the value, so the platform deploy runs
+`tools/scripts/check-phi-retention-secret-key.sh` first and stops when the
+Secret lacks a non-empty key. The job exits 1 when it connects as a
 SUPERUSER or BYPASSRLS role.
 
-Roles are cluster-level, so `pg_dump` does not carry `proctira_phi_retention`.
-After a restore into a new cluster, run `tools/scripts/bootstrap-db-roles.sh`
-(with `PHI_RETENTION_ROLE_PASSWORD`) and re-apply
-`db/sql/312_phi_retention_role_grants.sql` before the retention CronJob runs.
-The weekly restore drill does this on the restored copy and runs the dry-run
-as the retention role. Rollback: the `REVOKE` block in the 312 header.
+Roles are cluster-level, so `pg_dump` does not carry `proctira_phi_retention`,
+and `pg-restore.sh` restores with `--no-acl`, so the restored database has none
+of the role's grants, even on the same cluster. After any `pg-restore.sh`
+restore, run `tools/scripts/bootstrap-db-roles.sh` (with
+`PHI_RETENTION_ROLE_PASSWORD`; needed when the cluster lacks the role) and then
+`tools/scripts/apply-sql.sh` (or `tools/scripts/apply-runtime-table-privileges.sh`)
+as the migrator before the retention CronJob runs; this also re-applies the
+313 EXECUTE grant. Until then the job fails closed on its privilege check (a
+missing EXECUTE grant is not pre-checked and fails the first DELETE with
+42501). The weekly restore drill does this on the restored copy and runs the
+dry-run as the retention role. Rollback: the `REVOKE` block in the 312 header,
+plus removing the grants from `PHI_RETENTION_GRANTS` and
+`PHI_RETENTION_FUNCTION_GRANTS` in
+`tools/scripts/runtime-table-privileges-lib.mjs` so the sync does not re-add
+them.
 
 ### 3.6 Encryption, offsite, immutability (W1-OPS-04)
 
