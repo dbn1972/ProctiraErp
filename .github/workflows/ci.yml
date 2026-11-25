@@ -985,6 +985,43 @@ jobs:
           RETENTION_DRY_RUN: '1'
           ARTIFACT_DIR: /tmp/phi-retention
 
+      # PRC-M623 (N4): expected-role gate on the PHI retention role. It must be
+      # NOSUPERUSER NOBYPASSRLS, own no public table and belong to no other role
+      # (e.g. pg_read_all_data). Negatives prove each check rejects.
+      - name: Assert PHI retention role posture (PRC-M623 expected-role gate)
+        run: |
+          set -euo pipefail
+          : "${PHI_RETENTION_ROLE_PASSWORD:?provision step must export PHI_RETENTION_ROLE_PASSWORD}"
+          export DATABASE_URL="postgresql://proctira_phi_retention:${PHI_RETENTION_ROLE_PASSWORD}@localhost:5432/proctira_test"
+          bash tools/scripts/assert-runtime-database-role.sh --expected-role=proctira_phi_retention \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          SUPER=postgresql://postgres:postgres@localhost:5432/proctira_test
+          expect_reject() {
+            local label="$1" pattern="$2" setup="$3" undo="$4" out rc
+            psql "$SUPER" -X -v ON_ERROR_STOP=1 -q -c "$setup"
+            set +e
+            out="$(bash tools/scripts/assert-runtime-database-role.sh --expected-role=proctira_phi_retention 2>&1)"
+            rc=$?
+            set -e
+            psql "$SUPER" -X -v ON_ERROR_STOP=1 -q -c "$undo"
+            if [[ "$rc" -eq 0 ]]; then
+              echo "::error::expected-role gate accepted ${label}"; echo "$out"; exit 1
+            fi
+            grep -Eq "$pattern" <<<"$out" \
+              || { echo "::error::${label} rejected for the wrong reason"; echo "$out"; exit 1; }
+            echo "rejected ${label} OK" | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+          expect_reject 'pg_read_all_data membership' 'unexpected role\(s\): pg_read_all_data' \
+            'GRANT pg_read_all_data TO proctira_phi_retention' \
+            'REVOKE pg_read_all_data FROM proctira_phi_retention'
+          expect_reject BYPASSRLS 'has BYPASSRLS' \
+            'ALTER ROLE proctira_phi_retention BYPASSRLS' \
+            'ALTER ROLE proctira_phi_retention NOBYPASSRLS'
+          expect_reject 'table ownership' 'owns 1 application table' \
+            'CREATE TABLE public.prc_m623_owned_probe (id int); ALTER TABLE public.prc_m623_owned_probe OWNER TO proctira_phi_retention' \
+            'DROP TABLE public.prc_m623_owned_probe'
+          bash tools/scripts/assert-runtime-database-role.sh --expected-role=proctira_phi_retention
+
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
       # skipped in CI (they self-skip without DATABASE_URL). Run the backend

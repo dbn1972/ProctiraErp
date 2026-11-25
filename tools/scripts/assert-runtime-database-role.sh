@@ -29,6 +29,10 @@
 #   RUNTIME_ROLE_SECRET_KEY      Key inside Secret (default: DATABASE_URL)
 #   RUNTIME_ROLE_GATE_REQUIRED   1 → fail if URL cannot be resolved
 #   RUNTIME_ROLE_EXPECTED        Default proctira_app
+#
+# Arguments are passed to assert-runtime-database-role.mjs, e.g.
+#   --expected-role=proctira_phi_retention   (PRC-M623 expected-role mode: also
+#   fails on any role membership outside RUNTIME_ROLE_ALLOWED_MEMBERSHIPS)
 # =============================================================================
 set -euo pipefail
 
@@ -101,7 +105,7 @@ export RUNTIME_ROLE_GATE_REQUIRED="${RUNTIME_ROLE_GATE_REQUIRED:-1}"
 # the `pg` driver cannot be loaded on a minimal runner.
 if command -v node >/dev/null 2>&1; then
   set +e
-  NODE_OUT="$(node "$ROOT/tools/scripts/assert-runtime-database-role.mjs" 2>&1)"
+  NODE_OUT="$(node "$ROOT/tools/scripts/assert-runtime-database-role.mjs" "$@" 2>&1)"
   NODE_STATUS=$?
   set -e
   if [[ "$NODE_STATUS" -eq 0 ]]; then
@@ -117,6 +121,10 @@ if command -v node >/dev/null 2>&1; then
 fi
 
 command -v psql >/dev/null 2>&1 || die "neither node+pg nor psql available to probe DATABASE_URL"
+# PRC-M623 (N4): the role-membership check lives only in the Node evaluator.
+if (($# > 0)) || [[ "${RUNTIME_ROLE_MODE:-}" == "expected-role" ]]; then
+  die "expected-role mode needs node + pg (the psql fallback does not check role membership) — fail closed"
+fi
 
 EXPECTED="${RUNTIME_ROLE_EXPECTED-proctira_app}"
 
