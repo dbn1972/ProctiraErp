@@ -135,18 +135,6 @@ export function isLearner(actor: LmsActor): boolean {
 export function isStudent(actor: LmsActor): boolean {
   return actor.roles.some((r) => LEARNER_ROLES.has(r)) && !canAuthor(actor);
 }
-/**
- * Per-student learner data (submissions, PAL plan / progress / attempts):
- * staff see all; a student only their own id; everyone else is denied.
- * Guardian → linked-child resolution is not available in the LMS domain, so
- * parents are denied rather than widened (PRC-H069).
- */
-function assertOwnLearnerRecord(actor: LmsActor, studentId: string, message: string): void {
-  if (canAuthor(actor)) return;
-  if (!isStudent(actor) || !actor.userId || studentId !== actor.userId) {
-    throw new ForbiddenError(message);
-  }
-}
 
 /** School-bound = has an institution list and is not a tenant/board admin. */
 function isSchoolBound(actor: LmsActor): boolean {
@@ -383,6 +371,11 @@ export type LmsAuditSink = (entry: LmsAuditEntry) => Promise<void>;
 export interface LmsLearnerMembership {
   inSection(tenantId: string, learnerUserId: string, sectionId: string): Promise<boolean>;
   inInstitution(tenantId: string, learnerUserId: string, institutionId: string): Promise<boolean>;
+  /**
+   * PRC-L331: the SIS `students.id` value(s) a learner principal (JWT sub) is.
+   * Learner records are keyed by these ids, never by the raw sub.
+   */
+  studentIdsForLearner(tenantId: string, learnerUserId: string): Promise<string[]>;
 }
 
 export interface LmsServiceOptions {
@@ -406,6 +399,45 @@ export class LmsService {
     this.auditSink = options.auditSink ?? null;
     this.learnerMembership = options.learnerMembership ?? null;
     this.nodeEnv = 'nodeEnv' in options ? options.nodeEnv : process.env.NODE_ENV;
+  }
+
+  /**
+   * PRC-L331: the SIS student id(s) of a student principal, resolved from the JWT
+   * sub through the learner directory. Non-students have none. Without a directory
+   * production-like environments refuse (503); dev/test fall back to the sub.
+   */
+  private async ownStudentIds(tenantId: string, actor: LmsActor): Promise<string[]> {
+    if (!isStudent(actor) || !actor.userId) return [];
+    const membership = this.learnerMembership;
+    if (!membership) {
+      if (isProductionLike(this.nodeEnv)) {
+        throw new AppError(
+          'Learner directory is not configured; learner records are unavailable',
+          'SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+      return [actor.userId];
+    }
+    return membership.studentIdsForLearner(tenantId, actor.userId);
+  }
+
+  /**
+   * Per-student learner data (submissions, PAL plan / progress / attempts):
+   * staff see all; a student only their own SIS student id (PRC-L331); everyone
+   * else is denied. Guardian → linked-child resolution is not available in the
+   * LMS domain, so parents are denied rather than widened (PRC-H069).
+   */
+  private async assertOwnLearnerRecord(
+    tenantId: string,
+    actor: LmsActor,
+    studentId: string,
+    message: string,
+  ): Promise<void> {
+    if (canAuthor(actor)) return;
+    if (!(await this.ownStudentIds(tenantId, actor)).includes(studentId)) {
+      throw new ForbiddenError(message);
+    }
   }
 
   /**
@@ -787,7 +819,12 @@ export class LmsService {
     now: Date = new Date(),
   ): Promise<SubmissionEntity> {
     const assignment = await this.requireAssignment(tenantId, assignmentId, actor);
-    assertOwnLearnerRecord(actor, input.studentId, 'Students can only submit their own work');
+    await this.assertOwnLearnerRecord(
+      tenantId,
+      actor,
+      input.studentId,
+      'Students can only submit their own work',
+    );
     assertInstitutionAllowed(actor, input.institutionId);
     await this.assertLearnerMember(tenantId, actor, assignment);
     if (assignment.status !== 'published') {
@@ -941,7 +978,15 @@ export class LmsService {
       if (!isStudent(actor) || !actor.userId) {
         throw new ForbiddenError('Only staff or the submitting student can list submissions');
       }
-      effective.studentId = actor.userId;
+      // PRC-L331: list by the learner's SIS student id, not the JWT sub.
+      const own = await this.ownStudentIds(tenantId, actor);
+      if (own.length === 0) {
+        throw new ForbiddenError('No student record is linked to this account');
+      }
+      if (own.length > 1) {
+        throw new ConflictError('This account is linked to more than one student record');
+      }
+      effective.studentId = own[0];
     }
     if (effective.assignmentId)
       await this.requireAssignment(tenantId, effective.assignmentId, actor);
@@ -951,7 +996,10 @@ export class LmsService {
   async getSubmission(tenantId: string, id: string, actor: LmsActor): Promise<SubmissionEntity> {
     const submission = await this.repository.findSubmissionById(tenantId, id);
     if (!submission) throw new NotFoundError('Submission not found');
-    if (isLearner(actor) && submission.studentId !== actor.userId) {
+    if (
+      isLearner(actor) &&
+      !(await this.ownStudentIds(tenantId, actor)).includes(submission.studentId)
+    ) {
       throw new NotFoundError('Submission not found');
     }
     await this.requireAssignment(tenantId, submission.assignmentId, actor);
@@ -1008,7 +1056,12 @@ export class LmsService {
     actor: LmsActor,
     now: Date = new Date(),
   ): Promise<SkillMasteryEntity> {
-    assertOwnLearnerRecord(actor, studentId, 'Students can only practise as themselves');
+    await this.assertOwnLearnerRecord(
+      tenantId,
+      actor,
+      studentId,
+      'Students can only practise as themselves',
+    );
     assertInstitutionAllowed(actor, input.institutionId);
     const skill = await this.repository.findSkillById(tenantId, input.skillId);
     if (!skill) throw new NotFoundError('Skill not found');
@@ -1029,7 +1082,12 @@ export class LmsService {
     actor: LmsActor,
     now: Date = new Date(),
   ): Promise<SpiralPlan> {
-    assertOwnLearnerRecord(actor, studentId, 'Students can only view their own plan');
+    await this.assertOwnLearnerRecord(
+      tenantId,
+      actor,
+      studentId,
+      'Students can only view their own plan',
+    );
     assertInstitutionAllowed(actor, query.institutionId);
     const skills = await this.repository.listSkills(
       tenantId,
@@ -1065,7 +1123,12 @@ export class LmsService {
     query: PlanQuery,
     actor: LmsActor,
   ): Promise<StudentProgress> {
-    assertOwnLearnerRecord(actor, studentId, 'Students can only view their own progress');
+    await this.assertOwnLearnerRecord(
+      tenantId,
+      actor,
+      studentId,
+      'Students can only view their own progress',
+    );
     assertInstitutionAllowed(actor, query.institutionId);
     const skills = await this.repository.listSkills(
       tenantId,
@@ -1104,7 +1167,12 @@ export class LmsService {
     pagination: PaginationOptions,
     actor: LmsActor,
   ): Promise<PaginatedResult<PracticeAttemptEntity>> {
-    assertOwnLearnerRecord(actor, studentId, 'Students can only view their own attempts');
+    await this.assertOwnLearnerRecord(
+      tenantId,
+      actor,
+      studentId,
+      'Students can only view their own attempts',
+    );
     return this.repository.listAttempts(tenantId, studentId, pagination);
   }
 
@@ -1491,7 +1559,10 @@ export class LmsService {
     if (input.submissionId) {
       const sub = await this.repository.findSubmissionById(tenantId, input.submissionId);
       if (!sub) throw new NotFoundError('Submission not found');
-      if (isLearner(actor) && sub.studentId !== actor.userId) {
+      if (
+        isLearner(actor) &&
+        !(await this.ownStudentIds(tenantId, actor)).includes(sub.studentId)
+      ) {
         throw new ForbiddenError('Students can only upload to their own submission');
       }
       await this.assertLearnerMember(tenantId, actor, assignment);
@@ -1552,7 +1623,7 @@ export class LmsService {
     if (!isLearner(actor) || file.submissionId === null) return true;
     if (!isStudent(actor) || !actor.userId) return false;
     const sub = await this.repository.findSubmissionById(tenantId, file.submissionId);
-    return sub !== null && sub.studentId === actor.userId;
+    return sub !== null && (await this.ownStudentIds(tenantId, actor)).includes(sub.studentId);
   }
 
   async signedFileDownload(tenantId: string, fileId: string, actor: LmsActor) {

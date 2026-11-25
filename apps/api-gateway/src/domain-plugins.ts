@@ -402,6 +402,9 @@ function lmsLearnerMembership(): LmsLearnerMembership | null {
           directory.learnerInSection(tenantId, userId, sectionId),
         inInstitution: (tenantId, userId, institutionId) =>
           directory.learnerInInstitution(tenantId, userId, institutionId),
+        // PRC-L331: learner records key on the SIS student id, not the JWT sub.
+        studentIdsForLearner: (tenantId, userId) =>
+          directory.studentIdsForLearner(tenantId, userId),
       }
     : null;
 }

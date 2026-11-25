@@ -41,6 +41,8 @@ describe('LMS learner enrolment checks (PRC-M299)', () => {
         sectionId === SECTION && sectionMembers.has(userId),
       inInstitution: async (_t, userId, institutionId) =>
         institutionId === SCHOOL && schoolMembers.has(userId),
+      // Principal id == student id in this suite (see lms-learner-identity.test.ts).
+      studentIdsForLearner: async (_t, userId) => [userId],
     };
     const repository = new InMemoryLmsRepository();
     app = Fastify({ logger: false });
