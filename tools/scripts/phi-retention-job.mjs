@@ -147,6 +147,15 @@ export const PHI_RETENTION_TABLES = [
   },
 ];
 
+/**
+ * PRC-M623 (N3): the only tenants/students columns this job reads. The role
+ * holds column-level SELECT on exactly these (db/sql/318 and the privilege
+ * sync in tools/scripts/runtime-table-privileges-lib.mjs).
+ */
+export const PHI_RETENTION_COLUMN_READS = [
+  { table: 'students', columns: ['id', 'date_of_birth'] },
+  { table: 'tenants', columns: ['id', 'legal_hold'] },
+];
 /** PRC-M435: actor recorded on every retention deletion audit event. */
 export const PHI_RETENTION_ACTOR = 'system:phi-retention';
 
@@ -180,22 +189,31 @@ export function buildRetentionScript({ adultCutoffIso, minorCutoffIso, dryRun })
     [table, 'SELECT'],
     ...(dryRun ? [] : [[table, 'DELETE']]),
   ]).concat([
-    ['students', 'SELECT'],
-    ['tenants', 'SELECT'],
     ['privacy_legal_holds', 'SELECT'],
     ...(dryRun ? [] : [['audit_ingest_queue', 'INSERT']]),
   ]);
-  const privilegeSql = privilegeChecks
-    .map(
-      ([
-        table,
-        privilege,
-      ]) => `  IF NOT has_table_privilege(current_user, '${table}', '${privilege}') THEN
+  const tablePrivilegeSql = privilegeChecks.map(
+    ([
+      table,
+      privilege,
+    ]) => `  IF NOT has_table_privilege(current_user, '${table}', '${privilege}') THEN
     RAISE EXCEPTION 'PRC-M559: role % lacks ${privilege} on ${table}', current_user
       USING ERRCODE = '42501';
   END IF;`,
-    )
-    .join('\n');
+  );
+  // PRC-M623 (N3): tenants and students are granted column-level SELECT only
+  // (db/sql/318), so check each column read here rather than the whole table.
+  const columnPrivilegeSql = PHI_RETENTION_COLUMN_READS.flatMap(({ table, columns }) =>
+    columns.map(
+      (
+        column,
+      ) => `  IF NOT has_column_privilege(current_user, '${table}', '${column}', 'SELECT') THEN
+    RAISE EXCEPTION 'PRC-M559: role % lacks SELECT on ${table}.${column}', current_user
+      USING ERRCODE = '42501';
+  END IF;`,
+    ),
+  );
+  const privilegeSql = [...tablePrivilegeSql, ...columnPrivilegeSql].join('\n');
 
   const perTable = PHI_RETENTION_TABLES.map(({ table, idField, regulated }) => {
     const eligible = `${buildEligibleFrom({ table, adultCutoffIso, minorCutoffIso })}

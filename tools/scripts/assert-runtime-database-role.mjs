@@ -24,6 +24,15 @@
  *   ENVIRONMENT / GITHUB_ENV     production → gate required
  *   RUNTIME_ROLE_EXPECTED        Default: proctira_app (set empty to skip name check)
  *   RUNTIME_ROLE_JSON            1 → print JSON result
+ *
+ * Expected-role mode (PRC-M623 N4), for dedicated single-purpose roles such as
+ * proctira_phi_retention:
+ *   node tools/scripts/assert-runtime-database-role.mjs --expected-role=proctira_phi_retention
+ *   (or RUNTIME_ROLE_MODE=expected-role with RUNTIME_ROLE_EXPECTED=<role>)
+ * On top of the checks above, current_user must equal the role (never
+ * skippable) and must not be a member, directly or through other roles, of any
+ * role outside RUNTIME_ROLE_ALLOWED_MEMBERSHIPS (comma list, default none), so
+ * e.g. pg_read_all_data or another application role fails the gate.
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -60,6 +69,34 @@ export function resolveExpectedRole(env = process.env) {
 }
 
 /**
+ * PRC-M623 (N4): resolve the gate mode from CLI args and env.
+ * `--expected-role=<role>` (or RUNTIME_ROLE_MODE=expected-role plus
+ * RUNTIME_ROLE_EXPECTED) selects expected-role mode.
+ * @param {string[]} [argv]
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{ mode: 'runtime' | 'expected-role', expectedRole: string | null, allowedMemberships: string[] }}
+ */
+export function resolveGateMode(argv = [], env = process.env) {
+  let cliRole;
+  for (const arg of argv) {
+    if (arg.startsWith('--expected-role=')) cliRole = arg.slice('--expected-role='.length).trim();
+    else throw new Error(`unknown argument: ${arg}`);
+  }
+  const allowedMemberships = String(env.RUNTIME_ROLE_ALLOWED_MEMBERSHIPS ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (cliRole !== undefined || env.RUNTIME_ROLE_MODE === 'expected-role') {
+    const expectedRole = cliRole ?? resolveExpectedRole(env);
+    if (!expectedRole) {
+      throw new Error('expected-role mode needs a role name (--expected-role=<role>)');
+    }
+    return { mode: 'expected-role', expectedRole, allowedMemberships };
+  }
+  return { mode: 'runtime', expectedRole: resolveExpectedRole(env), allowedMemberships };
+}
+
+/**
  * Pure evaluation of a live probe row.
  * @param {{
  *   currentUser: string,
@@ -67,14 +104,30 @@ export function resolveExpectedRole(env = process.env) {
  *   rolbypassrls: boolean,
  *   ownedTableCount: number,
  *   ownerRoleMember: boolean,
+ *   memberships?: string[],
  * }} row
- * @param {{ expectedRole?: string | null }} [opts]
+ * @param {{ expectedRole?: string | null, mode?: 'runtime' | 'expected-role', allowedMemberships?: string[] }} [opts]
  * @returns {string[]}
  */
 export function evaluateRuntimeRoleProbe(row, opts = {}) {
   const issues = [];
-  const expectedRole =
-    opts.expectedRole === undefined ? 'proctira_app' : opts.expectedRole;
+  const expectedRole = opts.expectedRole === undefined ? 'proctira_app' : opts.expectedRole;
+  if (opts.mode === 'expected-role') {
+    if (!expectedRole) {
+      issues.push('expected-role mode needs a role name');
+    }
+    const allowed = new Set(opts.allowedMemberships ?? []);
+    const unexpected = Array.isArray(row.memberships)
+      ? row.memberships.filter((name) => !allowed.has(name))
+      : [];
+    if (!Array.isArray(row.memberships)) {
+      issues.push(`role membership probe returned no list for ${row.currentUser}`);
+    } else if (unexpected.length > 0) {
+      issues.push(
+        `role ${row.currentUser} is a member of unexpected role(s): ${unexpected.join(', ')}`,
+      );
+    }
+  }
 
   if (!row.currentUser) {
     issues.push('current_user is empty');
@@ -91,14 +144,10 @@ export function evaluateRuntimeRoleProbe(row, opts = {}) {
     );
   }
   if (row.ownerRoleMember) {
-    issues.push(
-      `role ${row.currentUser} is a member of a role that owns application tables`,
-    );
+    issues.push(`role ${row.currentUser} is a member of a role that owns application tables`);
   }
   if (expectedRole && row.currentUser !== expectedRole) {
-    issues.push(
-      `current_user is ${row.currentUser}, expected runtime role ${expectedRole}`,
-    );
+    issues.push(`current_user is ${row.currentUser}, expected runtime role ${expectedRole}`);
   }
   return issues;
 }
@@ -128,7 +177,19 @@ SELECT
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
       )
-  ) AS owner_role_member
+  ) AS owner_role_member,
+  -- PRC-M623 (N4): every role current_user belongs to, directly or through
+  -- other roles (expected-role mode allows none by default).
+  (
+    WITH RECURSIVE m(roleid) AS (
+      SELECT a.roleid FROM pg_auth_members a
+      WHERE a.member = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+      UNION
+      SELECT a.roleid FROM pg_auth_members a JOIN m ON a.member = m.roleid
+    )
+    SELECT coalesce(array_agg(r.rolname::text ORDER BY r.rolname), '{}')
+    FROM m JOIN pg_roles r ON r.oid = m.roleid
+  ) AS memberships
 `.trim();
 
 /**
@@ -148,6 +209,7 @@ export function normalizeProbeRow(raw) {
     rolbypassrls: asBool(raw.rolbypassrls),
     ownedTableCount: Number(raw.owned_table_count ?? raw.ownedTableCount ?? 0),
     ownerRoleMember: asBool(raw.owner_role_member ?? raw.ownerRoleMember),
+    memberships: Array.isArray(raw.memberships) ? raw.memberships.map(String) : undefined,
   };
 }
 
@@ -183,10 +245,10 @@ export async function probeRuntimeRole(databaseUrl) {
 /**
  * @param {NodeJS.ProcessEnv} [env]
  */
-export async function runRuntimeRoleGate(env = process.env) {
+export async function runRuntimeRoleGate(env = process.env, argv = []) {
   const required = isRuntimeRoleGateRequired(env);
   const databaseUrl = String(env.DATABASE_URL ?? '').trim();
-  const expectedRole = resolveExpectedRole(env);
+  const { mode, expectedRole, allowedMemberships } = resolveGateMode(argv, env);
 
   if (!databaseUrl) {
     if (required) {
@@ -210,7 +272,7 @@ export async function runRuntimeRoleGate(env = process.env) {
   }
 
   const row = await probeRuntimeRole(databaseUrl);
-  const issues = evaluateRuntimeRoleProbe(row, { expectedRole });
+  const issues = evaluateRuntimeRoleProbe(row, { expectedRole, mode, allowedMemberships });
   return {
     ok: issues.length === 0,
     required,
@@ -218,15 +280,20 @@ export async function runRuntimeRoleGate(env = process.env) {
     issues,
     row,
     expectedRole,
+    mode,
   };
 }
 
 async function main() {
-  const result = await runRuntimeRoleGate(process.env);
+  const result = await runRuntimeRoleGate(process.env, process.argv.slice(2));
   if (truthy(process.env.RUNTIME_ROLE_JSON)) {
     console.log(JSON.stringify(result, null, 2));
   } else if (result.skipped) {
     console.log(`assert-runtime-database-role: SKIP — ${result.message}`);
+  } else if (result.ok && result.mode === 'expected-role') {
+    console.log(
+      `assert-runtime-database-role: PASS (expected-role) — ${result.row?.currentUser} is NOSUPERUSER NOBYPASSRLS, owns 0 public tables, member of: ${result.row?.memberships?.join(', ') || 'no roles'}`,
+    );
   } else if (result.ok) {
     console.log(
       `assert-runtime-database-role: PASS — ${result.row?.currentUser} is NOSUPERUSER NOBYPASSRLS, owns 0 public tables, not owner-role member`,
@@ -240,9 +307,7 @@ async function main() {
   process.exit(result.ok ? 0 : 1);
 }
 
-const isDirect =
-  process.argv[1] &&
-  pathToFileURL(process.argv[1]).href === import.meta.url;
+const isDirect = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
 
 if (isDirect) {
   main().catch((err) => {

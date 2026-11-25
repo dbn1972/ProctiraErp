@@ -21,6 +21,19 @@
 {{- if eq .Values.dr.phiRetention.databaseUrlSecretKey .Values.dr.databaseUrlSecretKey }}
 {{- fail "PRC-M623: dr.phiRetention.databaseUrlSecretKey must differ from dr.databaseUrlSecretKey; PHI retention must not share the BYPASSRLS backup credential." }}
 {{- end }}
+{{/*
+  PRC-M623 (N2) — when the chart manages the Secret, the retention URL value
+  must be set, and the CronJob must read the key templates/secret.yaml writes.
+  Otherwise the pod fails at start with CreateContainerConfigError. With
+  secrets.existingSecret the key is checked before deploy by
+  tools/scripts/check-phi-retention-secret-key.sh.
+*/}}
+{{- if not .Values.secrets.existingSecret }}
+{{- $_ := required "PRC-M623: secrets.phiRetentionDatabaseUrl is required when the chart manages the Secret and dr.phiRetention.enabled=true (proctira_phi_retention URL; set it or use secrets.existingSecret)." .Values.secrets.phiRetentionDatabaseUrl }}
+{{- if ne .Values.dr.phiRetention.databaseUrlSecretKey "PHI_RETENTION_DATABASE_URL" }}
+{{- fail "PRC-M623: with a chart-managed Secret, dr.phiRetention.databaseUrlSecretKey must be PHI_RETENTION_DATABASE_URL (the key templates/secret.yaml writes)." }}
+{{- end }}
+{{- end }}
 # G-707 / W1-OPS-19 — scheduled PHI / minor-data retention job.
 # Production: apply=true → RETENTION_DRY_RUN=0 (enforces deletion).
 # Sandbox: apply=false → RETENTION_DRY_RUN=1 (explicit dry-run only).
