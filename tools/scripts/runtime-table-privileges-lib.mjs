@@ -284,11 +284,22 @@ export function generateSyncSql(catalog) {
 export const PHI_RETENTION_ROLE = 'proctira_phi_retention';
 
 /**
- * PRC-M623 grants for the PHI retention role, the same set as
- * db/sql/312_phi_retention_role_grants.sql. Each entry is one GRANT statement.
+ * PRC-M623 table-wide privileges removed before the grants below: 312 granted
+ * full-row SELECT on these tables; 318 narrows it to columns (N3).
+ */
+export const PHI_RETENTION_REVOKES = [{ privileges: 'SELECT', tables: ['tenants', 'students'] }];
+
+/**
+ * PRC-M623 grants for the PHI retention role: the posture of
+ * db/sql/312_phi_retention_role_grants.sql as narrowed by
+ * db/sql/318_phi_retention_column_select.sql. Each entry is one GRANT
+ * statement. The tenants/students columns are exactly those
+ * tools/scripts/phi-retention-job.mjs reads (PHI_RETENTION_COLUMN_READS).
  */
 export const PHI_RETENTION_GRANTS = [
-  { privileges: 'SELECT', tables: ['tenants', 'students', 'privacy_legal_holds'] },
+  { privileges: 'SELECT (id, legal_hold)', tables: ['tenants'] },
+  { privileges: 'SELECT (id, date_of_birth)', tables: ['students'] },
+  { privileges: 'SELECT', tables: ['privacy_legal_holds'] },
   {
     privileges: 'SELECT, DELETE',
     tables: ['counselling_sessions', 'health_special_needs_assessments'],
@@ -318,6 +329,11 @@ export function generatePhiRetentionSyncSql() {
     '    RETURN;',
     '  END IF;',
   ];
+  for (const revoke of PHI_RETENTION_REVOKES) {
+    lines.push(
+      `  REVOKE ${revoke.privileges} ON TABLE ${revoke.tables.join(', ')} FROM ${PHI_RETENTION_ROLE};`,
+    );
+  }
   for (const grant of PHI_RETENTION_GRANTS) {
     lines.push(
       `  GRANT ${grant.privileges} ON TABLE ${grant.tables.join(', ')} TO ${PHI_RETENTION_ROLE};`,

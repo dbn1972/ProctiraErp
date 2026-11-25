@@ -207,17 +207,41 @@ test('PRC-M623: PHI retention grant sync is role-guarded and grants only the job
     sql.slice(start, guard),
     /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_phi_retention'\)/,
   );
-  const grants = sql.match(/^ {2}GRANT .*;$/gm) ?? [];
+  const statements = sql.match(/^ {2}(?:GRANT|REVOKE) .*;$/gm) ?? [];
   assert.ok(
-    grants.every((g) => sql.indexOf(g) > guard),
-    'every GRANT follows the role guard',
+    statements.every((g) => sql.indexOf(g) > guard),
+    'every GRANT/REVOKE follows the role guard',
   );
-  assert.deepEqual(grants, [
-    '  GRANT SELECT ON TABLE tenants, students, privacy_legal_holds TO proctira_phi_retention;',
+  assert.deepEqual(statements, [
+    // N3: table-wide SELECT from 312 is removed before the column grants.
+    '  REVOKE SELECT ON TABLE tenants, students FROM proctira_phi_retention;',
+    '  GRANT SELECT (id, legal_hold) ON TABLE tenants TO proctira_phi_retention;',
+    '  GRANT SELECT (id, date_of_birth) ON TABLE students TO proctira_phi_retention;',
+    '  GRANT SELECT ON TABLE privacy_legal_holds TO proctira_phi_retention;',
     '  GRANT SELECT, DELETE ON TABLE counselling_sessions, health_special_needs_assessments TO proctira_phi_retention;',
     '  GRANT INSERT ON TABLE audit_ingest_queue TO proctira_phi_retention;',
   ]);
   assert.doesNotMatch(sql, /\bALL\b|UPDATE|TRUNCATE|BYPASSRLS/);
+});
+
+test('PRC-M623 (N3): migration 318 and the sync narrow tenants/students to the same columns', () => {
+  const migration = readFileSync(
+    join(process.cwd(), 'db/sql/318_phi_retention_column_select.sql'),
+    'utf8',
+  );
+  const sync = generatePhiRetentionSyncSql();
+  for (const line of [
+    'REVOKE SELECT ON TABLE tenants, students FROM proctira_phi_retention;',
+    'GRANT SELECT (id, legal_hold) ON TABLE tenants TO proctira_phi_retention;',
+    'GRANT SELECT (id, date_of_birth) ON TABLE students TO proctira_phi_retention;',
+  ]) {
+    assert.ok(migration.includes(line), `318 missing: ${line}`);
+    assert.ok(sync.includes(line), `sync missing: ${line}`);
+  }
+  assert.match(
+    migration,
+    /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_phi_retention'\) THEN[\s\S]*RETURN;[\s\S]*REVOKE/,
+  );
 });
 
 test('PRC-M623: --print-sql (what apply-sql re-runs) includes the PHI retention grant sync', () => {

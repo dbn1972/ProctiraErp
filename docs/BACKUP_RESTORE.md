@@ -200,10 +200,12 @@ CronJob must not use the backup credential. It connects as
 `proctira_phi_retention` (`NOSUPERUSER NOBYPASSRLS`, created by
 `tools/scripts/bootstrap-db-roles.sh`, password from
 `PHI_RETENTION_ROLE_PASSWORD`), binds `app.tenant_id` per tenant and is limited
-by the normal tenant policies. `db/sql/312_phi_retention_role_grants.sql` grants
-it SELECT on `tenants`, `students`, `privacy_legal_holds`; SELECT and DELETE on
-`counselling_sessions` and `health_special_needs_assessments`; INSERT on
-`audit_ingest_queue`. 312 skips these grants when the role does not exist yet,
+by the normal tenant policies. `db/sql/312_phi_retention_role_grants.sql` and
+`db/sql/318_phi_retention_column_select.sql` grant it SELECT on
+`privacy_legal_holds`; column-level SELECT on `tenants (id, legal_hold)` and
+`students (id, date_of_birth)` only, the columns the job reads; SELECT and
+DELETE on `counselling_sessions` and `health_special_needs_assessments`; INSERT
+on `audit_ingest_queue`. 312 skips these grants when the role does not exist yet,
 so `tools/scripts/apply-sql.sh` re-applies them on every run (role-guarded, in
 `tools/scripts/apply-runtime-table-privileges.sh`). If the role was created
 after 312 ran, re-run `apply-sql.sh` as the migrator. Store the URL as
