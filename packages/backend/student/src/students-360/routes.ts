@@ -27,9 +27,11 @@ import {
   isDisciplineStaff,
   isMedicalStaff,
   isRegistrarOrAdmin,
+  isSectionScopedDisciplineStaff,
   isStudentReadStaff,
   resolveStudentReadScope,
   type StudentPortalBinding,
+  type TeacherStudentScope,
 } from '../student-portal-access.js';
 
 import {
@@ -65,6 +67,11 @@ export interface Students360RoutesOptions {
   prefix?: string;
   /** PRC-C011: portal ownership binding (guardian/parent → children, student → self). */
   studentBinding?: StudentPortalBinding;
+  /**
+   * PRC-M121: teacher → taught-students lookup. Without it, teacher-only roles are denied
+   * discipline records (fail closed).
+   */
+  teacherStudentScope?: TeacherStudentScope;
 }
 
 function tenantOf(request: FastifyRequest): string | null {
@@ -76,6 +83,13 @@ function actorOf(request: FastifyRequest): string {
   return user?.sub ?? user?.userId ?? 'system';
 }
 
+/** PRC-M121: the caller's principal ids (JWT sub and user id), for staff.user_id matching. */
+function principalIdsOf(request: FastifyRequest): string[] {
+  const user = (request as FastifyRequest & { user?: { sub?: unknown; userId?: unknown } }).user;
+  return [user?.sub, user?.userId].filter(
+    (id): id is string => typeof id === 'string' && id.trim().length > 0,
+  );
+}
 function rolesOf(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
   return user?.roles ?? [];
@@ -202,7 +216,7 @@ export async function registerStudents360Routes(
   fastify: FastifyInstance,
   options: Students360RoutesOptions,
 ): Promise<void> {
-  const { service, prefix = '/students', studentBinding } = options;
+  const { service, prefix = '/students', studentBinding, teacherStudentScope } = options;
 
   /**
    * PRC-C011: central authorization for every students-360 route. These routes were previously
@@ -297,10 +311,31 @@ export async function registerStudents360Routes(
       forbid(reply, 'Forbidden: consents require registrar/admin');
       return;
     }
-    // Discipline writes require discipline staff.
-    if (url.includes('/discipline') && isWrite && !isDisciplineStaff(roles)) {
-      forbid(reply, 'Forbidden: discipline requires teacher/registrar/admin');
-      return;
+    if (url.includes('/discipline')) {
+      // PRC-M121: discipline records are not part of the general student profile. Staff need a
+      // discipline role to read or write them; portal owners still read visibleToParent rows.
+      if (staff && !isDisciplineStaff(roles)) {
+        forbid(reply, 'Forbidden: discipline requires teacher/registrar/admin');
+        return;
+      }
+      // PRC-M121: a teacher (no admin / registrar role) is limited to students they teach. A
+      // missing or failing lookup denies (topic 7 Option A: fail closed on scope errors).
+      if (staff && isSectionScopedDisciplineStaff(roles)) {
+        const principalIds = principalIdsOf(request);
+        let teaches = false;
+        if (teacherStudentScope && principalIds.length > 0) {
+          try {
+            teaches = await teacherStudentScope.teachesStudent(tenantId, principalIds, studentId);
+          } catch (error) {
+            request.log.warn({ err: error }, 'teacher section scope lookup failed; denying');
+            teaches = false;
+          }
+        }
+        if (!teaches) {
+          forbid(reply, 'Forbidden: discipline records are limited to students you teach');
+          return;
+        }
+      }
     }
   });
 
