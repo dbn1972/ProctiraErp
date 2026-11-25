@@ -184,7 +184,7 @@ import {
   WorkflowService,
   workflowPlugin,
 } from '@proctira/backend-workflow';
-import { BusinessRuleError, ConflictError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import { createStorageAdapter } from '@proctira/storage';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -763,6 +763,35 @@ export function verifyOfferFeeInvoiceOwnershipHook(
       invoice.status !== 'void' &&
       invoice.status !== 'written_off'
     );
+  };
+}
+
+type OfferFeePaymentRefReader = Pick<FeesService, 'isRecordedPaymentRef'>;
+
+/**
+ * PRC-M535: a guardian paymentRef must name a succeeded payment recorded on the
+ * offer's fee invoice in this tenant (payment id, PSP event key or receipt
+ * number). Read-only; an unknown/foreign invoice (404 under tenant RLS) -> false.
+ * PSP-side verification of the reference is not done here.
+ */
+export function verifyOfferFeePaymentRefHook(
+  createReader: () => OfferFeePaymentRefReader = () => new FeesService(createFeesRepository()),
+) {
+  return async (input: {
+    tenantId: string;
+    invoiceId: string;
+    paymentRef: string;
+  }): Promise<boolean> => {
+    try {
+      return await createReader().isRecordedPaymentRef(
+        input.tenantId,
+        input.invoiceId,
+        input.paymentRef,
+      );
+    } catch (error) {
+      if (error instanceof NotFoundError) return false;
+      throw error;
+    }
   };
 }
 
@@ -1961,6 +1990,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         shared.crmStore,
         reconcileAdmissionsOfferResourcesHook(),
         verifyOfferFeeInvoiceOwnershipHook(),
+        undefined,
+        verifyOfferFeePaymentRefHook(),
       );
       await scope.register(parentPortalPlugin, {
         repository,
