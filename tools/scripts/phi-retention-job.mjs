@@ -128,28 +128,179 @@ export function buildRetentionPlan({
   };
 }
 
-function psqlScalar(sql) {
-  const result = spawnSync('psql', [DATABASE_URL, '-v', 'ON_ERROR_STOP=1', '-At', '-c', sql], {
-    encoding: 'utf8',
-  });
-  if (result.status !== 0) {
-    return null;
-  }
-  const text = (result.stdout || '').trim();
-  const n = Number(text);
-  return Number.isFinite(n) ? n : 0;
+/** PHI tables swept by the job. `key` names the summary candidate field. */
+export const PHI_RETENTION_TABLES = [
+  { table: 'counselling_sessions', key: 'counsellingSessions' },
+  { table: 'health_special_needs_assessments', key: 'specialNeedsRecords' },
+];
+
+/**
+ * PRC-M559: one SQL script for the whole run, executed by one psql session
+ * under `--single-transaction`, so counts and deletes for every tenant commit
+ * or roll back together. The script:
+ *   - asserts at startup that the connected role holds the privileges the run
+ *     needs (SELECT, plus DELETE when applying);
+ *   - enumerates tenants under the platform scope and fails when none are
+ *     visible (an RLS-filtered role must not report a run that scanned nothing);
+ *   - binds `app.tenant_id` per tenant and checks the tenant row is visible
+ *     under that binding, so FORCE RLS cannot silently hide the tenant's rows;
+ *   - counts eligible rows per tenant and table and, when applying, deletes
+ *     them and raises unless the deleted count equals the eligible count.
+ * The final statement prints one JSON line with per-tenant counts.
+ *
+ * @param {object} args
+ * @param {string} args.adultCutoffIso
+ * @param {string} args.minorCutoffIso
+ * @param {boolean} args.dryRun
+ * @returns {string}
+ */
+export function buildRetentionScript({ adultCutoffIso, minorCutoffIso, dryRun }) {
+  const privilegeChecks = PHI_RETENTION_TABLES.flatMap(({ table }) => [
+    [table, 'SELECT'],
+    ...(dryRun ? [] : [[table, 'DELETE']]),
+  ]).concat([
+    ['students', 'SELECT'],
+    ['tenants', 'SELECT'],
+  ]);
+  const privilegeSql = privilegeChecks
+    .map(
+      ([
+        table,
+        privilege,
+      ]) => `  IF NOT has_table_privilege(current_user, '${table}', '${privilege}') THEN
+    RAISE EXCEPTION 'PRC-M559: role % lacks ${privilege} on ${table}', current_user
+      USING ERRCODE = '42501';
+  END IF;`,
+    )
+    .join('\n');
+
+  const perTable = PHI_RETENTION_TABLES.map(({ table }) => {
+    const eligible = `${buildEligibleFrom({ table, adultCutoffIso, minorCutoffIso })}
+       AND r.tenant_id::text = v_tenant`;
+    const apply = dryRun
+      ? `    v_deleted := 0;`
+      : `    WITH d AS (
+      DELETE FROM "${table}" t
+      WHERE t.tenant_id::text = v_tenant
+        AND t.id IN (SELECT r.id ${eligible})
+      RETURNING t.id
+    )
+    SELECT count(*)::int INTO v_deleted FROM d;
+    IF v_deleted <> v_eligible THEN
+      RAISE EXCEPTION 'PRC-M559: tenant % ${table}: deleted % of % eligible rows', v_tenant, v_deleted, v_eligible;
+    END IF;`;
+    return `    SELECT count(*)::int INTO v_eligible ${eligible};
+${apply}
+    INSERT INTO phi_retention_result VALUES (v_tenant, '${table}', v_eligible, v_deleted);`;
+  }).join('\n');
+
+  return `CREATE TEMP TABLE phi_retention_result (
+  tenant_id text NOT NULL,
+  table_name text NOT NULL,
+  eligible integer NOT NULL,
+  deleted integer NOT NULL
+) ON COMMIT DROP;
+DO $phi_retention$
+DECLARE
+  v_tenants text[];
+  v_tenant text;
+  v_eligible integer;
+  v_deleted integer;
+BEGIN
+${privilegeSql}
+  PERFORM set_config('app.tenant_id', '', true);
+  PERFORM set_config('app.platform_admin', '1', true);
+  SELECT coalesce(array_agg(id::text ORDER BY id::text), '{}') INTO v_tenants FROM tenants;
+  PERFORM set_config('app.platform_admin', '', true);
+  IF cardinality(v_tenants) = 0 THEN
+    RAISE EXCEPTION 'PRC-M559: role % sees no tenants; refusing to report a retention run that scanned nothing', current_user
+      USING ERRCODE = '42501';
+  END IF;
+  FOREACH v_tenant IN ARRAY v_tenants LOOP
+    PERFORM set_config('app.tenant_id', v_tenant, true);
+    IF NOT EXISTS (SELECT 1 FROM tenants WHERE id::text = v_tenant) THEN
+      RAISE EXCEPTION 'PRC-M559: tenant % is not visible with app.tenant_id bound (RLS)', v_tenant
+        USING ERRCODE = '42501';
+    END IF;
+${perTable}
+  END LOOP;
+  PERFORM set_config('app.tenant_id', '', true);
+END
+$phi_retention$;
+SELECT json_build_object(
+  'tenantsScanned', (SELECT count(DISTINCT tenant_id) FROM phi_retention_result),
+  'rows', coalesce(
+    (SELECT json_agg(json_build_object(
+       'tenantId', tenant_id, 'table', table_name, 'eligible', eligible, 'deleted', deleted
+     ) ORDER BY tenant_id, table_name) FROM phi_retention_result),
+    '[]'::json)
+)::text;
+`;
 }
 
-function psqlExec(sql) {
-  const result = spawnSync('psql', [DATABASE_URL, '-v', 'ON_ERROR_STOP=1', '-At', '-c', sql], {
-    encoding: 'utf8',
-  });
-  if (result.status !== 0) {
-    throw new Error(result.stderr || 'psql failed');
+/**
+ * Run the retention script in one psql session and one transaction. Any psql
+ * error (connection, privilege, RLS assertion, count mismatch) throws; nothing
+ * is reported as a zero count.
+ *
+ * @param {string} sql
+ * @param {{ databaseUrl: string, spawn?: typeof spawnSync }} options
+ * @returns {{ tenantsScanned: number, rows: Array<{ tenantId: string, table: string, eligible: number, deleted: number }> }}
+ */
+export function runRetentionScript(sql, { databaseUrl, spawn = spawnSync }) {
+  const result = spawn(
+    'psql',
+    [
+      '-X',
+      '-q',
+      '-At',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '--single-transaction',
+      '-d',
+      databaseUrl,
+      '-f',
+      '-',
+    ],
+    { encoding: 'utf8', input: sql },
+  );
+  // Never rethrow the spawn error object itself: its spawnargs carry the URL.
+  if (result.error) {
+    throw new Error(`PRC-M559: could not run psql (${result.error.code ?? 'spawn error'})`);
   }
-  const text = (result.stdout || '').trim();
-  const n = Number(text);
-  return Number.isFinite(n) ? n : 0;
+  if (result.status !== 0) {
+    throw new Error(`PRC-M559: psql failed (exit ${result.status}): ${result.stderr || ''}`.trim());
+  }
+  const lines = String(result.stdout || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const last = lines[lines.length - 1];
+  let parsed;
+  try {
+    parsed = JSON.parse(last ?? '');
+  } catch {
+    throw new Error('PRC-M559: psql returned no retention summary');
+  }
+  if (!parsed || !Number.isInteger(parsed.tenantsScanned) || !Array.isArray(parsed.rows)) {
+    throw new Error('PRC-M559: psql returned a malformed retention summary');
+  }
+  return parsed;
+}
+
+/**
+ * Sum per-tenant rows into the summary candidate / applied counts.
+ * @param {Array<{ table: string, eligible: number, deleted: number }>} rows
+ */
+export function summariseRetentionRows(rows) {
+  const total = (table, field) =>
+    rows.filter((row) => row.table === table).reduce((sum, row) => sum + Number(row[field]), 0);
+  return {
+    counsellingCount: total('counselling_sessions', 'eligible'),
+    specialNeedsCount: total('health_special_needs_assessments', 'eligible'),
+    counsellingDeleted: total('counselling_sessions', 'deleted'),
+    specialNeedsDeleted: total('health_special_needs_assessments', 'deleted'),
+  };
 }
 
 async function main() {
@@ -174,49 +325,32 @@ async function main() {
   const adultCutoff = retentionCutoffIso(PHI_DAYS);
   const minorCutoff = retentionCutoffIso(MINOR_DAYS);
 
-  // PRC-H107: minor-linked records are retained for the longer minor window.
-  const counsellingFrom = buildEligibleFrom({
-    table: 'counselling_sessions',
-    adultCutoffIso: adultCutoff,
-    minorCutoffIso: minorCutoff,
-  });
-  const specialNeedsFrom = buildEligibleFrom({
-    table: 'health_special_needs_assessments',
-    adultCutoffIso: adultCutoff,
-    minorCutoffIso: minorCutoff,
-  });
-
-  const counsellingCount = psqlScalar(`SELECT count(*)::int ${counsellingFrom};`) ?? 0;
-
-  const specialNeedsCount = psqlScalar(`SELECT count(*)::int ${specialNeedsFrom};`) ?? 0;
+  // PRC-H107: minor-linked records are retained for the longer minor window
+  // (buildEligibleFrom, used per table inside buildRetentionScript).
+  // PRC-M559: counts and deletes run in one psql session / one transaction and
+  // every psql failure throws (main().catch exits non-zero).
+  const summary = runRetentionScript(
+    buildRetentionScript({ adultCutoffIso: adultCutoff, minorCutoffIso: minorCutoff, dryRun }),
+    { databaseUrl: DATABASE_URL },
+  );
+  const totals = summariseRetentionRows(summary.rows);
 
   const plan = buildRetentionPlan({
-    counsellingCount,
-    specialNeedsCount,
+    counsellingCount: totals.counsellingCount,
+    specialNeedsCount: totals.specialNeedsCount,
     dryRun,
     phiDays: PHI_DAYS,
     minorDays: MINOR_DAYS,
   });
   plan.mode = dryRun ? 'dry-run' : 'apply';
+  plan.tenantsScanned = summary.tenantsScanned;
+  plan.perTenant = summary.rows;
 
   if (!dryRun) {
-    const counsellingDeleted = psqlExec(
-      `WITH d AS (
-         DELETE FROM counselling_sessions
-         WHERE id IN (SELECT r.id ${counsellingFrom})
-         RETURNING 1
-       ) SELECT count(*)::int FROM d;`,
-    );
-    // PRC-H107/H259: a failure here must not be swallowed as a zero count and
-    // reported as success. Let psqlExec throw so main().catch exits non-zero.
-    const specialNeedsDeleted = psqlExec(
-      `WITH d AS (
-         DELETE FROM health_special_needs_assessments
-         WHERE id IN (SELECT r.id ${specialNeedsFrom})
-         RETURNING 1
-       ) SELECT count(*)::int FROM d;`,
-    );
-    plan.applied = { counsellingDeleted, specialNeedsDeleted };
+    plan.applied = {
+      counsellingDeleted: totals.counsellingDeleted,
+      specialNeedsDeleted: totals.specialNeedsDeleted,
+    };
   }
 
   await writeFile(path.join(ARTIFACT_DIR, 'summary.json'), `${JSON.stringify(plan, null, 2)}\n`);

@@ -958,6 +958,17 @@ jobs:
           tools/scripts/assert-live-test-execution.test.ts
           tools/scripts/assert-vitest-skips.test.ts
           tools/scripts/__tests__/check-contrast.test.ts
+      # PRC-M559: the PHI retention suite (psql is a PATH stub) had the same
+      # reachability gap. The dry-run then runs the job against the migrated
+      # database: one psql session, per-tenant RLS binding, counts only.
+      - name: PHI retention job suite + live dry-run
+        run: |
+          env -u DATABASE_URL node --test tools/scripts/__tests__/phi-retention-job.test.mjs
+          node tools/scripts/phi-retention-job.mjs
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          RETENTION_DRY_RUN: '1'
+          ARTIFACT_DIR: /tmp/phi-retention
 
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
