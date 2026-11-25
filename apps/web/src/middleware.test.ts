@@ -491,3 +491,75 @@ describe('UATENV-D06 / D13: Keycloak session claims in middleware', () => {
     expect(portalRoleRedirect('/', [])).toBeNull();
   });
 });
+
+describe('UATENV-D18: idle session with only the refresh cookie left', () => {
+  const refreshUrls = () =>
+    vi
+      .mocked(fetch)
+      .mock.calls.map(([url]) => String(url))
+      .filter((url) => url.includes('/api/auth/refresh'));
+
+  function stubRefresh(ok: boolean) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        if (!String(url).includes('/api/auth/refresh')) {
+          return new Response('{}', { status: 404 });
+        }
+        if (!ok) return new Response('{}', { status: 401 });
+        const headers = new Headers();
+        headers.append('set-cookie', 'access_token=rotated-at; Path=/; HttpOnly');
+        headers.append('set-cookie', 'refresh_token=rt-rotated; Path=/; HttpOnly');
+        return new Response('{"success":true}', { status: 200, headers });
+      }),
+    );
+  }
+
+  async function navigate(cookie: string) {
+    const { NextRequest } = await import('next/server');
+    const { middleware, clearTenantConfigCache, __resetRefreshSingleFlight } =
+      await import('./middleware');
+    clearTenantConfigCache();
+    __resetRefreshSingleFlight();
+    return middleware(
+      new NextRequest('https://app.proctira.io/students?page=2', {
+        headers: { host: 'app.proctira.io', ...(cookie ? { cookie } : {}) },
+      }),
+    );
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('refreshes and replays the navigation instead of redirecting to /login', async () => {
+    stubRefresh(true);
+    const res = await navigate('refresh_token=rt-idle');
+    expect(refreshUrls()).toEqual(['https://app.proctira.io/api/auth/refresh']);
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://app.proctira.io/students?page=2');
+    const cookies = (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie();
+    expect(cookies.some((c) => c.startsWith('access_token=rotated-at'))).toBe(true);
+    expect(cookies.some((c) => c.startsWith('refresh_token=rt-rotated'))).toBe(true);
+  });
+
+  it('sends the user to /login and clears the cookies when the refresh is refused', async () => {
+    stubRefresh(false);
+    const res = await navigate('refresh_token=rt-revoked');
+    expect(refreshUrls()).toHaveLength(1);
+    const location = new URL(res.headers.get('location')!);
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('returnTo')).toBe('/students');
+    const cookies = (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie();
+    expect(cookies.some((c) => /^refresh_token=;/.test(c))).toBe(true);
+    expect(cookies.some((c) => /^access_token=;/.test(c))).toBe(true);
+  });
+
+  it('still sends a request with no session cookies to /login without a refresh call', async () => {
+    stubRefresh(true);
+    const res = await navigate('');
+    expect(refreshUrls()).toHaveLength(0);
+    expect(new URL(res.headers.get('location')!).pathname).toBe('/login');
+  });
+});

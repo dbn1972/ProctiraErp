@@ -415,8 +415,17 @@ export async function middleware(request: NextRequest) {
     // PRC-L254: the session gate trusts only a token whose signature, issuer
     // and audience verify against the IdP JWKS. Expiry is checked separately so
     // an authentic expired token can still take the refresh path.
-    const claims = accessToken ? await readSessionToken(accessToken, { ignoreExpiry: true }) : null;
-    if (!accessToken || !claims) {
+    // UATENV-D18: the access cookie's maxAge equals the access-token lifetime, so
+    // after an idle period the browser has dropped it while the refresh cookie
+    // is still valid. That session takes the refresh path instead of /login.
+    if (!accessToken) {
+      return refreshToken
+        ? refreshAndReplay(request, pathname, refreshToken)
+        : redirectToLogin(request, pathname);
+    }
+
+    const claims = await readSessionToken(accessToken, { ignoreExpiry: true });
+    if (!claims) {
       return redirectToLogin(request, pathname);
     }
 
@@ -426,28 +435,7 @@ export async function middleware(request: NextRequest) {
       if (!refreshToken) {
         return redirectToLogin(request, pathname);
       }
-
-      // PRC-M493: single-flight per refresh token; parallel navigations share one
-      // /api/auth/refresh call and its rotated cookies instead of racing the rotation.
-      const refreshed = await refreshOnce(request, refreshToken);
-      if (!refreshed) {
-        const expiredResponse = redirectToLogin(request, pathname);
-        // Clear the stale tokens so the user gets a clean state on retry.
-        expiredResponse.cookies.delete(ACCESS_TOKEN_COOKIE);
-        expiredResponse.cookies.delete(REFRESH_TOKEN_COOKIE);
-        return expiredResponse;
-      }
-      if (refreshed.setCookies.length === 0) {
-        // PRC-M493: a 200 without rotated cookies would replay with the same expired token
-        // and loop forever; send the user to sign in instead.
-        return redirectToLogin(request, pathname);
-      }
-      // Replay the original navigation now that cookies have been rotated.
-      const replay = NextResponse.redirect(request.url);
-      // Carry the rotated cookies onto the redirect so the browser sees them
-      // before the next request hits the middleware again.
-      refreshed.setCookies.forEach((cookie) => replay.headers.append('set-cookie', cookie));
-      return replay;
+      return refreshAndReplay(request, pathname, refreshToken);
     }
 
     // Forward tenant from the verified JWT claim when present (takes precedence
@@ -604,6 +592,38 @@ async function tryRefresh(request: NextRequest): Promise<Response | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Rotates the session through /api/auth/refresh and replays the navigation
+ * with the new cookies; any failure sends the user to /login.
+ */
+async function refreshAndReplay(
+  request: NextRequest,
+  pathname: string,
+  refreshToken: string,
+): Promise<NextResponse> {
+  // PRC-M493: single-flight per refresh token; parallel navigations share one
+  // /api/auth/refresh call and its rotated cookies instead of racing the rotation.
+  const refreshed = await refreshOnce(request, refreshToken);
+  if (!refreshed) {
+    const expiredResponse = redirectToLogin(request, pathname);
+    // Clear the stale tokens so the user gets a clean state on retry.
+    expiredResponse.cookies.delete(ACCESS_TOKEN_COOKIE);
+    expiredResponse.cookies.delete(REFRESH_TOKEN_COOKIE);
+    return expiredResponse;
+  }
+  if (refreshed.setCookies.length === 0) {
+    // PRC-M493: a 200 without rotated cookies would replay with the same expired token
+    // and loop forever; send the user to sign in instead.
+    return redirectToLogin(request, pathname);
+  }
+  // Replay the original navigation now that cookies have been rotated.
+  const replay = NextResponse.redirect(request.url);
+  // Carry the rotated cookies onto the redirect so the browser sees them
+  // before the next request hits the middleware again.
+  refreshed.setCookies.forEach((cookie) => replay.headers.append('set-cookie', cookie));
+  return replay;
 }
 
 function redirectToLogin(request: NextRequest, returnTo: string): NextResponse {
