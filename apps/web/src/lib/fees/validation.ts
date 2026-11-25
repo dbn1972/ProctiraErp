@@ -128,6 +128,8 @@ export const concessionFormSchema = z
 export const refundFormSchema = z.object({
   idempotencyKey: idempotencyKeyField,
   invoiceId: z.string().regex(UUID, 'Invoice is required'),
+  /** PRC-M090: a refund returns money from one specific payment of the invoice. */
+  paymentId: z.string().regex(UUID, 'Choose the payment to refund'),
   amount: z.coerce.number().gt(0, 'Amount must be greater than 0'),
   reason: z.string().min(1, 'Reason is required').max(2000),
 });

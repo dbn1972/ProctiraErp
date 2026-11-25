@@ -14,8 +14,10 @@ import {
   type BulkInvoicePreview,
   createFeeStructure,
   importReconciliation,
+  listRefundablePayments,
   recordInvoicePayment,
   refundInvoice,
+  type RefundablePayment,
   removeReminderSuppression,
   resolveReconciliationException,
   sendFeeReminders,
@@ -207,6 +209,7 @@ export async function refundInvoiceAction(
     const refund = await refundInvoice(
       parsed.data.invoiceId,
       {
+        paymentId: parsed.data.paymentId,
         amountCents: majorUnitsToCents(parsed.data.amount),
         reason: parsed.data.reason,
       },
@@ -214,6 +217,20 @@ export async function refundInvoiceAction(
     );
     refreshFees();
     return { success: true, data: { id: refund.id } };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** PRC-M090: payments the refund dialog can target, with what is still refundable. */
+export async function listRefundablePaymentsAction(
+  invoiceId: string,
+): Promise<ActionResult<RefundablePayment[]>> {
+  if (!refundFormSchema.shape.invoiceId.safeParse(invoiceId).success) {
+    return { success: false, error: 'Invalid invoice' };
+  }
+  try {
+    return { success: true, data: await listRefundablePayments(invoiceId) };
   } catch (error) {
     return fail(error);
   }

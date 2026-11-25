@@ -48,6 +48,21 @@ export {
   LIVE_PUSH_UNIMPLEMENTED_NOTE,
   LIVE_SMS_UNIMPLEMENTED_NOTE,
 } from './channel-sender-factory.js';
+export {
+  createFcmPushSender,
+  createMsg91SmsSender,
+  createSesEmailSender,
+  loadFcmConfigFromEnv,
+  loadMsg91ConfigFromEnv,
+  loadSesConfigFromEnv,
+  signAwsV4,
+} from './live-channel-senders.js';
+export type {
+  DeviceTokenLookup,
+  FcmConfig,
+  Msg91Config,
+  SesConfig,
+} from './live-channel-senders.js';
 
 // Repository
 export type {

@@ -84,6 +84,17 @@ export {
   createPaymentAdapterFromEnv,
 } from './payment-adapter.js';
 export type { PaymentAdapter, ChargeInput, ChargeResult } from './payment-adapter.js';
+export {
+  RazorpayPaymentAdapter,
+  RazorpayApiError,
+  RazorpayWebhookSignatureError,
+  loadRazorpayConfigFromEnv,
+  parseRazorpayWebhook,
+  verifyRazorpayWebhookSignature,
+} from './razorpay-payment-adapter.js';
+export type { RazorpayConfig, RazorpayCapturedPayment } from './razorpay-payment-adapter.js';
+export { settleRazorpayWebhook, RAZORPAY_PSP_ACTOR } from './razorpay-webhook.js';
+export type { RazorpayWebhookOutcome } from './razorpay-webhook.js';
 
 export { assertFeesAccess, hasFeesAccess, normalizeFeesRoles } from './fees-access.js';
 export type { FeesAction } from './fees-access.js';

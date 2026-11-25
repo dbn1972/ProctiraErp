@@ -3,8 +3,13 @@
  * Sandbox adapters + capability discovery.
  *
  * W2-INT-03: credentials / PROVIDER_MODE=live alone must NOT report liveReady.
- * Live SMS/email/push/PSP adapters are not implemented in-tree; claiming live
- * would enable silent stub success. IdP may report issuer URL presence only.
+ * PRC-M326 (DR36/DR50): live adapters now exist for the chosen providers — PSP
+ * Razorpay (@proctira/backend-fees), SMS MSG91, email Amazon SES, push FCM
+ * (@proctira/backend-notification). A channel reports live only when
+ * PROVIDER_MODE=live AND that adapter's full credential set is configured; any
+ * other credential (Twilio, SMTP, legacy FCM server key) still reports sandbox.
+ * PSP stays liveReady=false until the Razorpay webhook route is mounted.
+ * IdP may report issuer URL presence only.
  *
  * W1-ARCH-08: production refuses silent sandbox defaults — callers must pass an
  * env that either sets PROVIDER_MODE=live or explicitly opts into sandbox.
@@ -82,21 +87,69 @@ export function issueSandboxIdpToken(input: {
   };
 }
 
+/** PRC-M326: env var names each live adapter needs (values live in the secret manager). */
+export const LIVE_ADAPTER_ENV: Record<'psp' | 'sms' | 'email' | 'push', readonly string[]> = {
+  psp: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'],
+  sms: ['MSG91_AUTH_KEY', 'MSG91_TEMPLATE_ID'],
+  email: ['SES_REGION', 'SES_FROM_ADDRESS', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
+  push: ['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'],
+};
+
+const LIVE_ADAPTER_NAME: Record<keyof typeof LIVE_ADAPTER_ENV, string> = {
+  psp: 'RazorpayPaymentAdapter',
+  sms: 'Msg91SmsSender',
+  email: 'SesEmailSender',
+  push: 'FcmPushSender',
+};
+
+function liveConfigured(
+  channel: keyof typeof LIVE_ADAPTER_ENV,
+  env: Record<string, string | undefined>,
+): boolean {
+  return LIVE_ADAPTER_ENV[channel].every((name) => Boolean(env[name]?.trim()));
+}
+
+function liveCapability(channel: keyof typeof LIVE_ADAPTER_ENV): ProviderCapability {
+  // PSP: RazorpayPaymentAdapter.charge() returns 'pending' and only the Razorpay
+  // webhook can settle it. No gateway route mounts that webhook yet (PRC-M512), so
+  // credentials alone must not report the PSP as ready (W2-INT-03).
+  const pspWebhookUnmounted = channel === 'psp';
+  return {
+    channel,
+    mode: 'live',
+    adapter: LIVE_ADAPTER_NAME[channel],
+    liveReady: !pspWebhookUnmounted,
+    notes:
+      `${LIVE_ADAPTER_NAME[channel]} configured (${LIVE_ADAPTER_ENV[channel].join(', ')} set). ` +
+      'Built and contract-tested against a stubbed provider; delivery against the real ' +
+      'provider is verified only by a run with these credentials.' +
+      (channel === 'push' ? ' Push also needs the notification device store.' : '') +
+      (pspWebhookUnmounted
+        ? ' Not ready: the Razorpay webhook route is not mounted in the gateway, so no ' +
+          'pending charge can settle.'
+        : ''),
+  };
+}
+
 /**
  * Capability discovery for install / ops consoles.
  *
- * W2-INT-03 honesty: SMS/email/push/PSP live adapters are **not** wired.
- * Env credentials must not flip `liveReady` or `mode: 'live'` — that previously
- * implied production delivery while sandbox stubs still silently succeeded.
+ * W2-INT-03 honesty: env credentials alone never flip `liveReady`. A channel reports
+ * `mode: 'live'` only with PROVIDER_MODE=live and its adapter's full credential set
+ * (LIVE_ADAPTER_ENV); SMS/email/push are then liveReady, PSP stays not ready until
+ * the Razorpay webhook route is mounted.
  *
  * W1-ARCH-08: throws in production when sandbox would be the silent default.
  */
+
 export function listProviderCapabilities(
   env: Record<string, string | undefined> = {},
 ): ProviderCapability[] {
   const deliveryMode = resolveProviderDeliveryMode('providers', env);
   const wantsLive = deliveryMode === 'live';
   const idpConfigured = Boolean(env.KEYCLOAK_URL || env.OIDC_ISSUER);
+  const live = (channel: keyof typeof LIVE_ADAPTER_ENV) =>
+    wantsLive && liveConfigured(channel, env) ? liveCapability(channel) : null;
 
   return [
     {
@@ -109,41 +162,44 @@ export function listProviderCapabilities(
         ? 'OIDC issuer configured (G-107 realm secrets still required for production).'
         : 'Live IdP waived without realm secrets (G-107).',
     },
-    {
+    live('psp') ?? {
       channel: 'psp',
       mode: 'sandbox',
       adapter: 'SandboxPaymentAdapter',
       liveReady: false,
       notes: wantsLive
-        ? 'PROVIDER_MODE=live requested but live PSP adapter not implemented — sandbox stub only (G-202); refuse silent live success.'
+        ? 'PROVIDER_MODE=live requested but Razorpay credentials are not configured — sandbox stub only (G-202); refuse silent live success.'
         : 'Fees uses SandboxPaymentAdapter when sandbox is allowed (G-202); production requires explicit opt-in (W1-ARCH-08).',
     },
-    {
+    live('sms') ?? {
       channel: 'sms',
       mode: 'sandbox',
       adapter: 'SandboxSmsSender',
       liveReady: false,
-      notes: wantsLive || env.TWILIO_AUTH_TOKEN
-        ? 'Twilio credentials/PROVIDER_MODE=live detected but live SMS adapter not implemented — sandbox stub only; refuse silent live success.'
-        : 'Notification package sandbox SMS (G-709); production requires explicit opt-in (W1-ARCH-08).',
+      notes:
+        wantsLive || env.TWILIO_AUTH_TOKEN
+          ? 'PROVIDER_MODE=live or Twilio credentials detected but MSG91 is not configured (the only live SMS adapter) — sandbox stub only; refuse silent live success.'
+          : 'Notification package sandbox SMS (G-709); production requires explicit opt-in (W1-ARCH-08).',
     },
-    {
+    live('email') ?? {
       channel: 'email',
       mode: 'sandbox',
       adapter: 'SandboxEmailSender',
       liveReady: false,
-      notes: wantsLive || env.SMTP_URL || env.SES_REGION
-        ? 'SMTP/SES/PROVIDER_MODE=live detected but live email adapter not implemented — sandbox stub only; refuse silent live success.'
-        : 'Sandbox email unless a live adapter is wired; production requires explicit opt-in (W1-ARCH-08).',
+      notes:
+        wantsLive || env.SMTP_URL || env.SES_REGION
+          ? 'SMTP/SES/PROVIDER_MODE=live detected but the SES credential set is incomplete — sandbox stub only; refuse silent live success.'
+          : 'Sandbox email unless a live adapter is wired; production requires explicit opt-in (W1-ARCH-08).',
     },
-    {
+    live('push') ?? {
       channel: 'push',
       mode: 'sandbox',
       adapter: 'SandboxPushSender',
       liveReady: false,
-      notes: wantsLive || env.FCM_SERVER_KEY
-        ? 'FCM/PROVIDER_MODE=live detected but live push adapter not implemented — sandbox stub only; refuse silent live success.'
-        : 'Push remains sandbox without a live FCM adapter; production requires explicit opt-in (W1-ARCH-08).',
+      notes:
+        wantsLive || env.FCM_SERVER_KEY
+          ? 'FCM/PROVIDER_MODE=live detected but the FCM service-account set is incomplete — sandbox stub only; refuse silent live success.'
+          : 'Push remains sandbox without a live FCM adapter; production requires explicit opt-in (W1-ARCH-08).',
     },
   ];
 }

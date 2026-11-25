@@ -514,6 +514,33 @@ export class FeesService {
     return feesPage(await this.repository.listReceiptsPage(tenantId, page), page);
   }
 
+  /**
+   * PRC-M090: succeeded payments of one invoice with what is still refundable on each,
+   * so a refund form can target a specific payment.
+   */
+  async listRefundablePayments(tenantId: string, invoiceId: string) {
+    await this.getInvoice(tenantId, invoiceId);
+    const [payments, refunds] = await Promise.all([
+      this.repository.listPaymentsForInvoice(tenantId, invoiceId),
+      this.repository.listRefundsForInvoice(tenantId, invoiceId),
+    ]);
+    return payments
+      .filter((payment) => payment.status === 'succeeded')
+      .map((payment) => {
+        const refundedCents = refunds
+          .filter((refund) => refund.status === 'posted' && refund.paymentId === payment.id)
+          .reduce((sum, refund) => sum + refund.amountCents, 0);
+        return {
+          paymentId: payment.id,
+          method: payment.method,
+          amountCents: payment.amountCents,
+          refundedCents,
+          refundableCents: Math.max(0, payment.amountCents - refundedCents),
+          paidAt: payment.paidAt,
+        };
+      });
+  }
+
   async getNetCollectedCents(tenantId: string, invoiceId: string): Promise<number> {
     await this.getInvoice(tenantId, invoiceId);
     const payments = (await this.repository.listPaymentsForInvoice(tenantId, invoiceId))
@@ -845,8 +872,12 @@ export class FeesService {
     input: CreateFeeStructureInput & { validFrom: string },
   ) {
     const prior = await this.getFeeStructure(tenantId, structureId);
-    if (prior.code !== (input.code?.trim() || prior.code) && input.code) {
-      // successors keep the same logical code; ignore mismatched override by requiring match
+    // PRC-L471: successors keep the prior's logical code; a different code is refused
+    // (it would start a new structure lineage, not a new version).
+    if (input.code?.trim() && input.code.trim() !== prior.code) {
+      throw new BusinessRuleError(
+        `Cannot supersede: successor code must stay '${prior.code}' (got '${input.code.trim()}')`,
+      );
     }
     const code = prior.code;
     const validFrom = input.validFrom;
@@ -862,35 +893,50 @@ export class FeesService {
     const closeTo = new Date(`${validFrom}T00:00:00.000Z`);
     closeTo.setUTCDate(closeTo.getUTCDate() - 1);
     const closeToStr = closeTo.toISOString().slice(0, 10);
-    if (prior.validTo == null || prior.validTo >= validFrom) {
-      if (closeToStr < prior.validFrom) {
-        throw new ConflictError(
-          `Cannot supersede: successor validFrom ${validFrom} does not leave a non-overlapping prior window`,
-        );
-      }
-      await this.repository.closeFeeStructureValidTo(tenantId, prior.id, closeToStr);
+    const closesPrior = prior.validTo == null || prior.validTo >= validFrom;
+    if (closesPrior && closeToStr < prior.validFrom) {
+      throw new ConflictError(
+        `Cannot supersede: successor validFrom ${validFrom} does not leave a non-overlapping prior window`,
+      );
     }
 
-    return this.repository.createFeeStructure({
-      id: uuidv4(),
-      tenantId,
-      institutionId: input.institutionId ?? prior.institutionId,
-      academicPeriodId: input.academicPeriodId ?? prior.academicPeriodId,
-      gradeId: input.gradeId ?? prior.gradeId,
-      classId: input.classId ?? prior.classId,
-      category: input.category ?? prior.category,
-      term: input.term !== undefined ? input.term : prior.term,
-      code,
-      name: input.name,
-      amountCents: input.amountCents,
-      currency: input.currency ?? prior.currency,
-      status: 'active',
-      validFrom,
-      validTo,
-      version: prior.version + 1,
-      supersedesId: prior.id,
-      createdBy: actorId,
+    // PRC-L471: the prior window close and the successor insert commit together,
+    // so a failed insert never leaves the prior structure closed with no successor.
+    return this.repository.runInTransaction(tenantId, async (tx) => {
+      if (closesPrior) {
+        await tx.closeFeeStructureValidTo(tenantId, prior.id, closeToStr);
+      }
+      return tx.createFeeStructure({
+        id: uuidv4(),
+        tenantId,
+        institutionId: input.institutionId ?? prior.institutionId,
+        academicPeriodId: input.academicPeriodId ?? prior.academicPeriodId,
+        gradeId: input.gradeId ?? prior.gradeId,
+        classId: input.classId ?? prior.classId,
+        category: input.category ?? prior.category,
+        term: input.term !== undefined ? input.term : prior.term,
+        code,
+        name: input.name,
+        amountCents: input.amountCents,
+        currency: input.currency ?? prior.currency,
+        status: 'active',
+        validFrom,
+        validTo,
+        version: prior.version + 1,
+        supersedesId: prior.id,
+        createdBy: actorId,
+      });
     });
+  }
+
+  /**
+   * PRC-L471: calendar due date of an instalment — the structure's validFrom plus the
+   * instalment's dueOffsetDays (UTC calendar arithmetic, `YYYY-MM-DD`).
+   */
+  instalmentDueDate(structure: { validFrom: string }, dueOffsetDays: number): string {
+    const due = new Date(`${structure.validFrom}T00:00:00.000Z`);
+    due.setUTCDate(due.getUTCDate() + dueOffsetDays);
+    return due.toISOString().slice(0, 10);
   }
 
   async listFeeStructures(tenantId: string, options?: { asOf?: string }) {
@@ -923,12 +969,21 @@ export class FeesService {
       dueOffsetDays: input.dueOffsetDays?.[index] ?? index * 30,
       label: input.labels?.[index] ?? `Instalment ${index + 1}`,
     }));
-    return this.repository.replaceStructureInstalments(tenantId, structure.id, rows);
+    const saved = await this.repository.replaceStructureInstalments(tenantId, structure.id, rows);
+    return saved.map((row) => ({
+      ...row,
+      dueDate: this.instalmentDueDate(structure, row.dueOffsetDays),
+    }));
   }
 
   async listInstalments(tenantId: string, structureId: string) {
-    await this.getFeeStructure(tenantId, structureId);
-    return this.repository.listStructureInstalments(tenantId, structureId);
+    const structure = await this.getFeeStructure(tenantId, structureId);
+    const rows = await this.repository.listStructureInstalments(tenantId, structureId);
+    // PRC-L471: expose the instalment-driven due date, not only the raw offset.
+    return rows.map((row) => ({
+      ...row,
+      dueDate: this.instalmentDueDate(structure, row.dueOffsetDays),
+    }));
   }
 
   /**
@@ -1056,6 +1111,19 @@ export class FeesService {
         structure.id,
         studentIds,
       );
+      // PRC-L471: without an explicit dueAt, the invoice falls due on the structure's
+      // first instalment (validFrom + dueOffsetDays) instead of never falling due.
+      let dueAt: Date | null = input.dueAt ? new Date(input.dueAt) : null;
+      if (!dueAt) {
+        const [first] = [...(await tx.listStructureInstalments(tenantId, structure.id))].sort(
+          (a, b) => a.sequence - b.sequence,
+        );
+        if (first) {
+          dueAt = new Date(
+            `${this.instalmentDueDate(structure, first.dueOffsetDays)}T00:00:00.000Z`,
+          );
+        }
+      }
       for (const studentId of studentIds) {
         if (alreadyInvoiced.has(studentId)) {
           skipped.push(studentId);
@@ -1078,7 +1146,7 @@ export class FeesService {
           amountCents,
           currency: structure.currency,
           status: 'open',
-          dueAt: input.dueAt ? new Date(input.dueAt) : null,
+          dueAt,
           createdBy: actorId,
           invoiceNumber: invoiceNumberFor(invoiceId),
           structureId: structure.id,
@@ -1388,13 +1456,37 @@ export class FeesService {
     return this.repository.withInvoiceLock(tenantId, input.invoiceId, async (tx, locked) => {
       const { invoice } = locked;
       assertRefundWithinPaid(locked.paidCents, locked.refundedCents, input.amountCents);
-      let paymentId = input.paymentId ?? null;
-      if (!paymentId) {
-        const first = (await tx.listPaymentsForInvoice(tenantId, invoice.id)).find(
-          (p) => p.status === 'succeeded',
+      // PRC-M246: a refund targets one succeeded payment of THIS invoice and is capped
+      // at what is still unrefunded on that payment. It never silently picks "the first"
+      // payment of a multi-payment invoice.
+      const succeeded = (await tx.listPaymentsForInvoice(tenantId, invoice.id)).filter(
+        (p) => p.status === 'succeeded',
+      );
+      const target = input.paymentId
+        ? succeeded.find((p) => p.id === input.paymentId)
+        : succeeded.length === 1
+          ? succeeded[0]
+          : undefined;
+      if (!target) {
+        if (input.paymentId) {
+          throw new NotFoundError(
+            `Succeeded payment '${input.paymentId}' not found on invoice '${invoice.id}'`,
+          );
+        }
+        throw new BusinessRuleError(
+          'paymentId is required: this invoice has more than one payment to refund against',
         );
-        paymentId = first?.id ?? null;
       }
+      const refundedOnPayment = (await tx.listRefundsForInvoice(tenantId, invoice.id))
+        .filter((r) => r.status === 'posted' && r.paymentId === target.id)
+        .reduce((sum, r) => sum + r.amountCents, 0);
+      if (refundedOnPayment + input.amountCents > target.amountCents) {
+        throw new BusinessRuleError(
+          `Refund cannot exceed the unrefunded amount of payment '${target.id}' ` +
+            `(${target.amountCents - refundedOnPayment} cents)`,
+        );
+      }
+      const paymentId = target.id;
       const refund = await tx.createRefund({
         id: uuidv4(),
         tenantId,
@@ -1688,6 +1780,18 @@ export class FeesService {
     const overdue = await this.listOverdueForReminder(tenantId, asOf);
     const byId = new Map(overdue.map((row) => [row.invoiceId, row]));
     const results: SendReminderResultRow[] = [];
+    // PRC-L106: read the send audit once per run (was once per invoice x channel), and
+    // index it by message id and by (invoice, channel) for the cadence check.
+    const priorAudits = await this.repository.listReminderSendAudits(tenantId);
+    const auditByMessageId = new Map<string, ReminderSendAuditEntity>();
+    const lastSentAt = new Map<string, number>();
+    const remember = (audit: ReminderSendAuditEntity) => {
+      auditByMessageId.set(audit.messageId, audit);
+      const key = `${audit.invoiceId}:${audit.channel}`;
+      lastSentAt.set(key, Math.max(lastSentAt.get(key) ?? 0, audit.createdAt.getTime()));
+    };
+    priorAudits.forEach(remember);
+    const sendDay = asOf.toISOString().slice(0, 10);
 
     for (const invoiceId of input.invoiceIds) {
       const row = byId.get(invoiceId);
@@ -1732,15 +1836,13 @@ export class FeesService {
       }
 
       for (const channel of channels) {
+        // PRC-L106: one reminder per (tenant, invoice, channel, day). The message id is
+        // derived from those, so a retried or repeated run reuses it instead of minting
+        // a new Date.now() id and a second audit row.
+        const messageId = `sandbox-${channel}:fees:${tenantId}:${invoiceId}:${sendDay}`;
         if (cadenceDays > 0) {
           const cutoff = asOf.getTime() - cadenceDays * 86_400_000;
-          const audits = await this.repository.listReminderSendAudits(tenantId);
-          const recent = audits.some(
-            (audit) =>
-              audit.invoiceId === invoiceId &&
-              audit.channel === channel &&
-              audit.createdAt.getTime() >= cutoff,
-          );
+          const recent = (lastSentAt.get(`${invoiceId}:${channel}`) ?? -1) >= cutoff;
           if (recent) {
             results.push({
               invoiceId,
@@ -1753,8 +1855,20 @@ export class FeesService {
             continue;
           }
         }
+        const existing = auditByMessageId.get(messageId);
+        if (existing) {
+          results.push({
+            invoiceId,
+            studentId: row.studentId,
+            channel,
+            messageId,
+            suppressed: false,
+            skippedReason: 'already_sent',
+            auditId: existing.id,
+          });
+          continue;
+        }
 
-        const messageId = `sandbox-${channel}:fees:${tenantId}:${invoiceId}:${Date.now()}`;
         const audit: ReminderSendAuditEntity = {
           id: uuidv4(),
           tenantId,
@@ -1768,6 +1882,7 @@ export class FeesService {
           createdAt: new Date(),
         };
         await this.repository.createReminderSendAudit(audit);
+        remember(audit);
         results.push({
           invoiceId,
           studentId: row.studentId,

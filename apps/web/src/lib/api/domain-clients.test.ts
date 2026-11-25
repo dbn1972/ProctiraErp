@@ -92,7 +92,7 @@ describe('scholarships client', () => {
       ok({
         data: [
           { id: 'd1', status: 'paid', amount: '250' },
-          { id: 'd2', paymentStatus: 'failed' },
+          { id: 'd2', paymentStatus: 'failed', amountCents: 0 },
         ],
       }),
     );
@@ -116,7 +116,9 @@ describe('scholarships client', () => {
     await expect(getScholarshipApplication('a1')).rejects.toBeInstanceOf(GatewayError);
   });
   it('sends the documented create payload', async () => {
-    gatewayFetch.mockResolvedValue(ok({ id: 'p9', name: 'Need Based' }));
+    gatewayFetch.mockResolvedValue(
+      ok({ id: 'p9', name: 'Need Based', amountPerRecipientCents: 50_000 }),
+    );
     await createScholarshipProgram({
       name: 'Need Based',
       code: 'NEED',
@@ -134,6 +136,8 @@ describe('scholarships client', () => {
       applicationStartDate: '2025-01-01',
       applicationEndDate: '2025-03-01',
       totalSlots: 3,
+      // PRC-L268: integer minor units are sent; major units are derived from them.
+      amountPerRecipientCents: 50_000,
       amountPerRecipient: 500,
       currency: 'INR',
       eligibility: {},
@@ -156,7 +160,7 @@ describe('scholarships client', () => {
   });
 
   it('updates disbursements with PUT and throws on empty response', async () => {
-    gatewayFetch.mockResolvedValueOnce(ok({ id: 'd1', status: 'processed' }));
+    gatewayFetch.mockResolvedValueOnce(ok({ id: 'd1', status: 'processed', amountCents: 100 }));
     await updateDisbursement('d1', { status: 'PROCESSED' } as never);
     expect(gatewayFetch.mock.calls[0]).toEqual([
       '/scholarships/disbursements/d1',

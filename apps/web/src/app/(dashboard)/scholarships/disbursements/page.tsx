@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { RetryFailedTransfersButton } from '../_components/retry-failed-transfers-button';
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
+import { resolveTenantTimezone } from '@/lib/datetime/tenant-timezone.server';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,7 @@ const STATUS_COLOURS: Record<ScholarshipDisbursement['status'], string> = {
   CANCELLED: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 };
 /** PRC-M111: one formatted amount per currency, never a cross-currency sum. */
-function formatTotals(rows: ReadonlyArray<{ amount: number; currency: string }>): string {
+function formatTotals(rows: ReadonlyArray<{ amountCents: number; currency: string }>): string {
   return totalsByCurrency(rows)
     .map((t) => formatMoney(t.total, t.currency))
     .join(' + ');
@@ -73,13 +74,21 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
-function formatDate(iso: string): string {
+/**
+ * PRC-L435: dates render in the tenant's timezone, not the server's. A bare
+ * `YYYY-MM-DD` is a calendar date and is shown as that date (UTC midnight would
+ * otherwise shift a day west of UTC); a timestamp is converted to the tenant zone.
+ */
+function formatDate(iso: string, timeZone: string): string {
+  if (!iso) return '—';
+  const calendarDate = /^\d{4}-\d{2}-\d{2}$/.test(iso);
   try {
     return new Intl.DateTimeFormat('en-GB', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
-    }).format(new Date(iso));
+      timeZone: calendarDate ? 'UTC' : timeZone,
+    }).format(new Date(calendarDate ? `${iso}T00:00:00.000Z` : iso));
   } catch {
     return iso;
   }
@@ -113,6 +122,7 @@ export default async function ScholarshipDisbursementsPage(props: {
     );
   }
   const disbursements = result.items;
+  const timeZone = await resolveTenantTimezone();
 
   const processed = disbursements.filter((d) => d.status === 'PROCESSED');
   const failed = disbursements.filter((d) => d.status === 'FAILED');
@@ -241,6 +251,7 @@ export default async function ScholarshipDisbursementsPage(props: {
                     <TableHead className="font-semibold text-end">Amount</TableHead>
                     <TableHead className="font-semibold">Payment date</TableHead>
                     <TableHead className="font-semibold">Method</TableHead>
+                    <TableHead className="font-semibold">Reference</TableHead>
                     <TableHead className="pe-4 font-semibold">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -257,13 +268,16 @@ export default async function ScholarshipDisbursementsPage(props: {
                       <TableCell className="text-end font-semibold tabular-nums">
                         {formatMoney(d.amount, d.currency)}
                       </TableCell>
-                      <TableCell>{formatDate(d.paymentDate)}</TableCell>
+                      <TableCell>{formatDate(d.paidDate ?? d.paymentDate, timeZone)}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                           {d.paymentMethod === 'BANK_TRANSFER'
                             ? 'DBT'
                             : d.paymentMethod.replace(/_/g, ' ')}
                         </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {d.transactionReference ?? '—'}
                       </TableCell>
                       <TableCell className="pe-4">
                         <span
