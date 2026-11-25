@@ -130,9 +130,22 @@ export function buildRetentionPlan({
 
 /** PHI tables swept by the job. `key` names the summary candidate field. */
 export const PHI_RETENTION_TABLES = [
-  { table: 'counselling_sessions', key: 'counsellingSessions' },
-  { table: 'health_special_needs_assessments', key: 'specialNeedsRecords' },
+  {
+    table: 'counselling_sessions',
+    key: 'counsellingSessions',
+    idField: 'counsellingSessionId',
+    regulated: 'health.counselling',
+  },
+  {
+    table: 'health_special_needs_assessments',
+    key: 'specialNeedsRecords',
+    idField: 'specialNeedsAssessmentId',
+    regulated: 'health.special_needs_assessment',
+  },
 ];
+
+/** PRC-M435: actor recorded on every retention deletion audit event. */
+export const PHI_RETENTION_ACTOR = 'system:phi-retention';
 
 /**
  * PRC-M559: one SQL script for the whole run, executed by one psql session
@@ -161,6 +174,7 @@ export function buildRetentionScript({ adultCutoffIso, minorCutoffIso, dryRun })
   ]).concat([
     ['students', 'SELECT'],
     ['tenants', 'SELECT'],
+    ...(dryRun ? [] : [['audit_ingest_queue', 'INSERT']]),
   ]);
   const privilegeSql = privilegeChecks
     .map(
@@ -174,31 +188,55 @@ export function buildRetentionScript({ adultCutoffIso, minorCutoffIso, dryRun })
     )
     .join('\n');
 
-  const perTable = PHI_RETENTION_TABLES.map(({ table }) => {
+  const perTable = PHI_RETENTION_TABLES.map(({ table, idField, regulated }) => {
     const eligible = `${buildEligibleFrom({ table, adultCutoffIso, minorCutoffIso })}
        AND r.tenant_id::text = v_tenant`;
+    // PRC-M435: every deleted row enqueues one tenant-attributed audit event
+    // (ids only, never PHI values) in the same statement and transaction. The
+    // gateway audit-ingest drain seals the queue into the keyed audit chain.
     const apply = dryRun
-      ? `    v_deleted := 0;`
+      ? `    v_deleted := 0;
+    v_audited := 0;`
       : `    WITH d AS (
       DELETE FROM "${table}" t
       WHERE t.tenant_id::text = v_tenant
         AND t.id IN (SELECT r.id ${eligible})
-      RETURNING t.id
+      RETURNING t.id, t.student_id
+    ), q AS (
+      INSERT INTO audit_ingest_queue (
+        tenant_id, entity_type, entity_id, operation, user_id, actor_kind, user_name,
+        before_values, after_values, metadata
+      )
+      SELECT v_tenant::uuid, 'health_record', d.id::text, 'DELETE', NULL,
+        '${PHI_RETENTION_ACTOR}', '${PHI_RETENTION_ACTOR}',
+        jsonb_build_object('${idField}', d.id::text, 'studentId', d.student_id),
+        NULL,
+        jsonb_build_object(
+          'regulated', '${regulated}', 'table', '${table}', 'reason', 'retention_expired',
+          'adultCutoff', '${adultCutoffIso}', 'minorCutoff', '${minorCutoffIso}'
+        )
+      FROM d
+      RETURNING 1
     )
-    SELECT count(*)::int INTO v_deleted FROM d;
+    SELECT (SELECT count(*)::int FROM d), (SELECT count(*)::int FROM q)
+      INTO v_deleted, v_audited;
     IF v_deleted <> v_eligible THEN
       RAISE EXCEPTION 'PRC-M559: tenant % ${table}: deleted % of % eligible rows', v_tenant, v_deleted, v_eligible;
+    END IF;
+    IF v_audited <> v_deleted THEN
+      RAISE EXCEPTION 'PRC-M435: tenant % ${table}: % audit events for % deletions', v_tenant, v_audited, v_deleted;
     END IF;`;
     return `    SELECT count(*)::int INTO v_eligible ${eligible};
 ${apply}
-    INSERT INTO phi_retention_result VALUES (v_tenant, '${table}', v_eligible, v_deleted);`;
+    INSERT INTO phi_retention_result VALUES (v_tenant, '${table}', v_eligible, v_deleted, v_audited);`;
   }).join('\n');
 
   return `CREATE TEMP TABLE phi_retention_result (
   tenant_id text NOT NULL,
   table_name text NOT NULL,
   eligible integer NOT NULL,
-  deleted integer NOT NULL
+  deleted integer NOT NULL,
+  audited integer NOT NULL
 ) ON COMMIT DROP;
 DO $phi_retention$
 DECLARE
@@ -206,6 +244,7 @@ DECLARE
   v_tenant text;
   v_eligible integer;
   v_deleted integer;
+  v_audited integer;
 BEGIN
 ${privilegeSql}
   PERFORM set_config('app.tenant_id', '', true);
@@ -231,7 +270,8 @@ SELECT json_build_object(
   'tenantsScanned', (SELECT count(DISTINCT tenant_id) FROM phi_retention_result),
   'rows', coalesce(
     (SELECT json_agg(json_build_object(
-       'tenantId', tenant_id, 'table', table_name, 'eligible', eligible, 'deleted', deleted
+       'tenantId', tenant_id, 'table', table_name, 'eligible', eligible, 'deleted', deleted,
+       'audited', audited
      ) ORDER BY tenant_id, table_name) FROM phi_retention_result),
     '[]'::json)
 )::text;
@@ -300,6 +340,7 @@ export function summariseRetentionRows(rows) {
     specialNeedsCount: total('health_special_needs_assessments', 'eligible'),
     counsellingDeleted: total('counselling_sessions', 'deleted'),
     specialNeedsDeleted: total('health_special_needs_assessments', 'deleted'),
+    auditEventsQueued: rows.reduce((sum, row) => sum + Number(row.audited ?? 0), 0),
   };
 }
 
@@ -350,6 +391,7 @@ async function main() {
     plan.applied = {
       counsellingDeleted: totals.counsellingDeleted,
       specialNeedsDeleted: totals.specialNeedsDeleted,
+      auditEventsQueued: totals.auditEventsQueued,
     };
   }
 

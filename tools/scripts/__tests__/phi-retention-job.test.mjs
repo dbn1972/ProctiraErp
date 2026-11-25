@@ -184,10 +184,22 @@ describe('PRC-M559 retention never reports success on a failed or partial run', 
     const stubStdout = `${JSON.stringify({
       tenantsScanned: 2,
       rows: [
-        { tenantId: 't1', table: 'counselling_sessions', eligible: 2, deleted: 2 },
-        { tenantId: 't1', table: 'health_special_needs_assessments', eligible: 1, deleted: 1 },
-        { tenantId: 't2', table: 'counselling_sessions', eligible: 3, deleted: 3 },
-        { tenantId: 't2', table: 'health_special_needs_assessments', eligible: 0, deleted: 0 },
+        { tenantId: 't1', table: 'counselling_sessions', eligible: 2, deleted: 2, audited: 2 },
+        {
+          tenantId: 't1',
+          table: 'health_special_needs_assessments',
+          eligible: 1,
+          deleted: 1,
+          audited: 1,
+        },
+        { tenantId: 't2', table: 'counselling_sessions', eligible: 3, deleted: 3, audited: 3 },
+        {
+          tenantId: 't2',
+          table: 'health_special_needs_assessments',
+          eligible: 0,
+          deleted: 0,
+          audited: 0,
+        },
       ],
     })}\n`;
     const run = runJobWithStubPsql({ dryRun: false, stubStdout });
@@ -201,7 +213,8 @@ describe('PRC-M559 retention never reports success on a failed or partial run', 
     assert.equal(run.summary.tenantsScanned, 2);
     assert.equal(run.summary.candidates.counsellingSessions, 5);
     assert.equal(run.summary.candidates.specialNeedsRecords, 1);
-    assert.deepEqual(run.summary.applied, { counsellingDeleted: 5, specialNeedsDeleted: 1 });
+    assert.equal(run.summary.applied.counsellingDeleted, 5);
+    assert.equal(run.summary.applied.specialNeedsDeleted, 1);
   });
 
   it('a psql session that prints no summary is a failure, not zero', () => {
@@ -241,5 +254,69 @@ describe('PRC-M559 retention script startup assertions', () => {
   it('raises when the deleted count differs from the eligible count', () => {
     const sql = job.buildRetentionScript({ ...cutoffs, dryRun: false });
     assert.equal((sql.match(/IF v_deleted <> v_eligible THEN/g) ?? []).length, 2);
+  });
+});
+
+describe('PRC-M435 every retention deletion is audited per tenant in the same transaction', () => {
+  const cutoffs = {
+    adultCutoffIso: '2019-01-01T00:00:00.000Z',
+    minorCutoffIso: '2016-01-01T00:00:00.000Z',
+  };
+
+  it('each DELETE feeds a tenant-attributed audit_ingest_queue insert in the same statement', () => {
+    const sql = job.buildRetentionScript({ ...cutoffs, dryRun: false });
+    const statements = sql.split('WITH d AS (').slice(1);
+    assert.equal(statements.length, 2, 'one delete+audit statement per PHI table');
+    for (const statement of statements) {
+      const body = statement.slice(0, statement.indexOf('INTO v_deleted, v_audited'));
+      assert.match(body, /DELETE FROM "/);
+      assert.match(body, /RETURNING t\.id, t\.student_id/);
+      assert.match(body, /INSERT INTO audit_ingest_queue \(/);
+      assert.match(body, /SELECT v_tenant::uuid, 'health_record', d\.id::text, 'DELETE'/);
+      assert.ok(body.includes("'system:phi-retention'"));
+    }
+    assert.equal((sql.match(/IF v_audited <> v_deleted THEN/g) ?? []).length, 2);
+    assert.ok(sql.includes("has_table_privilege(current_user, 'audit_ingest_queue', 'INSERT')"));
+  });
+
+  it('audit events carry ids and the policy, never PHI field values', () => {
+    const sql = job.buildRetentionScript({ ...cutoffs, dryRun: false });
+    assert.ok(
+      sql.includes(
+        "jsonb_build_object('counsellingSessionId', d.id::text, 'studentId', d.student_id)",
+      ),
+    );
+    assert.ok(
+      sql.includes(
+        "jsonb_build_object('specialNeedsAssessmentId', d.id::text, 'studentId', d.student_id)",
+      ),
+    );
+    for (const phiColumn of ['reason', 'case_notes', 'outcome', 'findings']) {
+      assert.ok(!sql.includes(`d.${phiColumn}`), `audit must not copy ${phiColumn}`);
+    }
+  });
+
+  it('a dry-run queues no audit events', () => {
+    const sql = job.buildRetentionScript({ ...cutoffs, dryRun: true });
+    assert.ok(!sql.includes('INSERT INTO audit_ingest_queue'));
+  });
+
+  it('the apply summary reports the queued audit events', () => {
+    const stubStdout = `${JSON.stringify({
+      tenantsScanned: 1,
+      rows: [
+        { tenantId: 't1', table: 'counselling_sessions', eligible: 2, deleted: 2, audited: 2 },
+        {
+          tenantId: 't1',
+          table: 'health_special_needs_assessments',
+          eligible: 1,
+          deleted: 1,
+          audited: 1,
+        },
+      ],
+    })}\n`;
+    const run = runJobWithStubPsql({ dryRun: false, stubStdout });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.summary.applied.auditEventsQueued, 3);
   });
 });
