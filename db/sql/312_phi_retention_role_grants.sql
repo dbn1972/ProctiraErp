@@ -17,6 +17,12 @@
 -- on an existing install) the grants are skipped with a NOTICE; the job then
 -- fails closed on its privilege assertions until the role is provisioned and
 -- this file's grants are applied (docs/BACKUP_RESTORE.md §3.5).
+--
+-- Rollback (future forward migration; point the retention CronJob back at a
+-- non-BYPASSRLS credential first, the job refuses SUPERUSER/BYPASSRLS roles):
+--   REVOKE ALL ON TABLE tenants, students, privacy_legal_holds,
+--     counselling_sessions, health_special_needs_assessments, audit_ingest_queue
+--     FROM proctira_phi_retention;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'proctira_phi_retention') THEN

@@ -210,6 +210,13 @@ reads `dr.phiRetention.databaseUrlSecretKey`). Rendering fails when that key
 equals `dr.databaseUrlSecretKey`, and the job exits 1 when it connects as a
 SUPERUSER or BYPASSRLS role.
 
+Roles are cluster-level, so `pg_dump` does not carry `proctira_phi_retention`.
+After a restore into a new cluster, run `tools/scripts/bootstrap-db-roles.sh`
+(with `PHI_RETENTION_ROLE_PASSWORD`) and re-apply
+`db/sql/312_phi_retention_role_grants.sql` before the retention CronJob runs.
+The weekly restore drill does this on the restored copy and runs the dry-run
+as the retention role. Rollback: the `REVOKE` block in the 312 header.
+
 ### 3.6 Encryption, offsite, immutability (W1-OPS-04)
 
 Logical dumps are **plaintext pg_dump custom format** unless encryption is

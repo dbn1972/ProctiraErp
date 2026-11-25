@@ -2,19 +2,19 @@
 
 ## Policy summary
 
-| Class                                  |     Default retention | Env override               |
-| -------------------------------------- | --------------------: | -------------------------- |
-| Adult PHI (counselling, special-needs) |  2555 days (~7 years) | `PHI_RETENTION_DAYS`       |
-| Minor-linked PHI                       | 3650 days (~10 years) | `MINOR_PHI_RETENTION_DAYS` |
+| Class                                  |     Default retention | Env override                                             |
+| -------------------------------------- | --------------------: | -------------------------------------------------------- |
+| Adult PHI (counselling, special-needs) |  2555 days (~7 years) | `PHI_RETENTION_DAYS`                                     |
+| Minor-linked PHI                       | 3650 days (~10 years) | `MINOR_PHI_RETENTION_DAYS`                               |
 | Database logical backups               |         30 days local | `BACKUP_RETENTION_DAYS` (Helm `dr.backup.retentionDays`) |
 
 `RETENTION_DRY_RUN` is **required**. There is no silent dry-run default:
 
-| Value | Meaning |
-| ----- | ------- |
-| `0` | Enforce deletion (production CronJob) |
-| `1` | Sandbox dry-run (counts only; staging/dev CronJobs) |
-| unset / other | Fail closed |
+| Value         | Meaning                                             |
+| ------------- | --------------------------------------------------- |
+| `0`           | Enforce deletion (production CronJob)               |
+| `1`           | Sandbox dry-run (counts only; staging/dev CronJobs) |
+| unset / other | Fail closed                                         |
 
 ## Job
 
