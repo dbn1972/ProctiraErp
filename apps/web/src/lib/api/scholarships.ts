@@ -4,6 +4,7 @@
  * Validates: Requirement 11.1 — scholarship programs, applications,
  * approvals, and disbursements.
  */
+import { majorUnitsToCents } from '@proctira/common';
 import { GatewayError, gatewayFetch } from './gateway';
 import { fetchList, type ListResult } from './list-result';
 
@@ -61,6 +62,9 @@ export interface ScholarshipProgram {
   name: string;
   code: string;
   totalSlots: number;
+  /** PRC-L268 (D1): award per recipient in integer minor units (paise for INR). */
+  awardAmountCents: number;
+  /** Display-only major units, derived from awardAmountCents. */
   awardAmount: number;
   currency: string;
   applicationStartDate: string;
@@ -95,6 +99,9 @@ export interface ScholarshipDisbursement {
   applicationId: string;
   applicantName: string;
   programName: string;
+  /** PRC-L268 (D1): integer minor units from the gateway's amountCents. */
+  amountCents: number;
+  /** Display-only major units, derived from amountCents. */
   amount: number;
   currency: string;
   paymentDate: string;
@@ -148,16 +155,47 @@ function slugCode(name: string, fallback?: string): string {
   );
 }
 
+/**
+ * PRC-L268 (D1): money read from the gateway as integer minor units. The integer
+ * `*Cents` field wins; a major-unit value is converted exactly (at most 2 decimals).
+ * A missing or malformed amount throws instead of silently becoming 0.
+ */
+export function gatewayMoneyCents(cents: unknown, major: unknown, what: string): number {
+  if (typeof cents === 'number' && Number.isSafeInteger(cents) && cents >= 0) return cents;
+  if (typeof cents === 'string' && /^\d+$/.test(cents) && Number.isSafeInteger(Number(cents))) {
+    return Number(cents);
+  }
+  if (typeof major === 'number' || (typeof major === 'string' && major.trim() !== '')) {
+    try {
+      return majorUnitsToCents(major);
+    } catch {
+      // fall through to the malformed error below
+    }
+  }
+  throw new Error(`Gateway returned a missing or malformed ${what} amount`);
+}
+
+/** PRC-L268 (D1): integer minor units sent to the gateway; rejects sub-cent input. */
+function toRequestCents(major: number): number {
+  return majorUnitsToCents(major);
+}
+
 function mapProgram(raw: Record<string, unknown>): ScholarshipProgram {
   const name = String(raw.name ?? '');
   const description = (raw.description as string | null | undefined) ?? null;
   const codeFromDescription = description?.match(/Code:\s*([A-Z0-9-]+)/i)?.[1];
+  const awardAmountCents = gatewayMoneyCents(
+    raw.awardAmountCents ?? raw.amountPerRecipientCents,
+    raw.awardAmount ?? raw.amountPerRecipient,
+    'scholarship award',
+  );
   return {
     id: String(raw.id ?? ''),
     name,
     code: slugCode(name, String(raw.code ?? codeFromDescription ?? '')),
     totalSlots: Number(raw.totalSlots ?? 0),
-    awardAmount: Number(raw.awardAmount ?? raw.amountPerRecipient ?? 0),
+    awardAmountCents,
+    awardAmount: awardAmountCents / 100,
     currency: String(raw.currency ?? 'INR'),
     applicationStartDate: String(raw.applicationStartDate ?? '').slice(0, 10),
     applicationEndDate: String(raw.applicationEndDate ?? '').slice(0, 10),
@@ -206,13 +244,15 @@ export function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbur
   const paymentStatus = String(raw.status ?? raw.paymentStatus ?? 'scheduled').toLowerCase();
   const status: ScholarshipDisbursement['status'] =
     DISBURSEMENT_STATUS[paymentStatus] ?? 'SCHEDULED';
+  const amountCents = gatewayMoneyCents(raw.amountCents, raw.amount, 'disbursement');
 
   return {
     id: String(raw.id ?? ''),
     applicationId: String(raw.applicationId ?? ''),
     applicantName: String(raw.applicantName ?? raw.recipientName ?? '—'),
     programName: String(raw.programName ?? '—'),
-    amount: Number(raw.amount ?? 0),
+    amountCents,
+    amount: amountCents / 100,
     currency: String(raw.currency ?? 'INR'),
     paymentDate: String(raw.paymentDate ?? raw.scheduledDate ?? '').slice(0, 10),
     paidDate: typeof raw.paidDate === 'string' && raw.paidDate ? raw.paidDate : null,
@@ -260,6 +300,7 @@ export async function createScholarshipProgram(
     .filter(Boolean)
     .join('\n');
 
+  const awardCents = toRequestCents(input.awardAmount);
   const result = await gatewayFetch<Record<string, unknown>>('/scholarships/programs', {
     method: 'POST',
     json: {
@@ -268,7 +309,9 @@ export async function createScholarshipProgram(
       applicationStartDate: input.applicationStartDate,
       applicationEndDate: input.applicationEndDate,
       totalSlots: input.totalSlots,
-      amountPerRecipient: input.awardAmount,
+      // PRC-L268: integer minor units are authoritative; major units are derived.
+      amountPerRecipientCents: awardCents,
+      amountPerRecipient: awardCents / 100,
       currency: input.currency ?? 'INR',
       eligibility: {},
     },
@@ -287,11 +330,18 @@ export async function updateScholarshipProgram(
   id: string,
   input: UpdateScholarshipProgramInput,
 ): Promise<ScholarshipProgram> {
+  // PRC-L268: integer minor units are authoritative; major units are derived.
+  const cents =
+    input.amountPerRecipient === undefined ? undefined : toRequestCents(input.amountPerRecipient);
+  const body =
+    cents === undefined
+      ? input
+      : { ...input, amountPerRecipientCents: cents, amountPerRecipient: cents / 100 };
   const result = await gatewayFetch<Record<string, unknown>>(
     `/scholarships/programs/${encodeURIComponent(id)}`,
     {
       method: 'PUT',
-      json: input,
+      json: body,
     },
   );
   if (!result.data) {
@@ -390,14 +440,15 @@ export async function updateDisbursement(
 
 /** PRC-M111: money totals grouped per currency (never summed across currencies). */
 export function totalsByCurrency(
-  rows: ReadonlyArray<{ amount: number; currency: string }>,
-): Array<{ currency: string; total: number }> {
+  rows: ReadonlyArray<{ amountCents: number; currency: string }>,
+): Array<{ currency: string; totalCents: number; total: number }> {
+  // PRC-L268: sum integer minor units, never floats.
   const totals = new Map<string, number>();
   for (const row of rows) {
     const currency = row.currency || 'INR';
-    totals.set(currency, (totals.get(currency) ?? 0) + row.amount);
+    totals.set(currency, (totals.get(currency) ?? 0) + row.amountCents);
   }
   return [...totals.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([currency, total]) => ({ currency, total }));
+    .map(([currency, totalCents]) => ({ currency, totalCents, total: totalCents / 100 }));
 }

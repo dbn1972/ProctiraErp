@@ -12,7 +12,7 @@ describe('mapDisbursement (PRC-M111)', () => {
     ['cancelled', 'CANCELLED'],
     ['CANCELED', 'CANCELLED'],
   ])('%s -> %s', (paymentStatus, expected) => {
-    expect(mapDisbursement({ id: 'd1', paymentStatus }).status).toBe(expected);
+    expect(mapDisbursement({ id: 'd1', paymentStatus, amountCents: 100 }).status).toBe(expected);
   });
 });
 
@@ -20,13 +20,13 @@ describe('totalsByCurrency (PRC-M111)', () => {
   it('never sums across currencies', () => {
     expect(
       totalsByCurrency([
-        { amount: 100, currency: 'INR' },
-        { amount: 50, currency: 'USD' },
-        { amount: 25, currency: 'INR' },
+        { amountCents: 10_000, currency: 'INR' },
+        { amountCents: 5_000, currency: 'USD' },
+        { amountCents: 2_500, currency: 'INR' },
       ]),
     ).toEqual([
-      { currency: 'INR', total: 125 },
-      { currency: 'USD', total: 50 },
+      { currency: 'INR', totalCents: 12_500, total: 125 },
+      { currency: 'USD', totalCents: 5_000, total: 50 },
     ]);
   });
 });

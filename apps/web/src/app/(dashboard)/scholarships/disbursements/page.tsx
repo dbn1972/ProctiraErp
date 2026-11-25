@@ -56,7 +56,7 @@ const STATUS_COLOURS: Record<ScholarshipDisbursement['status'], string> = {
   CANCELLED: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 };
 /** PRC-M111: one formatted amount per currency, never a cross-currency sum. */
-function formatTotals(rows: ReadonlyArray<{ amount: number; currency: string }>): string {
+function formatTotals(rows: ReadonlyArray<{ amountCents: number; currency: string }>): string {
   return totalsByCurrency(rows)
     .map((t) => formatMoney(t.total, t.currency))
     .join(' + ');

@@ -20,6 +20,7 @@ const rows = [
   { id: '4', status: 'PROCESSING', amount: 200, currency: 'INR' },
 ].map((r) => ({
   ...r,
+  amountCents: r.amount * 100,
   applicationId: `app-${r.id}`,
   applicantName: `Student ${r.id}`,
   programName: 'Merit',
@@ -105,7 +106,9 @@ describe('disbursements page (PRC-M111)', () => {
       paidDate: '2026-01-31T20:00:00.000Z',
       transactionReference: 'UTR-1',
     });
-    expect(mapDisbursement({ id: 'd2', transactionReference: '' }).transactionReference).toBeNull();
+    expect(
+      mapDisbursement({ id: 'd2', amountCents: 0, transactionReference: '' }).transactionReference,
+    ).toBeNull();
   });
   it('PRC-M114: requests a page and shows page controls', async () => {
     listScholarshipDisbursements.mockResolvedValueOnce({

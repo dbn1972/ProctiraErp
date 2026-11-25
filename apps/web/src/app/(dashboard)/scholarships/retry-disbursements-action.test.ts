@@ -27,6 +27,7 @@ function row(id: string, status: 'SCHEDULED' | 'PROCESSED' | 'FAILED') {
     applicationId: 'a',
     applicantName: 'x',
     programName: 'p',
+    amountCents: 100,
     amount: 1,
     currency: 'INR',
     paymentDate: '2025-01-01',
