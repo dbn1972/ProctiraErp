@@ -48,6 +48,9 @@ export const DOCUMENT_LOCKED_STATUSES: readonly ScholarshipApplicationEntity['st
 ];
 const DOCUMENT_TYPE_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 
+/** PRC-M215: documents erased per tenant per retention sweep run. */
+export const DOCUMENT_PURGE_BATCH = 500;
+
 export type VirusScanHook = (input: {
   bytes: Buffer;
   mimeType: string;
@@ -368,6 +371,63 @@ export class ScholarshipDocumentService {
     const row = await this.deps.documents.findById(tenantId, documentId);
     if (!row) throw new NotFoundError('Document not found');
     return row;
+  }
+
+  /**
+   * PRC-M215 (DR35): erase this tenant's documents whose retention date has
+   * passed (8 years from upload by default). The stored object is deleted
+   * first, then the row with an audited DELETE; if the object delete fails
+   * the row stays (with its key) and the next sweep retries it.
+   */
+  async purgeExpiredDocuments(tenantId: string, now = new Date()) {
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const rows = await this.deps.documents.listPastRetention(tenantId, today, DOCUMENT_PURGE_BATCH);
+    let purged = 0;
+    const failures: Array<{ documentId: string; error: string }> = [];
+    for (const row of rows) {
+      try {
+        await this.deps.blobs.delete(row.objectKey, tenantId);
+      } catch (error) {
+        failures.push({
+          documentId: row.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
+      const erased = await this.deps.documents.purge(tenantId, row.id, {
+        tenantId,
+        entityId: row.id,
+        operation: 'DELETE',
+        userId: 'system:scholarship-document-retention',
+        userName: 'Scholarship document retention',
+        ipAddress: 'internal',
+        metadata: {
+          action: 'retention_erase',
+          applicationId: row.applicationId,
+          documentType: row.documentType,
+          retentionUntil: row.retentionUntil?.toISOString().slice(0, 10) ?? null,
+        },
+      });
+      if (erased) purged += 1;
+    }
+    return { purged, failures };
+  }
+
+  /** PRC-M215: one sweep over every tenant; a failing tenant does not stop the rest. */
+  async runRetentionSweep(now = new Date()) {
+    const tenants = await this.deps.documents.listTenantIdsForRetention();
+    let purged = 0;
+    const failures: Array<{ tenantId: string; documentId?: string; error: string }> = [];
+    for (const tenantId of tenants) {
+      try {
+        const result = await this.purgeExpiredDocuments(tenantId, now);
+        purged += result.purged;
+        failures.push(...result.failures.map((failure) => ({ tenantId, ...failure })));
+      } catch (error) {
+        failures.push({ tenantId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return { tenants: tenants.length, purged, failures };
   }
 
   private audit(
