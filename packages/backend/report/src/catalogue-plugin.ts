@@ -1,3 +1,4 @@
+import { isProductionLike } from '@proctira/common';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -14,6 +15,7 @@ import {
   type ScheduleDeliveryPort,
   type ScheduleEmailSender,
 } from './schedule-delivery.js';
+import { readAllowedRecipientDomains } from './schedule-recipients.js';
 import { createReportScheduler, type ReportScheduler } from './scheduler.js';
 import { prepareReportDownloadSigningAtStartup } from './signed-download.js';
 
@@ -52,6 +54,12 @@ export interface ReportCataloguePluginOptions {
   audit?: ReportAuditPort;
   /** UAT-9d: denial audit coalescing (window, key bound, clock for tests). */
   denialAudit?: DenialAuditCoalescingOptions;
+  /**
+   * PRC-L341: school email domains schedule recipients must use. Defaults to
+   * REPORT_RECIPIENT_ALLOWED_DOMAINS. With live delivery (delivery/emailSender) in a
+   * production-like environment and no domains, recipients are refused.
+   */
+  allowedRecipientDomains?: readonly string[];
 }
 
 declare module 'fastify' {
@@ -84,10 +92,21 @@ export const reportCataloguePlugin = fp(
       (options.emailSender
         ? new EmailScheduleDelivery(options.emailSender, { appBaseUrl: options.appBaseUrl })
         : new NoopScheduleDelivery());
-    const service = new CatalogueService(store, blobStore, delivery, {
-      error: (message, context) => fastify.log.error(context, message),
-      info: (message, context) => fastify.log.info(context, message),
-    });
+    // PRC-L341: once schedules really email links in production, recipients must use
+    // a configured school domain.
+    const allowedDomains = options.allowedRecipientDomains ?? readAllowedRecipientDomains();
+    const requireAllowedDomains =
+      isProductionLike(process.env.NODE_ENV) && Boolean(options.delivery ?? options.emailSender);
+    const service = new CatalogueService(
+      store,
+      blobStore,
+      delivery,
+      {
+        error: (message, context) => fastify.log.error(context, message),
+        info: (message, context) => fastify.log.info(context, message),
+      },
+      { allowedDomains, requireAllowedDomains },
+    );
     fastify.decorate('reportCatalogueService', service);
 
     registerCatalogueRoutes(fastify, {

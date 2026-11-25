@@ -185,8 +185,18 @@ export class ExternalAuthHandler {
       ipAddress: clientInfo?.ipAddress,
     });
 
-    // Issue platform JWT tokens
-    const tokens = await this.tokenService.issueTokenPair(user, session.id, clientInfo?.ipAddress);
+    // Issue platform JWT tokens. PRC-M538: the provider's verified email is carried
+    // into the token only when it is the account's email.
+    const tokenUser: AuthUser =
+      profile.emailVerified === true &&
+      profile.email.trim().toLowerCase() === user.email.trim().toLowerCase()
+        ? { ...user, emailVerified: true }
+        : user;
+    const tokens = await this.tokenService.issueTokenPair(
+      tokenUser,
+      session.id,
+      clientInfo?.ipAddress,
+    );
 
     return {
       tokens,

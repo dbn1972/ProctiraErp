@@ -274,11 +274,17 @@ export class PrivacyService implements DestructiveDeleteGuard {
         'Separation of duties: a legal hold must be released by someone other than the actor who placed it',
       );
     }
-    const updated = await this.repository.updateLegalHold(holdId, tenantId, {
-      active: false,
-      releasedBy,
-      releasedAt: new Date(),
-    });
+    // PRC-L136: conditional release — only a still-active hold is released, so two
+    // concurrent releases cannot both succeed (one gets 409, one audit row).
+    const updated = await this.repository.updateLegalHold(
+      holdId,
+      tenantId,
+      { active: false, releasedBy, releasedAt: new Date() },
+      { expectedActive: true },
+    );
+    if (!updated) {
+      throw new ConflictError(`Legal hold '${holdId}' changed concurrently; reload and retry`);
+    }
     await this.audit.record({
       tenantId: existing.tenantId,
       entityType: 'privacy_legal_hold',
@@ -291,7 +297,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       afterValues: { active: false, releasedBy },
     });
     logger.info({ holdId, tenantId: existing.tenantId }, 'Legal hold released');
-    return updated!;
+    return updated;
   }
 
   async listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]> {
@@ -1038,11 +1044,18 @@ export class PrivacyService implements DestructiveDeleteGuard {
     if (toStatus === 'applied') {
       return this.applyCorrection(requestId, tenantId, actorId, statusReason, ctx);
     }
-    const updated = (await this.repository.updateCorrectionRequest(requestId, tenantId, {
-      status: toStatus,
-      reviewedBy: actorId,
-      statusReason: statusReason ?? null,
-    }))!;
+    // PRC-L136: compare-and-set on the status read above (no lost update / double decide).
+    const updated = await this.repository.updateCorrectionRequest(
+      requestId,
+      tenantId,
+      { status: toStatus, reviewedBy: actorId, statusReason: statusReason ?? null },
+      { expectedStatus: existing.status },
+    );
+    if (!updated) {
+      throw new ConflictError(
+        `Correction request '${requestId}' changed concurrently; reload and retry`,
+      );
+    }
     await this.audit.record({
       tenantId: existing.tenantId,
       entityType: 'privacy_correction',
@@ -1103,14 +1116,31 @@ export class PrivacyService implements DestructiveDeleteGuard {
     await applier.applyValue({ ...target, value: existing.requestedValue });
 
     // PRC-M322: once applied the raw values are no longer needed; redact them at rest.
-    const applied = await this.repository.updateCorrectionRequest(requestId, tenantId, {
-      status: 'applied',
-      reviewedBy: actorId,
-      statusReason: statusReason ?? 'Correction applied',
-      appliedAt: new Date(),
-      currentValue: null,
-      requestedValue: CORRECTION_VALUE_REDACTED,
-    });
+    // PRC-L136: only an `approved` request is marked applied; a concurrent apply or
+    // cancel that moved it first wins and this call reports 409 (one audit row).
+    // Known gap: the domain write above runs before this guard, so a cancel that wins
+    // leaves the value changed on a `cancelled` request with no "applied" audit row,
+    // and two concurrent applies both call the applier. Closing it needs a claim
+    // (in-flight status or lease) before the domain write, which the
+    // privacy_correction_status_check constraint does not allow without a migration.
+    const applied = await this.repository.updateCorrectionRequest(
+      requestId,
+      tenantId,
+      {
+        status: 'applied',
+        reviewedBy: actorId,
+        statusReason: statusReason ?? 'Correction applied',
+        appliedAt: new Date(),
+        currentValue: null,
+        requestedValue: CORRECTION_VALUE_REDACTED,
+      },
+      { expectedStatus: 'approved' },
+    );
+    if (!applied) {
+      throw new ConflictError(
+        `Correction request '${requestId}' changed concurrently; reload and retry`,
+      );
+    }
 
     await this.audit.record({
       tenantId: existing.tenantId,
@@ -1141,7 +1171,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       { requestId, tenantId: existing.tenantId, fieldPath: existing.fieldPath },
       'Correction applied in owning domain with audit',
     );
-    return applied!;
+    return applied;
   }
 
   getCorrectionRequest(requestId: string, tenantId: string) {

@@ -265,10 +265,24 @@ jobs:
           diff "$ARTIFACT_DIR/source-counts.txt" "$ARTIFACT_DIR/encrypted-restored-counts.txt"
           echo "Encrypted round-trip OK" >> "$GITHUB_STEP_SUMMARY"
 
+      # PRC-M623: the job refuses SUPERUSER/BYPASSRLS roles, so provision the
+      # dedicated NOSUPERUSER NOBYPASSRLS role on the restored copy (bootstrap +
+      # migration 312 grants) and run the dry-run as that role, the same
+      # credential shape as PHI_RETENTION_DATABASE_URL in production.
+      - name: Provision the PHI retention role on the restored copy
+        run: |
+          set -euo pipefail
+          RESTORED_URL="${DATABASE_URL%/*}/proctira_restore_drill"
+          psql "$RESTORED_URL" -X -v ON_ERROR_STOP=1 -q -f db/bootstrap/01_runtime_roles.sql
+          psql "$RESTORED_URL" -X -v ON_ERROR_STOP=1 -q \
+            -c "ALTER ROLE proctira_phi_retention PASSWORD 'phi_retention_drill';"
+          psql "$RESTORED_URL" -X -v ON_ERROR_STOP=1 -q -f db/sql/312_phi_retention_role_grants.sql
+          psql "$RESTORED_URL" -X -At -c "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles
+            WHERE rolname = 'proctira_phi_retention';"
       - name: PHI retention dry-run against the restored copy
         run: node tools/scripts/phi-retention-job.mjs
         env:
-          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_restore_drill
+          DATABASE_URL: postgresql://proctira_phi_retention:phi_retention_drill@localhost:5432/proctira_restore_drill
           ARTIFACT_DIR: /tmp/restore-drill/phi-retention
           RETENTION_DRY_RUN: '1'
 

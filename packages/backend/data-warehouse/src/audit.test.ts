@@ -191,7 +191,7 @@ describe('audit events in GIS / translation / publishing services (PRC-L452)', (
       },
       { auditSink: sink },
     );
-    await pub.publishData(TENANT, wh, { target: 'api' }, ctx);
+    await pub.publishData(TENANT, wh, { target: 'api' }, { ...ctx, roles: ['data_admin'] });
 
     expect(events.map((e) => e.action)).toEqual([
       'gis_layer.create',

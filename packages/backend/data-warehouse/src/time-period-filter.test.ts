@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DataWarehouseService } from './data-warehouse-service.js';
 import { InMemoryWarehouseRepository } from './in-memory-repository.js';
 import { PublishingService } from './publishing-service.js';
+/** PRC-L553 (DR46): publishing needs tenant staff with the publish role. */
+const PUBLISHER = { actorId: 'publisher-1', roles: ['data_admin'] };
 
 const T = 'tenant-1';
 
@@ -57,15 +59,25 @@ describe('unknown time-period labels fail closed (PRC-M593)', () => {
   });
 
   it('publish with only unknown labels publishes zero records', async () => {
-    const result = await publishing.publishData(T, wh, { target: 'api', timePeriods: ['1999'] });
+    const result = await publishing.publishData(
+      T,
+      wh,
+      { target: 'api', timePeriods: ['1999'] },
+      PUBLISHER,
+    );
     expect(result.recordCount).toBe(0);
   });
 
   it('publish with known + unknown labels publishes only the known periods', async () => {
-    const result = await publishing.publishData(T, wh, {
-      target: 'api',
-      timePeriods: ['2023', '1999'],
-    });
+    const result = await publishing.publishData(
+      T,
+      wh,
+      {
+        target: 'api',
+        timePeriods: ['2023', '1999'],
+      },
+      PUBLISHER,
+    );
     expect(result.recordCount).toBe(1);
   });
 });

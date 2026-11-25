@@ -3,10 +3,11 @@
 Fresh ProctiraERP installs need two PostgreSQL LOGIN roles before Prisma migrate
 or `tools/scripts/apply-sql.sh` can establish the production RLS posture:
 
-| Role           | Purpose                                          | Attributes                                                              |
-| -------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| `proctira`     | Migrator / table owner (`MIGRATOR_DATABASE_URL`) | `NOSUPERUSER` `NOBYPASSRLS` (CI, prod and local compose since PRC-L460) |
-| `proctira_app` | Application runtime (`DATABASE_URL`)             | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
+| Role                     | Purpose                                                                                                              | Attributes                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `proctira`               | Migrator / table owner (`MIGRATOR_DATABASE_URL`)                                                                     | `NOSUPERUSER` `NOBYPASSRLS` (CI, prod and local compose since PRC-L460) |
+| `proctira_app`           | Application runtime (`DATABASE_URL`)                                                                                 | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
+| `proctira_phi_retention` | PHI retention CronJob (`PHI_RETENTION_DATABASE_URL`, PRC-M623); grants in `db/sql/312_phi_retention_role_grants.sql` | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
 
 ### Control-ledger privileges (W1-DATA-11 COMPLETE)
 
@@ -36,6 +37,7 @@ is no TABLE `DEFAULT PRIVILEGES` blanket for `proctira_app`.
 export BOOTSTRAP_DATABASE_URL=postgresql://postgres:SECRET@host:5432/postgres
 export MIGRATOR_PASSWORD='…'          # becomes proctira password
 export APP_ROLE_PASSWORD='…'          # becomes proctira_app password
+export PHI_RETENTION_ROLE_PASSWORD='…'  # optional: proctira_phi_retention password (PRC-M623)
 export BOOTSTRAP_DB_NAME=proctira     # optional: create DB owned by proctira
 export BOOTSTRAP_EXTENSIONS=1         # optional: uuid-ossp + pgcrypto on target DB
 export BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1  # CI/prod: pin proctira NOSUPERUSER NOBYPASSRLS

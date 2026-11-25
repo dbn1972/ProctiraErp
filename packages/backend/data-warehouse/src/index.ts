@@ -61,7 +61,12 @@ export {
 } from './gis-schemas.js';
 
 // Publishing Service (Requirement 15.4)
-export { PublishingService, type PublishingServiceConfig } from './publishing-service.js';
+export {
+  DEFAULT_MINIMUM_CELL_SIZE,
+  PublishingService,
+  type PublishContext,
+  type PublishingServiceConfig,
+} from './publishing-service.js';
 export {
   PublishTargetSchema,
   PublishRequestSchema,

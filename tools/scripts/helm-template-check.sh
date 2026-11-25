@@ -360,6 +360,44 @@ grep -Eqi 'W1-OPS-19|dr.phiRetention.apply' "${unset_out}.err" \
 rm -f "$unset_out" "${unset_out}.err"
 echo "OK W1-OPS-19 PHI retention (prod enforce + unset refuse)"
 
+# PRC-M623 — the retention CronJob reads its own RLS-bound credential, never the
+# BYPASSRLS backup key; configuring both to the same key fails closed.
+echo "==> PRC-M623 PHI retention credential split"
+split_dr_out="$(mktemp)"
+helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-staging \
+  -f "${PLATFORM_CHART}/values-staging.yaml" \
+  >"$split_dr_out"
+cron_db_key() {
+  # Print the DATABASE_URL secretKeyRef key of the CronJob whose name ends in $2.
+  awk -v suffix="$2" '
+    /^kind: / { kind=$2 }
+    kind == "CronJob" && /^  name: / { name=$2 }
+    kind == "CronJob" && name ~ (suffix "$") && /- name: DATABASE_URL$/ { want=1; next }
+    want && /key: / { print $2; exit }
+  ' "$1"
+}
+retention_key="$(cron_db_key "$split_dr_out" phi-retention)"
+backup_key="$(cron_db_key "$split_dr_out" pg-backup)"
+rm -f "$split_dr_out"
+[[ "$retention_key" == "PHI_RETENTION_DATABASE_URL" ]] \
+  || die "PRC-M623: phi-retention CronJob must read PHI_RETENTION_DATABASE_URL (got '${retention_key}')"
+[[ "$backup_key" == "BACKUP_DATABASE_URL" ]] \
+  || die "PRC-M623: pg-backup CronJob must read BACKUP_DATABASE_URL (got '${backup_key}')"
+shared_out="$(mktemp)"
+if helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-staging \
+  --set dr.phiRetention.databaseUrlSecretKey=BACKUP_DATABASE_URL \
+  -f "${PLATFORM_CHART}/values-staging.yaml" \
+  >"$shared_out" 2>"${shared_out}.err"; then
+  rm -f "$shared_out" "${shared_out}.err"
+  die "PRC-M623: retention sharing the backup secret key must fail closed"
+fi
+grep -q 'PRC-M623' "${shared_out}.err" \
+  || die "PRC-M623: expected fail message naming PRC-M623 when keys are shared"
+rm -f "$shared_out" "${shared_out}.err"
+echo "OK PRC-M623 PHI retention credential split (own key + shared-key refuse)"
+
 # W1-OPS-04 — production backups require encrypt + offsite + object-lock (fail closed)
 echo "==> W1-OPS-04 production backup encrypt/offsite gate"
 bash "$ROOT/tools/scripts/check-backup-prod-gate.sh"

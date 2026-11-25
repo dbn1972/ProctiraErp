@@ -18,6 +18,8 @@ test.describe('Registration Portal — a11y axe (ungated)', () => {
     page.on('pageerror', (error) => pageErrors.push(error.message));
     await page.goto('/schools');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    // PRC-L226: the map (third-party tiles) loads only after an explicit action.
+    await page.getByRole('button', { name: 'Show map' }).click();
     await expect(page.locator('.leaflet-container')).toBeVisible();
     await runAxe(page, { checkpointLabel: '/schools' });
     expect(pageErrors.join('\n')).not.toContain('Map container is already initialized');
@@ -95,6 +97,7 @@ test.describe('Registration Portal — institution map (ungated)', () => {
     );
 
     await page.goto('/schools');
+    await page.getByRole('button', { name: 'Show map' }).click();
     const marker = page.locator('.leaflet-marker-icon');
     await expect(marker).toHaveCount(1);
     await marker.click();

@@ -80,6 +80,23 @@ export function mayViewNationalId(roles: unknown): boolean {
   return isRegistrarOrAdmin(roles);
 }
 
+/**
+ * PRC-M121: section scope for teacher-only discipline access. Resolves whether one of the
+ * caller's principal ids (JWT sub / user id) is linked to staff who teach a section the student
+ * is enrolled in. Throws on lookup failure; callers fail closed.
+ */
+export interface TeacherStudentScope {
+  teachesStudent(tenantId: string, principalIds: string[], studentId: string): Promise<boolean>;
+}
+
+/**
+ * PRC-M121: discipline staff whose discipline access is limited to the students they teach
+ * (teacher role without an admin / registrar role).
+ */
+export function isSectionScopedDisciplineStaff(roles: unknown): boolean {
+  return isDisciplineStaff(roles) && !isRegistrarOrAdmin(roles);
+}
+
 export type StudentReadScope =
   { kind: 'staff' } | { kind: 'self'; studentIds: Set<string> } | { kind: 'denied' };
 

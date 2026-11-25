@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslations } from 'next-intl';
 import { Upload, FileCheck2, X } from 'lucide-react';
@@ -32,6 +32,7 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
   const { draft, addDocument, removeDocument } = useRegistration();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputId = useId();
 
   const existing = draft.documents.find((d) => d.documentType === documentType);
   const maxSizeMB = Math.round(DEFAULT_MAX_FILE_SIZE / (1024 * 1024));
@@ -85,7 +86,8 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
 
   return (
     <div>
-      <label className="input-label">
+      {/* PRC-L226: the visible label is bound to the file input (htmlFor/id). */}
+      <label className="input-label" htmlFor={existing ? undefined : inputId}>
         {label}
         {required && (
           <span className="text-red-500" aria-hidden="true">
@@ -124,7 +126,7 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
           })}
           className={`dropzone ${isDragActive ? 'dropzone-active' : ''}`}
         >
-          <input {...getInputProps()} aria-label={t('uploadLabel', { label })} />
+          <input {...getInputProps({ id: inputId })} aria-label={t('uploadLabel', { label })} />
           {uploading ? (
             <div className="flex items-center gap-2">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />

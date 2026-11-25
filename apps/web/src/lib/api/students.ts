@@ -707,6 +707,22 @@ export async function readStudentDiscipline(
   return result.ok && result.data ? result.data.data : null;
 }
 
+/**
+ * PRC-M121: `null` when the gateway refuses the caller discipline records (403: no discipline
+ * role, or a teacher who does not teach the student), so the profile hides the discipline card
+ * instead of showing an empty log with an add button.
+ */
+export async function listStudentDisciplineIfPermitted(
+  studentId: string,
+): Promise<DisciplineIncident[] | null> {
+  const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
+    `/students/${encodeURIComponent(studentId)}/discipline`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  if (result.status === 403) return null;
+  return result.ok && result.data ? result.data.data : [];
+}
+
 export async function listStudentDiscipline(studentId: string): Promise<DisciplineIncident[]> {
   const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
     `/students/${encodeURIComponent(studentId)}/discipline`,

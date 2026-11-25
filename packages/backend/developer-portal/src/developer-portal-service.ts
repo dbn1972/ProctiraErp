@@ -26,6 +26,7 @@ import type {
   PluginAnalyticsSummary,
   AnalyticsTimeSeries,
 } from './developer-portal-repository.js';
+import { redactPayload } from './payload-redaction.js';
 import type {
   WebhookDeliveryJobPayload,
   WebhookDeliveryPublisher,
@@ -1387,7 +1388,8 @@ export class DeveloperPortalService {
       id: uuidv4(),
       pluginName: input.pluginName,
       eventType: input.eventType,
-      metadata: input.metadata ?? null,
+      // PRC-L559: analytics metadata is stored redacted and bounded.
+      metadata: input.metadata ? redactPayload(input.metadata) : null,
       createdAt: new Date(),
     };
 

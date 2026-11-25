@@ -400,7 +400,14 @@ export class HealthService {
   ): Promise<string | null> {
     const lookup = this.repository.findStudentInstitutionId?.bind(this.repository);
     if (!lookup) return null;
-    return lookup(tenantId, studentId);
+    try {
+      return await lookup(tenantId, studentId);
+    } catch {
+      // PRC-L312: a failed student-institution lookup gives no institution, so
+      // hasHealthAccess / hasHealthWriteAccess deny school-bound actors (403).
+      // Tenant-wide actors and the student's guardian do not depend on it.
+      return null;
+    }
   }
 
   private async resolveAuthoritativeInstitutions(

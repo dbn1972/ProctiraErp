@@ -70,6 +70,7 @@ export function InstitutionMap({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(initialError);
+  const [mapShown, setMapShown] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const skipInitialFetch = useRef(!initialError);
 
@@ -216,8 +217,26 @@ export function InstitutionMap({
         </div>
       ) : null}
 
+      {/* PRC-L226: third-party map tiles/markers load only after the visitor asks for the map. */}
       <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-        <MapView institutions={filteredInstitutions} loading={loading} />
+        {mapShown ? (
+          <MapView institutions={filteredInstitutions} loading={loading} />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-3 bg-gray-50 p-6 text-center">
+            <p id="map-privacy-note" className="max-w-prose text-sm text-gray-600">
+              {t('mapPrivacyNote')}
+            </p>
+            <button
+              type="button"
+              className="btn-secondary"
+              aria-describedby="map-privacy-note"
+              onClick={() => setMapShown(true)}
+            >
+              <MapPin className="me-1 inline h-4 w-4" aria-hidden="true" />
+              {t('showMap')}
+            </button>
+          </div>
+        )}
       </div>
 
       {filteredInstitutions.length === 0 && !loading && !loadError && (

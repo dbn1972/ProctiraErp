@@ -67,6 +67,8 @@ export class TokenService {
       roles: user.roles,
       areas: user.areas,
       institutions: user.institutions,
+      // PRC-M538: signed only when the login proved an IdP-verified email.
+      ...(user.emailVerified === true ? { emailVerified: true } : {}),
       jti,
       sessionId,
       iat: now,
@@ -167,6 +169,8 @@ export class TokenService {
       roles: user.roles,
       areas: user.areas,
       institutions: user.institutions,
+      // PRC-M538: signed only when the login proved an IdP-verified email.
+      ...(user.emailVerified === true ? { emailVerified: true } : {}),
       jti,
       sessionId: storedToken.sessionId,
       iat: now,

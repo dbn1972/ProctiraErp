@@ -95,3 +95,33 @@ describe('Student 360 panel (PRC-M124)', () => {
     );
   });
 });
+
+describe('Student 360 panel discipline gating (PRC-M121)', () => {
+  it('hides the discipline card when the caller may not read discipline (incidents null)', () => {
+    render(
+      <Student360Panel
+        studentId={STUDENT}
+        hasPhoto={false}
+        siblings={[]}
+        consents={[]}
+        incidents={null}
+      />,
+    );
+    expect(screen.queryByText('Discipline log')).toBeNull();
+    expect(screen.queryByTestId('discipline-add')).toBeNull();
+    expect(screen.queryByTestId('discipline-empty')).toBeNull();
+  });
+  it('shows the discipline card (with its empty state) when permitted', () => {
+    render(
+      <Student360Panel
+        studentId={STUDENT}
+        hasPhoto={false}
+        siblings={[]}
+        consents={[]}
+        incidents={[]}
+      />,
+    );
+    expect(screen.getByText('Discipline log')).toBeTruthy();
+    expect(screen.getByTestId('discipline-empty')).toBeTruthy();
+  });
+});
