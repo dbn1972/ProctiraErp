@@ -27,6 +27,7 @@ import { Type, type Static, type TSchema } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { DeveloperPortalService } from './developer-portal-service.js';
+import { redactPayload } from './payload-redaction.js';
 import {
   authenticatedEmail,
   callerTenantId,
@@ -203,7 +204,8 @@ function formatDeliveryResponse(entity: {
     id: entity.id,
     webhookId: entity.webhookId,
     event: entity.event,
-    payload: entity.payload,
+    // PRC-L559: listings never echo personal data from the delivered payload.
+    payload: redactPayload(entity.payload),
     status: entity.status,
     httpStatus: entity.httpStatus,
     attempts: entity.attempts,
