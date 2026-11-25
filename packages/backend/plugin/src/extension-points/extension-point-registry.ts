@@ -10,9 +10,10 @@
  * - experimental: May change without notice
  * - deprecated: Scheduled for removal
  */
-import { v4 as uuidv4 } from 'uuid';
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { v4 as uuidv4 } from 'uuid';
 
+import { minimiseEventData } from './event-minimisation.js';
 import type {
   ExtensionPointDefinition,
   HookType,
@@ -557,11 +558,14 @@ export class ExtensionPointRegistry {
       return;
     }
 
+    // PRC-M629 (DR47): handlers (and filters) see ids and non-personal attributes only.
+    const minimal: DomainEventPayload = { ...event, data: minimiseEventData(event.data) };
+
     const promises = subscriptions.map(async (subscription) => {
       // Apply filter if present
       if (subscription.filter) {
         const matches = Object.entries(subscription.filter).every(
-          ([key, value]) => event.data[key] === value,
+          ([key, value]) => minimal.data[key] === value,
         );
         if (!matches) return;
       }
@@ -576,7 +580,7 @@ export class ExtensionPointRegistry {
       };
 
       try {
-        await subscription.handler(event, context);
+        await subscription.handler(minimal, context);
       } catch {
         // Event handlers are fire-and-forget; errors are logged but don't propagate
         // In production, this would log to the structured logger
