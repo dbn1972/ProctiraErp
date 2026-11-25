@@ -796,6 +796,13 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
+          # PRC-M623 (N6): give proctira_phi_retention a per-run generated
+          # password so the retention dry-run below connects as that role
+          # (masked in logs; later steps read it from GITHUB_ENV).
+          PHI_RETENTION_ROLE_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::${PHI_RETENTION_ROLE_PASSWORD}"
+          echo "PHI_RETENTION_ROLE_PASSWORD=${PHI_RETENTION_ROLE_PASSWORD}" >> "$GITHUB_ENV"
+          export PHI_RETENTION_ROLE_PASSWORD
           # Canonical role bootstrap — no hand-written CREATE ROLE in CI.
           BOOTSTRAP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
           MIGRATOR_PASSWORD=proctira_test \
@@ -961,12 +968,20 @@ jobs:
       # PRC-M559: the PHI retention suite (psql is a PATH stub) had the same
       # reachability gap. The dry-run then runs the job against the migrated
       # database: one psql session, per-tenant RLS binding, counts only.
-      - name: PHI retention job suite + live dry-run
+      # PRC-M623 (N6): it connects as proctira_phi_retention (password from the
+      # provision step), so the role's grants from apply-sql are exercised on
+      # every run, not only by the restore drill.
+      - name: PHI retention job suite + live dry-run as proctira_phi_retention
         run: |
+          set -euo pipefail
           env -u DATABASE_URL node --test tools/scripts/__tests__/phi-retention-job.test.mjs
+          : "${PHI_RETENTION_ROLE_PASSWORD:?provision step must export PHI_RETENTION_ROLE_PASSWORD}"
+          export DATABASE_URL="postgresql://proctira_phi_retention:${PHI_RETENTION_ROLE_PASSWORD}@localhost:5432/proctira_test"
+          [ "$(psql "$DATABASE_URL" -X -Atc 'SELECT current_user')" = proctira_phi_retention ] \
+            || { echo "::error::retention dry-run is not connecting as proctira_phi_retention"; exit 1; }
           node tools/scripts/phi-retention-job.mjs
+          node -e 'const s=require("/tmp/phi-retention/summary.json"); if (s.mode !== "dry-run" || !(s.tenantsScanned >= 1)) { console.error("::error::retention dry-run scanned no tenants"); process.exit(1); }'
         env:
-          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           RETENTION_DRY_RUN: '1'
           ARTIFACT_DIR: /tmp/phi-retention
 
