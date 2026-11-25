@@ -1705,6 +1705,18 @@ export class FeesService {
     const overdue = await this.listOverdueForReminder(tenantId, asOf);
     const byId = new Map(overdue.map((row) => [row.invoiceId, row]));
     const results: SendReminderResultRow[] = [];
+    // PRC-L106: read the send audit once per run (was once per invoice x channel), and
+    // index it by message id and by (invoice, channel) for the cadence check.
+    const priorAudits = await this.repository.listReminderSendAudits(tenantId);
+    const auditByMessageId = new Map<string, ReminderSendAuditEntity>();
+    const lastSentAt = new Map<string, number>();
+    const remember = (audit: ReminderSendAuditEntity) => {
+      auditByMessageId.set(audit.messageId, audit);
+      const key = `${audit.invoiceId}:${audit.channel}`;
+      lastSentAt.set(key, Math.max(lastSentAt.get(key) ?? 0, audit.createdAt.getTime()));
+    };
+    priorAudits.forEach(remember);
+    const sendDay = asOf.toISOString().slice(0, 10);
 
     for (const invoiceId of input.invoiceIds) {
       const row = byId.get(invoiceId);
@@ -1749,15 +1761,13 @@ export class FeesService {
       }
 
       for (const channel of channels) {
+        // PRC-L106: one reminder per (tenant, invoice, channel, day). The message id is
+        // derived from those, so a retried or repeated run reuses it instead of minting
+        // a new Date.now() id and a second audit row.
+        const messageId = `sandbox-${channel}:fees:${tenantId}:${invoiceId}:${sendDay}`;
         if (cadenceDays > 0) {
           const cutoff = asOf.getTime() - cadenceDays * 86_400_000;
-          const audits = await this.repository.listReminderSendAudits(tenantId);
-          const recent = audits.some(
-            (audit) =>
-              audit.invoiceId === invoiceId &&
-              audit.channel === channel &&
-              audit.createdAt.getTime() >= cutoff,
-          );
+          const recent = (lastSentAt.get(`${invoiceId}:${channel}`) ?? -1) >= cutoff;
           if (recent) {
             results.push({
               invoiceId,
@@ -1770,8 +1780,20 @@ export class FeesService {
             continue;
           }
         }
+        const existing = auditByMessageId.get(messageId);
+        if (existing) {
+          results.push({
+            invoiceId,
+            studentId: row.studentId,
+            channel,
+            messageId,
+            suppressed: false,
+            skippedReason: 'already_sent',
+            auditId: existing.id,
+          });
+          continue;
+        }
 
-        const messageId = `sandbox-${channel}:fees:${tenantId}:${invoiceId}:${Date.now()}`;
         const audit: ReminderSendAuditEntity = {
           id: uuidv4(),
           tenantId,
@@ -1785,6 +1807,7 @@ export class FeesService {
           createdAt: new Date(),
         };
         await this.repository.createReminderSendAudit(audit);
+        remember(audit);
         results.push({
           invoiceId,
           studentId: row.studentId,
