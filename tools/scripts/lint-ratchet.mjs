@@ -28,6 +28,40 @@ const PATTERNS = ['*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '
 // Same exclusions as the ci.yml PR ESLint step.
 export const EXCLUDE_RE = /(^|\/)(dist|\.next|coverage|node_modules|%5F%5Ftests)\//;
 const BATCH_SIZE = Number(process.env.LINT_RATCHET_BATCH_SIZE || 400);
+// A 400-file type-aware batch needs a little over 2 GiB of V8 heap. Node sizes
+// its default heap from host memory, so some GitHub runners abort ESLint with
+// a heap OOM; pin the heap so every runner gets the same limit.
+export const ESLINT_HEAP_MB = Number(process.env.LINT_RATCHET_HEAP_MB || 4096);
+
+/** NODE_OPTIONS for the ESLint child; an explicit --max-old-space-size wins. */
+export function eslintNodeOptions(current = '', heapMb = ESLINT_HEAP_MB) {
+  if (/--max-old-space-size[=\s]/.test(current)) return current;
+  return `${current} --max-old-space-size=${heapMb}`.trim();
+}
+
+/**
+ * Parses ESLint `--format json` stdout. `pnpm exec` exits 1 both when ESLint
+ * reports lint errors and when ESLint is killed (heap OOM, SIGKILL); in the
+ * second case stdout holds pnpm's error text, not JSON. Throw a clear error
+ * instead of a bare JSON.parse failure.
+ */
+export function parseEslintJson(stdout, stderr = '') {
+  const text = (stdout ?? '').trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = undefined;
+  }
+  if (Array.isArray(parsed)) return parsed;
+  const detail = [
+    `stdout: ${text ? text.slice(0, 500) : '(empty)'}`,
+    `stderr: ${(stderr ?? '').trim().slice(-1500) || '(empty)'}`,
+  ].join('\n');
+  throw new Error(
+    `ESLint produced no JSON results (it may have been killed, e.g. out of memory)\n${detail}`,
+  );
+}
 
 /**
  * Pure comparison of per-file error counts.
@@ -89,11 +123,16 @@ function lintAll(files) {
       const r = spawnSync(
         'pnpm',
         ['exec', 'eslint', '--format', 'json', '--no-error-on-unmatched-pattern', ...batch],
-        { cwd: ROOT, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 },
+        {
+          cwd: ROOT,
+          encoding: 'utf8',
+          maxBuffer: 512 * 1024 * 1024,
+          env: { ...process.env, NODE_OPTIONS: eslintNodeOptions(process.env.NODE_OPTIONS) },
+        },
       );
       // ESLint exits 1 when lint errors exist; 2 means it could not run.
       if (r.status === 0 || r.status === 1) {
-        results.push(...JSON.parse(r.stdout));
+        results.push(...parseEslintJson(r.stdout, r.stderr));
         break;
       }
       const crashed = crashedFile(r.stderr, batch);
