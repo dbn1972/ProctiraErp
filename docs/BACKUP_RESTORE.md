@@ -209,7 +209,11 @@ so `tools/scripts/apply-sql.sh` re-applies them on every run (role-guarded, in
 after 312 ran, re-run `apply-sql.sh` as the migrator. Store the URL as
 `PHI_RETENTION_DATABASE_URL` (`secrets.phiRetentionDatabaseUrl`; the CronJob
 reads `dr.phiRetention.databaseUrlSecretKey`). Rendering fails when that key
-equals `dr.databaseUrlSecretKey`, and the job exits 1 when it connects as a
+equals `dr.databaseUrlSecretKey`, and, with a chart-managed Secret, when
+`secrets.phiRetentionDatabaseUrl` is empty. With `secrets.existingSecret` the
+chart cannot see the value, so the platform deploy runs
+`tools/scripts/check-phi-retention-secret-key.sh` first and stops when the
+Secret lacks a non-empty key. The job exits 1 when it connects as a
 SUPERUSER or BYPASSRLS role.
 
 Roles are cluster-level, so `pg_dump` does not carry `proctira_phi_retention`,

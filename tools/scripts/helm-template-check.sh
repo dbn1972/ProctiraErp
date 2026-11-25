@@ -265,6 +265,10 @@ echo "==> lint + template ${PLATFORM_CHART}"
 # ([ERROR]); informational/warning findings (icon etc.) still pass.
 helm lint "${PLATFORM_CHART}"
 
+# PRC-M623 (N2): staging/development renders use the chart-managed Secret, so
+# they must set the PHI retention URL (the CronJob template `required`s it).
+PHI_URL_SET=(--set secrets.phiRetentionDatabaseUrl=postgresql://ci:ci@localhost:5432/ci)
+
 # Base values are intentionally non-destructive: DR jobs require an explicit
 # environment overlay, but all canonical Deployments must still render hardened.
 base_platform_out="$(mktemp)"
@@ -282,6 +286,7 @@ helm template proctira "${PLATFORM_CHART}" \
   --set global.environment=staging \
   --set secrets.jwtSecret=ci-placeholder \
   --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  "${PHI_URL_SET[@]}" \
   -f "${PLATFORM_CHART}/values-staging.yaml" \
   >"$platform_out"
 [[ -s "$platform_out" ]] || die "empty platform template output"
@@ -294,6 +299,7 @@ split_out="$(mktemp)"
 helm template proctira "${PLATFORM_CHART}" \
   --namespace proctira-lab \
   -f "${PLATFORM_CHART}/values-development.yaml" \
+  "${PHI_URL_SET[@]}" \
   --set topology.mode=split \
   --set studentService.enabled=true \
   --set assessmentService.enabled=true \
@@ -367,6 +373,7 @@ split_dr_out="$(mktemp)"
 helm template proctira "${PLATFORM_CHART}" \
   --namespace proctira-staging \
   -f "${PLATFORM_CHART}/values-staging.yaml" \
+  "${PHI_URL_SET[@]}" \
   >"$split_dr_out"
 cron_db_key() {
   # Print the DATABASE_URL secretKeyRef key of the CronJob whose name ends in $2.
@@ -389,6 +396,7 @@ if helm template proctira "${PLATFORM_CHART}" \
   --namespace proctira-staging \
   --set dr.phiRetention.databaseUrlSecretKey=BACKUP_DATABASE_URL \
   -f "${PLATFORM_CHART}/values-staging.yaml" \
+  "${PHI_URL_SET[@]}" \
   >"$shared_out" 2>"${shared_out}.err"; then
   rm -f "$shared_out" "${shared_out}.err"
   die "PRC-M623: retention sharing the backup secret key must fail closed"
@@ -397,6 +405,45 @@ grep -q 'PRC-M623' "${shared_out}.err" \
   || die "PRC-M623: expected fail message naming PRC-M623 when keys are shared"
 rm -f "$shared_out" "${shared_out}.err"
 echo "OK PRC-M623 PHI retention credential split (own key + shared-key refuse)"
+
+# PRC-M623 (N2) — a chart-managed Secret without the retention URL value used
+# to render cleanly; the CronJob pod then failed with CreateContainerConfigError.
+echo "==> PRC-M623 PHI retention secret value required (chart-managed Secret)"
+expect_render_fail() {
+  local label="$1" pattern="$2"
+  shift 2
+  local err
+  err="$(mktemp)"
+  if helm template proctira "${PLATFORM_CHART}" --namespace proctira-staging \
+    -f "${PLATFORM_CHART}/values-staging.yaml" "$@" >/dev/null 2>"$err"; then
+    rm -f "$err"
+    die "PRC-M623: ${label} must fail rendering"
+  fi
+  grep -Eq "$pattern" "$err" || die "PRC-M623: ${label} failed for the wrong reason: $(cat "$err")"
+  rm -f "$err"
+}
+expect_render_fail "chart-managed Secret without secrets.phiRetentionDatabaseUrl" \
+  'PRC-M623: secrets.phiRetentionDatabaseUrl is required'
+expect_render_fail "chart-managed Secret with a non-default retention key" \
+  'PRC-M623: with a chart-managed Secret, dr.phiRetention.databaseUrlSecretKey must be PHI_RETENTION_DATABASE_URL' \
+  "${PHI_URL_SET[@]}" --set dr.phiRetention.databaseUrlSecretKey=OTHER_RETENTION_URL
+phi_secret_out="$(mktemp)"
+helm template proctira "${PLATFORM_CHART}" --namespace proctira-staging \
+  -f "${PLATFORM_CHART}/values-staging.yaml" "${PHI_URL_SET[@]}" >"$phi_secret_out"
+awk '/^kind: Secret$/ { s=1 } /^---/ { s=0 } s && /^  PHI_RETENTION_DATABASE_URL: /' "$phi_secret_out" | grep -q . \
+  || die "PRC-M623: chart-managed Secret must carry PHI_RETENTION_DATABASE_URL when the value is set"
+# Retention disabled: no CronJob, so no value is required.
+helm template proctira "${PLATFORM_CHART}" --namespace proctira-staging \
+  -f "${PLATFORM_CHART}/values-staging.yaml" --set dr.phiRetention.enabled=false >"$phi_secret_out" \
+  || die "PRC-M623: dr.phiRetention.enabled=false must render without secrets.phiRetentionDatabaseUrl"
+! grep -q 'phi-retention' "$phi_secret_out" || die "PRC-M623: disabled retention must not render the CronJob"
+# existingSecret: the chart cannot see the key; check-phi-retention-secret-key.sh
+# verifies it in the cluster before deploy.
+helm template proctira "${PLATFORM_CHART}" --namespace proctira-staging \
+  -f "${PLATFORM_CHART}/values-staging.yaml" --set secrets.existingSecret=ops-secrets >"$phi_secret_out" \
+  || die "PRC-M623: secrets.existingSecret must render without secrets.phiRetentionDatabaseUrl"
+rm -f "$phi_secret_out"
+echo "OK PRC-M623 PHI retention secret value (required when chart-managed; existingSecret checked pre-deploy)"
 
 # W1-OPS-04 — production backups require encrypt + offsite + object-lock (fail closed)
 echo "==> W1-OPS-04 production backup encrypt/offsite gate"
@@ -506,6 +553,7 @@ if helm template proctira "${PLATFORM_CHART}" \
   --set secrets.jwtSecret=ci-placeholder \
   --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
   -f "${PLATFORM_CHART}/values-staging.yaml" \
+  "${PHI_URL_SET[@]}" \
   --set-string etlWorker.image.tag=latest \
   >/dev/null 2>"$m599_err"; then
   rm -f "$m599_err"
@@ -521,6 +569,7 @@ for env_name in production staging; do
       --set secrets.jwtSecret=ci-placeholder \
       --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
       -f "${PLATFORM_CHART}/values-${env_name}.yaml" \
+      "${PHI_URL_SET[@]}" \
       --set-string apiGateway.image.tag="${good_tag}" \
       --set-string etlWorker.image.tag="${good_tag}" \
       --set-string dr.image.tag="${good_tag}" \
