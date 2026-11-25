@@ -348,9 +348,28 @@ describe('PRC-M623 retention runs as its own RLS-bound role and honours legal ho
     for (const statement of deletes) {
       const where = statement.slice(0, statement.indexOf('RETURNING'));
       assert.match(where, /AND NOT EXISTS \(\s+SELECT 1 FROM privacy_legal_holds h/);
-      assert.match(where, /h\.subject_type = 'student' AND h\.subject_id = r\.student_id/);
+      assert.match(
+        where,
+        /privacy_subject_kind\(h\.subject_type\) = 'student' AND h\.subject_id = r\.student_id/,
+      );
     }
     assert.equal((sql.match(/IF v_tenant_hold THEN\s+v_deleted := 0;/g) ?? []).length, 2);
+  });
+  it('matches the 313/314 delete guard: normalised subject types, staff holds on counsellor_id', () => {
+    // A row the guard refuses (23000) must be counted as held, or one held row
+    // aborts the single-transaction run for every tenant.
+    for (const dryRun of [true, false]) {
+      const sql = job.buildRetentionScript({ ...cutoffs, dryRun });
+      assert.ok(!/h\.subject_type = 'student'/.test(sql), 'no raw subject_type comparison');
+      const staff =
+        /privacy_subject_kind\(h\.subject_type\) = 'staff' AND h\.subject_id = r\.counsellor_id/g;
+      // counselling_sessions only: once in the held count, once in the DELETE when applying.
+      assert.equal((sql.match(staff) ?? []).length, dryRun ? 1 : 2);
+    }
+    const sql = job.buildRetentionScript({ ...cutoffs, dryRun: false });
+    const [counselling, specialNeeds] = sql.split('WITH d AS (').slice(1);
+    assert.match(counselling.slice(0, counselling.indexOf('RETURNING')), /r\.counsellor_id/);
+    assert.ok(!specialNeeds.slice(0, specialNeeds.indexOf('RETURNING')).includes('counsellor_id'));
   });
 
   it('N3: checks column SELECT on exactly the tenants/students columns the script reads', () => {
