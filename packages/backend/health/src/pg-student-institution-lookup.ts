@@ -1,5 +1,11 @@
 /**
  * Resolve a student's active enrollment institution for PHI scope + authZ.
+ *
+ * Returns `null` only when the lookup was not attempted (no pool) or the
+ * student has no active enrollment. PRC-L312: a query failure (RLS, schema
+ * drift, connection error) re-throws instead of returning `null`. Callers fail
+ * closed: HealthService denies school-bound actors, and the counselling store
+ * refuses to encrypt or decrypt under a guessed PHI crypto scope.
  */
 import { withPgTenant } from '@proctira/database';
 
@@ -11,23 +17,19 @@ export async function findStudentInstitutionId(
   studentId: string,
 ): Promise<string | null> {
   if (!pool) return null;
-  try {
-    const result = await withPgTenant(pool, tenantId, async (client) =>
-      client.query(
-        `SELECT institution_id::text AS institution_id
-         FROM enrollments
-         WHERE tenant_id = $1::uuid
-           AND student_id = $2::uuid
-           AND status = 'ENROLLED'
-           AND exited_at IS NULL
-         ORDER BY enrolled_at DESC
-         LIMIT 1`,
-        [tenantId, studentId],
-      ),
-    );
-    const row = result.rows[0] as { institution_id?: unknown } | undefined;
-    return row?.institution_id ? String(row.institution_id) : null;
-  } catch {
-    return null;
-  }
+  const result = await withPgTenant(pool, tenantId, async (client) =>
+    client.query(
+      `SELECT institution_id::text AS institution_id
+       FROM enrollments
+       WHERE tenant_id = $1::uuid
+         AND student_id = $2::uuid
+         AND status = 'ENROLLED'
+         AND exited_at IS NULL
+       ORDER BY enrolled_at DESC
+       LIMIT 1`,
+      [tenantId, studentId],
+    ),
+  );
+  const row = result.rows[0] as { institution_id?: unknown } | undefined;
+  return row?.institution_id ? String(row.institution_id) : null;
 }

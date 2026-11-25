@@ -419,8 +419,10 @@ export const healthUiPlugin = fp(
       if (effectiveInstitutionIds(context).length === 0) return [];
       const studentIds = [...new Set(rows.map((row) => row.studentId))];
       const verdicts = await mapLimited(studentIds, 8, async (studentId) => {
+        // PRC-L312: a failed lookup hides the student's rows (fail closed).
         const studentInstitutionId =
-          (await repository?.findStudentInstitutionId?.(tenantId, studentId)) ?? null;
+          (await repository?.findStudentInstitutionId?.(tenantId, studentId).catch(() => null)) ??
+          null;
         return hasHealthAccess(context, studentId, { studentInstitutionId });
       });
       const allowed = new Set(studentIds.filter((_, i) => verdicts[i]));

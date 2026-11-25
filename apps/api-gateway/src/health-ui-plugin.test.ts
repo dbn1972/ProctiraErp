@@ -361,6 +361,18 @@ describe('healthUiPlugin', () => {
       expect(missing.statusCode).toBe(404);
     });
 
+    it('PRC-L312: a failed student-institution lookup hides that student from a school-bound list', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      vi.spyOn(repository, 'findStudentInstitutionId').mockRejectedValue(
+        new Error('simulated RLS/connection failure'),
+      );
+      const app = await buildLiveApp(repository);
+      const list = await app.inject({ method: 'GET', url: '/health/records' });
+      expect(list.statusCode).toBe(200);
+      expect((list.json() as { data: unknown[] }).data).toEqual([]);
+    });
+
     it('special-needs aggregate uses latest diagnosis + active plan', async () => {
       const repository = new InMemoryHealthRepository();
       await seedDomain(repository);
