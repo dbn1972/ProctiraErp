@@ -97,6 +97,38 @@ function rowCount(res: unknown): number {
 
 const SAFE_IDENT = /^[a-z_][a-z0-9_]*$/;
 
+/**
+ * PRC-M325: re-check the legal hold inside the executing transaction through
+ * the database guard (db/sql/313 privacy_assert_no_legal_hold: tenants.legal_hold,
+ * tenant-scope and subject holds). The service checks before it starts a job, but
+ * a hold placed after that check, or a tenant flag the service does not read, must
+ * still stop the run. Returns a residual when held or when the check itself fails
+ * (fail closed); undefined when the run may proceed.
+ */
+async function legalHoldResidual(
+  client: PgQueryable,
+  tenantId: string,
+  subject?: { subjectType: string; subjectId: string },
+): Promise<string | undefined> {
+  const sp = 'privacy_legal_hold_check';
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    await client.query(`SELECT privacy_assert_no_legal_hold($1::uuid, $2::text, $3::text)`, [
+      tenantId,
+      subject?.subjectType ?? null,
+      subject?.subjectId ?? null,
+    ]);
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    return undefined;
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    const code = (err as { code?: unknown }).code;
+    return code === '23000'
+      ? 'legal hold: active legal hold blocks this run (fail-closed); nothing changed'
+      : `legal hold: check failed (${errMessage(err)}); nothing changed (fail-closed)`;
+  }
+}
+
 const isType =
   (...types: string[]) =>
   (subjectType: string) =>
@@ -340,6 +372,8 @@ export class PgDomainSubjectAnonymizer implements SubjectAnonymizer {
     }
     const token = anonToken(input);
     return withPgTenant(this.pool, input.tenantId, async (client) => {
+      const held = await legalHoldResidual(client, input.tenantId, input);
+      if (held) return { fieldsTouched: [], residualNote: held };
       const fieldsTouched: string[] = [];
       const residuals: string[] = [];
       for (const [i, domain] of applicable.entries()) {
@@ -489,6 +523,8 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
     const maxPasses = this.options.maxPasses ?? 8;
 
     const outcome = await withPgTenant(this.pool, input.tenantId, async (client) => {
+      const held = await legalHoldResidual(client, input.tenantId);
+      if (held) return { held };
       const res = await client.query(
         `SELECT DISTINCT table_name FROM information_schema.columns
           WHERE table_schema = 'public' AND column_name = 'tenant_id'
@@ -523,6 +559,10 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
       }
       return { tables, failed };
     });
+    if ('held' in outcome) {
+      // PRC-M325: nothing deleted, object storage untouched; the job fails closed.
+      return [{ domain: 'legal_hold', status: 'residual', note: outcome.held }];
+    }
 
     const wiped = new Map<string, { tables: string[]; failed: string[] }>();
     const kept = new Map<string, { disposition: KeptDisposition; tables: string[] }>();

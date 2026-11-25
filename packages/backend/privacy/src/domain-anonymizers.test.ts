@@ -410,3 +410,49 @@ describe('PRC-H077 PgTenantWipeExecutor', () => {
     expect(byDomain).toMatchObject({ staff: 'residual', object_storage: 'residual' });
   });
 });
+describe('PRC-M325 legal-hold re-check inside the executors', () => {
+  const holdError = Object.assign(new Error('active privacy legal hold'), { code: '23000' });
+  it('the subject anonymizer checks the hold first and writes nothing when held', async () => {
+    const { pool, queries } = fakePool((sql) => {
+      if (sql.includes('privacy_assert_no_legal_hold')) throw holdError;
+      return { rows: [], rowCount: 1 };
+    });
+    const result = await new PgDomainSubjectAnonymizer(pool as never).anonymize({
+      ...input,
+      subjectType: 'student',
+    });
+    expect(result.fieldsTouched).toEqual([]);
+    expect(result.residualNote).toMatch(/legal hold/);
+    expect(queries.some((q) => /^\s*(UPDATE|DELETE)/.test(q.sql))).toBe(false);
+  });
+  it('a failing hold check fails closed too', async () => {
+    const { pool } = fakePool((sql) => {
+      if (sql.includes('privacy_assert_no_legal_hold')) throw new Error('function does not exist');
+      return { rows: [], rowCount: 1 };
+    });
+    const result = await new PgDomainSubjectAnonymizer(pool as never).anonymize({
+      ...input,
+      subjectType: 'student',
+    });
+    expect(result.residualNote).toMatch(/legal hold: check failed/);
+  });
+  it('the tenant wipe deletes nothing and leaves object storage alone when held', async () => {
+    let wiped = false;
+    const { pool, queries } = fakePool((sql) => {
+      if (sql.includes('privacy_assert_no_legal_hold')) throw holdError;
+      return { rows: [], rowCount: 1 };
+    });
+    const results = await new PgTenantWipeExecutor(pool as never, {
+      objectStoreWiper: {
+        async wipeTenant() {
+          wiped = true;
+        },
+      },
+    }).wipe({ tenantId: input.tenantId, jobId: 'j', reason: 'offboard' });
+    expect(results).toEqual([
+      expect.objectContaining({ domain: 'legal_hold', status: 'residual' }),
+    ]);
+    expect(queries.some((q) => q.sql.startsWith('DELETE'))).toBe(false);
+    expect(wiped).toBe(false);
+  });
+});
