@@ -14,6 +14,8 @@ import {
   compareCounts,
   countsFromResults,
   crashedFile,
+  eslintNodeOptions,
+  parseEslintJson,
   sortedCounts,
 } from './lint-ratchet.mjs';
 
@@ -63,6 +65,44 @@ test('a crashing file is identified from ESLint stderr', () => {
     'apps/web/lighthouserc.cjs',
   );
   assert.equal(crashedFile('other failure', ['a.ts'], ROOT), null);
+});
+
+test('ESLint JSON stdout is parsed', () => {
+  const results = [{ filePath: '/r/a.ts', errorCount: 1 }];
+  assert.deepEqual(parseEslintJson(`${JSON.stringify(results)}\n`, ''), results);
+});
+
+test('non-JSON ESLint stdout fails with a clear message, not a JSON.parse error', () => {
+  // What `pnpm exec` prints (exit 1) when ESLint is killed by a heap OOM, as in
+  // Lint Ratchet runs 45019044763 and 45410331092.
+  const pnpmKilled =
+    'undefined\n ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command was killed with SIGABRT (Aborted): eslint --format json a.ts\n';
+  const stderr =
+    'FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory';
+  assert.throws(
+    () => parseEslintJson(pnpmKilled, stderr),
+    (err) =>
+      /ESLint produced no JSON results/.test(err.message) &&
+      err.message.includes('Command was killed with SIGABRT') &&
+      err.message.includes('JavaScript heap out of memory') &&
+      !/is not valid JSON/.test(err.message),
+  );
+  for (const empty of ['', undefined, null]) {
+    assert.throws(
+      () => parseEslintJson(empty, ''),
+      /ESLint produced no JSON results[\s\S]*\(empty\)/,
+    );
+  }
+  assert.throws(() => parseEslintJson('{"not":"an array"}', ''), /ESLint produced no JSON results/);
+});
+
+test('ESLint child gets a pinned heap unless NODE_OPTIONS already sets one', () => {
+  assert.equal(eslintNodeOptions(undefined, 4096), '--max-old-space-size=4096');
+  assert.equal(
+    eslintNodeOptions('--enable-source-maps', 4096),
+    '--enable-source-maps --max-old-space-size=4096',
+  );
+  assert.equal(eslintNodeOptions('--max-old-space-size=2048', 4096), '--max-old-space-size=2048');
 });
 
 test('exclusions match the PR lint step', () => {
