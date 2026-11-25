@@ -112,6 +112,29 @@ describe('PRC-H028 — role-derived navigation access', () => {
     expect(hrefs).not.toContain('/hostel');
   });
 
+  it('UATENV-D24: Communication is listed only for roles the gateway serves it to', () => {
+    for (const role of ['teacher', 'staff']) {
+      cleanup();
+      currentUser = userWithRoles(role);
+      render(<Sidebar />);
+      expect(sidebarLinks(), role).not.toContain('communication');
+      const hrefs = buildPaletteItems(currentUser.permissions, currentUser.roles).map(
+        (i) => i.href,
+      );
+      expect(hrefs, role).not.toContain('/communication');
+    }
+    for (const role of ['admin', 'principal']) {
+      cleanup();
+      currentUser = userWithRoles(role);
+      render(<Sidebar />);
+      expect(sidebarLinks(), role).toContain('communication');
+      const hrefs = buildPaletteItems(currentUser.permissions, currentUser.roles).map(
+        (i) => i.href,
+      );
+      expect(hrefs, role).toContain('/communication');
+    }
+  });
+
   it('parent / guardian still sees only the parent portal', () => {
     for (const role of ['parent', 'guardian']) {
       cleanup();
