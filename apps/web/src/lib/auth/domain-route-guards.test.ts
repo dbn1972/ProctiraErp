@@ -183,9 +183,21 @@ const A_BATCH_SET_DOMAINS: DomainCase[] = [
     packageFile: 'student/src/student-access.ts',
   },
   {
+    // UATENV-D25: the gateway workflow UI plugin refuses teacher, staff and
+    // platform_admin (WORKFLOW_UI_ROLES, matched on the role id).
     domain: 'workflows',
-    allowed: ['admin', 'principal', 'teacher', 'staff', 'super-admin', 'platform_admin'],
-    denied: ['registrar', 'hr_officer', 'nurse', 'student', 'guardian', 'parent'],
+    allowed: ['admin', 'principal', 'super-admin'],
+    denied: [
+      'teacher',
+      'staff',
+      'platform_admin',
+      'registrar',
+      'hr_officer',
+      'nurse',
+      'student',
+      'guardian',
+      'parent',
+    ],
   },
 ];
 
@@ -237,6 +249,25 @@ describe('dashboard domain route guards (PRC-L034)', () => {
     }
     // Other hrefs are left to the permission filters.
     expect(navRolesAllowHref('/attendance', ['teacher'])).toBe(true);
+  });
+
+  it('UATENV-D25: every workflows role is a gateway workflow UI role id', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../../../../apps/api-gateway/src/workflow-ui-plugin.ts'),
+      'utf8',
+    );
+    const body = /const WORKFLOW_UI_ROLES[^=]*= new Set\(\[([\s\S]*?)\]\);/.exec(src)?.[1];
+    expect(body, 'WORKFLOW_UI_ROLES').toBeDefined();
+    const gatewayRoles = new Set([...body!.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]!));
+    expect(gatewayRoles.has('admin')).toBe(true);
+    // The plugin compares normalised role ids (lowercase, '-' -> '_').
+    for (const roleId of DOMAIN_ROUTE_ROLE_IDS.workflows!) {
+      expect(gatewayRoles.has(roleId.replace(/-/g, '_')), roleId).toBe(true);
+    }
+    // The nav follows the route set.
+    expect(navRolesAllowHref('/workflows', ['teacher'])).toBe(false);
+    expect(navRolesAllowHref('/workflows', ['staff'])).toBe(false);
+    expect(navRolesAllowHref('/workflows', ['admin'])).toBe(true);
   });
 
   it('restricts platform surfaces to platform administrators', () => {

@@ -127,8 +127,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Registrar, HR, health and portal roles hold no gateway workflow grant. */
+/**
+ * Registrar, HR, health and portal roles hold no gateway workflow grant;
+ * UATENV-D25: teacher, staff and platform_admin hold it but the gateway
+ * workflow UI plugin refuses them.
+ */
 const DENIED_ROLE_SETS = [
+  ['teacher'],
+  ['staff'],
+  ['platform_admin'],
   ['registrar'],
   ['hr_officer'],
   ['nurse'],
@@ -138,7 +145,7 @@ const DENIED_ROLE_SETS = [
   [],
 ];
 
-const ALLOWED_ROLE_SETS = [['admin'], ['staff']];
+const ALLOWED_ROLE_SETS = [['admin'], ['principal']];
 
 describe('workflows route guard (A-batch)', () => {
   it('covers every page under /workflows', () => {

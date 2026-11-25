@@ -144,7 +144,9 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
  * - scholarships: scholarship-access.ts SCHOLARSHIP_OFFICER_ROLES
  * - staff: staff-access.ts `staff.read`
  * - students: student-access.ts READ_ROLES
- * - workflows: gateway grant only (the workflow package has no role check)
+ * - workflows: workflow-ui-plugin.ts WORKFLOW_UI_ROLES, matched on the role id
+ *   (UATENV-D25: teacher, staff and platform_admin hold the gateway `workflow`
+ *   grant but the plugin refuses them)
  *
  * Fail-closed for multi-role principals: access needs one role that is in the
  * set. Fees (F-D3) left this list: it uses the package-role rule below, as
@@ -171,17 +173,18 @@ export const DOMAIN_ROUTE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<
     'admissions_officer',
   ]),
   students: new Set(['admin', 'principal', 'teacher', 'staff', 'nurse', 'super-admin']),
-  workflows: new Set(['admin', 'principal', 'teacher', 'staff', 'super-admin', 'platform_admin']),
+  workflows: new Set(['admin', 'principal', 'super-admin']),
 };
 
 /**
- * UATENV-D24: nav entries (sidebar, command palette) for route-role domains
+ * UATENV-D24/D25: nav entries (sidebar, command palette) for route-role domains
  * whose nav grant is wider than the route set. The nav shows them only to a
  * role in the domain's route set, so it does not offer a screen the route
  * guard refuses.
  */
 export const ROUTE_ROLE_NAV_DOMAINS: Readonly<Record<string, DashboardDomain>> = {
   '/communication': 'communication',
+  '/workflows': 'workflows',
 };
 
 /**

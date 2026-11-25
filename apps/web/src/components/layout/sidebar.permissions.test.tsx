@@ -135,6 +135,26 @@ describe('PRC-H028 — role-derived navigation access', () => {
     }
   });
 
+  it('UATENV-D25: Workflows is listed only for the gateway workflow UI roles', () => {
+    for (const role of ['teacher', 'staff']) {
+      cleanup();
+      currentUser = userWithRoles(role);
+      render(<Sidebar />);
+      expect(sidebarLinks(), role).not.toContain('workflows');
+      const hrefs = buildPaletteItems(currentUser.permissions, currentUser.roles).map(
+        (i) => i.href,
+      );
+      expect(hrefs, role).not.toContain('/workflows');
+    }
+    // Principal holds no web `workflow.read` nav grant today (pre-existing).
+    for (const role of ['admin', 'super-admin']) {
+      cleanup();
+      currentUser = userWithRoles(role);
+      render(<Sidebar />);
+      expect(sidebarLinks(), role).toContain('workflows');
+    }
+  });
+
   it('parent / guardian still sees only the parent portal', () => {
     for (const role of ['parent', 'guardian']) {
       cleanup();
