@@ -137,9 +137,7 @@ describe('PRC-H079 offer fee payment proof', () => {
     const ctx = setup();
     const offer = await ctx.sentOffer(1000);
     await expect(
-      ctx.service.acceptOfferForGuardian(TENANT, offer.id, 'guardian@family.test', {
-        paymentRef: 'SANDBOX-PAY',
-      }),
+      ctx.service.acceptOfferForGuardian(TENANT, offer.id, 'guardian@family.test', {}),
     ).rejects.toBeInstanceOf(BusinessRuleError);
     expect(ctx.enrolments).toHaveLength(0);
   });

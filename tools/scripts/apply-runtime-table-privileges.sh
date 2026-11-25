@@ -3,6 +3,10 @@
 #
 # Invoked at the end of tools/scripts/apply-sql.sh so current and future tables
 # only receive explicitly classified grants (no blanket DEFAULT PRIVILEGES).
+#
+# PRC-M623: the same SQL also re-applies the proctira_phi_retention grants
+# (role- and table-guarded), so they come back after the role is created late or after a
+# pg-restore.sh restore (--no-acl) without re-running migration 312 by hand.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -43,6 +47,7 @@ psql_q() {
 }
 
 echo "==> W1-DATA-11 syncing runtime table privileges from db/runtime-table-privileges.json"
+echo "==> PRC-M623 re-applying proctira_phi_retention grants (skipped when the role or a table is missing)"
 SQL="$(node "$ROOT/tools/scripts/check-runtime-table-privileges.mjs" --print-sql)"
 psql_q <<SQL
 ${SQL}

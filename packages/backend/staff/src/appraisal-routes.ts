@@ -30,7 +30,8 @@ import {
   type AppraisalListQuery,
 } from './appraisal-schemas.js';
 import type { AppraisalService } from './appraisal-service.js';
-import { requireStaffAction, staffWritePreHandler } from './staff-http-guard.js';
+import { canViewAppraisalComments } from './staff-access.js';
+import { requireStaffAction, staffRequestRoles, staffWritePreHandler } from './staff-http-guard.js';
 
 /**
  * Options for registering appraisal routes.
@@ -70,27 +71,34 @@ function formatTemplateResponse(entity: {
 /**
  * Format appraisal entity to response shape.
  */
-function formatAppraisalResponse(entity: {
-  id: string;
-  staffId: string;
-  templateId: string;
-  appraisalDate: string;
-  scores: Array<{ criterionName: string; score: number; comment: string | null }>;
-  totalScore: number;
-  overallComment: string | null;
-  status: string;
-  workflowInstanceId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function formatAppraisalResponse(
+  entity: {
+    id: string;
+    staffId: string;
+    templateId: string;
+    appraisalDate: string;
+    scores: Array<{ criterionName: string; score: number; comment: string | null }>;
+    totalScore: number;
+    overallComment: string | null;
+    status: string;
+    workflowInstanceId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  request: FastifyRequest,
+) {
+  // PRC-M378: appraisal free text only for the roles that decide appraisals.
+  const showComments = canViewAppraisalComments(staffRequestRoles(request));
   return {
     id: entity.id,
     staffId: entity.staffId,
     templateId: entity.templateId,
     appraisalDate: entity.appraisalDate,
-    scores: entity.scores,
+    scores: showComments
+      ? entity.scores
+      : entity.scores.map((score) => ({ ...score, comment: null })),
     totalScore: entity.totalScore,
-    overallComment: entity.overallComment,
+    overallComment: showComments ? entity.overallComment : null,
     status: entity.status,
     workflowInstanceId: entity.workflowInstanceId,
     createdAt: entity.createdAt.toISOString(),
@@ -252,7 +260,7 @@ export async function registerAppraisalRoutes(
 
       try {
         const appraisal = await appraisalService.createAppraisal(tenantId, result.data);
-        return reply.status(201).send(formatAppraisalResponse(appraisal));
+        return reply.status(201).send(formatAppraisalResponse(appraisal, request));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -296,7 +304,7 @@ export async function registerAppraisalRoutes(
       );
 
       return reply.status(200).send({
-        data: result.data.map(formatAppraisalResponse),
+        data: result.data.map((row) => formatAppraisalResponse(row, request)),
         meta: result.meta,
       });
     },
@@ -333,7 +341,7 @@ export async function registerAppraisalRoutes(
 
       try {
         const appraisal = await appraisalService.getAppraisal(tenantId, paramsResult.data.id);
-        return reply.status(200).send(formatAppraisalResponse(appraisal));
+        return reply.status(200).send(formatAppraisalResponse(appraisal, request));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -374,7 +382,7 @@ export async function registerAppraisalRoutes(
 
       try {
         const appraisal = await appraisalService.submitAppraisal(tenantId, paramsResult.data.id);
-        return reply.status(200).send(formatAppraisalResponse(appraisal));
+        return reply.status(200).send(formatAppraisalResponse(appraisal, request));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -428,7 +436,7 @@ export async function registerAppraisalRoutes(
             decision,
             reviewerId,
           );
-          return reply.status(200).send(formatAppraisalResponse(appraisal));
+          return reply.status(200).send(formatAppraisalResponse(appraisal, request));
         } catch (error: unknown) {
           if (error instanceof AppError) {
             return reply.status(error.statusCode).send(error.toJSON());

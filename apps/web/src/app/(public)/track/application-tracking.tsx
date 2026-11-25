@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
 
 import {
@@ -73,6 +73,13 @@ export function ApplicationTracking({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [dobError, setDobError] = useState<string | null>(null);
   const [view, setView] = useState<ViewState>({ kind: 'idle' });
+  // PRC-L532: lookup outcomes are announced (aria-live) and focus moves to them
+  // so keyboard and screen-reader users land on the result.
+  const outcomeRef = useRef<HTMLDivElement>(null);
+  const settled = view.kind === 'result' || view.kind === 'not_found' || view.kind === 'error';
+  useEffect(() => {
+    if (settled) outcomeRef.current?.focus();
+  }, [settled, view]);
 
   const lookup = useCallback(
     async (raw: string, rawDob: string) => {
@@ -189,19 +196,28 @@ export function ApplicationTracking({
         </CardContent>
       </Card>
 
-      {view.kind === 'not_found' && (
-        <NotFoundView trackingNumber={view.trackingNumber} onReset={handleReset} />
-      )}
+      <div
+        ref={outcomeRef}
+        tabIndex={-1}
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="tracking-outcome"
+        className="outline-none"
+      >
+        {view.kind === 'not_found' && (
+          <NotFoundView trackingNumber={view.trackingNumber} onReset={handleReset} />
+        )}
 
-      {view.kind === 'error' && (
-        <ErrorView
-          onRetry={() => {
-            void lookup(view.trackingNumber, dateOfBirth);
-          }}
-        />
-      )}
+        {view.kind === 'error' && (
+          <ErrorView
+            onRetry={() => {
+              void lookup(view.trackingNumber, dateOfBirth);
+            }}
+          />
+        )}
 
-      {view.kind === 'result' && <ResultView data={view.data} />}
+        {view.kind === 'result' && <ResultView data={view.data} />}
+      </div>
     </div>
   );
 }

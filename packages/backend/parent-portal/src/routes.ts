@@ -1194,7 +1194,6 @@ export async function registerParentPortalRoutes(
           parentUserId,
           paramsResult.data.id,
           bodyResult.data,
-          resolveAuditActor(request),
         );
         return reply.status(200).send({
           invoice: formatInvoice(invoice),

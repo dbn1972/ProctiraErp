@@ -65,6 +65,39 @@ function sendInvalidDateError(reply: FastifyReply, field: string) {
 }
 
 /**
+ * PRC-M468 / DR45: attendance never stores device location. A write that
+ * carries location keys (top level, or inside an array of records) is
+ * refused with 400 instead of being silently accepted.
+ */
+const DEVICE_LOCATION_KEYS = new Set([
+  'latitude',
+  'longitude',
+  'lat',
+  'lng',
+  'lon',
+  'location',
+  'geolocation',
+  'coordinates',
+]);
+
+export function deviceLocationField(body: unknown): string | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+    if (DEVICE_LOCATION_KEYS.has(key.toLowerCase())) return key;
+    if (Array.isArray(value)) {
+      for (const [index, item] of value.entries()) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+        const nested = Object.keys(item as Record<string, unknown>).find((k) =>
+          DEVICE_LOCATION_KEYS.has(k.toLowerCase()),
+        );
+        if (nested) return `${key}[${index}].${nested}`;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Options for registering attendance routes.
  */
 export interface AttendanceRoutesOptions {
@@ -150,6 +183,20 @@ export async function registerAttendanceRoutes(
   fastify.addHook('preHandler', async (request, reply) => {
     if (!enforceAttendanceRouteAccess(request, reply)) {
       return reply;
+    }
+    const method = request.method.toUpperCase();
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+      const field = deviceLocationField(request.body);
+      if (field) {
+        return reply.status(400).send({
+          code: 'DEVICE_LOCATION_NOT_ACCEPTED',
+          message: 'Attendance does not accept device location',
+          statusCode: 400,
+          errors: [
+            { field, rule: 'not_allowed', message: 'Remove device location from the request' },
+          ],
+        });
+      }
     }
   });
 

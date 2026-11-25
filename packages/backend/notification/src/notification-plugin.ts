@@ -89,7 +89,16 @@ export const notificationPlugin = fp(
       repository,
       prefsStore,
       emailSender = createEmailSenderFromEnv(),
-      pushSender = createPushSenderFromEnv(),
+      // PRC-M326: live FCM push resolves device tokens from the prefs store.
+      pushSender = createPushSenderFromEnv(
+        process.env,
+        prefsStore
+          ? {
+              listDeviceTokens: async (tenantId: string, userId: string) =>
+                (await prefsStore.listDevices(tenantId, userId)).map((d) => d.pushToken),
+            }
+          : {},
+      ),
       webhookSender = createWebhookSenderFromEnv(),
       smsSender = createSmsSenderFromEnv(),
       queuePublisher,

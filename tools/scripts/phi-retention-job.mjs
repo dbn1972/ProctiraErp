@@ -138,6 +138,8 @@ export const PHI_RETENTION_TABLES = [
     key: 'counsellingSessions',
     idField: 'counsellingSessionId',
     regulated: 'health.counselling',
+    // db/sql/314 guards counsellor_id with a staff legal-hold trigger.
+    staffColumn: 'counsellor_id',
   },
   {
     table: 'health_special_needs_assessments',
@@ -147,6 +149,15 @@ export const PHI_RETENTION_TABLES = [
   },
 ];
 
+/**
+ * PRC-M623 (N3): the only tenants/students columns this job reads. The role
+ * holds column-level SELECT on exactly these (db/sql/318 and the privilege
+ * sync in tools/scripts/runtime-table-privileges-lib.mjs).
+ */
+export const PHI_RETENTION_COLUMN_READS = [
+  { table: 'students', columns: ['id', 'date_of_birth'] },
+  { table: 'tenants', columns: ['id', 'legal_hold'] },
+];
 /** PRC-M435: actor recorded on every retention deletion audit event. */
 export const PHI_RETENTION_ACTOR = 'system:phi-retention';
 
@@ -165,8 +176,9 @@ export const PHI_RETENTION_ACTOR = 'system:phi-retention';
  * PRC-M435: each deletion queues a tenant-attributed audit event.
  * PRC-M623: the role must be its own RLS-bound credential (not SUPERUSER, not
  * BYPASSRLS, so never the backup role), and legal holds win over retention: a
- * tenant on hold (tenants.legal_hold or an active tenant-scope hold) and rows
- * of a student with an active subject hold are counted as held, not deleted.
+ * tenant on hold (tenants.legal_hold or an active tenant-scope hold), rows of
+ * a student with an active subject hold and counselling rows of a counsellor
+ * with an active staff hold are counted as held, not deleted.
  * The final statement prints one JSON line with per-tenant counts.
  *
  * @param {object} args
@@ -180,31 +192,48 @@ export function buildRetentionScript({ adultCutoffIso, minorCutoffIso, dryRun })
     [table, 'SELECT'],
     ...(dryRun ? [] : [[table, 'DELETE']]),
   ]).concat([
-    ['students', 'SELECT'],
-    ['tenants', 'SELECT'],
     ['privacy_legal_holds', 'SELECT'],
     ...(dryRun ? [] : [['audit_ingest_queue', 'INSERT']]),
   ]);
-  const privilegeSql = privilegeChecks
-    .map(
-      ([
-        table,
-        privilege,
-      ]) => `  IF NOT has_table_privilege(current_user, '${table}', '${privilege}') THEN
+  const tablePrivilegeSql = privilegeChecks.map(
+    ([
+      table,
+      privilege,
+    ]) => `  IF NOT has_table_privilege(current_user, '${table}', '${privilege}') THEN
     RAISE EXCEPTION 'PRC-M559: role % lacks ${privilege} on ${table}', current_user
       USING ERRCODE = '42501';
   END IF;`,
-    )
-    .join('\n');
+  );
+  // PRC-M623 (N3): tenants and students are granted column-level SELECT only
+  // (db/sql/318), so check each column read here rather than the whole table.
+  const columnPrivilegeSql = PHI_RETENTION_COLUMN_READS.flatMap(({ table, columns }) =>
+    columns.map(
+      (
+        column,
+      ) => `  IF NOT has_column_privilege(current_user, '${table}', '${column}', 'SELECT') THEN
+    RAISE EXCEPTION 'PRC-M559: role % lacks SELECT on ${table}.${column}', current_user
+      USING ERRCODE = '42501';
+  END IF;`,
+    ),
+  );
+  const privilegeSql = [...tablePrivilegeSql, ...columnPrivilegeSql].join('\n');
 
-  const perTable = PHI_RETENTION_TABLES.map(({ table, idField, regulated }) => {
+  const perTable = PHI_RETENTION_TABLES.map(({ table, idField, regulated, staffColumn }) => {
     const eligible = `${buildEligibleFrom({ table, adultCutoffIso, minorCutoffIso })}
        AND r.tenant_id::text = v_tenant`;
     // PRC-M623: a student under an active subject legal hold keeps every row.
+    // The match is the same as the db/sql/313-314 delete guard (subject types
+    // normalised by privacy_subject_kind; staff holds on the staff column), so
+    // a row the guard would refuse is counted as held, never deleted: one held
+    // row must not raise and roll back the whole run.
+    const staffHold = staffColumn
+      ? `
+             OR (privacy_subject_kind(h.subject_type) = 'staff' AND h.subject_id = r.${staffColumn})`
+      : '';
     const subjectHold = `EXISTS (
          SELECT 1 FROM privacy_legal_holds h
          WHERE h.tenant_id::text = v_tenant AND h.active AND h.scope = 'subject'
-           AND h.subject_type = 'student' AND h.subject_id = r.student_id
+           AND ((privacy_subject_kind(h.subject_type) = 'student' AND h.subject_id = r.student_id)${staffHold})
        )`;
     // PRC-M435: every deleted row enqueues one tenant-attributed audit event
     // (ids only, never PHI values) in the same statement and transaction. The

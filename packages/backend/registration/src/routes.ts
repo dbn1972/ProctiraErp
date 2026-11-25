@@ -61,6 +61,7 @@ import {
   type ApplicationParams,
   type CreateInterviewSlotInput,
   type BookInterviewInput,
+  type RegistrationStatusResponse,
 } from './schemas.js';
 import { ReferenceNotFoundError, referenceNotFoundBody } from './tenant-references.js';
 
@@ -199,6 +200,33 @@ declare module 'fastify' {
 
 const SUBMISSION_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 
+/**
+ * PRC-L532: the anonymous status lookup returns only these public-safe fields.
+ * Anything else the service adds later (staff actor, notes, remarks, contact
+ * details) is dropped here rather than relying on every caller to omit it.
+ */
+export function toPublicRegistrationStatus(
+  status: RegistrationStatusResponse,
+): RegistrationStatusResponse {
+  return {
+    trackingNumber: status.trackingNumber,
+    status: status.status,
+    institutionName: status.institutionName,
+    applicantName: status.applicantName,
+    submittedAt: status.submittedAt,
+    updatedAt: status.updatedAt,
+    ...(status.waitlistPosition !== undefined ? { waitlistPosition: status.waitlistPosition } : {}),
+    ...(status.interviewBookings !== undefined
+      ? {
+          interviewBookings: status.interviewBookings.map((booking) => ({
+            id: booking.id,
+            slotId: booking.slotId,
+            status: booking.status,
+          })),
+        }
+      : {}),
+  };
+}
 function tooManyRequests(reply: FastifyReply, retryAfterSeconds: number) {
   return reply.status(429).header('retry-after', String(retryAfterSeconds)).send({
     code: 'TOO_MANY_REQUESTS',
@@ -570,7 +598,7 @@ export async function registerRegistrationRoutes(
         dob,
         tenantId,
       );
-      return reply.status(200).send(status);
+      return reply.status(200).send(toPublicRegistrationStatus(status));
     } catch (error: unknown) {
       if (error instanceof AppError) {
         if (error.statusCode === 404) {

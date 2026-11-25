@@ -2,12 +2,7 @@
  * Parent portal service — child links, messaging, consents, fee sandbox, academic reads.
  */
 import type { MutationAuditTxnInput } from '@proctira/backend-audit';
-import {
-  BusinessRuleError,
-  ForbiddenError,
-  NotFoundError,
-  resolveProviderDeliveryMode,
-} from '@proctira/common';
+import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -18,7 +13,6 @@ import {
 import type {
   ConsentEntity,
   FeeInvoiceEntity,
-  FeePaymentEntity,
   ParentChildLinkEntity,
   ParentLinkAuthorityFlag,
   ParentPortalRepository,
@@ -112,11 +106,6 @@ export { STUDENT_SELF_BINDING_ASSUMPTION };
 /** Student principal for self-service reads. Bound by id only (PRC-H075); email is not an identity link. */
 export interface StudentActor {
   userId: string;
-}
-
-function receiptNumberFor(paymentId: string): string {
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
 /** Duck-typed FeesService so parent-portal fee routes share one ledger (G-903). */
@@ -1062,9 +1051,6 @@ export class ParentPortalService {
     parentUserId: string,
     invoiceId: string,
     input: PayInvoiceInput = {},
-    // PRC-M533: audit actor for the non-fees-ledger fallback branch only — the fees ledger
-    // branch already audits itself same-transaction (fees-plugin.ts's buildPaymentAuditBinder).
-    auditActor?: ParentPortalAuditActor,
   ) {
     if (this.fees) {
       const invoice = await this.fees.getInvoice(tenantId, invoiceId);
@@ -1089,89 +1075,13 @@ export class ParentPortalService {
 
     await this.assertParentAuthority(tenantId, parentUserId, invoice.studentId, 'canViewFees');
 
-    if (invoice.status !== 'open') {
-      throw new BusinessRuleError('Invoice is not open for payment');
-    }
-
-    // PRC-C001: this standalone (in-memory) path performs NO PSP verification — it can only
-    // ever represent an honest sandbox settlement. Fail closed when a real settlement is
-    // implied so a guardian can never self-declare a payment as truly paid:
-    //   * refuse any non-sandbox method (upi/card/cash falsely imply real money moved), and
-    //   * refuse entirely when provider mode resolves to 'live' (or would be a silent
-    //     production default). Live payments MUST flow through FeesService.recordPayment,
-    //     which routes through the payment adapter and settles only on a verified charge.
-    // Cast to string for the runtime check: the schema narrows `method` to 'sandbox', but this
-    // service can be called directly, so we still defend against any other value at runtime.
-    const method = (input.method ?? 'sandbox') as string;
-    if (method !== 'sandbox') {
-      throw new BusinessRuleError(
-        `Self-declared payment method '${method}' is not accepted: only verified ` +
-          `payment-service settlements may mark an invoice paid`,
-      );
-    }
-    // PRC-M532: resolveProviderDeliveryMode itself throws (not just returns 'live')
-    // when a production environment has no explicit PROVIDER_MODE/sandbox opt-in
-    // (W1-ARCH-08's silent-sandbox-in-production guard). That throw must still
-    // fail this path closed as a 422 BusinessRuleError, not an uncaught 500 —
-    // resolveProviderDeliveryMode('fees') !== 'sandbox' alone only catches the
-    // explicit PROVIDER_MODE=live case.
-    let deliveryMode: ReturnType<typeof resolveProviderDeliveryMode>;
-    try {
-      deliveryMode = resolveProviderDeliveryMode('fees');
-    } catch (error) {
-      throw new BusinessRuleError(
-        error instanceof Error
-          ? error.message
-          : 'Sandbox self-service payment is disabled: configure a verified payment provider',
-      );
-    }
-    if (deliveryMode !== 'sandbox') {
-      throw new BusinessRuleError(
-        'Sandbox self-service payment is disabled: configure a verified payment provider ' +
-          '(PROVIDER_MODE=live) so payments settle through the fee ledger',
-      );
-    }
-    const paidAt = new Date();
-
-    const payment = await this.repository.createPayment(
-      {
-        id: uuidv4(),
-        invoiceId: invoice.id,
-        tenantId,
-        payerUserId: parentUserId,
-        amountCents: invoice.amountCents,
-        method,
-        status: 'succeeded',
-        paidAt,
-      },
-      // PRC-M533: same-transaction audit for the non-fees-ledger payment-recording fallback.
-      auditActor
-        ? (recorded: FeePaymentEntity) =>
-            defaultParentPortalAuditSink(auditActor, {
-              kind: 'payment_record',
-              entityId: recorded.id,
-              afterStatus: recorded.status,
-              details: { invoiceId: recorded.invoiceId, amountCents: recorded.amountCents },
-            })
-        : undefined,
+    // PRC-M532: the in-package sandbox settle path is removed. Without the shared fees
+    // ledger there is no payment adapter, no charge verification and no journal, so this
+    // service can never mark an invoice paid on its own — in any environment. Payments
+    // settle only through FeesService.recordPayment (the gateway always injects it).
+    throw new BusinessRuleError(
+      'Invoice payment requires the fees ledger; the parent-portal store cannot settle payments',
     );
-
-    const receipt = await this.repository.createReceipt({
-      id: uuidv4(),
-      tenantId,
-      paymentId: payment.id,
-      invoiceId: invoice.id,
-      receiptNumber: receiptNumberFor(payment.id),
-      amountCents: invoice.amountCents,
-      currency: invoice.currency,
-      issuedAt: paidAt,
-    });
-
-    const updatedInvoice = await this.repository.updateInvoice(invoiceId, tenantId, {
-      status: 'paid',
-    });
-
-    return { invoice: updatedInvoice!, payment, receipt };
   }
 
   /**

@@ -467,7 +467,7 @@ test.describe('Parent portal screens — write path (E2E_BACKEND_READY)', () => 
     const offerFeeInvoiceId = (sent.offerFeeInvoiceId ?? offer.offerFeeInvoiceId) as string;
     expect(offerFeeInvoiceId, 'offer send raises an offer-fee invoice').toBeTruthy();
     // PRC-H079: accept is gated on a paid offer-fee invoice (staff sandbox cashier path).
-    await send(
+    const paid = await send(
       request,
       'post',
       `/fees/invoices/${offerFeeInvoiceId}/pay`,
@@ -482,7 +482,9 @@ test.describe('Parent portal screens — write path (E2E_BACKEND_READY)', () => 
     await expect(openRow).toHaveCount(1);
     await expect(openRow).toHaveAttribute('data-status', 'sent');
 
-    const paymentRef = `PP-REF-${tag}`;
+    // PRC-M535: a guardian paymentRef must name a payment recorded on the offer's invoice.
+    const paymentRef = String((paid.receipt as { receiptNumber: string }).receiptNumber);
+    expect(paymentRef).toBeTruthy();
     await hydrated(page, 'parent-accept-offer-form');
     await openRow.getByTestId('parent-payment-ref').fill(paymentRef);
     await openRow.getByTestId('parent-accept-offer').click();

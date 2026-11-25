@@ -9,6 +9,7 @@ import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
   withPgTenant,
+  withPlatformScope,
 } from '@proctira/database';
 import type pg from 'pg';
 
@@ -335,6 +336,9 @@ function paginatedMeta(pagination: PaginationOptions, totalItems: number) {
     totalPages: Math.ceil(totalItems / pagination.pageSize),
   };
 }
+
+/** PRC-M451: rows erased per DELETE in the GPS retention sweep. */
+const GPS_PURGE_BATCH = 5000;
 
 export class PgTransportRepository implements TransportRepository {
   constructor(private readonly pool: PgPoolLike) {}
@@ -1196,29 +1200,73 @@ export class PgTransportRepository implements TransportRepository {
     });
   }
 
-  async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
+  async listGpsPingsForVehicle(
+    tenantId: string,
+    vehicleId: string,
+    window: { since: Date; limit: number },
+  ): Promise<GpsPingEntity[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
       `SELECT * FROM transport_gps_pings
-       WHERE tenant_id = $1 AND vehicle_id = $2
-       ORDER BY recorded_at DESC`,
-      [tenantId, vehicleId],
+       WHERE tenant_id = $1 AND vehicle_id = $2 AND recorded_at >= $3
+       ORDER BY recorded_at DESC
+       LIMIT $4`,
+      [tenantId, vehicleId, window.since, window.limit],
     );
     return (result.rows as Record<string, unknown>[]).map(mapGpsPingRow);
   }
 
-  async listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]> {
+  async listLatestGpsPingPerVehicle(tenantId: string, since: Date): Promise<GpsPingEntity[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
       `SELECT DISTINCT ON (vehicle_id) *
        FROM transport_gps_pings
-       WHERE tenant_id = $1
+       WHERE tenant_id = $1 AND recorded_at >= $2
        ORDER BY vehicle_id, recorded_at DESC`,
-      [tenantId],
+      [tenantId, since],
     );
     return (result.rows as Record<string, unknown>[]).map(mapGpsPingRow);
+  }
+
+  async purgeGpsPingsRecordedBefore(tenantId: string, cutoff: Date): Promise<number> {
+    await this.ensureSchema();
+    // Bounded batches so one sweep never holds a long lock on the ping heap.
+    // Legal holds win over retention (db/sql/313): a tenant with
+    // tenants.legal_hold or an active tenant-scope hold keeps every ping. Pings
+    // are per vehicle, so subject holds do not apply. Checked in each batch's
+    // DELETE so a hold placed mid-sweep stops the next batch.
+    let erased = 0;
+    for (;;) {
+      const result = await this.query(
+        tenantId,
+        `DELETE FROM transport_gps_pings
+         WHERE id IN (
+           SELECT p.id FROM transport_gps_pings p
+           WHERE p.tenant_id = $1::uuid AND p.recorded_at < $2
+             AND NOT EXISTS (SELECT 1 FROM tenants t WHERE t.id = $1::uuid AND t.legal_hold)
+             AND NOT EXISTS (
+               SELECT 1 FROM privacy_legal_holds h
+               WHERE h.tenant_id = $1::uuid AND h.active AND h.scope = 'tenant'
+             )
+           LIMIT $3
+         )`,
+        [tenantId, cutoff, GPS_PURGE_BATCH],
+      );
+      const deleted = result.rowCount ?? 0;
+      erased += deleted;
+      if (deleted < GPS_PURGE_BATCH) return erased;
+    }
+  }
+
+  async listTenantIdsForGpsRetention(): Promise<string[]> {
+    // tenants RLS admits every row under app.platform_admin (db/sql/021); each
+    // per-tenant DELETE then runs with the tenant GUC bound.
+    const result = (await withPlatformScope(this.pool, (client) =>
+      client.query(`SELECT id::text AS id FROM tenants ORDER BY id`),
+    )) as { rows: Array<{ id: string }> };
+    return result.rows.map((row) => row.id);
   }
 
   async upsertBusAttendance(

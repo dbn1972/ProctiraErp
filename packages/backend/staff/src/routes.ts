@@ -76,11 +76,13 @@ function formatStaffResponse(
     id: entity.id,
     firstName: entity.firstName,
     lastName: entity.lastName,
-    dateOfBirth: entity.dateOfBirth,
+    // PRC-M378: roles that only read the directory (finance) see no date of
+    // birth and a masked phone, like the identity number (PRC-L362).
+    dateOfBirth: opts.maskIdentity ? null : entity.dateOfBirth,
     identityNumber: opts.maskIdentity
       ? maskIdentityNumber(entity.identityNumber)
       : entity.identityNumber,
-    contactPhone: entity.contactPhone,
+    contactPhone: opts.maskIdentity ? maskIdentityNumber(entity.contactPhone) : entity.contactPhone,
     contactEmail: entity.contactEmail,
     position: entity.position,
     status: entity.status,

@@ -25,6 +25,11 @@ abstract class ParentPortalRepository {
   Future<List<ParentConsent>> listConsents({required String studentId});
 
   Future<List<ParentInvoice>> listInvoices({required String studentId});
+
+  /// PRC-M039: settle one open invoice through the gateway's sandbox pay route.
+  /// The server decides whether sandbox settlement is allowed and refuses it
+  /// (422) when a verified payment provider is required.
+  Future<ParentInvoice> payInvoiceSandbox({required String invoiceId});
 }
 
 class DioParentPortalRepository implements ParentPortalRepository {
@@ -80,6 +85,31 @@ class DioParentPortalRepository implements ParentPortalRepository {
         .map(_parseInvoice)
         .where((ParentInvoice invoice) => invoice.studentId == id)
         .toList(growable: false);
+  }
+
+  @override
+  Future<ParentInvoice> payInvoiceSandbox({required String invoiceId}) async {
+    final String id = invoiceId.trim();
+    if (id.isEmpty) {
+      throw const ParentPortalException('Invoice is missing an id');
+    }
+    try {
+      final Response<dynamic> response = await _dio.post<dynamic>(
+        '$_prefix/fees/invoices/${Uri.encodeComponent(id)}/pay',
+        data: <String, dynamic>{'method': 'sandbox'},
+      );
+      final Object? body = response.data;
+      final Object? invoice = body is Map ? body['invoice'] : null;
+      if (invoice is! Map) {
+        throw const ParentPortalException('Unexpected parent portal response');
+      }
+      return _parseInvoice(Map<String, dynamic>.from(invoice));
+    } on DioException catch (error) {
+      throw ParentPortalException(
+        _messageFrom(error),
+        statusCode: error.response?.statusCode,
+      );
+    }
   }
 
   Future<List<Map<String, dynamic>>> _getList(String path) async {

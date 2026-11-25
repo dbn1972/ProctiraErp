@@ -21,6 +21,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   CATALOG_REL,
   evaluateRepo,
+  generatePhiRetentionSyncSql,
   generateSyncSql,
   loadCatalog,
   defaultPaths,
@@ -51,7 +52,9 @@ export function parseArgs(argv) {
 export function main(root, opts = {}) {
   if (opts.printSql) {
     const catalog = loadCatalog(defaultPaths(root).catalog);
-    process.stdout.write(generateSyncSql(catalog));
+    // PRC-M623: the PHI retention role grants ride the same sync so they are
+    // re-applied on every apply-sql run (they used to be applied only by 312).
+    process.stdout.write(`${generateSyncSql(catalog)}\n${generatePhiRetentionSyncSql()}`);
     return 0;
   }
 

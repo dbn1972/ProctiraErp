@@ -118,13 +118,24 @@ async function recordPayment(
 }
 
 /** Submit the row's refund dialog and confirm it; returns the refund form. */
-async function submitRefund(page: Page, row: Locator, amount: string, reason: string) {
+async function submitRefund(
+  page: Page,
+  row: Locator,
+  payment: string,
+  amount: string,
+  reason: string,
+) {
   const open = row.getByTestId('open-refund');
   if ((await page.getByTestId('refund-form').count()) === 0) {
     await expect(open).toHaveAttribute('data-hydrated', 'true', SLOW_UI);
     await open.click();
   }
   const form = await hydrated(page, 'refund-form');
+  // PRC-M090: a refund targets one payment of the invoice, chosen by its option text.
+  const select = form.locator('#refund-payment');
+  const option = select.locator('option', { hasText: payment });
+  await expect(option).toHaveCount(1, SLOW_UI);
+  await select.selectOption((await option.getAttribute('value'))!);
   await form.locator('#refund-amount').fill(amount);
   await form.locator('#refund-reason').fill(reason);
   await form.getByTestId('submit-refund').click();
@@ -276,18 +287,19 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
       );
     }
 
-    // Refunds: the form starts at the invoice amount; a refund above what is left is refused.
+    // Refunds: the form starts at the invoice amount. A refund targets one payment
+    // (PRC-M090/M246) and is capped at what is left on it: ₹500.05 cash, ₹450.00 refunded.
     row = await openInvoiceRow(page, request, admin, adhoc);
     await expect(row.getByTestId('open-refund')).toHaveAttribute('data-hydrated', 'true', SLOW_UI);
     await row.getByTestId('open-refund').click();
     await expect((await hydrated(page, 'refund-form')).locator('#refund-amount')).toHaveValue(
       '1050.05',
     );
-    let form = await submitRefund(page, row, '1000.00', `FE overcharge ${tag}`);
+    let form = await submitRefund(page, row, 'cash · ', '450.00', `FE overcharge ${tag}`);
     await expect(form).toHaveCount(0);
-    form = await submitRefund(page, row, '50.06', `FE too much ${tag}`);
+    form = await submitRefund(page, row, 'cash · ', '50.06', `FE too much ${tag}`);
     await expect(form.getByRole('alert')).toContainText('The fee change could not be saved.');
-    form = await submitRefund(page, row, '50.05', `FE balance ${tag}`);
+    form = await submitRefund(page, row, 'cash · ', '50.05', `FE balance ${tag}`);
     await expect(form).toHaveCount(0);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(listItem(page, 'fee-invoice-row', adhoc.invoiceNumber)).toContainText('Paid');
@@ -296,7 +308,7 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
     const refunds = entries.filter((e) => e.memo === 'refund posted' && e.account === 'cash');
     expect(refunds.map((e) => [e.side, e.amountCents])).toEqual(
       expect.arrayContaining([
-        ['credit', 100_000],
+        ['credit', 45_000],
         ['credit', 5_005],
       ]),
     );

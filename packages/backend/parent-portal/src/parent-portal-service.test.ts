@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
 
 import { InMemoryParentPortalRepository } from './in-memory-repository.js';
@@ -382,10 +382,11 @@ describe('ParentPortalService', () => {
       expect(visiblePrimary.map((row) => row.id)).toEqual([invoice.id]);
       expect(visibleLimited).toHaveLength(0);
 
-      const paid = await service.payInvoice(TENANT_A, PARENT_PRIMARY, invoice.id, {
-        method: 'sandbox',
-      });
-      expect(paid.invoice.status).toBe('paid');
+      // PRC-M532: authority passes for the primary guardian; settlement itself needs the
+      // fees ledger (this service has none), so it refuses instead of marking it paid.
+      await expect(
+        service.payInvoice(TENANT_A, PARENT_PRIMARY, invoice.id, { method: 'sandbox' }),
+      ).rejects.toThrow(/requires the fees ledger/);
 
       const invoice2 = await service.createInvoice(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
@@ -421,39 +422,59 @@ describe('ParentPortalService', () => {
       await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
     });
 
-    it('creates plan + invoice and lets parent pay with receipt', async () => {
+    // PRC-M532: the in-package sandbox settle path is gone. Without the fees ledger a
+    // parent pay is refused in every environment and nothing is written.
+    it('refuses to settle without the fees ledger (no in-package settle path)', async () => {
       const plan = await service.createFeePlan(TENANT_A, 'staff-admin', {
         code: 'TERM',
         name: 'Term fee',
         amountCents: 15000,
       });
-      expect(plan.amountCents).toBe(15000);
-
       const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         planId: plan.id,
         title: 'Term 1',
         amountCents: 15000,
       });
-
-      const paid = await service.payInvoice(TENANT_A, PARENT_USER, invoice.id, {
-        method: 'sandbox',
-      });
-      expect(paid.invoice.status).toBe('paid');
-      expect(paid.receipt.amountCents).toBe(15000);
+      const createPayment = vi.spyOn(repository, 'createPayment');
+      const createReceipt = vi.spyOn(repository, 'createReceipt');
+      const updateInvoice = vi.spyOn(repository, 'updateInvoice');
+      await expect(
+        service.payInvoice(TENANT_A, PARENT_USER, invoice.id, { method: 'sandbox' }),
+      ).rejects.toThrow(BusinessRuleError);
+      expect(createPayment).not.toHaveBeenCalled();
+      expect(createReceipt).not.toHaveBeenCalled();
+      expect(updateInvoice).not.toHaveBeenCalled();
+      const reloaded = await service.listInvoicesForParent(TENANT_A, PARENT_USER);
+      expect(reloaded.find((row) => row.id === invoice.id)?.status).toBe('open');
     });
 
-    it('rejects paying an already paid invoice', async () => {
+    it('settles only through the fees ledger, with a per-payer idempotency key', async () => {
       const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         title: 'Once',
         amountCents: 1000,
       });
-      await service.payInvoice(TENANT_A, PARENT_USER, invoice.id);
-
-      await expect(service.payInvoice(TENANT_A, PARENT_USER, invoice.id)).rejects.toThrow(
-        BusinessRuleError,
-      );
+      const recordPayment = vi.fn(async () => ({
+        invoice: { ...invoice, status: 'paid' },
+        payment: { id: 'p-1' },
+        receipt: { id: 'r-1' },
+      }));
+      const fees = {
+        getInvoice: vi.fn(async () => ({ studentId: STUDENT_ID })),
+        recordPayment,
+      } as unknown as ConstructorParameters<typeof ParentPortalService>[2];
+      const withLedger = new ParentPortalService(repository, undefined, fees);
+      const paid = await withLedger.payInvoice(TENANT_A, PARENT_USER, invoice.id, {
+        method: 'sandbox',
+      });
+      expect(paid.invoice.status).toBe('paid');
+      expect(recordPayment).toHaveBeenCalledWith(TENANT_A, PARENT_USER, {
+        invoiceId: invoice.id,
+        payerUserId: PARENT_USER,
+        method: 'sandbox',
+        idempotencyKey: `pp-pay:${invoice.id}:${PARENT_USER}`,
+      });
     });
 
     // PRC-C001: a self-declared payment must not fabricate a successful settlement.

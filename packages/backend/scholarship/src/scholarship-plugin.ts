@@ -53,6 +53,31 @@ export interface ScholarshipPluginOptions {
   resolveApplicantAttributes?: ApplicantAttributesLookup;
   /** PRC-L344: shared single-use store for document download links. */
   downloadReplayGuard?: DownloadTokenReplayStore;
+  /**
+   * PRC-M215 (DR35): document retention sweep. Defaults: on outside NODE_ENV=test
+   * unless SCHOLARSHIP_DOCUMENT_RETENTION_SWEEP=0; interval
+   * SCHOLARSHIP_DOCUMENT_RETENTION_INTERVAL_MS (default 6 h, minimum 60 s).
+   */
+  documentRetentionSweep?: { enabled?: boolean; intervalMs?: number };
+}
+
+/** PRC-M215: default document retention sweep interval. */
+export const DEFAULT_DOCUMENT_RETENTION_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+export function documentRetentionSweepSettings(
+  env: NodeJS.ProcessEnv = process.env,
+  override: ScholarshipPluginOptions['documentRetentionSweep'] = {},
+): { enabled: boolean; intervalMs: number } {
+  const enabled =
+    override.enabled ??
+    (env['SCHOLARSHIP_DOCUMENT_RETENTION_SWEEP'] !== '0' && env['NODE_ENV'] !== 'test');
+  const configured =
+    override.intervalMs ?? Number(env['SCHOLARSHIP_DOCUMENT_RETENTION_INTERVAL_MS'] ?? '');
+  const intervalMs =
+    Number.isFinite(configured) && configured > 0
+      ? Math.max(60_000, configured)
+      : DEFAULT_DOCUMENT_RETENTION_INTERVAL_MS;
+  return { enabled, intervalMs };
 }
 
 // Extend Fastify types
@@ -112,6 +137,37 @@ export const scholarshipPlugin = fp(
       }, drainMs);
       timer.unref?.();
       fastify.addHook('onClose', async () => clearInterval(timer));
+    }
+
+    // PRC-M215 (DR35): erase documents past retention (object, then row) on an
+    // interval, single-flight per replica.
+    const retentionSettings = documentRetentionSweepSettings(
+      process.env,
+      options.documentRetentionSweep,
+    );
+    if (retentionSettings.enabled) {
+      let sweeping = false;
+      const retentionTimer = setInterval(() => {
+        if (sweeping) return;
+        sweeping = true;
+        documentService
+          .runRetentionSweep()
+          .then((result) => {
+            if (result.failures.length > 0) {
+              fastify.log.error(result, 'scholarship document retention sweep had failures');
+            } else if (result.purged > 0) {
+              fastify.log.info(result, 'scholarship document retention sweep');
+            }
+          })
+          .catch((error: unknown) =>
+            fastify.log.error({ err: error }, 'scholarship document retention sweep failed'),
+          )
+          .finally(() => {
+            sweeping = false;
+          });
+      }, retentionSettings.intervalMs);
+      retentionTimer.unref?.();
+      fastify.addHook('onClose', async () => clearInterval(retentionTimer));
     }
 
     // Register scholarship routes

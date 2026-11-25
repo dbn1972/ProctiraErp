@@ -97,6 +97,38 @@ function rowCount(res: unknown): number {
 
 const SAFE_IDENT = /^[a-z_][a-z0-9_]*$/;
 
+/**
+ * PRC-M325: re-check the legal hold inside the executing transaction through
+ * the database guard (db/sql/313 privacy_assert_no_legal_hold: tenants.legal_hold,
+ * tenant-scope and subject holds). The service checks before it starts a job, but
+ * a hold placed after that check, or a tenant flag the service does not read, must
+ * still stop the run. Returns a residual when held or when the check itself fails
+ * (fail closed); undefined when the run may proceed.
+ */
+async function legalHoldResidual(
+  client: PgQueryable,
+  tenantId: string,
+  subject?: { subjectType: string; subjectId: string },
+): Promise<string | undefined> {
+  const sp = 'privacy_legal_hold_check';
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    await client.query(`SELECT privacy_assert_no_legal_hold($1::uuid, $2::text, $3::text)`, [
+      tenantId,
+      subject?.subjectType ?? null,
+      subject?.subjectId ?? null,
+    ]);
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    return undefined;
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    const code = (err as { code?: unknown }).code;
+    return code === '23000'
+      ? 'legal hold: active legal hold blocks this run (fail-closed); nothing changed'
+      : `legal hold: check failed (${errMessage(err)}); nothing changed (fail-closed)`;
+  }
+}
+
 const isType =
   (...types: string[]) =>
   (subjectType: string) =>
@@ -283,6 +315,30 @@ export const studentSiblingsAnonymizer: DomainSubjectAnonymizer = {
   },
 };
 
+/**
+ * PRC-M214 / DR44: consent records are append-only proof (who, what, when, version,
+ * channel). Once the student is erased, who is pseudonymised through the database's
+ * SECURITY DEFINER path (db/sql/316), which checks that this job and its erasure
+ * request are in progress and that no legal hold applies. The consent text, version,
+ * decision, timestamps and channel are kept.
+ */
+export const studentConsentsAnonymizer: DomainSubjectAnonymizer = {
+  domain: 'consents',
+  covers: ['parent_consents.student_id', 'student_consents.student_id'],
+  appliesTo: isType('student'),
+  async anonymize(client, input) {
+    await client.query(`SELECT privacy_anonymise_subject_consents($1::uuid) AS n`, [input.jobId]);
+    return {
+      fieldsTouched: [
+        'parent_consents.parent_user_id',
+        'parent_consents.created_by',
+        'parent_consents.withdrawal_reason',
+        'student_consents.actor_id',
+      ],
+    };
+  },
+};
+
 /** Fees ledger / health records: retained under statutory retention (no mutation). */
 export function createRetainedRecordsAnonymizer(
   domain: 'fees' | 'health',
@@ -314,6 +370,7 @@ export function defaultDomainAnonymizers(
     createStudentFilesAnonymizer(options.objectEraser),
     createStudentPhotoAnonymizer(options.objectEraser),
     studentSiblingsAnonymizer,
+    studentConsentsAnonymizer,
     createRetainedRecordsAnonymizer('fees', mode),
     createRetainedRecordsAnonymizer('health', mode),
   ];
@@ -340,6 +397,8 @@ export class PgDomainSubjectAnonymizer implements SubjectAnonymizer {
     }
     const token = anonToken(input);
     return withPgTenant(this.pool, input.tenantId, async (client) => {
+      const held = await legalHoldResidual(client, input.tenantId, input);
+      if (held) return { fieldsTouched: [], residualNote: held };
       const fieldsTouched: string[] = [];
       const residuals: string[] = [];
       for (const [i, domain] of applicable.entries()) {
@@ -455,6 +514,72 @@ async function auditSubjectCoverage(
 
 // ─── Tenant wipe ─────────────────────────────────────────────────────────────
 
+/**
+ * PRC-L147 / DR48: append-only tables (registry `decommission`) are erased only by
+ * the database's decommission-only function (db/sql/317), which requires this offboard
+ * job to be in progress and approved by a second actor, refuses under a legal hold and
+ * writes the platform audit event. Refused (no second-actor approval yet) -> residual.
+ */
+async function eraseDecommissionOnlyTables(
+  client: PgQueryable,
+  jobId: string,
+): Promise<TenantWipeDomainResult> {
+  const sp = 'privacy_decommission_only';
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    const res = await client.query(
+      `SELECT privacy_decommission_erase_theme_versions($1::uuid) AS n`,
+      [jobId],
+    );
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    const n = Number((res.rows?.[0] as { n?: unknown } | undefined)?.n ?? 0);
+    return {
+      domain: 'decommission_only',
+      status: 'completed',
+      note: `tenant_theme_versions: ${n} row(s) erased under dual control, audited (DR48)`,
+    };
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    return {
+      domain: 'decommission_only',
+      status: 'residual',
+      note: `tenant_theme_versions not erased (${errMessage(err)})`,
+    };
+  }
+}
+
+/**
+ * PRC-M214 / DR44: before the wipe, pseudonymise who on every consent row of the
+ * tenant through the database path (db/sql/316, gated on this offboard job being
+ * in progress). The append-only consent rows themselves are not deleted.
+ */
+async function anonymiseTenantConsents(
+  client: PgQueryable,
+  jobId: string,
+): Promise<TenantWipeDomainResult> {
+  const sp = 'privacy_tenant_consents';
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    const res = await client.query(`SELECT privacy_anonymise_tenant_consents($1::uuid) AS n`, [
+      jobId,
+    ]);
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    const n = Number((res.rows?.[0] as { n?: unknown } | undefined)?.n ?? 0);
+    return {
+      domain: 'consents',
+      status: 'completed',
+      note: `${n} consent record(s) anonymised; consent text and versions kept as proof (DR44)`,
+    };
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    return {
+      domain: 'consents',
+      status: 'residual',
+      note: `Consent anonymisation failed (${errMessage(err)})`,
+    };
+  }
+}
+
 /** Offboard checklist domain for a tenant-scoped table (`unclassified` → never deleted). */
 export function classifyWipeTable(table: string): string {
   return tenantWipeDisposition(table)?.domain ?? 'unclassified';
@@ -489,6 +614,10 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
     const maxPasses = this.options.maxPasses ?? 8;
 
     const outcome = await withPgTenant(this.pool, input.tenantId, async (client) => {
+      const held = await legalHoldResidual(client, input.tenantId);
+      if (held) return { held };
+      const consents = await anonymiseTenantConsents(client, input.jobId);
+      const decommission = await eraseDecommissionOnlyTables(client, input.jobId);
       const res = await client.query(
         `SELECT DISTINCT table_name FROM information_schema.columns
           WHERE table_schema = 'public' AND column_name = 'tenant_id'
@@ -521,8 +650,12 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
         if (next.length === pending.length) break; // no progress
         pending = next;
       }
-      return { tables, failed };
+      return { tables, failed, consents, decommission };
     });
+    if ('held' in outcome) {
+      // PRC-M325: nothing deleted, object storage untouched; the job fails closed.
+      return [{ domain: 'legal_hold', status: 'residual', note: outcome.held }];
+    }
 
     const wiped = new Map<string, { tables: string[]; failed: string[] }>();
     const kept = new Map<string, { disposition: KeptDisposition; tables: string[] }>();
@@ -536,7 +669,8 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
         entry.tables.push(table);
         if (outcome.failed.has(table)) entry.failed.push(table);
         wiped.set(disposition.domain, entry);
-      } else {
+      } else if (disposition.action !== 'decommission') {
+        // Decommission-only tables are reported by eraseDecommissionOnlyTables.
         const key = `${disposition.action}:${disposition.domain}`;
         const entry = kept.get(key) ?? { disposition, tables: [] };
         entry.tables.push(table);
@@ -544,7 +678,7 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
       }
     }
 
-    const results: TenantWipeDomainResult[] = [];
+    const results: TenantWipeDomainResult[] = [outcome.consents, outcome.decommission];
     for (const [domain, entry] of [...wiped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       results.push(
         entry.failed.length > 0

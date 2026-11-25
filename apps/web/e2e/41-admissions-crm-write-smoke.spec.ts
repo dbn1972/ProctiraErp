@@ -28,13 +28,20 @@ const GUARDIAN_SUB = 'guardian-a5';
 const GUARDIAN_EMAIL = `${GUARDIAN_SUB}@tenant.test`;
 
 /** Record the offer-fee payment through the staff sandbox cashier path (PRC-H079). */
-async function payOfferFeeInvoice(request: APIRequestContext, invoiceId: string | null) {
+/** Pays the offer-fee invoice and returns the recorded receipt number. */
+async function payOfferFeeInvoice(
+  request: APIRequestContext,
+  invoiceId: string | null,
+): Promise<string> {
   expect(invoiceId, 'offer send must raise an offer-fee invoice').toBeTruthy();
   const pay = await request.post(`${GATEWAY_URL}/api/v1/fees/invoices/${invoiceId}/pay`, {
     headers: headers(),
     data: { method: 'sandbox' },
   });
   expect(pay.status(), await pay.text()).toBe(201);
+  const body = (await pay.json()) as { receipt: { receiptNumber: string } };
+  expect(body.receipt.receiptNumber).toBeTruthy();
+  return body.receipt.receiptNumber;
 }
 
 function headers(tenantId = TENANT_A) {
@@ -534,14 +541,18 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     };
     expect(listed.data.some((row) => row.id === offer.id && row.status === 'sent')).toBe(true);
     // PRC-H079: the fee is settled through the server-side payment path first.
-    await payOfferFeeInvoice(request, sent.offerFeeInvoiceId ?? offer.offerFeeInvoiceId);
+    // PRC-M535: a guardian paymentRef must name a payment recorded on the offer's invoice.
+    const receiptNumber = await payOfferFeeInvoice(
+      request,
+      sent.offerFeeInvoiceId ?? offer.offerFeeInvoiceId,
+    );
 
     const payRes = await request.post(
       `${GATEWAY_URL}/api/v1/parent-portal/offers/${offer.id}/accept`,
       {
         headers: parentHeaders,
         data: {
-          paymentRef: 'SANDBOX-A5-PAY',
+          paymentRef: receiptNumber,
           offerFeeInvoiceId: sent.offerFeeInvoiceId ?? offer.offerFeeInvoiceId ?? undefined,
         },
       },
@@ -552,7 +563,7 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
       enrolledStudentId: string | null;
     };
     expect(accepted.status).toBe('accepted');
-    expect(accepted.paymentRef).toBe('SANDBOX-A5-PAY');
+    expect(accepted.paymentRef).toBe(receiptNumber);
     expect(accepted.enrolledStudentId).toBeTruthy();
 
     const seatAfterRes = await request.get(

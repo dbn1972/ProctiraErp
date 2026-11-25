@@ -58,7 +58,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   List<String> _knownClasses = const <String>[];
   String? _selectedClass;
   List<AttendanceRosterEntry> _roster = const <AttendanceRosterEntry>[];
-  GeofenceCheck? _lastCheck;
 
   late final AttendanceRepository _repository = AttendanceRepository(
     database: getIt<AppDatabase>(),
@@ -301,8 +300,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         date: _dateString,
         status: status,
         comment: comment,
-        latitude: _lastCheck?.userPosition?.latitude,
-        longitude: _lastCheck?.userPosition?.longitude,
       );
       if (!mounted) return;
       setState(() {
@@ -538,7 +535,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 AttendanceGeofenceWidget(
                   institutionId: _institutionCtrl.text.trim(),
                   locator: _locator,
-                  onCheck: (GeofenceCheck check) => _lastCheck = check,
                 ),
               const SizedBox(height: 8),
               SyncStatusBanner(controller: _syncStatus),

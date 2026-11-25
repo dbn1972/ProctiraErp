@@ -400,7 +400,7 @@ describe('admissions pipeline service', () => {
       TENANT,
       offerMine.id,
       'parent@family.test',
-      { paymentRef: 'SANDBOX-PAY' },
+      {},
     );
     expect(accepted.status).toBe('accepted');
     expect(accepted.enrolledStudentId).toBeTruthy();

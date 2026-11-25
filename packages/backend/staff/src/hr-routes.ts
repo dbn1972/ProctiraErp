@@ -49,11 +49,12 @@ import {
   type VerifyQualificationInput,
 } from './hr-schemas.js';
 import type { StaffHrService } from './hr-service.js';
-import { staffHrActionFor } from './staff-access.js';
+import { canViewStaffCompensation, staffHrActionFor } from './staff-access.js';
 import {
   assertStaffWritableOr404,
   callerInstitutionScope,
   requireStaffAction,
+  staffRequestRoles,
 } from './staff-http-guard.js';
 import type { StaffService } from './staff-service.js';
 
@@ -85,21 +86,24 @@ function iso(value: Date): string {
   return value.toISOString();
 }
 
-function formatContract(entity: {
-  id: string;
-  tenantId: string;
-  staffId: string;
-  contractType: string;
-  startDate: string;
-  endDate: string | null;
-  salaryBand: string;
-  status: string;
-  notes: string | null;
-  renewalAlert: boolean;
-  daysUntilEnd: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function formatContract(
+  entity: {
+    id: string;
+    tenantId: string;
+    staffId: string;
+    contractType: string;
+    startDate: string;
+    endDate: string | null;
+    salaryBand: string;
+    status: string;
+    notes: string | null;
+    renewalAlert: boolean;
+    daysUntilEnd: number | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  request: FastifyRequest,
+) {
   return {
     id: entity.id,
     tenantId: entity.tenantId,
@@ -107,7 +111,8 @@ function formatContract(entity: {
     contractType: entity.contractType,
     startDate: entity.startDate,
     endDate: entity.endDate,
-    salaryBand: entity.salaryBand,
+    // PRC-M378: salary only for HR officers / admins and the payroll roles.
+    salaryBand: canViewStaffCompensation(staffRequestRoles(request)) ? entity.salaryBand : null,
     status: entity.status,
     notes: entity.notes,
     renewalAlert: entity.renewalAlert,
@@ -206,9 +211,10 @@ export async function registerStaffHrRoutes(
       }
       const w = toPageWindow(query.data);
       const { rows, total } = await hrService.listContractsPage(tenantId, query.data.staffId, w);
-      return reply
-        .status(200)
-        .send({ data: rows.map(formatContract), meta: pageMeta(w.page, w.pageSize, total) });
+      return reply.status(200).send({
+        data: rows.map((row) => formatContract(row, request)),
+        meta: pageMeta(w.page, w.pageSize, total),
+      });
     },
   );
 
@@ -242,7 +248,7 @@ export async function registerStaffHrRoutes(
         )
           return reply;
         const row = await hrService.createContract(tenantId, result.data, getActorId(request));
-        return reply.status(201).send(formatContract(row));
+        return reply.status(201).send(formatContract(row, request));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
         throw error;
@@ -269,7 +275,7 @@ export async function registerStaffHrRoutes(
       if (!tenantId) return tenantRequired(reply);
       try {
         const row = await hrService.getContract(tenantId, paramsResult.data.id);
-        return reply.status(200).send(formatContract(row));
+        return reply.status(200).send(formatContract(row, request));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
         throw error;
@@ -322,7 +328,7 @@ export async function registerStaffHrRoutes(
           bodyResult.data,
           getActorId(request),
         );
-        return reply.status(200).send(formatContract(row));
+        return reply.status(200).send(formatContract(row, request));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
         throw error;

@@ -118,4 +118,13 @@ export const PLATFORM_SCOPED_OPERATIONS = Object.freeze([
       'G-913 retention sweep is a platform job: it enumerates tenants with archival enabled and ' +
       'then archives per tenant, passing each tenantId explicitly to archiveExpiredEntries().',
   },
+  {
+    file: 'transport/src/transport-service.ts',
+    className: 'TransportService',
+    receiver: 'repository',
+    operations: ['listTenantIdsForGpsRetention'],
+    reason:
+      'PRC-M451 GPS retention sweep is a platform job: it enumerates tenants holding GPS pings and ' +
+      'then purges per tenant, passing each tenantId explicitly to purgeExpiredGpsPings().',
+  },
 ]);

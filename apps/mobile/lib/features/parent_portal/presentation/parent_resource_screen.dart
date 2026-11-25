@@ -30,6 +30,7 @@ class ParentResourceScreen extends StatefulWidget {
 
 class _ParentResourceScreenState extends State<ParentResourceScreen> {
   bool _loading = false;
+  bool _acting = false;
   String? _error;
   List<ParentPortalRow> _rows = const <ParentPortalRow>[];
 
@@ -102,6 +103,31 @@ class _ParentResourceScreenState extends State<ParentResourceScreen> {
     }
   }
 
+  /// PRC-M039: run a row action once, report the outcome, then reload the list.
+  Future<void> _runAction(ParentPortalRow row) async {
+    final Future<String> Function()? action = row.onAction;
+    if (action == null || _acting) {
+      return;
+    }
+    setState(() => _acting = true);
+    String message;
+    try {
+      message = await action();
+    } on ParentPortalException catch (error) {
+      message = error.message;
+    } catch (_) {
+      message = 'Could not reach the parent portal. Try again.';
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() => _acting = false);
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final String? studentId = widget.studentId?.trim();
@@ -137,11 +163,29 @@ class _ParentResourceScreenState extends State<ParentResourceScreen> {
                                   minTileHeight: 48,
                                   title: Text(row.title),
                                   subtitle: Text(row.subtitle),
+                                  trailing: _rowAction(row),
                                 ),
                               ),
                             );
                           },
                         ),
+    );
+  }
+
+  Widget? _rowAction(ParentPortalRow row) {
+    final String? label = row.actionLabel;
+    if (label == null || row.onAction == null) {
+      return null;
+    }
+    return Semantics(
+      button: true,
+      label: '$label, ${row.title}',
+      excludeSemantics: true,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(minimumSize: const Size(44, 44)),
+        onPressed: _acting ? null : () => _runAction(row),
+        child: Text(label),
+      ),
     );
   }
 }

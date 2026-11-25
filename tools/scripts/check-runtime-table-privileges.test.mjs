@@ -12,8 +12,10 @@ import { test } from 'node:test';
 import {
   evaluateRuntimePrivileges,
   extractPublicTables,
+  generatePhiRetentionSyncSql,
   generateSyncSql,
   loadCatalog,
+  phiRetentionTables,
 } from './runtime-table-privileges-lib.mjs';
 import { main as checkMain, parseArgs } from './check-runtime-table-privileges.mjs';
 
@@ -195,6 +197,141 @@ test('PRC-L186: sync SQL is one role-guarded DO block (skip really skips)', () =
     body.slice(0, guard),
     /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_app'\)/,
   );
+});
+
+test('PRC-M623: PHI retention grant sync is role-guarded and grants only the job set', () => {
+  const sql = generatePhiRetentionSyncSql();
+  assert.equal((sql.match(/^DO \$\$$/gm) ?? []).length, 1);
+  const start = sql.indexOf('DO $$');
+  const guard = sql.indexOf('RETURN;');
+  assert.match(
+    sql.slice(start, guard),
+    /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_phi_retention'\)/,
+  );
+  const statements = sql.match(/^ {2}(?:GRANT|REVOKE) .*;$/gm) ?? [];
+  assert.ok(
+    statements.every((g) => sql.indexOf(g) > guard),
+    'every GRANT/REVOKE follows the role guard',
+  );
+  assert.deepEqual(statements, [
+    // N3: table-wide SELECT from 312 is removed before the column grants.
+    '  REVOKE SELECT ON TABLE tenants, students FROM proctira_phi_retention;',
+    '  GRANT SELECT (id, legal_hold) ON TABLE tenants TO proctira_phi_retention;',
+    '  GRANT SELECT (id, date_of_birth) ON TABLE students TO proctira_phi_retention;',
+    '  GRANT SELECT ON TABLE privacy_legal_holds TO proctira_phi_retention;',
+    '  GRANT SELECT, DELETE ON TABLE counselling_sessions, health_special_needs_assessments TO proctira_phi_retention;',
+    '  GRANT INSERT ON TABLE audit_ingest_queue TO proctira_phi_retention;',
+  ]);
+  assert.doesNotMatch(sql, /\bALL\b|UPDATE|TRUNCATE|BYPASSRLS/);
+});
+
+test('PRC-M623: PHI retention grant sync skips the whole block unless every table exists', () => {
+  const sql = generatePhiRetentionSyncSql();
+  const tables = phiRetentionTables();
+  assert.deepEqual(tables, [
+    'tenants',
+    'students',
+    'privacy_legal_holds',
+    'counselling_sessions',
+    'health_special_needs_assessments',
+    'audit_ingest_queue',
+  ]);
+  const firstStatement = sql.search(/^ {2}(?:GRANT|REVOKE) /m);
+  assert.ok(firstStatement > 0);
+  const guards = sql.slice(0, firstStatement);
+  // Every table named by a GRANT/REVOKE has a to_regclass guard that returns
+  // before the first statement (all-or-nothing, no partial grant set).
+  const named = new Set(
+    (sql.match(/ON TABLE [^;]+? (?:TO|FROM) /g) ?? []).flatMap((m) =>
+      m
+        .replace(/^ON TABLE /, '')
+        .replace(/ (?:TO|FROM) $/, '')
+        .split(', '),
+    ),
+  );
+  assert.deepEqual([...named].sort(), [...tables].sort());
+  for (const table of tables) {
+    assert.match(
+      guards,
+      new RegExp(
+        `IF to_regclass\\('public\\.${table}'\\) IS NULL THEN\\n` +
+          `    RAISE NOTICE 'PRC-M623: table ${table} missing; skip PHI retention grant sync';\\n` +
+          '    RETURN;\\n  END IF;',
+      ),
+      `missing to_regclass guard for ${table}`,
+    );
+  }
+});
+test('PRC-M623 (N3): migration 318 and the sync narrow tenants/students to the same columns', () => {
+  const migration = readFileSync(
+    join(process.cwd(), 'db/sql/318_phi_retention_column_select.sql'),
+    'utf8',
+  );
+  const sync = generatePhiRetentionSyncSql();
+  for (const line of [
+    'REVOKE SELECT ON TABLE tenants, students FROM proctira_phi_retention;',
+    'GRANT SELECT (id, legal_hold) ON TABLE tenants TO proctira_phi_retention;',
+    'GRANT SELECT (id, date_of_birth) ON TABLE students TO proctira_phi_retention;',
+  ]) {
+    assert.ok(migration.includes(line), `318 missing: ${line}`);
+    assert.ok(sync.includes(line), `sync missing: ${line}`);
+  }
+  assert.match(
+    migration,
+    /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_phi_retention'\) THEN[\s\S]*RETURN;[\s\S]*REVOKE/,
+  );
+});
+
+test('PRC-M623 / PRC-M203: the sync re-applies the 313 legal-hold guard EXECUTE grant', () => {
+  const migration = readFileSync(
+    join(process.cwd(), 'db/sql/313_privacy_legal_hold_guard.sql'),
+    'utf8',
+  );
+  // 313 grants it in a role-guarded loop, so a role created after 313 ran
+  // never gets it from the migration alone.
+  assert.match(
+    migration,
+    /ARRAY\['proctira_app', 'proctira_phi_retention'\][\s\S]*IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = r\)[\s\S]*GRANT EXECUTE ON FUNCTION privacy_assert_no_legal_hold\(uuid, text, text\) TO %I/,
+  );
+  const sql = generatePhiRetentionSyncSql();
+  const grant =
+    '    GRANT EXECUTE ON FUNCTION privacy_assert_no_legal_hold(uuid, text, text) TO proctira_phi_retention;';
+  assert.equal(sql.split(grant).length - 1, 1, 'sync must grant EXECUTE exactly once');
+  const at = sql.indexOf(grant);
+  // After the role guard, the all-or-nothing table guards and every table grant.
+  assert.ok(at > sql.lastIndexOf("IF to_regclass('public."), 'grant follows the table guards');
+  assert.ok(at > sql.lastIndexOf('  GRANT INSERT ON TABLE'), 'grant follows the table grants');
+  // Guarded on the function itself, without returning, so the table grants still land.
+  assert.match(
+    sql,
+    new RegExp(
+      "  IF to_regprocedure\\('public\\.privacy_assert_no_legal_hold\\(uuid, text, text\\)'\\) IS NULL THEN\\n" +
+        "    RAISE NOTICE 'PRC-M623: function privacy_assert_no_legal_hold\\(uuid, text, text\\) missing; skip its grant';\\n" +
+        '  ELSE\\n' +
+        grant.replace(/[()]/g, '\\$&') +
+        '\\n  END IF;\\nEND \\$\\$;',
+    ),
+  );
+});
+
+test('PRC-M623: --print-sql (what apply-sql re-runs) includes the PHI retention grant sync', () => {
+  const chunks = [];
+  const write = process.stdout.write;
+  process.stdout.write = (chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  };
+  try {
+    assert.equal(checkMain(process.cwd(), { printSql: true }), 0);
+  } finally {
+    process.stdout.write = write;
+  }
+  const out = chunks.join('');
+  assert.ok(
+    out.includes(generatePhiRetentionSyncSql()),
+    'PHI retention block missing from sync SQL',
+  );
+  assert.ok(out.indexOf('proctira_phi_retention') > out.indexOf('TO proctira_app'));
 });
 
 test('PRC-L186: extractPublicTables ignores non-public schema-qualified tables', () => {
