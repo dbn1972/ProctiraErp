@@ -121,6 +121,45 @@ describe('PRC-M246 refund by payment', () => {
     expect(refund.paymentId).toBe(paid.payment.id);
   });
 
+  it('PRC-M090: GET /invoices/:id/payments lists what is refundable per payment (staff only)', async () => {
+    await service.recordRefund(TENANT, 'staff-1', {
+      invoiceId,
+      paymentId: firstPaymentId,
+      amountCents: 1_000,
+      reason: 'part',
+    });
+    const build = async (roles: string[]) => {
+      const app = Fastify();
+      app.decorateRequest('tenantId', '');
+      app.addHook('onRequest', async (request) => {
+        const r = request as { tenantId?: string; user?: { sub?: string; roles?: unknown } };
+        r.tenantId = TENANT;
+        r.user = { sub: 'u-1', roles };
+      });
+      await app.register(feesPlugin, { repository, prefix: '/fees' });
+      await app.ready();
+      return app;
+    };
+    const staff = await build(['bursar']);
+    const res = await staff.inject({ method: 'GET', url: `/fees/invoices/${invoiceId}/payments` });
+    await staff.close();
+    expect(res.statusCode).toBe(200);
+    const rows = res.json().data as Array<{ paymentId: string; refundableCents: number }>;
+    expect(rows.find((r) => r.paymentId === firstPaymentId)).toMatchObject({
+      amountCents: 6_000,
+      refundedCents: 1_000,
+      refundableCents: 5_000,
+    });
+    expect(rows.find((r) => r.paymentId === secondPaymentId)?.refundableCents).toBe(4_000);
+    const parent = await build(['parent']);
+    const denied = await parent.inject({
+      method: 'GET',
+      url: `/fees/invoices/${invoiceId}/payments`,
+    });
+    await parent.close();
+    expect(denied.statusCode).toBe(403);
+  });
+
   it('HTTP: refund with a foreign paymentId is 404 and posts nothing', async () => {
     const app = Fastify();
     app.decorateRequest('tenantId', '');

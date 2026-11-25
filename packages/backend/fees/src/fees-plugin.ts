@@ -1110,6 +1110,36 @@ export const feesPlugin = fp(
       },
     );
 
+    // PRC-M090: refundable payments of one invoice (staff only) for payment-targeted refunds.
+    fastify.get(
+      `${prefix}/invoices/:id/payments`,
+      async function listInvoicePayments(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid invoice ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesStaffRead(request, reply)) return;
+        try {
+          const rows = await feesService.listRefundablePayments(tenantId, paramsResult.data.id);
+          return reply.status(200).send({
+            data: rows.map((row) => ({ ...row, paidAt: row.paidAt.toISOString() })),
+          });
+        } catch (error: unknown) {
+          return sendFeesError(reply, error);
+        }
+      },
+    );
+
     // G-718 — double-entry ledger read models
     fastify.get(
       `${prefix}/invoices/:id/ledger`,

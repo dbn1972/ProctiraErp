@@ -514,6 +514,33 @@ export class FeesService {
     return feesPage(await this.repository.listReceiptsPage(tenantId, page), page);
   }
 
+  /**
+   * PRC-M090: succeeded payments of one invoice with what is still refundable on each,
+   * so a refund form can target a specific payment.
+   */
+  async listRefundablePayments(tenantId: string, invoiceId: string) {
+    await this.getInvoice(tenantId, invoiceId);
+    const [payments, refunds] = await Promise.all([
+      this.repository.listPaymentsForInvoice(tenantId, invoiceId),
+      this.repository.listRefundsForInvoice(tenantId, invoiceId),
+    ]);
+    return payments
+      .filter((payment) => payment.status === 'succeeded')
+      .map((payment) => {
+        const refundedCents = refunds
+          .filter((refund) => refund.status === 'posted' && refund.paymentId === payment.id)
+          .reduce((sum, refund) => sum + refund.amountCents, 0);
+        return {
+          paymentId: payment.id,
+          method: payment.method,
+          amountCents: payment.amountCents,
+          refundedCents,
+          refundableCents: Math.max(0, payment.amountCents - refundedCents),
+          paidAt: payment.paidAt,
+        };
+      });
+  }
+
   async getNetCollectedCents(tenantId: string, invoiceId: string): Promise<number> {
     await this.getInvoice(tenantId, invoiceId);
     const payments = (await this.repository.listPaymentsForInvoice(tenantId, invoiceId))

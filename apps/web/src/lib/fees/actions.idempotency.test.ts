@@ -22,6 +22,7 @@ import {
 const KEY = '3f1c2b4a-5d6e-4f70-8a9b-0c1d2e3f4a5b';
 const INVOICE = '00000000-0000-4000-8000-0000000000a1';
 const STUDENT = '00000000-0000-4000-8000-0000000000b1';
+const PAYMENT = '00000000-0000-4000-8000-0000000000d1';
 const STRUCTURE = '00000000-0000-4000-8000-0000000000c1';
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -39,6 +40,7 @@ describe('fees money actions send Idempotency-Key (PRC-H058)', () => {
     gatewayFetch.mockResolvedValue({ ok: true, status: 201, data: { id: 'r1', amountCents: 100 } });
     const result = await refundInvoiceAction({
       invoiceId: INVOICE,
+      paymentId: PAYMENT,
       amount: 1,
       reason: 'duplicate charge',
       idempotencyKey: KEY,
@@ -50,13 +52,14 @@ describe('fees money actions send Idempotency-Key (PRC-H058)', () => {
 
   it('refund mints a v4 key when the caller sends none', async () => {
     gatewayFetch.mockResolvedValue({ ok: true, status: 201, data: { id: 'r1', amountCents: 100 } });
-    await refundInvoiceAction({ invoiceId: INVOICE, amount: 1, reason: 'x' });
+    await refundInvoiceAction({ invoiceId: INVOICE, paymentId: PAYMENT, amount: 1, reason: 'x' });
     expect(headerOf(gatewayFetch.mock.calls[0]!)).toMatch(UUID_V4);
   });
 
   it('rejects a malformed key without calling the gateway', async () => {
     const result = await refundInvoiceAction({
       invoiceId: INVOICE,
+      paymentId: PAYMENT,
       amount: 1,
       reason: 'x',
       idempotencyKey: 'not-a-key',

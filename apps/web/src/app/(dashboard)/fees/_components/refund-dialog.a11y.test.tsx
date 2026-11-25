@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/hooks/useHydrated', () => ({ useHydrated: () => true }));
 vi.mock('@/lib/fees/actions', () => ({
   refundInvoiceAction: vi.fn(),
+  listRefundablePaymentsAction: vi.fn(async () => ({ success: true, data: [] })),
   applyConcessionAction: vi.fn(async () => ({
     success: false,
     error: 'Validation failed',
