@@ -12,6 +12,7 @@ import { test } from 'node:test';
 import {
   evaluateRuntimePrivileges,
   extractPublicTables,
+  generatePhiRetentionSyncSql,
   generateSyncSql,
   loadCatalog,
 } from './runtime-table-privileges-lib.mjs';
@@ -195,6 +196,48 @@ test('PRC-L186: sync SQL is one role-guarded DO block (skip really skips)', () =
     body.slice(0, guard),
     /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_app'\)/,
   );
+});
+
+test('PRC-M623: PHI retention grant sync is role-guarded and grants only the job set', () => {
+  const sql = generatePhiRetentionSyncSql();
+  assert.equal((sql.match(/^DO \$\$$/gm) ?? []).length, 1);
+  const start = sql.indexOf('DO $$');
+  const guard = sql.indexOf('RETURN;');
+  assert.match(
+    sql.slice(start, guard),
+    /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_phi_retention'\)/,
+  );
+  const grants = sql.match(/^ {2}GRANT .*;$/gm) ?? [];
+  assert.ok(
+    grants.every((g) => sql.indexOf(g) > guard),
+    'every GRANT follows the role guard',
+  );
+  assert.deepEqual(grants, [
+    '  GRANT SELECT ON TABLE tenants, students, privacy_legal_holds TO proctira_phi_retention;',
+    '  GRANT SELECT, DELETE ON TABLE counselling_sessions, health_special_needs_assessments TO proctira_phi_retention;',
+    '  GRANT INSERT ON TABLE audit_ingest_queue TO proctira_phi_retention;',
+  ]);
+  assert.doesNotMatch(sql, /\bALL\b|UPDATE|TRUNCATE|BYPASSRLS/);
+});
+
+test('PRC-M623: --print-sql (what apply-sql re-runs) includes the PHI retention grant sync', () => {
+  const chunks = [];
+  const write = process.stdout.write;
+  process.stdout.write = (chunk) => {
+    chunks.push(String(chunk));
+    return true;
+  };
+  try {
+    assert.equal(checkMain(process.cwd(), { printSql: true }), 0);
+  } finally {
+    process.stdout.write = write;
+  }
+  const out = chunks.join('');
+  assert.ok(
+    out.includes(generatePhiRetentionSyncSql()),
+    'PHI retention block missing from sync SQL',
+  );
+  assert.ok(out.indexOf('proctira_phi_retention') > out.indexOf('TO proctira_app'));
 });
 
 test('PRC-L186: extractPublicTables ignores non-public schema-qualified tables', () => {

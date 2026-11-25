@@ -203,19 +203,27 @@ CronJob must not use the backup credential. It connects as
 by the normal tenant policies. `db/sql/312_phi_retention_role_grants.sql` grants
 it SELECT on `tenants`, `students`, `privacy_legal_holds`; SELECT and DELETE on
 `counselling_sessions` and `health_special_needs_assessments`; INSERT on
-`audit_ingest_queue`. Run the role bootstrap before the migration; if 312 ran
-first, apply its GRANT block again as the migrator. Store the URL as
+`audit_ingest_queue`. 312 skips these grants when the role does not exist yet,
+so `tools/scripts/apply-sql.sh` re-applies them on every run (role-guarded, in
+`tools/scripts/apply-runtime-table-privileges.sh`). If the role was created
+after 312 ran, re-run `apply-sql.sh` as the migrator. Store the URL as
 `PHI_RETENTION_DATABASE_URL` (`secrets.phiRetentionDatabaseUrl`; the CronJob
 reads `dr.phiRetention.databaseUrlSecretKey`). Rendering fails when that key
 equals `dr.databaseUrlSecretKey`, and the job exits 1 when it connects as a
 SUPERUSER or BYPASSRLS role.
 
-Roles are cluster-level, so `pg_dump` does not carry `proctira_phi_retention`.
-After a restore into a new cluster, run `tools/scripts/bootstrap-db-roles.sh`
-(with `PHI_RETENTION_ROLE_PASSWORD`) and re-apply
-`db/sql/312_phi_retention_role_grants.sql` before the retention CronJob runs.
-The weekly restore drill does this on the restored copy and runs the dry-run
-as the retention role. Rollback: the `REVOKE` block in the 312 header.
+Roles are cluster-level, so `pg_dump` does not carry `proctira_phi_retention`,
+and `pg-restore.sh` restores with `--no-acl`, so the restored database has none
+of the role's grants, even on the same cluster. After any `pg-restore.sh`
+restore, run `tools/scripts/bootstrap-db-roles.sh` (with
+`PHI_RETENTION_ROLE_PASSWORD`; needed when the cluster lacks the role) and then
+`tools/scripts/apply-sql.sh` (or `tools/scripts/apply-runtime-table-privileges.sh`)
+as the migrator before the retention CronJob runs. Until then the job fails
+closed on its privilege check. The weekly restore drill does this on the
+restored copy and runs the dry-run as the retention role. Rollback: the
+`REVOKE` block in the 312 header, plus removing the grants from
+`PHI_RETENTION_GRANTS` in `tools/scripts/runtime-table-privileges-lib.mjs` so
+the sync does not re-add them.
 
 ### 3.6 Encryption, offsite, immutability (W1-OPS-04)
 
