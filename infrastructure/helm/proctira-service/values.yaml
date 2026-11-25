@@ -271,6 +271,10 @@ externalSecret:
       - POSTGRES_READ_REPLICA_URL
       - KAFKA_SASL_USERNAME
       - KAFKA_SASL_PASSWORD
+      # PRC-M512: Razorpay live PSP, only when RAZORPAY_KEY_ID is set (the
+      # adapter stays sandbox without the full credential set).
+      - RAZORPAY_KEY_SECRET
+      - RAZORPAY_WEBHOOK_SECRET
     developer-portal: []
     install-wizard: []
     public-website: []
