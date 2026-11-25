@@ -11,6 +11,16 @@
 {{- if and (eq .Values.global.environment "production") (not .Values.dr.phiRetention.apply) }}
 {{- fail "W1-OPS-19: production PHI retention must set dr.phiRetention.apply=true (enforcing deletion). For dry-run use staging/development with apply=false." }}
 {{- end }}
+{{/*
+  PRC-M623 — the retention job has its own RLS-bound credential. It must not
+  reuse the BYPASSRLS backup key.
+*/}}
+{{- if not .Values.dr.phiRetention.databaseUrlSecretKey }}
+{{- fail "PRC-M623: dr.phiRetention.databaseUrlSecretKey must name the PHI retention role URL key (default PHI_RETENTION_DATABASE_URL)." }}
+{{- end }}
+{{- if eq .Values.dr.phiRetention.databaseUrlSecretKey .Values.dr.databaseUrlSecretKey }}
+{{- fail "PRC-M623: dr.phiRetention.databaseUrlSecretKey must differ from dr.databaseUrlSecretKey; PHI retention must not share the BYPASSRLS backup credential." }}
+{{- end }}
 # G-707 / W1-OPS-19 — scheduled PHI / minor-data retention job.
 # Production: apply=true → RETENTION_DRY_RUN=0 (enforces deletion).
 # Sandbox: apply=false → RETENTION_DRY_RUN=1 (explicit dry-run only).
@@ -73,11 +83,12 @@ spec:
                   value: {{ .Values.dr.phiRetention.phiRetentionDays | quote }}
                 - name: MINOR_PHI_RETENTION_DAYS
                   value: {{ .Values.dr.phiRetention.minorPhiRetentionDays | quote }}
+                # PRC-M623: proctira_phi_retention, not the backup role.
                 - name: DATABASE_URL
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "proctira.secretName" . }}
-                      key: {{ .Values.dr.databaseUrlSecretKey }}
+                      key: {{ .Values.dr.phiRetention.databaseUrlSecretKey }}
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true

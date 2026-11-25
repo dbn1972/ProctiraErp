@@ -253,7 +253,8 @@ describe('PRC-M559 retention script startup assertions', () => {
 
   it('raises when the deleted count differs from the eligible count', () => {
     const sql = job.buildRetentionScript({ ...cutoffs, dryRun: false });
-    assert.equal((sql.match(/IF v_deleted <> v_eligible THEN/g) ?? []).length, 2);
+    // PRC-M623: rows kept by a legal hold are subtracted from the expected count.
+    assert.equal((sql.match(/IF v_deleted <> v_eligible - v_held THEN/g) ?? []).length, 2);
   });
 });
 
@@ -318,5 +319,65 @@ describe('PRC-M435 every retention deletion is audited per tenant in the same tr
     const run = runJobWithStubPsql({ dryRun: false, stubStdout });
     assert.equal(run.status, 0, run.stderr);
     assert.equal(run.summary.applied.auditEventsQueued, 3);
+  });
+});
+
+describe('PRC-M623 retention runs as its own RLS-bound role and honours legal holds', () => {
+  const cutoffs = {
+    adultCutoffIso: '2019-01-01T00:00:00.000Z',
+    minorCutoffIso: '2016-01-01T00:00:00.000Z',
+  };
+
+  it('refuses a SUPERUSER or BYPASSRLS role (the backup credential) before any check', () => {
+    for (const dryRun of [true, false]) {
+      const sql = job.buildRetentionScript({ ...cutoffs, dryRun });
+      const guard = sql.indexOf('(rolsuper OR rolbypassrls)');
+      assert.ok(guard > 0, 'role attribute assertion present');
+      assert.ok(guard < sql.indexOf('has_table_privilege'), 'asserted first');
+      assert.match(sql, /PRC-M623: role % is SUPERUSER or BYPASSRLS/);
+    }
+  });
+
+  it('skips tenants on legal hold and rows of students under an active subject hold', () => {
+    const sql = job.buildRetentionScript({ ...cutoffs, dryRun: false });
+    assert.match(sql, /FILTER \(WHERE legal_hold\)/);
+    assert.match(sql, /h\.active AND h\.scope = 'tenant'/);
+    assert.ok(sql.includes("has_table_privilege(current_user, 'privacy_legal_holds', 'SELECT')"));
+    const deletes = sql.split('WITH d AS (').slice(1);
+    assert.equal(deletes.length, 2);
+    for (const statement of deletes) {
+      const where = statement.slice(0, statement.indexOf('RETURNING'));
+      assert.match(where, /AND NOT EXISTS \(\s+SELECT 1 FROM privacy_legal_holds h/);
+      assert.match(where, /h\.subject_type = 'student' AND h\.subject_id = r\.student_id/);
+    }
+    assert.equal((sql.match(/IF v_tenant_hold THEN\s+v_deleted := 0;/g) ?? []).length, 2);
+  });
+
+  it('reports rows held by legal hold in the summary', () => {
+    const stubStdout = `${JSON.stringify({
+      tenantsScanned: 1,
+      rows: [
+        {
+          tenantId: 't1',
+          table: 'counselling_sessions',
+          eligible: 3,
+          held: 2,
+          deleted: 1,
+          audited: 1,
+        },
+        {
+          tenantId: 't1',
+          table: 'health_special_needs_assessments',
+          eligible: 0,
+          held: 0,
+          deleted: 0,
+          audited: 0,
+        },
+      ],
+    })}\n`;
+    const run = runJobWithStubPsql({ dryRun: false, stubStdout });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.summary.heldByLegalHold, 2);
+    assert.equal(run.summary.applied.counsellingDeleted, 1);
   });
 });

@@ -195,6 +195,21 @@ the CronJobs read `dr.databaseUrlSecretKey`, default `BACKUP_DATABASE_URL`).
 `pg-backup.sh` exits `2` with an explanatory message when the role cannot
 bypass RLS — the weekly drill asserts this.
 
+**PHI retention uses its own role (PRC-M623).** The `<release>-phi-retention`
+CronJob must not use the backup credential. It connects as
+`proctira_phi_retention` (`NOSUPERUSER NOBYPASSRLS`, created by
+`tools/scripts/bootstrap-db-roles.sh`, password from
+`PHI_RETENTION_ROLE_PASSWORD`), binds `app.tenant_id` per tenant and is limited
+by the normal tenant policies. `db/sql/312_phi_retention_role_grants.sql` grants
+it SELECT on `tenants`, `students`, `privacy_legal_holds`; SELECT and DELETE on
+`counselling_sessions` and `health_special_needs_assessments`; INSERT on
+`audit_ingest_queue`. Run the role bootstrap before the migration; if 312 ran
+first, apply its GRANT block again as the migrator. Store the URL as
+`PHI_RETENTION_DATABASE_URL` (`secrets.phiRetentionDatabaseUrl`; the CronJob
+reads `dr.phiRetention.databaseUrlSecretKey`). Rendering fails when that key
+equals `dr.databaseUrlSecretKey`, and the job exits 1 when it connects as a
+SUPERUSER or BYPASSRLS role.
+
 ### 3.6 Encryption, offsite, immutability (W1-OPS-04)
 
 Logical dumps are **plaintext pg_dump custom format** unless encryption is

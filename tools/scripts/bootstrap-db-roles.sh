@@ -14,6 +14,9 @@
 #   BOOTSTRAP_DATABASE_URL   Superuser / CREATEROLE URL (required unless --dry-run)
 #   MIGRATOR_PASSWORD        Password for role proctira (optional; skip ALTER if unset)
 #   APP_ROLE_PASSWORD        Password for role proctira_app (optional; skip ALTER if unset)
+#   PHI_RETENTION_ROLE_PASSWORD
+#                            Password for role proctira_phi_retention (PRC-M623 PHI
+#                            retention CronJob; optional; skip ALTER if unset)
 #   BOOTSTRAP_DB_NAME        If set, CREATE DATABASE … OWNER proctira when missing
 #   BOOTSTRAP_EXTENSIONS=1   Create uuid-ossp + pgcrypto on the target DB
 #   BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=1
@@ -77,6 +80,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "    BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES=${BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES:-0}"
   echo "    MIGRATOR_PASSWORD set: $([[ -n "${MIGRATOR_PASSWORD:-}" ]] && echo yes || echo no)"
   echo "    APP_ROLE_PASSWORD set: $([[ -n "${APP_ROLE_PASSWORD:-}" ]] && echo yes || echo no)"
+  echo "    PHI_RETENTION_ROLE_PASSWORD set: $([[ -n "${PHI_RETENTION_ROLE_PASSWORD:-}" ]] && echo yes || echo no)"
   exit 0
 fi
 
@@ -166,6 +170,10 @@ if [[ -n "${APP_ROLE_PASSWORD:-}" ]]; then
   echo "==> Setting password for role proctira_app"
   set_role_password proctira_app "$APP_ROLE_PASSWORD"
 fi
+if [[ -n "${PHI_RETENTION_ROLE_PASSWORD:-}" ]]; then
+  echo "==> Setting password for role proctira_phi_retention"
+  set_role_password proctira_phi_retention "$PHI_RETENTION_ROLE_PASSWORD"
+fi
 
 if [[ "${BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES:-0}" == "1" ]]; then
   echo "==> Pinning proctira attributes (NOSUPERUSER NOBYPASSRLS NOCREATEROLE)"
@@ -222,6 +230,11 @@ SELECT CASE
     WHERE rolname = 'proctira_app'
       AND (rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole)
   ) THEN 'ERROR: proctira_app has elevated attributes'
+  WHEN EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE rolname = 'proctira_phi_retention'
+      AND (rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole)
+  ) THEN 'ERROR: proctira_phi_retention has elevated attributes'
   ELSE 'proctira_app OK'
 END;
 SQL
