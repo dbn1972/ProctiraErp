@@ -1,7 +1,7 @@
 /**
  * PRC-M538: guardian admission offers are matched by the token email, so the
  * family portal uses that email only when the IdP asserted it as verified
- * (`email_verified === true`). An unverified or absent claim gets 400
+ * (`emailVerified === true` on the principal). An unverified or absent flag gets 400
  * EMAIL_REQUIRED and the offers port is never asked.
  */
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -17,7 +17,7 @@ const GUARDIAN_EMAIL = 'ravi@example.test';
 interface Principal {
   sub: string;
   email?: string;
-  email_verified?: unknown;
+  emailVerified?: unknown;
   roles: Array<{ roleId: string; roleName: string; areaId: string | null }>;
 }
 
@@ -73,13 +73,13 @@ describe('PRC-M538 guardian offers need a verified email', () => {
   const guardian = (emailVerified: unknown): Principal => ({
     sub: 'guardian-1',
     email: GUARDIAN_EMAIL,
-    ...(emailVerified === undefined ? {} : { email_verified: emailVerified }),
+    ...(emailVerified === undefined ? {} : { emailVerified }),
     roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
   });
   const as = (p: Principal) => ({ 'x-test-principal': JSON.stringify(p) });
 
   it.each([[undefined], [false], ['true']])(
-    'email_verified=%s: list and accept are refused (400) and the port is not asked',
+    'emailVerified=%s: list and accept are refused (400) and the port is not asked',
     async (emailVerified) => {
       const list = await app.inject({
         method: 'GET',

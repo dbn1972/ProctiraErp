@@ -21,8 +21,9 @@ export function parentPortalJwtHeaders(
   const token = createSignedJwt({
     sub,
     email: `${sub}@tenant.test`,
-    // PRC-M538: offers match on an IdP-verified email only (Keycloak sets this claim).
-    email_verified: true,
+    // PRC-M538: offers match on an IdP-verified email only; the token service signs
+    // `emailVerified` for a verified login, as the Keycloak plugin sets it on the principal.
+    emailVerified: true,
     displayName: sub,
     tenantId,
     roles: options.roles ?? [{ roleId: 'parent', roleName: 'Parent', areaId: null }],

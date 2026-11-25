@@ -1212,13 +1212,14 @@ export async function registerParentPortalRoutes(
 
   /**
    * PRC-M538: guardian offers are matched by email, so only an email the IdP
-   * asserted as verified (`email_verified === true` on the verified token) counts.
+   * asserted as verified counts. The auth layer sets `emailVerified` on the
+   * principal (Keycloak `email_verified`, or a verified external-provider email).
    */
   function actorEmail(request: FastifyRequest): string | null {
     const user = (
-      request as FastifyRequest & { user?: { email?: string; email_verified?: unknown } }
+      request as FastifyRequest & { user?: { email?: string; emailVerified?: unknown } }
     ).user;
-    if (user?.email_verified !== true) return null;
+    if (user?.emailVerified !== true) return null;
     return typeof user.email === 'string' && user.email.trim() ? user.email : null;
   }
 

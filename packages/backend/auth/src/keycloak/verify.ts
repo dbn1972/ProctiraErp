@@ -260,6 +260,8 @@ export async function verifyKeycloakAccessToken(
     sub: claims.sub || claims.preferred_username || claims.email || '',
     tenantId,
     email: claims.email ?? claims.preferred_username ?? '',
+    // PRC-M538: only an explicit IdP assertion on a real `email` claim counts.
+    emailVerified: Boolean(claims.email) && claims.email_verified === true,
     displayName,
     roles: mapKeycloakRoles(
       roleNames,

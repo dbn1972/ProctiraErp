@@ -91,7 +91,7 @@ export async function setupGatewayTenantSession(
   const token = createSignedJwt({
     sub: overrides.sub ?? 'e2e-user',
     email: overrides.email ?? 'admin@tenant-a.test',
-    ...(overrides.emailVerified !== undefined ? { email_verified: overrides.emailVerified } : {}),
+    ...(overrides.emailVerified !== undefined ? { emailVerified: overrides.emailVerified } : {}),
     displayName: overrides.displayName ?? 'E2E Admin',
     tenantId: overrides.tenantId ?? '00000000-0000-4000-8000-000000000001',
     roles: overrides.roles ?? [
