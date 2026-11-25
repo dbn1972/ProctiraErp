@@ -315,6 +315,30 @@ export const studentSiblingsAnonymizer: DomainSubjectAnonymizer = {
   },
 };
 
+/**
+ * PRC-M214 / DR44: consent records are append-only proof (who, what, when, version,
+ * channel). Once the student is erased, who is pseudonymised through the database's
+ * SECURITY DEFINER path (db/sql/316), which checks that this job and its erasure
+ * request are in progress and that no legal hold applies. The consent text, version,
+ * decision, timestamps and channel are kept.
+ */
+export const studentConsentsAnonymizer: DomainSubjectAnonymizer = {
+  domain: 'consents',
+  covers: ['parent_consents.student_id', 'student_consents.student_id'],
+  appliesTo: isType('student'),
+  async anonymize(client, input) {
+    await client.query(`SELECT privacy_anonymise_subject_consents($1::uuid) AS n`, [input.jobId]);
+    return {
+      fieldsTouched: [
+        'parent_consents.parent_user_id',
+        'parent_consents.created_by',
+        'parent_consents.withdrawal_reason',
+        'student_consents.actor_id',
+      ],
+    };
+  },
+};
+
 /** Fees ledger / health records: retained under statutory retention (no mutation). */
 export function createRetainedRecordsAnonymizer(
   domain: 'fees' | 'health',
@@ -346,6 +370,7 @@ export function defaultDomainAnonymizers(
     createStudentFilesAnonymizer(options.objectEraser),
     createStudentPhotoAnonymizer(options.objectEraser),
     studentSiblingsAnonymizer,
+    studentConsentsAnonymizer,
     createRetainedRecordsAnonymizer('fees', mode),
     createRetainedRecordsAnonymizer('health', mode),
   ];
@@ -489,6 +514,38 @@ async function auditSubjectCoverage(
 
 // ─── Tenant wipe ─────────────────────────────────────────────────────────────
 
+/**
+ * PRC-M214 / DR44: before the wipe, pseudonymise who on every consent row of the
+ * tenant through the database path (db/sql/316, gated on this offboard job being
+ * in progress). The append-only consent rows themselves are not deleted.
+ */
+async function anonymiseTenantConsents(
+  client: PgQueryable,
+  jobId: string,
+): Promise<TenantWipeDomainResult> {
+  const sp = 'privacy_tenant_consents';
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    const res = await client.query(`SELECT privacy_anonymise_tenant_consents($1::uuid) AS n`, [
+      jobId,
+    ]);
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    const n = Number((res.rows?.[0] as { n?: unknown } | undefined)?.n ?? 0);
+    return {
+      domain: 'consents',
+      status: 'completed',
+      note: `${n} consent record(s) anonymised; consent text and versions kept as proof (DR44)`,
+    };
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    return {
+      domain: 'consents',
+      status: 'residual',
+      note: `Consent anonymisation failed (${errMessage(err)})`,
+    };
+  }
+}
+
 /** Offboard checklist domain for a tenant-scoped table (`unclassified` → never deleted). */
 export function classifyWipeTable(table: string): string {
   return tenantWipeDisposition(table)?.domain ?? 'unclassified';
@@ -525,6 +582,7 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
     const outcome = await withPgTenant(this.pool, input.tenantId, async (client) => {
       const held = await legalHoldResidual(client, input.tenantId);
       if (held) return { held };
+      const consents = await anonymiseTenantConsents(client, input.jobId);
       const res = await client.query(
         `SELECT DISTINCT table_name FROM information_schema.columns
           WHERE table_schema = 'public' AND column_name = 'tenant_id'
@@ -557,7 +615,7 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
         if (next.length === pending.length) break; // no progress
         pending = next;
       }
-      return { tables, failed };
+      return { tables, failed, consents };
     });
     if ('held' in outcome) {
       // PRC-M325: nothing deleted, object storage untouched; the job fails closed.
@@ -584,7 +642,7 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
       }
     }
 
-    const results: TenantWipeDomainResult[] = [];
+    const results: TenantWipeDomainResult[] = [outcome.consents];
     for (const [domain, entry] of [...wiped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       results.push(
         entry.failed.length > 0

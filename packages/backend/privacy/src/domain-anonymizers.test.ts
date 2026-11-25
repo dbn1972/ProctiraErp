@@ -294,6 +294,7 @@ describe('PRC-H077 PgTenantWipeExecutor', () => {
     expect(studentsAttempts).toBe(2);
     const byDomain = Object.fromEntries(results.map((r) => [r.domain, r.status]));
     expect(byDomain).toEqual({
+      consents: 'completed',
       students: 'completed',
       staff: 'completed',
       files_storage: 'completed',

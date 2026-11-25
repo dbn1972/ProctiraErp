@@ -439,6 +439,9 @@ export const SUBJECT_LINK_REGISTRY: Record<SubjectKind, readonly SubjectLink[]> 
     link('student_photos', 'student_id', 'handled'),
     link('student_siblings', 'student_id', 'handled'),
     link('student_siblings', 'sibling_id', 'handled'),
+    // PRC-M214 / DR44: who is pseudonymised by the consents anonymizer (db/sql/316).
+    link('parent_consents', 'student_id', 'handled'),
+    link('student_consents', 'student_id', 'handled'),
     // Statutory retention.
     link('counselling_sessions', 'student_id', 'retained'),
     link('fee_concessions', 'student_id', 'retained'),
@@ -492,13 +495,11 @@ export const SUBJECT_LINK_REGISTRY: Record<SubjectKind, readonly SubjectLink[]> 
     link('hostel_visitors', 'student_id', 'unhandled'),
     link('lms_submissions', 'student_id', 'unhandled'),
     link('parent_child_links', 'student_id', 'unhandled'),
-    link('parent_consents', 'student_id', 'unhandled'),
     link('parent_message_threads', 'student_id', 'unhandled'),
     link('report_card_jobs', 'student_id', 'unhandled'),
     link('report_card_teacher_comments', 'student_id', 'unhandled'),
     link('scholarship_applications', 'applicant_id', 'unhandled'),
     link('search_index_documents', 'entity_id', 'unhandled'),
-    link('student_consents', 'student_id', 'unhandled'),
     link('student_discipline_incidents', 'student_id', 'unhandled'),
     link('student_lifecycle_certificates', 'student_id', 'unhandled'),
     link('transcript_issuances', 'student_id', 'unhandled'),
