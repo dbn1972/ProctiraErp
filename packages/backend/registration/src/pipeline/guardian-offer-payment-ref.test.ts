@@ -96,6 +96,18 @@ describe('PRC-M535 guardian paymentRef must match a recorded payment', () => {
     expect(accepted.paymentRef).toBe('PAY-RECORDED');
   });
 
+  it('a recorded paymentRef on an invoice not yet fully paid still hits the paid-invoice gate (PRC-H079)', async () => {
+    const ctx = setup(async (input) => input.paymentRef === 'PAY-RECORDED');
+    const offer = await ctx.sentOffer(1000);
+    await expect(
+      ctx.service.acceptOfferForGuardian(TENANT, offer.id, GUARDIAN, {
+        paymentRef: 'PAY-RECORDED',
+      }),
+    ).rejects.toThrow('unpaid');
+    expect((await ctx.store.findOffer(TENANT, offer.id))?.status).toBe('sent');
+    expect(ctx.enrolments).toHaveLength(0);
+  });
+
   it('refuses a paymentRef on a zero-fee offer (no invoice, so no recorded payment)', async () => {
     const ctx = setup(async () => true);
     const offer = await ctx.sentOffer(0);
