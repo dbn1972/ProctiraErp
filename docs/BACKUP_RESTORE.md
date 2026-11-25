@@ -203,8 +203,11 @@ CronJob must not use the backup credential. It connects as
 by the normal tenant policies. `db/sql/312_phi_retention_role_grants.sql` grants
 it SELECT on `tenants`, `students`, `privacy_legal_holds`; SELECT and DELETE on
 `counselling_sessions` and `health_special_needs_assessments`; INSERT on
-`audit_ingest_queue`. Run the role bootstrap before the migration; if 312 ran
-first, apply its GRANT block again as the migrator. Store the URL as
+`audit_ingest_queue`. `db/sql/313_privacy_legal_hold_guard.sql` grants it
+EXECUTE on `privacy_assert_no_legal_hold`, which the legal-hold triggers on the
+PHI tables call on every DELETE. Run the role bootstrap before the migrations;
+if 312 or 313 ran first, apply their GRANT blocks again as the migrator
+(without the 313 grant every retention DELETE fails closed). Store the URL as
 `PHI_RETENTION_DATABASE_URL` (`secrets.phiRetentionDatabaseUrl`; the CronJob
 reads `dr.phiRetention.databaseUrlSecretKey`). Rendering fails when that key
 equals `dr.databaseUrlSecretKey`, and the job exits 1 when it connects as a
@@ -213,7 +216,8 @@ SUPERUSER or BYPASSRLS role.
 Roles are cluster-level, so `pg_dump` does not carry `proctira_phi_retention`.
 After a restore into a new cluster, run `tools/scripts/bootstrap-db-roles.sh`
 (with `PHI_RETENTION_ROLE_PASSWORD`) and re-apply
-`db/sql/312_phi_retention_role_grants.sql` before the retention CronJob runs.
+`db/sql/312_phi_retention_role_grants.sql` and the GRANT block of
+`db/sql/313_privacy_legal_hold_guard.sql` before the retention CronJob runs.
 The weekly restore drill does this on the restored copy and runs the dry-run
 as the retention role. Rollback: the `REVOKE` block in the 312 header.
 
