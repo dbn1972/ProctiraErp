@@ -1405,13 +1405,37 @@ export class FeesService {
     return this.repository.withInvoiceLock(tenantId, input.invoiceId, async (tx, locked) => {
       const { invoice } = locked;
       assertRefundWithinPaid(locked.paidCents, locked.refundedCents, input.amountCents);
-      let paymentId = input.paymentId ?? null;
-      if (!paymentId) {
-        const first = (await tx.listPaymentsForInvoice(tenantId, invoice.id)).find(
-          (p) => p.status === 'succeeded',
+      // PRC-M246: a refund targets one succeeded payment of THIS invoice and is capped
+      // at what is still unrefunded on that payment. It never silently picks "the first"
+      // payment of a multi-payment invoice.
+      const succeeded = (await tx.listPaymentsForInvoice(tenantId, invoice.id)).filter(
+        (p) => p.status === 'succeeded',
+      );
+      const target = input.paymentId
+        ? succeeded.find((p) => p.id === input.paymentId)
+        : succeeded.length === 1
+          ? succeeded[0]
+          : undefined;
+      if (!target) {
+        if (input.paymentId) {
+          throw new NotFoundError(
+            `Succeeded payment '${input.paymentId}' not found on invoice '${invoice.id}'`,
+          );
+        }
+        throw new BusinessRuleError(
+          'paymentId is required: this invoice has more than one payment to refund against',
         );
-        paymentId = first?.id ?? null;
       }
+      const refundedOnPayment = (await tx.listRefundsForInvoice(tenantId, invoice.id))
+        .filter((r) => r.status === 'posted' && r.paymentId === target.id)
+        .reduce((sum, r) => sum + r.amountCents, 0);
+      if (refundedOnPayment + input.amountCents > target.amountCents) {
+        throw new BusinessRuleError(
+          `Refund cannot exceed the unrefunded amount of payment '${target.id}' ` +
+            `(${target.amountCents - refundedOnPayment} cents)`,
+        );
+      }
+      const paymentId = target.id;
       const refund = await tx.createRefund({
         id: uuidv4(),
         tenantId,
