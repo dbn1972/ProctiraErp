@@ -8,6 +8,7 @@
  * (@proctira/backend-notification). A channel reports live only when
  * PROVIDER_MODE=live AND that adapter's full credential set is configured; any
  * other credential (Twilio, SMTP, legacy FCM server key) still reports sandbox.
+ * PSP stays liveReady=false until the Razorpay webhook route is mounted.
  * IdP may report issuer URL presence only.
  *
  * W1-ARCH-08: production refuses silent sandbox defaults — callers must pass an
@@ -86,15 +87,6 @@ export function issueSandboxIdpToken(input: {
   };
 }
 
-/**
- * Capability discovery for install / ops consoles.
- *
- * W2-INT-03 honesty: SMS/email/push/PSP live adapters are **not** wired.
- * Env credentials must not flip `liveReady` or `mode: 'live'` — that previously
- * implied production delivery while sandbox stubs still silently succeeded.
- *
- * W1-ARCH-08: throws in production when sandbox would be the silent default.
- */
 /** PRC-M326: env var names each live adapter needs (values live in the secret manager). */
 export const LIVE_ADAPTER_ENV: Record<'psp' | 'sms' | 'email' | 'push', readonly string[]> = {
   psp: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'],
@@ -118,18 +110,37 @@ function liveConfigured(
 }
 
 function liveCapability(channel: keyof typeof LIVE_ADAPTER_ENV): ProviderCapability {
+  // PSP: RazorpayPaymentAdapter.charge() returns 'pending' and only the Razorpay
+  // webhook can settle it. No gateway route mounts that webhook yet (PRC-M512), so
+  // credentials alone must not report the PSP as ready (W2-INT-03).
+  const pspWebhookUnmounted = channel === 'psp';
   return {
     channel,
     mode: 'live',
     adapter: LIVE_ADAPTER_NAME[channel],
-    liveReady: true,
+    liveReady: !pspWebhookUnmounted,
     notes:
       `${LIVE_ADAPTER_NAME[channel]} configured (${LIVE_ADAPTER_ENV[channel].join(', ')} set). ` +
       'Built and contract-tested against a stubbed provider; delivery against the real ' +
       'provider is verified only by a run with these credentials.' +
-      (channel === 'push' ? ' Push also needs the notification device store.' : ''),
+      (channel === 'push' ? ' Push also needs the notification device store.' : '') +
+      (pspWebhookUnmounted
+        ? ' Not ready: the Razorpay webhook route is not mounted in the gateway, so no ' +
+          'pending charge can settle.'
+        : ''),
   };
 }
+
+/**
+ * Capability discovery for install / ops consoles.
+ *
+ * W2-INT-03 honesty: env credentials alone never flip `liveReady`. A channel reports
+ * `mode: 'live'` only with PROVIDER_MODE=live and its adapter's full credential set
+ * (LIVE_ADAPTER_ENV); SMS/email/push are then liveReady, PSP stays not ready until
+ * the Razorpay webhook route is mounted.
+ *
+ * W1-ARCH-08: throws in production when sandbox would be the silent default.
+ */
 
 export function listProviderCapabilities(
   env: Record<string, string | undefined> = {},

@@ -28,7 +28,6 @@ describe('PRC-M326 live adapter capability', () => {
     expect(byChannel.psp).toMatchObject({
       mode: 'live',
       adapter: 'RazorpayPaymentAdapter',
-      liveReady: true,
     });
     expect(byChannel.sms).toMatchObject({
       mode: 'live',
@@ -50,6 +49,14 @@ describe('PRC-M326 live adapter capability', () => {
     }
   });
 
+  it('PSP is not liveReady with full Razorpay credentials while the webhook route is unmounted', () => {
+    // RazorpayPaymentAdapter.charge() returns 'pending' and only the Razorpay webhook
+    // can settle it; no gateway route mounts that webhook yet (PRC-M512 residual).
+    const psp = listProviderCapabilities(FULL).find((c) => c.channel === 'psp')!;
+    expect(psp.liveReady).toBe(false);
+    expect(psp.notes).toMatch(/webhook/i);
+    expect(psp.notes).toMatch(/not mounted/i);
+  });
   it('one missing credential keeps that channel sandbox and not ready', () => {
     for (const [channel, names] of Object.entries(LIVE_ADAPTER_ENV)) {
       const env = { ...FULL, [names[0]!]: '' };
