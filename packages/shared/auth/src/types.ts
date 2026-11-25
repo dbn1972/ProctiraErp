@@ -41,6 +41,11 @@ export interface AuthUser {
   areas: AreaScope[];
   /** Institution IDs the user has access to */
   institutions: string[];
+  /**
+   * PRC-M538: true only when an IdP verified `email` for this account. The
+   * local password store keeps no verification state, so it leaves this unset.
+   */
+  emailVerified?: boolean;
 }
 
 /**
@@ -69,6 +74,12 @@ export interface JwtPayload {
   jti: string;
   /** Session ID */
   sessionId: string;
+  /**
+   * PRC-M538: true only when `email` is an IdP-verified address (Keycloak
+   * `email_verified === true`, or an external provider's verified email).
+   * Email-matched features (guardian admission offers) require it.
+   */
+  emailVerified?: boolean;
 }
 
 /**

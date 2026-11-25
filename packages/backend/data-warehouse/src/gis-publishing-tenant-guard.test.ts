@@ -13,6 +13,8 @@ import { InMemoryGISRepository } from './in-memory-gis-repository.js';
 import { InMemoryWarehouseRepository } from './in-memory-repository.js';
 import { PublishingService } from './publishing-service.js';
 import type { Area, Warehouse } from './schemas.js';
+/** PRC-L553 (DR46): publishing needs tenant staff with the publish role. */
+const PUBLISHER = { actorId: 'publisher-1', roles: ['data_admin'] };
 const OWNER = 'tenant-a';
 const OTHER = 'tenant-b';
 /** Lookups ignore the caller tenant and always answer as the owning tenant. */
@@ -58,7 +60,7 @@ describe('PRC-L552 GIS and publishing services re-check the repository tenant', 
       mobileBaseUrl: 'https://mobile.example.test',
     });
     await expect(
-      publishing.publishData(OTHER, warehouseId, { target: 'api' }),
+      publishing.publishData(OTHER, warehouseId, { target: 'api' }, PUBLISHER),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

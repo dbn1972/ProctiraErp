@@ -264,3 +264,61 @@ describe('pg releaseStalledErasureExecution + job CAS (live Postgres)', () => {
     expect((await repo.findAnonymizationJobById(jobId, tenantId))?.status).toBe('failed');
   });
 });
+/** PRC-L136: legal-hold release and correction decisions are conditional UPDATEs. */
+describe('pg legal-hold release + correction CAS (live Postgres)', () => {
+  it.skipIf(!live)('a second release of the same hold writes nothing', async () => {
+    const { tenantId, studentId, repo } = await seedSubject();
+    const created = await repo.createLegalHold(hold(tenantId, 'subject', studentId));
+    const first = await repo.updateLegalHold(
+      created.id,
+      tenantId,
+      { active: false, releasedBy: 'counsel-2', releasedAt: new Date() },
+      { expectedActive: true },
+    );
+    expect(first?.active).toBe(false);
+    const second = await repo.updateLegalHold(
+      created.id,
+      tenantId,
+      { active: false, releasedBy: 'counsel-3', releasedAt: new Date() },
+      { expectedActive: true },
+    );
+    expect(second).toBeNull();
+    expect((await repo.findLegalHoldById(created.id, tenantId))?.releasedBy).toBe('counsel-2');
+  });
+  it.skipIf(!live)('a correction decided once cannot be decided again', async () => {
+    const { tenantId, studentId, repo } = await seedSubject();
+    const id = randomUUID();
+    await repo.createCorrectionRequest({
+      id,
+      tenantId,
+      subjectType: 'student',
+      subjectId: studentId,
+      fieldPath: 'email',
+      currentValue: null,
+      requestedValue: 'new@example.com',
+      reason: null,
+      status: 'under_review',
+      requestedBy: 'parent-1',
+      reviewedBy: null,
+      statusReason: null,
+      appliedAt: null,
+    });
+    const approved = await repo.updateCorrectionRequest(
+      id,
+      tenantId,
+      { status: 'approved', reviewedBy: 'officer-1' },
+      { expectedStatus: 'under_review' },
+    );
+    expect(approved?.status).toBe('approved');
+    const rejected = await repo.updateCorrectionRequest(
+      id,
+      tenantId,
+      { status: 'rejected', reviewedBy: 'officer-2' },
+      { expectedStatus: 'under_review' },
+    );
+    expect(rejected).toBeNull();
+    const row = await repo.findCorrectionRequestById(id, tenantId);
+    expect(row?.status).toBe('approved');
+    expect(row?.reviewedBy).toBe('officer-1');
+  });
+});

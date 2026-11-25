@@ -18,7 +18,11 @@ export { customFieldPlugin } from './custom-field-plugin.js';
 export type { CustomFieldPluginOptions } from './custom-field-plugin.js';
 
 // Service
-export { CustomFieldService } from './custom-field-service.js';
+export {
+  CustomFieldService,
+  type CustomFieldEntityLookup,
+  type CustomFieldServiceOptions,
+} from './custom-field-service.js';
 
 // Validator
 export { validateCustomFieldValue } from './custom-field-validator.js';

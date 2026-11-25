@@ -144,7 +144,9 @@
     "invalidFilterTitle": "Ese tipo de escuela no está disponible",
     "invalidFilterMessage": "El enlace usa un tipo de escuela que no reconocemos. Elija un tipo válido.",
     "showAll": "Ver todas las escuelas",
-    "loadMore": "Cargar más escuelas"
+    "loadMore": "Cargar más escuelas",
+    "showMap": "Mostrar mapa",
+    "mapPrivacyNote": "El mapa carga teselas de OpenStreetMap e imágenes de marcadores de unpkg.com. Al mostrarlo, tu dirección IP se comparte con esos servicios."
   },
   "tracking": {
     "title": "Consulte su solicitud",
@@ -173,7 +175,10 @@
     "invalidRequest": "Este enlace de seguimiento no es válido. Revise el número de seguimiento.",
     "serviceUnavailable": "No pudimos consultar su solicitud ahora. Inténtelo de nuevo en unos minutos.",
     "rateLimited": "Demasiados intentos para este número. Espere 15 minutos e inténtelo de nuevo.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "stepDone": "Completado",
+    "stepActive": "En curso",
+    "stepUpcoming": "No iniciado"
   },
   "errors": {
     "validation": "Hay datos que corregir antes de continuar.",
