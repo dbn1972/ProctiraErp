@@ -5,11 +5,12 @@
  * mobile apps, web portals, and API endpoints.
  * Implements Requirement 15.4.
  */
-import { NotFoundError } from '@proctira/common';
+import { ForbiddenError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AuditEmitter, type AuditContext, type DataWarehouseAuditSink } from './audit.js';
 import { collectAllPages } from './collect-all.js';
+import { hasWarehouseAccess } from './data-warehouse-access.js';
 import type { GISRepository } from './gis-repository.js';
 import type {
   PublishTarget,
@@ -35,7 +36,16 @@ export interface PublishingServiceConfig {
   mobileBaseUrl: string;
   /** Page size used when paging through all rows (default 1000). */
   fetchPageSize?: number;
+  /** PRC-L553 (DR46): cells with a value below this are suppressed (default 10). */
+  minimumCellSize?: number;
 }
+
+/** PRC-L553 (DR46): the publisher must be tenant staff holding the publish (write) role. */
+export interface PublishContext extends AuditContext {
+  roles?: unknown;
+}
+
+export const DEFAULT_MINIMUM_CELL_SIZE = 10;
 
 export class PublishingService {
   private publishHistory: Map<string, PublishRecord> = new Map();
@@ -63,8 +73,12 @@ export class PublishingService {
     tenantId: string,
     warehouseId: string,
     input: PublishRequestInput,
-    ctx: AuditContext = {},
+    ctx: PublishContext = {},
   ): Promise<PublishResult> {
+    // PRC-L553 (DR46): publishing is limited to tenant staff with the publish permission.
+    if (!ctx.actorId || !hasWarehouseAccess(ctx.roles, 'write')) {
+      throw new ForbiddenError('Publishing requires a data-admin or admin role');
+    }
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
     if (!warehouse) {
@@ -87,8 +101,13 @@ export class PublishingService {
     const subgroupMap = await this.buildSubgroupMap(tenantId, warehouseId);
     const areaMap = new Map(areas.map((a) => [a.id, a]));
 
-    // Build published data records with resolved names
+    // Build published data records with resolved names.
+    // PRC-L553 (DR46): aggregates only — free text is dropped and a numeric cell
+    // below the minimum cell size is withheld (value null, suppressed true).
+    const minimumCellSize = this.config.minimumCellSize ?? DEFAULT_MINIMUM_CELL_SIZE;
     const publishedRecords: PublishedDataRecord[] = dataRecords.map((record) => {
+      const suppressed =
+        record.dataValue !== null && record.dataValue > 0 && record.dataValue < minimumCellSize;
       const indicator = indicatorMap.get(record.indicatorId);
       const unit = unitMap.get(record.unitId);
       const subgroup = subgroupMap.get(record.subgroupId);
@@ -102,9 +121,10 @@ export class PublishingService {
         areaName: area?.name || 'Unknown Area',
         areaId: area?.areaId || 'unknown',
         timePeriod: record.timePeriodId, // Will be resolved below
-        value: record.dataValue,
-        textValue: record.textualDataValue,
+        value: suppressed ? null : record.dataValue,
+        textValue: null,
         source: record.source,
+        suppressed,
       };
     });
 

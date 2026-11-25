@@ -16,6 +16,8 @@ import { TranslationService } from './translation-service.js';
 import { InMemoryWarehouseRepository } from './in-memory-repository.js';
 import { InMemoryGISRepository } from './in-memory-gis-repository.js';
 import { InMemoryTranslationRepository } from './in-memory-translation-repository.js';
+/** PRC-L553 (DR46): publishing needs tenant staff with the publish role. */
+const PUBLISHER = { actorId: 'publisher-1', roles: ['data_admin'] };
 
 const tenantId = 'tenant-001';
 
@@ -399,10 +401,15 @@ describe('Publishing Service (Requirement 15.4)', () => {
 
   describe('Publish to Mobile', () => {
     it('should publish data for mobile consumption', async () => {
-      const result = await publishingService.publishData(tenantId, warehouseId, {
-        target: 'mobile',
-        language: 'en',
-      });
+      const result = await publishingService.publishData(
+        tenantId,
+        warehouseId,
+        {
+          target: 'mobile',
+          language: 'en',
+        },
+        PUBLISHER,
+      );
 
       expect(result.status).toBe('completed');
       expect(result.target).toBe('mobile');
@@ -416,11 +423,16 @@ describe('Publishing Service (Requirement 15.4)', () => {
 
   describe('Publish to Web Portal', () => {
     it('should publish data for web portal with full metadata', async () => {
-      const result = await publishingService.publishData(tenantId, warehouseId, {
-        target: 'web',
-        includeMetadata: true,
-        language: 'en',
-      });
+      const result = await publishingService.publishData(
+        tenantId,
+        warehouseId,
+        {
+          target: 'web',
+          includeMetadata: true,
+          language: 'en',
+        },
+        PUBLISHER,
+      );
 
       expect(result.status).toBe('completed');
       expect(result.target).toBe('web');
@@ -432,10 +444,15 @@ describe('Publishing Service (Requirement 15.4)', () => {
 
   describe('Publish to API Endpoint', () => {
     it('should publish data for API consumption', async () => {
-      const result = await publishingService.publishData(tenantId, warehouseId, {
-        target: 'api',
-        language: 'en',
-      });
+      const result = await publishingService.publishData(
+        tenantId,
+        warehouseId,
+        {
+          target: 'api',
+          language: 'en',
+        },
+        PUBLISHER,
+      );
 
       expect(result.status).toBe('completed');
       expect(result.target).toBe('api');
@@ -474,10 +491,15 @@ describe('Publishing Service (Requirement 15.4)', () => {
         data: geojson,
       });
 
-      const result = await publishingService.publishData(tenantId, warehouseId, {
-        target: 'web',
-        includeGISLayers: true,
-      });
+      const result = await publishingService.publishData(
+        tenantId,
+        warehouseId,
+        {
+          target: 'web',
+          includeGISLayers: true,
+        },
+        PUBLISHER,
+      );
 
       expect(result.layerCount).toBe(1);
       expect(result.payload.gisLayers).toBeDefined();
@@ -488,17 +510,17 @@ describe('Publishing Service (Requirement 15.4)', () => {
 
   describe('Publish History', () => {
     it('should track publish history', async () => {
-      await publishingService.publishData(tenantId, warehouseId, { target: 'mobile' });
-      await publishingService.publishData(tenantId, warehouseId, { target: 'web' });
-      await publishingService.publishData(tenantId, warehouseId, { target: 'api' });
+      await publishingService.publishData(tenantId, warehouseId, { target: 'mobile' }, PUBLISHER);
+      await publishingService.publishData(tenantId, warehouseId, { target: 'web' }, PUBLISHER);
+      await publishingService.publishData(tenantId, warehouseId, { target: 'api' }, PUBLISHER);
 
       const history = await publishingService.getPublishHistory(tenantId, warehouseId, {});
       expect(history.total).toBe(3);
     });
 
     it('should filter publish history by target', async () => {
-      await publishingService.publishData(tenantId, warehouseId, { target: 'mobile' });
-      await publishingService.publishData(tenantId, warehouseId, { target: 'web' });
+      await publishingService.publishData(tenantId, warehouseId, { target: 'mobile' }, PUBLISHER);
+      await publishingService.publishData(tenantId, warehouseId, { target: 'web' }, PUBLISHER);
 
       const history = await publishingService.getPublishHistory(tenantId, warehouseId, {
         target: 'mobile',
@@ -511,9 +533,14 @@ describe('Publishing Service (Requirement 15.4)', () => {
   describe('Error Handling', () => {
     it('should throw NotFoundError for non-existent warehouse', async () => {
       await expect(
-        publishingService.publishData(tenantId, '00000000-0000-4000-8000-000000000000', {
-          target: 'api',
-        }),
+        publishingService.publishData(
+          tenantId,
+          '00000000-0000-4000-8000-000000000000',
+          {
+            target: 'api',
+          },
+          PUBLISHER,
+        ),
       ).rejects.toThrow(NotFoundError);
     });
   });
