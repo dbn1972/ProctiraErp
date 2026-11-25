@@ -218,8 +218,9 @@ After a restore into a new cluster, run `tools/scripts/bootstrap-db-roles.sh`
 (with `PHI_RETENTION_ROLE_PASSWORD`) and re-apply
 `db/sql/312_phi_retention_role_grants.sql` and the GRANT block of
 `db/sql/313_privacy_legal_hold_guard.sql` before the retention CronJob runs.
-The weekly restore drill does this on the restored copy and runs the dry-run
-as the retention role. Rollback: the `REVOKE` block in the 312 header.
+The weekly restore drill re-applies only the 312 grants on the restored copy
+and runs the dry-run as the retention role; it does not re-apply or exercise
+the 313 grant, so do that step by hand. Rollback: the `REVOKE` block in the 312 header.
 
 ### 3.6 Encryption, offsite, immutability (W1-OPS-04)
 
