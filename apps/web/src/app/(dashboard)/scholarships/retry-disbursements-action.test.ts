@@ -30,6 +30,8 @@ function row(id: string, status: 'SCHEDULED' | 'PROCESSED' | 'FAILED') {
     amount: 1,
     currency: 'INR',
     paymentDate: '2025-01-01',
+    paidDate: null,
+    transactionReference: null,
     paymentMethod: 'BANK_TRANSFER' as const,
     status,
   };

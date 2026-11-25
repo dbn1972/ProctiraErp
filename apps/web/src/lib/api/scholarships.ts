@@ -98,6 +98,10 @@ export interface ScholarshipDisbursement {
   amount: number;
   currency: string;
   paymentDate: string;
+  /** PRC-L435: when the transfer was paid (ISO date or timestamp), null until paid. */
+  paidDate: string | null;
+  /** PRC-L435: bank/UTR or cheque reference recorded with the payment. */
+  transactionReference: string | null;
   paymentMethod: 'BANK_TRANSFER' | 'CHEQUE' | 'CASH';
   status: 'SCHEDULED' | 'PROCESSING' | 'PROCESSED' | 'FAILED' | 'CANCELLED';
 }
@@ -211,6 +215,11 @@ export function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbur
     amount: Number(raw.amount ?? 0),
     currency: String(raw.currency ?? 'INR'),
     paymentDate: String(raw.paymentDate ?? raw.scheduledDate ?? '').slice(0, 10),
+    paidDate: typeof raw.paidDate === 'string' && raw.paidDate ? raw.paidDate : null,
+    transactionReference:
+      typeof raw.transactionReference === 'string' && raw.transactionReference.trim()
+        ? raw.transactionReference.trim()
+        : null,
     paymentMethod: String(raw.paymentMethod ?? 'BANK_TRANSFER')
       .toUpperCase()
       .replace('BANK_TRANSFER', 'BANK_TRANSFER') as ScholarshipDisbursement['paymentMethod'],
