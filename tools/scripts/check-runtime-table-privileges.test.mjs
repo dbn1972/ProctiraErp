@@ -282,6 +282,38 @@ test('PRC-M623 (N3): migration 318 and the sync narrow tenants/students to the s
   );
 });
 
+test('PRC-M623 / PRC-M203: the sync re-applies the 313 legal-hold guard EXECUTE grant', () => {
+  const migration = readFileSync(
+    join(process.cwd(), 'db/sql/313_privacy_legal_hold_guard.sql'),
+    'utf8',
+  );
+  // 313 grants it in a role-guarded loop, so a role created after 313 ran
+  // never gets it from the migration alone.
+  assert.match(
+    migration,
+    /ARRAY\['proctira_app', 'proctira_phi_retention'\][\s\S]*IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = r\)[\s\S]*GRANT EXECUTE ON FUNCTION privacy_assert_no_legal_hold\(uuid, text, text\) TO %I/,
+  );
+  const sql = generatePhiRetentionSyncSql();
+  const grant =
+    '    GRANT EXECUTE ON FUNCTION privacy_assert_no_legal_hold(uuid, text, text) TO proctira_phi_retention;';
+  assert.equal(sql.split(grant).length - 1, 1, 'sync must grant EXECUTE exactly once');
+  const at = sql.indexOf(grant);
+  // After the role guard, the all-or-nothing table guards and every table grant.
+  assert.ok(at > sql.lastIndexOf("IF to_regclass('public."), 'grant follows the table guards');
+  assert.ok(at > sql.lastIndexOf('  GRANT INSERT ON TABLE'), 'grant follows the table grants');
+  // Guarded on the function itself, without returning, so the table grants still land.
+  assert.match(
+    sql,
+    new RegExp(
+      "  IF to_regprocedure\\('public\\.privacy_assert_no_legal_hold\\(uuid, text, text\\)'\\) IS NULL THEN\\n" +
+        "    RAISE NOTICE 'PRC-M623: function privacy_assert_no_legal_hold\\(uuid, text, text\\) missing; skip its grant';\\n" +
+        '  ELSE\\n' +
+        grant.replace(/[()]/g, '\\$&') +
+        '\\n  END IF;\\nEND \\$\\$;',
+    ),
+  );
+});
+
 test('PRC-M623: --print-sql (what apply-sql re-runs) includes the PHI retention grant sync', () => {
   const chunks = [];
   const write = process.stdout.write;

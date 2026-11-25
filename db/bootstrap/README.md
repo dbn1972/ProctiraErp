@@ -3,11 +3,11 @@
 Fresh ProctiraERP installs need two PostgreSQL LOGIN roles before Prisma migrate
 or `tools/scripts/apply-sql.sh` can establish the production RLS posture:
 
-| Role                     | Purpose                                                                                                                                    | Attributes                                                              |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `proctira`               | Migrator / table owner (`MIGRATOR_DATABASE_URL`)                                                                                           | `NOSUPERUSER` `NOBYPASSRLS` (CI, prod and local compose since PRC-L460) |
-| `proctira_app`           | Application runtime (`DATABASE_URL`)                                                                                                       | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
-| `proctira_phi_retention` | PHI retention CronJob (`PHI_RETENTION_DATABASE_URL`, PRC-M623); grants in `db/sql/312_*` + `318_*`, re-applied by every `apply-sql.sh` run | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
+| Role                     | Purpose                                                                                                                                                       | Attributes                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `proctira`               | Migrator / table owner (`MIGRATOR_DATABASE_URL`)                                                                                                              | `NOSUPERUSER` `NOBYPASSRLS` (CI, prod and local compose since PRC-L460) |
+| `proctira_app`           | Application runtime (`DATABASE_URL`)                                                                                                                          | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
+| `proctira_phi_retention` | PHI retention CronJob (`PHI_RETENTION_DATABASE_URL`, PRC-M623); grants in `db/sql/312_*`, `313_*` (EXECUTE) + `318_*`, re-applied by every `apply-sql.sh` run | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT`     |
 
 ### Control-ledger privileges (W1-DATA-11 COMPLETE)
 

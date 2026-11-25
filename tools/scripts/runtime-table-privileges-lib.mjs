@@ -307,6 +307,17 @@ export const PHI_RETENTION_GRANTS = [
   { privileges: 'INSERT', tables: ['audit_ingest_queue'] },
 ];
 
+/**
+ * PRC-M623 / PRC-M203: function grants for the PHI retention role.
+ * db/sql/313_privacy_legal_hold_guard.sql grants EXECUTE on the legal-hold
+ * guard only when the role already exists; the guard triggers on the PHI
+ * tables call it on every DELETE, so without it every retention DELETE fails
+ * closed. Re-applied here so a role bootstrapped after 313 still gets it.
+ */
+export const PHI_RETENTION_FUNCTION_GRANTS = [
+  { privileges: 'EXECUTE', signature: 'privacy_assert_no_legal_hold(uuid, text, text)' },
+];
+
 /** Every table named in PHI_RETENTION_REVOKES / PHI_RETENTION_GRANTS, in first-seen order. */
 export function phiRetentionTables() {
   return [...new Set([...PHI_RETENTION_REVOKES, ...PHI_RETENTION_GRANTS].flatMap((e) => e.tables))];
@@ -354,6 +365,17 @@ export function generatePhiRetentionSyncSql() {
     lines.push(
       `  GRANT ${grant.privileges} ON TABLE ${grant.tables.join(', ')} TO ${PHI_RETENTION_ROLE};`,
     );
+  }
+  // Function grants are guarded one by one, so a database without the
+  // function still gets the table grants above.
+  for (const grant of PHI_RETENTION_FUNCTION_GRANTS) {
+    lines.push(`  IF to_regprocedure('public.${grant.signature}') IS NULL THEN`);
+    lines.push(`    RAISE NOTICE 'PRC-M623: function ${grant.signature} missing; skip its grant';`);
+    lines.push('  ELSE');
+    lines.push(
+      `    GRANT ${grant.privileges} ON FUNCTION ${grant.signature} TO ${PHI_RETENTION_ROLE};`,
+    );
+    lines.push('  END IF;');
   }
   lines.push('END $$;');
   lines.push('');

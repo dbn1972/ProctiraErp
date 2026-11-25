@@ -208,11 +208,11 @@ DELETE on `counselling_sessions` and `health_special_needs_assessments`; INSERT
 on `audit_ingest_queue`. `db/sql/313_privacy_legal_hold_guard.sql` grants it
 EXECUTE on `privacy_assert_no_legal_hold`, which the legal-hold triggers on the
 PHI tables call on every DELETE (without that grant every retention DELETE
-fails closed). 312 skips these grants when the role does not exist yet,
-so `tools/scripts/apply-sql.sh` re-applies them on every run (role-guarded, in
+fails closed). 312 and 313 skip these grants when the role does not exist yet,
+so `tools/scripts/apply-sql.sh` re-applies all of them, the EXECUTE grant
+included, on every run (role-guarded, in
 `tools/scripts/apply-runtime-table-privileges.sh`). If the role was created
-after 312 ran, re-run `apply-sql.sh` as the migrator; if it was created after
-313 ran, also apply the 313 GRANT block again as the migrator. Store the URL as
+after 312 or 313 ran, re-run `apply-sql.sh` as the migrator. Store the URL as
 `PHI_RETENTION_DATABASE_URL` (`secrets.phiRetentionDatabaseUrl`; the CronJob
 reads `dr.phiRetention.databaseUrlSecretKey`). Rendering fails when that key
 equals `dr.databaseUrlSecretKey`, and, with a chart-managed Secret, when
@@ -228,13 +228,15 @@ of the role's grants, even on the same cluster. After any `pg-restore.sh`
 restore, run `tools/scripts/bootstrap-db-roles.sh` (with
 `PHI_RETENTION_ROLE_PASSWORD`; needed when the cluster lacks the role) and then
 `tools/scripts/apply-sql.sh` (or `tools/scripts/apply-runtime-table-privileges.sh`)
-as the migrator before the retention CronJob runs, then re-apply the GRANT
-block of `db/sql/313_privacy_legal_hold_guard.sql`. Until then the job fails
-closed on its privilege check. The weekly restore drill does this on the
-restored copy and runs the dry-run as the retention role. Rollback: the
-`REVOKE` block in the 312 header, plus removing the grants from
-`PHI_RETENTION_GRANTS` in `tools/scripts/runtime-table-privileges-lib.mjs` so
-the sync does not re-add them.
+as the migrator before the retention CronJob runs; this also re-applies the
+313 EXECUTE grant. Until then the job fails closed on its privilege check (a
+missing EXECUTE grant is not pre-checked and fails the first DELETE with
+42501). The weekly restore drill does this on the restored copy and runs the
+dry-run as the retention role. Rollback: the `REVOKE` block in the 312 header,
+plus removing the grants from `PHI_RETENTION_GRANTS` and
+`PHI_RETENTION_FUNCTION_GRANTS` in
+`tools/scripts/runtime-table-privileges-lib.mjs` so the sync does not re-add
+them.
 
 ### 3.6 Encryption, offsite, immutability (W1-OPS-04)
 
