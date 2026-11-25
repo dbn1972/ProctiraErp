@@ -1044,11 +1044,22 @@ export class PrivacyService implements DestructiveDeleteGuard {
     if (toStatus === 'applied') {
       return this.applyCorrection(requestId, tenantId, actorId, statusReason, ctx);
     }
+    // PRC-M204: an approval needs a second actor (db/sql/315 enforces it too).
+    if (toStatus === 'approved' && actorId === existing.requestedBy) {
+      throw new ConflictError(
+        'Separation of duties: the requester cannot approve their own correction request',
+      );
+    }
+    // PRC-M204: a rejected or cancelled request keeps no raw values (as on apply, PRC-M322).
+    const purge =
+      toStatus === 'rejected' || toStatus === 'cancelled'
+        ? { currentValue: null, requestedValue: CORRECTION_VALUE_REDACTED }
+        : {};
     // PRC-L136: compare-and-set on the status read above (no lost update / double decide).
     const updated = await this.repository.updateCorrectionRequest(
       requestId,
       tenantId,
-      { status: toStatus, reviewedBy: actorId, statusReason: statusReason ?? null },
+      { status: toStatus, reviewedBy: actorId, statusReason: statusReason ?? null, ...purge },
       { expectedStatus: existing.status },
     );
     if (!updated) {
