@@ -1,17 +1,13 @@
 /**
- * PRC-M215 — live Postgres regression proof for the scholarship application
- * document retention default added by db/sql/249.
+ * PRC-M215 — live Postgres proof for the scholarship application document
+ * retention default (db/sql/249, replaced by 313).
  *
- * This is a new, additive column with no prior vulnerable behavior, so this
- * is a regression test (not failing-first): a new INSERT without
- * retention_until gets the D5 interim default (uploaded_at + 7 years, the
- * closest analogous category in docs/audits/remediation/decisions/
- * D5-privacy-retention.md's retention schedule -- "Student academic
- * records"), and an INSERT with an explicit retention_until is not
- * overwritten.
+ * A new INSERT without retention_until gets the DR35 default (uploaded_at +
+ * 8 years; 249's interim default was 7 years), and an INSERT with an explicit
+ * retention_until is not overwritten.
  *
  * Requires DATABASE_URL as proctira_app against a DB migrated through 104
- * (scholarship_application_documents) and 249.
+ * (scholarship_application_documents), 249 and 313.
  */
 import { randomUUID } from 'node:crypto';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
@@ -60,7 +56,7 @@ describe.skipIf(!live)('PRC-M215 scholarship document retention default (live)',
     return { tenantId, applicationId };
   }
 
-  it('a new document without retention_until gets the +7-years default from uploaded_at', async () => {
+  it('a new document without retention_until gets the +8-years DR35 default from uploaded_at', async () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -81,7 +77,7 @@ describe.skipIf(!live)('PRC-M215 scholarship document retention default (live)',
         `SELECT retention_until, uploaded_at FROM scholarship_application_documents WHERE id = $1`,
         [docId],
       );
-      expect(rows[0]!.retention_until.toISOString().slice(0, 10)).toBe('2033-03-15');
+      expect(rows[0]!.retention_until.toISOString().slice(0, 10)).toBe('2034-03-15');
 
       await client.query('ROLLBACK');
     } finally {

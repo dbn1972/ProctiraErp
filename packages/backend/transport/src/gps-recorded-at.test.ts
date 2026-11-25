@@ -33,7 +33,9 @@ describe('GPS recordedAt validation (PRC-M446)', () => {
         ],
       }),
     ).rejects.toMatchObject({ statusCode: 400 });
-    expect(await repo.listGpsPingsForVehicle(TENANT, vehicle.id)).toHaveLength(0);
+    expect(
+      await repo.listGpsPingsForVehicle(TENANT, vehicle.id, { since: new Date(0), limit: 1000 }),
+    ).toHaveLength(0);
   });
 
   it('accepts small clock skew', () => {

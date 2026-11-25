@@ -230,9 +230,7 @@ describe.skipIf(!pool)('admissions pipeline on Postgres (PRC-L141)', () => {
     const { service, store, enrolled } = pgService(fx);
     const [offerId] = await sentOffers(fx, service, 5, 1, 1000);
     await expect(
-      service.acceptOfferForGuardian(fx.tenantId, offerId!, GUARDIAN_EMAIL, {
-        paymentRef: 'SANDBOX-PAY',
-      }),
+      service.acceptOfferForGuardian(fx.tenantId, offerId!, GUARDIAN_EMAIL, {}),
     ).rejects.toBeInstanceOf(BusinessRuleError);
     expect((await store.findOffer(fx.tenantId, offerId!))?.status).toBe('sent');
     expect(enrolled).toHaveLength(0);

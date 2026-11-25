@@ -201,3 +201,41 @@ describe('ApplicationTracking — error handling', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('ApplicationTracking — PRC-L532 result announcement', () => {
+  it('announces the result in a polite live region and moves focus to it', async () => {
+    const fetcher: TrackingFetcher = vi.fn(async () => ({
+      kind: 'ok' as const,
+      data: {
+        trackingNumber: 'REG-FOCUS01',
+        status: 'pending',
+        submittedAt: '2025-01-01T00:00:00Z',
+        updatedAt: '2025-01-01T00:00:00Z',
+        interviewBookings: [],
+      },
+    }));
+    renderWithLang(<ApplicationTracking fetcher={fetcher} />);
+    const outcome = screen.getByTestId('tracking-outcome');
+    expect(outcome.getAttribute('aria-live')).toBe('polite');
+    fillAndSubmit('REG-FOCUS01');
+    await waitFor(() => {
+      expect(screen.getByTestId('tracking-result')).toBeTruthy();
+    });
+    expect(outcome.contains(screen.getByTestId('tracking-result'))).toBe(true);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(outcome);
+    });
+  });
+
+  it('moves focus to the not-found alert too', async () => {
+    const fetcher: TrackingFetcher = vi.fn(async () => ({ kind: 'not_found' as const }));
+    renderWithLang(<ApplicationTracking fetcher={fetcher} />);
+    fillAndSubmit('REG-MISSING');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByTestId('tracking-outcome'));
+    });
+    expect(
+      screen.getByTestId('tracking-outcome').contains(screen.getByTestId('tracking-not-found')),
+    ).toBe(true);
+  });
+});

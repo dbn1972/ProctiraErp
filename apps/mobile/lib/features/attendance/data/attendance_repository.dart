@@ -282,8 +282,6 @@ class AttendanceRepository {
     required String date,
     required AttendanceStatus status,
     String? comment,
-    double? latitude,
-    double? longitude,
   }) async {
     // POST /attendance/student requires classId and academicPeriodId
     // (PRC-H060). Refuse to queue a payload the backend can never accept:
@@ -348,8 +346,7 @@ class AttendanceRepository {
       'date': date,
       'status': status.toWire(),
       if (comment != null && comment.isNotEmpty) 'comment': comment,
-      'latitude': ?latitude,
-      'longitude': ?longitude,
+      // PRC-M468 / DR45: marks carry no device location (the backend refuses it).
       'createdAt': recordedAtIso,
       'updatedAt': recordedAtIso,
     };

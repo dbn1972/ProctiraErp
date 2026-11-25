@@ -525,6 +525,30 @@ export class FeesService {
     return Math.max(0, payments - refunds);
   }
 
+  /**
+   * PRC-M535: is `paymentRef` a succeeded payment recorded server-side on this
+   * invoice? Matches the payment id, its idempotency (PSP event) key or its
+   * receipt number. Read-only; unknown invoice -> NotFoundError.
+   */
+  async isRecordedPaymentRef(
+    tenantId: string,
+    invoiceId: string,
+    paymentRef: string,
+  ): Promise<boolean> {
+    await this.getInvoice(tenantId, invoiceId);
+    const ref = paymentRef.trim();
+    if (!ref) return false;
+    const payments = (await this.repository.listPaymentsForInvoice(tenantId, invoiceId)).filter(
+      (payment) => payment.status === 'succeeded',
+    );
+    for (const payment of payments) {
+      if (payment.id === ref || payment.idempotencyKey === ref) return true;
+      const receipt = await this.repository.findReceiptByPaymentId(tenantId, payment.id);
+      if (receipt?.receiptNumber === ref) return true;
+    }
+    return false;
+  }
+
   async listReceipts(tenantId: string) {
     return this.repository.listReceiptsForTenant(tenantId);
   }

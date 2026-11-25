@@ -207,6 +207,17 @@ export type VerifyOfferFeeInvoiceOwnership = (input: {
   feeCurrency: string;
 }) => Promise<boolean>;
 
+/**
+ * PRC-M535: does a guardian-supplied `paymentRef` name a payment already
+ * recorded server-side (fees ledger) on this offer's fee invoice? Read-only;
+ * it is a consistency check on the stored reference, never payment proof.
+ */
+export type VerifyOfferFeePaymentRef = (input: {
+  tenantId: string;
+  invoiceId: string;
+  paymentRef: string;
+}) => Promise<boolean>;
+
 export type ReconcileOfferResources = (input: {
   tenantId: string;
   applicationId: string;
@@ -233,6 +244,8 @@ export class AdmissionsPipelineService {
      * tenant. The registration plugin always wires one; when omitted nothing is checked.
      */
     private readonly references?: TenantReferenceChecker,
+    /** PRC-M535: guardian accept stores a paymentRef only when it matches a recorded payment. */
+    private readonly verifyOfferFeePaymentRef?: VerifyOfferFeePaymentRef,
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
@@ -952,6 +965,9 @@ export class AdmissionsPipelineService {
     if (normalizeEmail(application.guardianEmail) !== email) {
       throw new NotFoundError(`Offer '${offerId}' not found`);
     }
+    if (input.paymentRef !== undefined) {
+      await this.assertGuardianPaymentRefRecorded(tenantId, offer, input.paymentRef);
+    }
     const accepted = await this.acceptOffer(tenantId, offerId, input);
     return {
       ...accepted,
@@ -959,6 +975,35 @@ export class AdmissionsPipelineService {
       applicantLastName: application.lastName,
       guardianEmail: application.guardianEmail,
     };
+  }
+
+  /**
+   * PRC-M535: a guardian's paymentRef is stored on the offer only when it names
+   * a payment recorded server-side on the offer's own fee invoice. No invoice,
+   * no verifier or no match -> 400 and nothing is accepted.
+   */
+  private async assertGuardianPaymentRefRecorded(
+    tenantId: string,
+    offer: OfferRecord,
+    paymentRef: string,
+  ): Promise<void> {
+    const recorded =
+      offer.offerFeeInvoiceId !== null &&
+      this.verifyOfferFeePaymentRef !== undefined &&
+      (await this.verifyOfferFeePaymentRef({
+        tenantId,
+        invoiceId: offer.offerFeeInvoiceId,
+        paymentRef,
+      }));
+    if (!recorded) {
+      throw new ValidationError('paymentRef does not match a recorded payment for this offer', [
+        {
+          field: 'paymentRef',
+          rule: 'recorded_payment',
+          message: 'Use the payment or receipt reference recorded for this offer fee',
+        },
+      ]);
+    }
   }
 
   private async expireIfNeeded(offer: OfferRecord): Promise<OfferRecord> {
