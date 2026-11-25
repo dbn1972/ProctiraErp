@@ -15,6 +15,7 @@ import {
   generatePhiRetentionSyncSql,
   generateSyncSql,
   loadCatalog,
+  phiRetentionTables,
 } from './runtime-table-privileges-lib.mjs';
 import { main as checkMain, parseArgs } from './check-runtime-table-privileges.mjs';
 
@@ -224,6 +225,43 @@ test('PRC-M623: PHI retention grant sync is role-guarded and grants only the job
   assert.doesNotMatch(sql, /\bALL\b|UPDATE|TRUNCATE|BYPASSRLS/);
 });
 
+test('PRC-M623: PHI retention grant sync skips the whole block unless every table exists', () => {
+  const sql = generatePhiRetentionSyncSql();
+  const tables = phiRetentionTables();
+  assert.deepEqual(tables, [
+    'tenants',
+    'students',
+    'privacy_legal_holds',
+    'counselling_sessions',
+    'health_special_needs_assessments',
+    'audit_ingest_queue',
+  ]);
+  const firstStatement = sql.search(/^ {2}(?:GRANT|REVOKE) /m);
+  assert.ok(firstStatement > 0);
+  const guards = sql.slice(0, firstStatement);
+  // Every table named by a GRANT/REVOKE has a to_regclass guard that returns
+  // before the first statement (all-or-nothing, no partial grant set).
+  const named = new Set(
+    (sql.match(/ON TABLE [^;]+? (?:TO|FROM) /g) ?? []).flatMap((m) =>
+      m
+        .replace(/^ON TABLE /, '')
+        .replace(/ (?:TO|FROM) $/, '')
+        .split(', '),
+    ),
+  );
+  assert.deepEqual([...named].sort(), [...tables].sort());
+  for (const table of tables) {
+    assert.match(
+      guards,
+      new RegExp(
+        `IF to_regclass\\('public\\.${table}'\\) IS NULL THEN\\n` +
+          `    RAISE NOTICE 'PRC-M623: table ${table} missing; skip PHI retention grant sync';\\n` +
+          '    RETURN;\\n  END IF;',
+      ),
+      `missing to_regclass guard for ${table}`,
+    );
+  }
+});
 test('PRC-M623 (N3): migration 318 and the sync narrow tenants/students to the same columns', () => {
   const migration = readFileSync(
     join(process.cwd(), 'db/sql/318_phi_retention_column_select.sql'),

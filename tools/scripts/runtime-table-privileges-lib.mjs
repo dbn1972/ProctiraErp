@@ -307,6 +307,10 @@ export const PHI_RETENTION_GRANTS = [
   { privileges: 'INSERT', tables: ['audit_ingest_queue'] },
 ];
 
+/** Every table named in PHI_RETENTION_REVOKES / PHI_RETENTION_GRANTS, in first-seen order. */
+export function phiRetentionTables() {
+  return [...new Set([...PHI_RETENTION_REVOKES, ...PHI_RETENTION_GRANTS].flatMap((e) => e.tables))];
+}
 /**
  * Role-guarded, idempotent SQL that re-applies the PHI retention role grants.
  *
@@ -316,7 +320,8 @@ export const PHI_RETENTION_GRANTS = [
  * existing compose volume, and every pg-restore.sh restore (--no-acl drops all
  * GRANTs) left the retention job failing closed. apply-sql.sh runs this block
  * on every invocation through apply-runtime-table-privileges.sh, as it already
- * does for proctira_app.
+ * does for proctira_app. The block is skipped with a NOTICE when the role or
+ * any of its tables is missing (fixture and partial-schema runs).
  */
 export function generatePhiRetentionSyncSql() {
   const lines = [
@@ -329,6 +334,17 @@ export function generatePhiRetentionSyncSql() {
     '    RETURN;',
     '  END IF;',
   ];
+  // All-or-nothing table guard: a fixture or partial-schema apply-sql run on a
+  // cluster that has the role (e.g. the migration-timeouts lock-recovery drill)
+  // skips the whole block, so neither a 42P01 abort nor a partial grant set lands.
+  for (const table of phiRetentionTables()) {
+    lines.push(`  IF to_regclass('public.${table}') IS NULL THEN`);
+    lines.push(
+      `    RAISE NOTICE 'PRC-M623: table ${table} missing; skip PHI retention grant sync';`,
+    );
+    lines.push('    RETURN;');
+    lines.push('  END IF;');
+  }
   for (const revoke of PHI_RETENTION_REVOKES) {
     lines.push(
       `  REVOKE ${revoke.privileges} ON TABLE ${revoke.tables.join(', ')} FROM ${PHI_RETENTION_ROLE};`,
