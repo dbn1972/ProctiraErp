@@ -15,6 +15,8 @@
     "migrate:constraints": "node dist/run-constraint-validation.js",
     "migrate:cdc-sync": "node dist/run-cdc-sync.js",
     "migrate:all": "node dist/run-full-migration.js",
+    "migrate:signoff": "node dist/run-staging-retention.js --sign-off",
+    "migrate:purge-staging": "node dist/run-staging-retention.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

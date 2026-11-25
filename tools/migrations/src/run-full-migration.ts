@@ -134,7 +134,9 @@ async function runFullMigration(): Promise<MigrationReport> {
     console.log('  1. Review the validation report above');
     console.log('  2. Reconcile any unmapped tables listed above');
     console.log('  3. Run application-level smoke tests');
-    console.log('  4. Drop the migration_staging schema when satisfied');
+    console.log(
+      '  4. After cutover sign-off run migrate:signoff; migrate:purge-staging (scheduled) drops the staging schema 30 days later (DR35, PRC-M557)',
+    );
     // PRC-M557: staging holds raw legacy PII (national id, DOB, names) in an
     // unencrypted schema. Offer an explicit, flagged purge so the operator does
     // not have to remember a manual step; it is opt-in (MIGRATION_PURGE_STAGING=1)

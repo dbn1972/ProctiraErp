@@ -45,6 +45,9 @@ pnpm migrate:validate   # Step 5: Validation
 pnpm migrate:report       # Generate comprehensive migration report
 pnpm migrate:constraints  # Validate against schema constraints
 pnpm migrate:cdc-sync     # Run CDC incremental sync cycle
+# Staging retention (DR35, PRC-M557): staging copies are deleted 30 days after cutover sign-off
+pnpm migrate:signoff        # Record cutover sign-off on the staging schema (starts the 30 days)
+pnpm migrate:purge-staging  # Run on a schedule: drops the staging schema once it is due
 ```
 
 ## Legacy Table Mapping
