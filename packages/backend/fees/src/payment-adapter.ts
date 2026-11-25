@@ -6,7 +6,7 @@
 import { resolveProviderDeliveryMode } from '@proctira/common';
 
 import type { PaymentMethod } from './fees-repository.js';
-
+import { loadRazorpayConfigFromEnv, RazorpayPaymentAdapter } from './razorpay-payment-adapter.js';
 
 export interface ChargeInput {
   tenantId: string;
@@ -61,7 +61,11 @@ export function createPaymentAdapterFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): PaymentAdapter {
   if (resolveProviderDeliveryMode('fees', env) === 'live') {
-    return new UnimplementedLivePaymentAdapter();
+    // PRC-M512 (DR36): Razorpay when its key id, key secret and webhook secret are all
+    // configured. Its charge() only opens an order (pending); money settles from a
+    // signature-verified payment.captured webhook. Missing credentials stay fail-closed.
+    const razorpay = loadRazorpayConfigFromEnv(env);
+    return razorpay ? new RazorpayPaymentAdapter(razorpay) : new UnimplementedLivePaymentAdapter();
   }
   return new SandboxPaymentAdapter();
 }
