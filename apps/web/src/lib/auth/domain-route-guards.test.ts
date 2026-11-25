@@ -40,6 +40,8 @@ const GATEWAY_ROLE_IDS: ReadonlySet<string> = new Set([
   'parent',
   'student',
   'platform_admin',
+  // DEFAULT_ROLES catalogue roles (packages/shared/auth/src/rbac.ts).
+  'librarian',
 ]);
 
 /** Gateway `report:read` holders (evidence rbac-matrix.json, rbac-registry.ts). */
@@ -105,7 +107,8 @@ const A_BATCH_SET_DOMAINS: DomainCase[] = [
   },
   {
     domain: 'library',
-    allowed: ['admin', 'principal', 'super-admin'],
+    // UATENV-D20: the gateway serves the librarian (library: manage).
+    allowed: ['admin', 'principal', 'super-admin', 'librarian'],
     denied: ['teacher', 'staff', 'registrar', 'platform_admin', 'student', 'guardian', 'parent'],
     packageFile: 'library/src/library-access.ts',
   },

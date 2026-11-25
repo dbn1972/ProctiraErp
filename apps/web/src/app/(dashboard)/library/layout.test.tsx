@@ -44,7 +44,7 @@ describe('library layout guard (A-batch)', () => {
     expect(screen.queryByTestId('library-child')).toBeNull();
   });
 
-  it.each([['admin'], ['principal'], ['super-admin']])(
+  it.each([['admin'], ['principal'], ['super-admin'], ['librarian']])(
     'renders the library screen for %s',
     async (role) => {
       auth.roles = [role];

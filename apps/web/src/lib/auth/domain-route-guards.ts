@@ -133,7 +133,8 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
  * backend package read set:
  * - admissions: registration-access.ts REGISTRATION_STAFF_ROLES
  * - assessments: assessment-access.ts ASSESSMENT_STAFF_ROLES
- * - library: library-access.ts LIBRARY_STAFF_ROLES
+ * - library: library-access.ts LIBRARY_STAFF_ROLES (UATENV-D20: librarian holds
+ *   the gateway `library: manage` grant, packages/shared/auth rbac.ts)
  * - lms: lms-access.ts LMS_STAFF_ROLES
  * - pipelines: etl-access.ts ETL_STAFF_ROLES
  * - reports: report-access.ts staff union (admin, finance, academic, exam, registrar)
@@ -151,7 +152,7 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
 export const DOMAIN_ROUTE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<string>>> = {
   admissions: new Set(['admin', 'principal', 'super-admin']),
   assessments: new Set(['admin', 'principal', 'teacher', 'super-admin']),
-  library: new Set(['admin', 'principal', 'super-admin']),
+  library: new Set(['admin', 'principal', 'super-admin', 'librarian']),
   lms: new Set(['admin', 'principal', 'teacher', 'super-admin']),
   pipelines: new Set(['admin', 'principal', 'super-admin']),
   reports: new Set(['admin', 'principal', 'teacher', 'super-admin']),
