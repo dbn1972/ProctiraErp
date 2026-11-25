@@ -307,6 +307,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<LegalHoldEntity, 'active' | 'releasedBy' | 'releasedAt'>>,
+    options?: { expectedActive?: boolean },
   ): Promise<LegalHoldEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -316,6 +317,8 @@ export class PgPrivacyRepository implements PrivacyRepository {
       );
       if (!existing.rows[0]) return null;
       const cur = mapLegalHold(existing.rows[0] as Record<string, unknown>);
+      // PRC-L136: $6 is the optional compare-and-set `active` value: a concurrent
+      // release that already flipped the row makes this UPDATE a no-op.
       const result = await client.query(
         `UPDATE privacy_legal_holds SET
            active = $3,
@@ -323,6 +326,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
            released_at = $5,
            updated_at = NOW()
          WHERE id = $1 AND tenant_id = $2
+           AND ($6::boolean IS NULL OR active = $6::boolean)
          RETURNING *`,
         [
           id,
@@ -330,8 +334,10 @@ export class PgPrivacyRepository implements PrivacyRepository {
           data.active ?? cur.active,
           data.releasedBy !== undefined ? data.releasedBy : cur.releasedBy,
           data.releasedAt !== undefined ? data.releasedAt : cur.releasedAt,
+          options?.expectedActive ?? null,
         ],
       );
+      if (!result.rows[0]) return null;
       return mapLegalHold(result.rows[0] as Record<string, unknown>);
     });
   }
@@ -531,6 +537,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
         'status' | 'reviewedBy' | 'statusReason' | 'appliedAt' | 'currentValue' | 'requestedValue'
       >
     >,
+    options?: { expectedStatus?: CorrectionRequestEntity['status'] },
   ): Promise<CorrectionRequestEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -540,6 +547,8 @@ export class PgPrivacyRepository implements PrivacyRepository {
       );
       if (!existing.rows[0]) return null;
       const cur = mapCorrection(existing.rows[0] as Record<string, unknown>);
+      // PRC-L136: $9 is the optional compare-and-set status; a concurrent
+      // approve/reject/apply that moved the row makes this UPDATE a no-op.
       const result = await client.query(
         `UPDATE privacy_correction_requests SET
            status = $3,
@@ -550,6 +559,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
            requested_value = $8,
            updated_at = NOW()
          WHERE id = $1 AND tenant_id = $2
+           AND ($9::text IS NULL OR status = $9::text)
          RETURNING *`,
         [
           id,
@@ -560,8 +570,10 @@ export class PgPrivacyRepository implements PrivacyRepository {
           data.appliedAt !== undefined ? data.appliedAt : cur.appliedAt,
           data.currentValue !== undefined ? data.currentValue : cur.currentValue,
           data.requestedValue !== undefined ? data.requestedValue : cur.requestedValue,
+          options?.expectedStatus ?? null,
         ],
       );
+      if (!result.rows[0]) return null;
       return mapCorrection(result.rows[0] as Record<string, unknown>);
     });
   }

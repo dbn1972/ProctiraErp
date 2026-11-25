@@ -180,6 +180,11 @@ export interface PrivacyRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<LegalHoldEntity, 'active' | 'releasedBy' | 'releasedAt'>>,
+    /**
+     * PRC-L136: compare-and-set guard. When set, the update applies only if the
+     * hold is still in this `active` state; otherwise `null` is returned.
+     */
+    options?: { expectedActive?: boolean },
   ): Promise<LegalHoldEntity | null>;
   findLegalHoldById(id: string, tenantId: string): Promise<LegalHoldEntity | null>;
   listActiveLegalHolds(tenantId: string, page?: ListPage): Promise<LegalHoldEntity[]>;
@@ -257,6 +262,11 @@ export interface PrivacyRepository {
         'status' | 'reviewedBy' | 'statusReason' | 'appliedAt' | 'currentValue' | 'requestedValue'
       >
     >,
+    /**
+     * PRC-L136: compare-and-set guard. When set, the update applies only if the
+     * request is still in this status; otherwise `null` is returned.
+     */
+    options?: { expectedStatus?: CorrectionRequestEntity['status'] },
   ): Promise<CorrectionRequestEntity | null>;
   /**
    * PRC-M322: erase the subject's correction PII (current value -> NULL, requested value ->
