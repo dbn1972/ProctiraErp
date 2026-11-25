@@ -569,6 +569,8 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     await setupGatewayTenantSession(page, {
       sub: GUARDIAN_SUB,
       email: GUARDIAN_EMAIL,
+      // PRC-M538: offers match on an IdP-verified email only.
+      emailVerified: true,
       displayName: 'A5 Guardian',
       roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
     });
