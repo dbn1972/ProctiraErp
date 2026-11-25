@@ -18,7 +18,10 @@ export const CreateCatalogueScheduleSchema = Type.Object({
   format: ReportFormatInputSchema,
   cadence: Type.Union([Type.Literal('daily'), Type.Literal('weekly'), Type.Literal('monthly')]),
   hour: Type.Optional(Type.Integer({ minimum: 0, maximum: 23 })),
-  recipients: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 320 }))),
+  // PRC-L341: bounded here; format, de-duplication (max 20) and domains in the service.
+  recipients: Type.Optional(
+    Type.Array(Type.String({ minLength: 1, maxLength: 320 }), { maxItems: 100 }),
+  ),
   enabled: Type.Optional(Type.Boolean()),
 });
 export type CreateCatalogueScheduleInput = Static<typeof CreateCatalogueScheduleSchema>;

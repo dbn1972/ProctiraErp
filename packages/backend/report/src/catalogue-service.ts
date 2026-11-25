@@ -33,6 +33,11 @@ import type {
   ScheduleCadence,
 } from './report-store.js';
 import { InMemoryScheduleDelivery, type ScheduleDeliveryPort } from './schedule-delivery.js';
+import {
+  normalizeScheduleRecipients,
+  readAllowedRecipientDomains,
+  type ScheduleRecipientPolicy,
+} from './schedule-recipients.js';
 import { computeNextRunAt } from './scheduler.js';
 import { createReportDownloadToken } from './signed-download.js';
 
@@ -73,15 +78,19 @@ export interface GenerateResult {
 export class CatalogueService {
   private readonly delivery: ScheduleDeliveryPort;
   private readonly logger?: ReportSchedulerLogger;
+  private readonly recipientPolicy: ScheduleRecipientPolicy;
 
   constructor(
     private readonly store: ReportStore,
     private readonly blobs: ReportBlobStore,
     delivery?: ScheduleDeliveryPort,
     logger?: ReportSchedulerLogger,
+    /** PRC-L341: recipient domain allow-list (defaults to REPORT_RECIPIENT_ALLOWED_DOMAINS). */
+    recipientPolicy?: ScheduleRecipientPolicy,
   ) {
     this.delivery = delivery ?? new InMemoryScheduleDelivery();
     this.logger = logger;
+    this.recipientPolicy = recipientPolicy ?? { allowedDomains: readAllowedRecipientDomains() };
   }
 
   /** Test/helper access to the delivery port. */
@@ -276,6 +285,8 @@ export class CatalogueService {
         { field: 'cadence', rule: 'enum', message: 'Must be daily, weekly, or monthly' },
       ]);
     }
+    // PRC-L341: email format, de-duplication, max items and school-domain allow-list.
+    const recipients = normalizeScheduleRecipients(input.recipients, this.recipientPolicy);
     const now = new Date();
     const hour = Number.isFinite(input.hour)
       ? Math.min(23, Math.max(0, Math.trunc(input.hour!)))
@@ -288,7 +299,7 @@ export class CatalogueService {
       cadence,
       hour,
       nextRunAt: computeNextRunAt(cadence, now, hour),
-      recipients: input.recipients ?? [],
+      recipients,
       enabled: input.enabled ?? true,
       createdBy: actorId,
       lastRunAt: null,
