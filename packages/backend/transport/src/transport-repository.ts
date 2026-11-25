@@ -350,7 +350,10 @@ export interface TransportRepository {
   ): Promise<GpsPingEntity[]>;
   /** PRC-M451: latest ping per vehicle among pings recorded at/after `since`. */
   listLatestGpsPingPerVehicle(tenantId: string, since: Date): Promise<GpsPingEntity[]>;
-  /** PRC-M451 (DR35): erase pings recorded before `cutoff`; returns the number erased. */
+  /**
+   * PRC-M451 (DR35): erase pings recorded before `cutoff`; returns the number
+   * erased. Erases nothing while the tenant is on legal hold.
+   */
   purgeGpsPingsRecordedBefore(tenantId: string, cutoff: Date): Promise<number>;
   /** PRC-M451: tenants the GPS retention sweep visits. */
   listTenantIdsForGpsRetention(): Promise<string[]>;

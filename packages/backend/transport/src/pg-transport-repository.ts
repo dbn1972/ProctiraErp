@@ -1233,14 +1233,23 @@ export class PgTransportRepository implements TransportRepository {
   async purgeGpsPingsRecordedBefore(tenantId: string, cutoff: Date): Promise<number> {
     await this.ensureSchema();
     // Bounded batches so one sweep never holds a long lock on the ping heap.
+    // Legal holds win over retention (db/sql/313): a tenant with
+    // tenants.legal_hold or an active tenant-scope hold keeps every ping. Pings
+    // are per vehicle, so subject holds do not apply. Checked in each batch's
+    // DELETE so a hold placed mid-sweep stops the next batch.
     let erased = 0;
     for (;;) {
       const result = await this.query(
         tenantId,
         `DELETE FROM transport_gps_pings
          WHERE id IN (
-           SELECT id FROM transport_gps_pings
-           WHERE tenant_id = $1 AND recorded_at < $2
+           SELECT p.id FROM transport_gps_pings p
+           WHERE p.tenant_id = $1::uuid AND p.recorded_at < $2
+             AND NOT EXISTS (SELECT 1 FROM tenants t WHERE t.id = $1::uuid AND t.legal_hold)
+             AND NOT EXISTS (
+               SELECT 1 FROM privacy_legal_holds h
+               WHERE h.tenant_id = $1::uuid AND h.active AND h.scope = 'tenant'
+             )
            LIMIT $3
          )`,
         [tenantId, cutoff, GPS_PURGE_BATCH],

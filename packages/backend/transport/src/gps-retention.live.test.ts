@@ -2,7 +2,8 @@
  * PRC-M451 (DR35) on a migrated Postgres as the runtime app role (RLS on):
  * the retention sweep enumerates tenants under platform scope and erases each
  * tenant's pings older than 90 days with the tenant GUC bound; newer pings and
- * other tenants' recent pings stay. History reads are bounded to the window.
+ * other tenants' recent pings stay. A tenant on legal hold keeps every ping.
+ * History reads are bounded to the window.
  *
  * Fails closed when CI=true or REQUIRE_LIVE_TESTS=1 and DATABASE_URL is unset (W3-TEST-03).
  */
@@ -16,6 +17,7 @@ import { TransportService } from './transport-service.js';
 
 const SUITE = 'gps-retention.live.test';
 const DATABASE_URL = process.env['DATABASE_URL']?.trim() || undefined;
+const MIGRATOR_DATABASE_URL = process.env['MIGRATOR_DATABASE_URL']?.trim() || undefined;
 const liveRequired =
   process.env['ALLOW_LIVE_TEST_SKIP'] !== '1' &&
   (process.env['REQUIRE_LIVE_TESTS'] === '1' ||
@@ -100,6 +102,54 @@ describe.skipIf(!DATABASE_URL)('PRC-M451 GPS retention (live)', () => {
     expect(await recordedAt(tenantB, vehicleB)).toEqual([daysAgo(89).toISOString()]);
   });
 
+  // Legal holds win over retention (db/sql/313): tenants.legal_hold and an
+  // active tenant-scope hold both keep every ping. The holds are set as the
+  // table owner (MIGRATOR_DATABASE_URL), as the privacy service would.
+  it.skipIf(!MIGRATOR_DATABASE_URL)('keeps every ping of a tenant on legal hold', async () => {
+    const owner = new pg.Pool({ connectionString: MIGRATOR_DATABASE_URL, max: 1 });
+    try {
+      const flagged = randomUUID();
+      const scoped = randomUUID();
+      const free = randomUUID();
+      const vehicles = {
+        flagged: await seedVehicle(flagged),
+        scoped: await seedVehicle(scoped),
+        free: await seedVehicle(free),
+      };
+      await ping(flagged, vehicles.flagged, daysAgo(120));
+      await ping(scoped, vehicles.scoped, daysAgo(120));
+      await ping(free, vehicles.free, daysAgo(120));
+      await ping(free, vehicles.free, daysAgo(5));
+      await withPgTenant(owner, flagged, (client) =>
+        client.query(`UPDATE tenants SET legal_hold = true WHERE id = $1`, [flagged]),
+      );
+      await withPgTenant(owner, scoped, (client) =>
+        client.query(
+          `INSERT INTO privacy_legal_holds (tenant_id, scope, reason, placed_by)
+           VALUES ($1, 'tenant', 'gps retention probe', 'live-test')`,
+          [scoped],
+        ),
+      );
+      const result = await service.runGpsRetentionSweep(NOW);
+      expect(result.failures).toEqual([]);
+      expect(await recordedAt(flagged, vehicles.flagged)).toEqual([daysAgo(120).toISOString()]);
+      expect(await recordedAt(scoped, vehicles.scoped)).toEqual([daysAgo(120).toISOString()]);
+      expect(await recordedAt(free, vehicles.free)).toEqual([daysAgo(5).toISOString()]);
+      await withPgTenant(owner, flagged, (client) =>
+        client.query(`UPDATE tenants SET legal_hold = false WHERE id = $1`, [flagged]),
+      );
+      await withPgTenant(owner, scoped, (client) =>
+        client.query(
+          `UPDATE privacy_legal_holds
+           SET active = false, released_at = now(), released_by = 'live-test'
+           WHERE tenant_id = $1`,
+          [scoped],
+        ),
+      );
+    } finally {
+      await owner.end();
+    }
+  });
   it('history and the live map read only inside the window', async () => {
     const tenantId = randomUUID();
     const vehicleId = await seedVehicle(tenantId);
