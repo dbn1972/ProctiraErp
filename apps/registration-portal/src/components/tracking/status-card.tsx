@@ -38,7 +38,11 @@ export function StatusCard({ status }: { status: RegistrationStatus }) {
         {timeline.map((item, index) => {
           const isLast = index === timeline.length - 1;
           return (
-            <li key={item.key} className="relative flex gap-3.5">
+            <li
+              key={item.key}
+              className="relative flex gap-3.5"
+              aria-current={item.state === 'active' ? 'step' : undefined}
+            >
               {!isLast && (
                 <span
                   aria-hidden="true"
@@ -70,6 +74,8 @@ export function StatusCard({ status }: { status: RegistrationStatus }) {
                 }`}
               >
                 {t(item.labelKey)}
+                {/* PRC-L226: step state in text, not only icon/colour. */}
+                <span className="sr-only">: {t(STEP_STATE_KEYS[item.state])}</span>
               </span>
             </li>
           );
@@ -91,6 +97,11 @@ export function StatusCard({ status }: { status: RegistrationStatus }) {
 }
 
 type TimelineState = 'done' | 'active' | 'upcoming';
+const STEP_STATE_KEYS: Record<TimelineState, string> = {
+  done: 'stepDone',
+  active: 'stepActive',
+  upcoming: 'stepUpcoming',
+};
 
 /**
  * Derives a presentation-only status timeline from the real application

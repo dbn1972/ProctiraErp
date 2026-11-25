@@ -220,6 +220,11 @@ async function hydrateKeycloakUser(
         identityCache,
         typeof claims.sid === 'string' && claims.sid.length > 0 ? claims.sid : undefined,
       );
+      // PRC-M538: the verified flag is about the token's email claim; it carries over
+      // only when the linked identity uses that same address.
+      payload.emailVerified =
+        payload.emailVerified === true &&
+        linked.email.trim().toLowerCase() === payload.email.trim().toLowerCase();
       payload.sub = linked.userId;
       payload.tenantId = linked.tenantId;
       payload.email = linked.email;

@@ -9,7 +9,13 @@
  * - 6.5: Support Custom_Fields to extend student profiles without database schema changes
  * - 7.6: Support Custom_Fields to extend staff profiles without database schema changes
  */
-import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
+import {
+  AppError,
+  ConflictError,
+  isProductionLike,
+  NotFoundError,
+  ValidationError,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -46,13 +52,57 @@ function assertDropdownHasOptions(options: readonly string[] | undefined): void 
 }
 
 /**
+ * PRC-L449: answers whether the owning domain record (student / staff /
+ * institution) exists in the tenant, so values are never stored for an id
+ * that names nothing.
+ */
+export interface CustomFieldEntityLookup {
+  exists(tenantId: string, entityType: CustomFieldEntityType, entityId: string): Promise<boolean>;
+}
+
+export interface CustomFieldServiceOptions {
+  /** PRC-L449: omitted -> production-like environments refuse value writes (503). */
+  entityLookup?: CustomFieldEntityLookup | null;
+  /** Defaults to process.env.NODE_ENV (tests override). */
+  nodeEnv?: string;
+}
+
+/**
  * Service handling custom field business logic.
  */
 export class CustomFieldService {
+  private readonly entityLookup: CustomFieldEntityLookup | null;
+  private readonly nodeEnv: string | undefined;
+
   constructor(
     private readonly definitionRepository: CustomFieldDefinitionRepository,
     private readonly valueRepository: CustomFieldValueRepository,
-  ) {}
+    options: CustomFieldServiceOptions = {},
+  ) {
+    this.entityLookup = options.entityLookup ?? null;
+    this.nodeEnv = 'nodeEnv' in options ? options.nodeEnv : process.env.NODE_ENV;
+  }
+
+  /** PRC-L449: refuse values for an entity that does not exist in the tenant. */
+  private async assertEntityExists(
+    tenantId: string,
+    entityType: CustomFieldEntityType,
+    entityId: string,
+  ): Promise<void> {
+    if (!this.entityLookup) {
+      if (isProductionLike(this.nodeEnv)) {
+        throw new AppError(
+          'Custom field entity lookup is not configured; values cannot be stored',
+          'SERVICE_UNAVAILABLE',
+          503,
+        );
+      }
+      return;
+    }
+    if (!(await this.entityLookup.exists(tenantId, entityType, entityId))) {
+      throw new NotFoundError(`${entityType} '${entityId}' not found`);
+    }
+  }
 
   // ─── Definition CRUD ───────────────────────────────────────────────────────
 
@@ -219,6 +269,7 @@ export class CustomFieldService {
         validationResult.errors,
       );
     }
+    await this.assertEntityExists(tenantId, entityType, entityId);
 
     // Store the value
     const valueRecord: Omit<CustomFieldValue, 'createdAt' | 'updatedAt'> = {
@@ -280,6 +331,7 @@ export class CustomFieldService {
     if (allErrors.length > 0) {
       throw new ValidationError('Validation failed for one or more custom field values', allErrors);
     }
+    await this.assertEntityExists(tenantId, entityType, entityId);
 
     // Store all valid values
     const results: CustomFieldValue[] = [];

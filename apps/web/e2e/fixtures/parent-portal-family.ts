@@ -285,6 +285,7 @@ export async function openAsGuardian(page: Page, family: Family): Promise<void> 
   await setupGatewayTenantSession(page, {
     sub: family.guardianSub,
     email: family.guardianEmail,
+    emailVerified: true,
     displayName: `PP Guardian ${family.guardianSub}`,
     tenantId: family.tenantId,
     roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],

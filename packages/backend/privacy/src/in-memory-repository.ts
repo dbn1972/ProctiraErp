@@ -34,10 +34,14 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     id: string,
     tenantId: string,
     data: Partial<Pick<LegalHoldEntity, 'active' | 'releasedBy' | 'releasedAt'>>,
+    options?: { expectedActive?: boolean },
   ): Promise<LegalHoldEntity | null> {
     const idx = this.holds.findIndex((h) => h.id === id && h.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.holds[idx]!;
+    if (options?.expectedActive !== undefined && existing.active !== options.expectedActive) {
+      return null;
+    }
     const updated: LegalHoldEntity = {
       ...existing,
       active: data.active ?? existing.active,
@@ -205,10 +209,12 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
         'status' | 'reviewedBy' | 'statusReason' | 'appliedAt' | 'currentValue' | 'requestedValue'
       >
     >,
+    options?: { expectedStatus?: CorrectionRequestEntity['status'] },
   ): Promise<CorrectionRequestEntity | null> {
     const idx = this.corrections.findIndex((c) => c.id === id && c.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.corrections[idx]!;
+    if (options?.expectedStatus && existing.status !== options.expectedStatus) return null;
     const updated: CorrectionRequestEntity = {
       ...existing,
       status: data.status ?? existing.status,

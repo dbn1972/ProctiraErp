@@ -9,6 +9,8 @@ import { InMemoryWarehouseRepository } from './in-memory-repository.js';
 import { InMemoryTranslationRepository } from './in-memory-translation-repository.js';
 import { PublishingService } from './publishing-service.js';
 import { TranslationService } from './translation-service.js';
+/** PRC-L553 (DR46): publishing needs tenant staff with the publish role. */
+const PUBLISHER = { actorId: 'publisher-1', roles: ['data_admin'] };
 
 const CAP = 5;
 const T = 'tenant-1';
@@ -59,7 +61,7 @@ describe('no silent caps (PRC-L458)', () => {
       mobileBaseUrl: 'https://m.example.test',
       fetchPageSize: CAP,
     });
-    const result = await publishing.publishData(T, wh, { target: 'api' });
+    const result = await publishing.publishData(T, wh, { target: 'api' }, PUBLISHER);
     expect(result.recordCount).toBe(CAP + 1);
   });
 

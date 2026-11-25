@@ -15,7 +15,7 @@ import type {
   CustomFieldDefinitionRepository,
   CustomFieldValueRepository,
 } from './custom-field-repository.js';
-import { CustomFieldService } from './custom-field-service.js';
+import { CustomFieldService, type CustomFieldEntityLookup } from './custom-field-service.js';
 import { registerCustomFieldRoutes } from './routes.js';
 
 /**
@@ -28,6 +28,8 @@ export interface CustomFieldPluginOptions {
   valueRepository: CustomFieldValueRepository;
   /** Route prefix for custom fields (default: '/custom-fields') */
   prefix?: string;
+  /** PRC-L449: owning-record existence check for value writes. */
+  entityLookup?: CustomFieldEntityLookup;
 }
 
 // Extend Fastify types
@@ -48,7 +50,9 @@ export const customFieldPlugin = fp(
     const { definitionRepository, valueRepository, prefix = '/custom-fields' } = options;
 
     // Create custom field service instance
-    const customFieldService = new CustomFieldService(definitionRepository, valueRepository);
+    const customFieldService = new CustomFieldService(definitionRepository, valueRepository, {
+      entityLookup: options.entityLookup,
+    });
 
     // Decorate fastify with the custom field service
     fastify.decorate('customFieldService', customFieldService);

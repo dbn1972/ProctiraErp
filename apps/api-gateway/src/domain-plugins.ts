@@ -402,6 +402,9 @@ function lmsLearnerMembership(): LmsLearnerMembership | null {
           directory.learnerInSection(tenantId, userId, sectionId),
         inInstitution: (tenantId, userId, institutionId) =>
           directory.learnerInInstitution(tenantId, userId, institutionId),
+        // PRC-L331: learner records key on the SIS student id, not the JWT sub.
+        studentIdsForLearner: (tenantId, userId) =>
+          directory.studentIdsForLearner(tenantId, userId),
       }
     : null;
 }
@@ -762,7 +765,20 @@ export function verifyOfferFeeInvoiceOwnershipHook(
   };
 }
 
-function reconcileAdmissionsOfferResourcesHook() {
+/**
+ * PRC-M016 (DR35 retention schedule): an applicant who is not admitted keeps
+ * their student master (with guardian PII) for 12 months after the offer
+ * closes, then it is erased under dual control.
+ */
+export const ADMISSIONS_NOT_ADMITTED_RETENTION_MONTHS = 12;
+
+export function admissionsRetainUntil(closedAt: Date): Date {
+  const until = new Date(closedAt.getTime());
+  until.setUTCMonth(until.getUTCMonth() + ADMISSIONS_NOT_ADMITTED_RETENTION_MONTHS);
+  return until;
+}
+
+export function reconcileAdmissionsOfferResourcesHook(now: () => Date = () => new Date()) {
   return async (input: {
     tenantId: string;
     applicationId: string;
@@ -786,11 +802,16 @@ function reconcileAdmissionsOfferResourcesHook() {
     const repository = createStudentRepository();
     const student = await repository.findById(input.applicationId, input.tenantId);
     if (student) {
+      // PRC-M016: record when the offer closed and the DR35 erase-after date on the
+      // applicant master, so the retention sweep can find lapsed applicants.
+      const closedAt = now();
       await repository.update(student.id, input.tenantId, {
         customData: {
           ...student.customData,
           admissionsApplicationId: input.applicationId,
           admissionsStatus: input.status,
+          admissionsClosedAt: closedAt.toISOString(),
+          admissionsRetainUntil: admissionsRetainUntil(closedAt).toISOString(),
         },
       });
     }

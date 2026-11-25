@@ -92,8 +92,11 @@ export interface PublishedDataRecord {
   areaId: string;
   timePeriod: string;
   value: number | null;
+  /** PRC-L553 (DR46): free text is never published (it cannot be screened for identifiers). */
   textValue: string | null;
   source: string | null;
+  /** PRC-L553 (DR46): true when the value was withheld as a cell below the minimum size. */
+  suppressed: boolean;
 }
 
 export interface PublishedGISLayer {
