@@ -22,7 +22,7 @@
  * - 12.5: Screening programs
  */
 import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
-import { AppError, ForbiddenError } from '@proctira/common';
+import { AppError, ForbiddenError, UnauthenticatedError } from '@proctira/common';
 import type { PgQueryable } from '@proctira/database';
 import { resolvePaginationQuery, validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -140,6 +140,18 @@ function buildPhiWriteAuditBinder(
   const user = (
     request as FastifyRequest & { user?: { sub?: string; displayName?: string; email?: string } }
   ).user;
+  // PRC-L115: a PHI write is never attributed to 'anonymous'. Without an
+  // authenticated actor the write is refused before it starts (401).
+  const actorId = user?.sub?.trim() || access.userId?.trim() || '';
+  if (!actorId) {
+    throw new UnauthenticatedError('An authenticated actor is required to write health records');
+  }
+  const actorName = user?.displayName?.trim() || user?.email?.trim() || actorId;
+  const operation = opts.operation ?? 'CREATE';
+  // Topic 7 Option A: record ids plus the names of the submitted fields, never their values.
+  const body = request.body;
+  const fields =
+    body && typeof body === 'object' && !Array.isArray(body) ? Object.keys(body).sort() : [];
   return {
     appendAuditInTxn: async (client: PgQueryable, entity: { id: string }) => {
       await appendAuditEntryOnClient(
@@ -148,14 +160,15 @@ function buildPhiWriteAuditBinder(
           tenantId,
           entityType: 'health_record',
           entityId: entity.id,
-          operation: opts.operation ?? 'CREATE',
-          userId: user?.sub ?? access.userId ?? 'anonymous',
-          userName: user?.displayName ?? user?.email ?? user?.sub ?? access.userId ?? 'anonymous',
+          operation,
+          userId: actorId,
+          userName: actorName,
           ipAddress: request.ip,
-          beforeValues: null,
+          beforeValues: operation === 'CREATE' ? null : { [opts.idField]: entity.id },
           afterValues: {
             path: opts.path,
             [opts.idField]: entity.id,
+            fields,
           },
           metadata: {
             method: request.method,

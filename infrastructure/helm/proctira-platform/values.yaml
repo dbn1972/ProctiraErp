@@ -841,6 +841,10 @@ secrets:
   # -- Connection string for the BYPASSRLS backup role (G-707). pg_dump as the
   # app role fails under FORCE RLS; see docs/BACKUP_RESTORE.md §3.5.
   backupDatabaseUrl: ''
+  # -- PRC-M623: connection string for the PHI retention role
+  # (proctira_phi_retention, NOSUPERUSER NOBYPASSRLS). Never the backup role:
+  # the retention job refuses a SUPERUSER / BYPASSRLS login.
+  phiRetentionDatabaseUrl: ''
   # -- W1-OPS-04: age public key for encrypting logical backups at rest.
   backupAgeRecipient: ''
   # -- Redis connection string
@@ -880,9 +884,10 @@ dr:
   enabled: false
   # -- IANA time zone for the cron schedules (Kubernetes >= 1.27)
   timeZone: 'UTC'
-  # -- Key inside the platform Secret holding the Postgres URL the jobs use.
-  # Must reference a role with BYPASSRLS (secrets.backupDatabaseUrl); the app
-  # role's DATABASE_URL cannot take a complete dump under FORCE RLS.
+  # -- Key inside the platform Secret holding the Postgres URL the backup job
+  # uses. Must reference a role with BYPASSRLS (secrets.backupDatabaseUrl); the
+  # app role's DATABASE_URL cannot take a complete dump under FORCE RLS. The
+  # PHI retention job does not use it (dr.phiRetention.databaseUrlSecretKey).
   databaseUrlSecretKey: BACKUP_DATABASE_URL
   image:
     repository: proctira/dr-tools
@@ -942,6 +947,9 @@ dr:
     # production → true (enforce deletion / RETENTION_DRY_RUN=0)
     # staging/development → false (explicit sandbox dry-run / RETENTION_DRY_RUN=1)
     apply: null
+    # -- PRC-M623: key inside the platform Secret holding the retention role URL
+    # (secrets.phiRetentionDatabaseUrl). Must differ from dr.databaseUrlSecretKey.
+    databaseUrlSecretKey: PHI_RETENTION_DATABASE_URL
     phiRetentionDays: 2555
     minorPhiRetentionDays: 3650
     resources:

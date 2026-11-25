@@ -46,7 +46,7 @@ import {
   getStudentEnrollments,
   getTransferRecords,
   listStudentConsents,
-  listStudentDiscipline,
+  listStudentDisciplineIfPermitted,
   listStudentSiblings,
   studentHasPhoto,
   type AttendanceHeatmap,
@@ -82,6 +82,8 @@ import {
 } from '../_components/student-placement-label';
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
+import { requireSession } from '@/lib/auth/server';
+import { studentProfileTabs } from '../_components/student-profile-tabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -164,6 +166,10 @@ export default async function StudentProfilePage(props: PageProps) {
   // secondary fetches can surface a gateway error boundary.
   const student = await getStudent(params.id);
   if (!student) notFound();
+  // PRC-M121: the Health (PHI) tab is shown only to roles that may read health records.
+  const session = await requireSession(`/students/${params.id}`);
+  const profileTabs = studentProfileTabs(session.user.roles ?? []);
+  const showHealth = profileTabs.includes('health');
 
   const [
     enrollments,
@@ -185,7 +191,7 @@ export default async function StudentProfilePage(props: PageProps) {
     getStudentAttendanceHeatmap(params.id),
     listStudentSiblings(params.id),
     listStudentConsents(params.id),
-    listStudentDiscipline(params.id),
+    listStudentDisciplineIfPermitted(params.id),
     studentHasPhoto(params.id),
     listGradeEntries({ studentId: params.id }),
     listInvoicesResult('staff', { studentId: params.id }),
@@ -324,18 +330,7 @@ export default async function StudentProfilePage(props: PageProps) {
           aria-label="Student information sections"
           className="h-auto w-full gap-0 overflow-x-auto rounded-none border-b border-border bg-transparent p-0"
         >
-          {(
-            [
-              'overview',
-              'attendance',
-              'assessments',
-              'guardians',
-              'health',
-              'fees',
-              'lms',
-              'history',
-            ] as const
-          ).map((v) => (
+          {profileTabs.map((v) => (
             <TabsTrigger
               key={v}
               value={v}
@@ -488,18 +483,20 @@ export default async function StudentProfilePage(props: PageProps) {
           />
         </TabsContent>
 
-        {/* ── Health tab ── */}
-        <TabsContent value="health" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Health</CardTitle>
-              <CardDescription>Live health record, allergies, and vaccinations.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <StudentHealthTab studentId={student.id} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {/* ── Health tab (PRC-M121: health-record roles only) ── */}
+        {showHealth ? (
+          <TabsContent value="health" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Health</CardTitle>
+                <CardDescription>Live health record, allergies, and vaccinations.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <StudentHealthTab studentId={student.id} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ) : null}
 
         {/* ── Fees tab ── */}
         <TabsContent value="fees" className="mt-6">

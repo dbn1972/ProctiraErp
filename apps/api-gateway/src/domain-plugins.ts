@@ -164,6 +164,7 @@ import {
 import {
   bindAttendanceHeatmapSource,
   createStudentImportQueueFromEnv,
+  createPgTeacherStudentScope,
   createStudentRepository,
   studentPlugin,
 } from '@proctira/backend-student';
@@ -1070,6 +1071,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             return links.map((link) => link.studentId);
           },
         },
+        // PRC-M121: teachers see discipline only for students in sections they teach. Without a
+        // database there is no section data, so teacher-only roles are denied (fail closed).
+        teacherStudentScope: (() => {
+          const pool = getSharedPgPool();
+          return pool ? createPgTeacherStudentScope(pool) : undefined;
+        })(),
       });
     },
   },

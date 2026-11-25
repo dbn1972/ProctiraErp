@@ -44,6 +44,9 @@ export { CachedStudentRepository } from './cached-student-repository.js';
 // Fastify plugin (for in-process registration in the API gateway / monolith)
 export { studentPlugin } from './student-plugin.js';
 export type { StudentPluginOptions } from './student-plugin.js';
+// PRC-M121: teacher → taught-students lookup for discipline access
+export { createPgTeacherStudentScope } from './pg-teacher-student-scope.js';
+export type { TeacherStudentScope } from './student-portal-access.js';
 
 // Enrollment module (G-701: mounted by studentPlugin under /enrollments)
 export {

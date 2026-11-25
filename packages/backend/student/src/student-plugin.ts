@@ -30,7 +30,7 @@ import {
 } from './import/student-import-worker.js';
 import type { ImportProgressStore, ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
-import type { StudentPortalBinding } from './student-portal-access.js';
+import type { StudentPortalBinding, TeacherStudentScope } from './student-portal-access.js';
 import type { StudentRepository } from './student-repository.js';
 import { StudentService, type AssertDestructiveDeleteAllowed } from './student-service.js';
 import { getBoundAttendanceHeatmapSource } from './students-360/attendance-bridge.js';
@@ -82,6 +82,11 @@ export interface StudentPluginOptions {
    * When omitted, portal roles are denied on student read + students-360 routes (fail closed).
    */
   studentBinding?: StudentPortalBinding;
+  /**
+   * PRC-M121 — teacher → taught-students lookup for discipline records. When omitted,
+   * teacher-only roles are denied discipline (fail closed).
+   */
+  teacherStudentScope?: TeacherStudentScope;
 }
 
 // Extend Fastify types
@@ -162,6 +167,7 @@ export const studentPlugin = fp(
       service: student360Service,
       prefix,
       studentBinding: options.studentBinding,
+      teacherStudentScope: options.teacherStudentScope,
     });
 
     if (!registerEnrollmentAndImport) return;

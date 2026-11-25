@@ -77,7 +77,8 @@ export interface Student360PanelProps {
   hasPhoto: boolean;
   siblings: StudentSibling[];
   consents: StudentConsent[];
-  incidents: DisciplineIncident[];
+  /** PRC-M121: `null` when the caller may not read discipline records; the card is hidden. */
+  incidents: DisciplineIncident[] | null;
 }
 
 export function Student360Panel({
@@ -97,7 +98,7 @@ export function Student360Panel({
       <PhotoAndIdCard studentId={studentId} hasPhoto={hasPhoto} />
       <ConsentsCard studentId={studentId} consents={consents} />
       <SiblingsCard studentId={studentId} siblings={siblings} />
-      <DisciplineCard studentId={studentId} incidents={incidents} />
+      {incidents ? <DisciplineCard studentId={studentId} incidents={incidents} /> : null}
     </div>
   );
 }
