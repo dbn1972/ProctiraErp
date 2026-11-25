@@ -1210,9 +1210,16 @@ export async function registerParentPortalRoutes(
     },
   );
 
+  /**
+   * PRC-M538: guardian offers are matched by email, so only an email the IdP
+   * asserted as verified (`email_verified === true` on the verified token) counts.
+   */
   function actorEmail(request: FastifyRequest): string | null {
-    const user = (request as FastifyRequest & { user?: { email?: string } }).user;
-    return typeof user?.email === 'string' ? user.email : null;
+    const user = (
+      request as FastifyRequest & { user?: { email?: string; email_verified?: unknown } }
+    ).user;
+    if (user?.email_verified !== true) return null;
+    return typeof user.email === 'string' && user.email.trim() ? user.email : null;
   }
 
   async function requireTenant(
