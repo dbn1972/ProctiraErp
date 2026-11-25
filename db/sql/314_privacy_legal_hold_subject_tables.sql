@@ -10,8 +10,10 @@
 -- DELETE trigger (plus BEFORE UPDATE OF deleted_at where the table soft
 -- deletes) to every subject link the privacy package knows about
 -- (packages/backend/privacy/src/tenant-data-registry.ts SUBJECT_LINK_REGISTRY,
--- student and staff kinds) and to the guardian link tables the erasure path
--- pseudonymises. Each (table, column, subject type) gets its own trigger, so a
+-- student and staff kinds), to the guardian link tables the erasure path
+-- pseudonymises, and to the other guardian-identity columns the runtime role
+-- can delete (parent_messages.sender_user_id, parent_fee_payments.payer_user_id,
+-- guardian_custody_restrictions.parent_user_id). Each (table, column, subject type) gets its own trigger, so a
 -- table linked to two subjects (student_siblings, parent_child_links,
 -- counselling_sessions.counsellor_id, report_card_teacher_comments) checks
 -- both. search_index_documents is not attached: it is a derived index that a
@@ -104,7 +106,11 @@ BEGIN
       -- guardian subject links (pseudonymised by the guardian erasure path)
       ('parent_child_links', 'parent_user_id', 'guardian'),
       ('guardian_household_members', 'parent_user_id', 'guardian'),
-      ('parent_consents', 'parent_user_id', 'guardian')
+      ('parent_consents', 'parent_user_id', 'guardian'),
+      -- guardian-identity columns outside the registry (runtime role has DELETE)
+      ('parent_messages', 'sender_user_id', 'guardian'),
+      ('parent_fee_payments', 'payer_user_id', 'guardian'),
+      ('guardian_custody_restrictions', 'parent_user_id', 'guardian')
     ) AS v(tbl, col, subject)
   LOOP
     IF to_regclass('public.' || r.tbl) IS NULL

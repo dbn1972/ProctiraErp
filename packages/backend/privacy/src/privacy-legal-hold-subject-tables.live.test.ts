@@ -137,6 +137,67 @@ describe.skipIf(!live)('PRC-M325 legal-hold guard on subject tables (live Postgr
     expect(res).toMatchObject({ blocked: true, code: '23000' });
   });
 
+  it('a guardian subject hold blocks deleting the messages they sent', async () => {
+    const { tenantId, studentId } = await seedStudent();
+    const guardian = `guardian-${randomUUID()}`;
+    const threadId = randomUUID();
+    await asOwner(
+      tenantId,
+      `INSERT INTO parent_message_threads (id, tenant_id, student_id, subject, created_by)
+       VALUES ($1, $2, $3, 'probe', $4)`,
+      [threadId, tenantId, studentId, guardian],
+    );
+    await asOwner(
+      tenantId,
+      `INSERT INTO parent_messages (id, thread_id, tenant_id, sender_user_id, sender_role, body)
+       VALUES ($1, $2, $3, $4, 'parent', 'probe')`,
+      [randomUUID(), threadId, tenantId, guardian],
+    );
+    await hold(tenantId, 'parent', guardian);
+    const res = await probe(tenantId, `DELETE FROM parent_messages WHERE sender_user_id = $1`, [
+      guardian,
+    ]);
+    expect(res).toMatchObject({ blocked: true, code: '23000' });
+  });
+  it('a guardian subject hold blocks deleting the fee payments they made', async () => {
+    const { tenantId, studentId } = await seedStudent();
+    const guardian = `guardian-${randomUUID()}`;
+    const invoiceId = randomUUID();
+    await asOwner(
+      tenantId,
+      `INSERT INTO parent_fee_invoices (id, tenant_id, student_id, title, amount_cents)
+       VALUES ($1, $2, $3, 'probe', 100)`,
+      [invoiceId, tenantId, studentId],
+    );
+    await asOwner(
+      tenantId,
+      `INSERT INTO parent_fee_payments (id, invoice_id, tenant_id, payer_user_id, amount_cents, status)
+       VALUES ($1, $2, $3, $4, 100, 'pending')`,
+      [randomUUID(), invoiceId, tenantId, guardian],
+    );
+    await hold(tenantId, 'parent', guardian);
+    const res = await probe(tenantId, `DELETE FROM parent_fee_payments WHERE payer_user_id = $1`, [
+      guardian,
+    ]);
+    expect(res).toMatchObject({ blocked: true, code: '23000' });
+  });
+  it('a guardian subject hold blocks deleting a custody restriction on that guardian', async () => {
+    const { tenantId, studentId } = await seedStudent();
+    const guardian = `guardian-${randomUUID()}`;
+    await asOwner(
+      tenantId,
+      `INSERT INTO guardian_custody_restrictions (id, tenant_id, student_id, parent_user_id)
+       VALUES ($1, $2, $3, $4)`,
+      [randomUUID(), tenantId, studentId, guardian],
+    );
+    await hold(tenantId, 'parent', guardian);
+    const res = await probe(
+      tenantId,
+      `DELETE FROM guardian_custody_restrictions WHERE parent_user_id = $1`,
+      [guardian],
+    );
+    expect(res).toMatchObject({ blocked: true, code: '23000' });
+  });
   it('a sibling link is held through either student', async () => {
     const { tenantId, studentId } = await seedStudent();
     const siblingId = randomUUID();
