@@ -4,13 +4,7 @@
 import Link from 'next/link';
 import { ShieldAlert } from 'lucide-react';
 
-import {
-  Button,
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+import { Button, Card, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 
 /** Copy matched by `09-route-permission-coupling` negative personas. */
 export const HEALTH_ACCESS_DENIED_TITLE = 'Access denied';
@@ -43,5 +37,12 @@ export function HealthAccessDenied({ description }: HealthAccessDeniedProps) {
 export function PhiAccessDenied() {
   return (
     <HealthAccessDenied description="PHI access logs require a health admin or health officer role. Your session is not authorized to view this audit trail." />
+  );
+}
+
+/** UATENV-D26: tenant-wide health registers (incidents, immunisations). */
+export function TenantWideHealthListDenied() {
+  return (
+    <HealthAccessDenied description="This register covers every school in the organisation and needs a health admin role." />
   );
 }

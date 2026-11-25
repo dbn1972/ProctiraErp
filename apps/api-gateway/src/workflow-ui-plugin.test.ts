@@ -63,6 +63,44 @@ describe('workflowUiPlugin', () => {
     expect(res.statusCode).toBe(403);
   });
 
+  async function listDefinitionsAs(roles: TestUser['roles']) {
+    const app = Fastify();
+    apps.push(app);
+    app.addHook('onRequest', async (request) => {
+      setUser(request, { sub: 'u1', tenantId: WORKFLOW_DEMO_TENANT_ID, roles });
+    });
+    await app.register(workflowUiPlugin, { forceMemory: true });
+    await app.ready();
+    return app.inject({ method: 'GET', url: '/workflows/definitions' });
+  }
+
+  it('UATENV-D25: admits the workflow roles by role id, whatever the display name', async () => {
+    // Catalogue display names (packages/shared/auth rbac.ts DEFAULT_ROLES).
+    for (const roles of [
+      [{ roleId: 'admin', roleName: 'Administrator', areaId: 'area-1' }],
+      [{ roleId: 'super-admin', roleName: 'Super Administrator', areaId: 'area-1' }],
+      [{ roleId: 'principal', roleName: 'Principal', areaId: 'area-1' }],
+    ]) {
+      const res = await listDefinitionsAs(roles);
+      expect(res.statusCode, roles[0]!.roleId).toBe(200);
+    }
+  });
+
+  it('UATENV-D25: refuses a role whose display name, not id, is a workflow role', async () => {
+    // roleName is tenant-editable text: a custom role named "ADMIN" is not admin.
+    for (const roles of [
+      [{ roleId: 'custom-role-1', roleName: 'ADMIN', areaId: 'area-1' }],
+      [{ roleId: 'teacher', roleName: 'PRINCIPAL', areaId: 'area-1' }],
+      [{ roleId: 'teacher', roleName: 'Teacher', areaId: 'area-1' }],
+      [{ roleId: 'staff', roleName: 'Staff', areaId: 'area-1' }],
+      [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: 'area-1' }],
+    ]) {
+      const res = await listDefinitionsAs(roles);
+      expect(res.statusCode, `${roles[0]!.roleId}/${roles[0]!.roleName}`).toBe(403);
+      expect(res.json()).toMatchObject({ code: 'WORKFLOW_ACCESS_DENIED' });
+    }
+  });
+
   it('returns 400 when workflow role is present but tenant is missing', async () => {
     const app = Fastify();
     apps.push(app);

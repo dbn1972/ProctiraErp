@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 import { useAuth } from '@/providers/AuthProvider';
+import { navRolesAllowHref } from '@/lib/auth/domain-route-guards';
 
 import { filterNavItemsByAccess, type NavPermissionItem } from './nav-permissions';
 import {
@@ -237,7 +238,7 @@ export function Sidebar() {
     ),
     user?.permissions ?? [],
     user?.roles ?? [],
-  );
+  ).filter((item) => navRolesAllowHref(item.href, user?.roles ?? []));
 
   return (
     <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col self-stretch bg-[var(--color-navy-900)] text-slate-300">

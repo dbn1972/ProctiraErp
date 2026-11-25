@@ -31,6 +31,9 @@ type Row = Record<string, unknown>;
 /** Past date: keeps these doses out of the register's today-first rows (spec 63 guard). */
 const PAST_DOSE_DATE = '2024-01-15';
 const DENIED_TITLE = 'You do not have access to this list';
+/** UATENV-D26: copy of `TenantWideHealthListDenied` (lib/auth/health-route-guards.tsx). */
+const TENANT_WIDE_DENIED =
+  'This register covers every school in the organisation and needs a health admin role.';
 
 async function status(request: APIRequestContext, p: Persona, path: string): Promise<number> {
   const res = await request.get(`${GATEWAY_URL}/api/v1${path}`, { headers: apiHeaders(p) });
@@ -70,14 +73,27 @@ test.describe('Health defect fixes — live (E2E_BACKEND_READY)', () => {
     request,
   }) => {
     const tag = newTag();
+    // UATENV-D26: the tenant-wide registers (vaccinations, incidents) are not
+    // offered to school-bound roles; the page shows the access card before any read.
     const REGISTERS = {
       vaccinations: {
         path: '/health/vaccinations',
         empty: 'No vaccinations recorded yet',
         create: 'New vaccination',
+        tenantWide: true,
       },
-      incidents: { path: '/health/incidents', empty: 'No incidents yet', create: 'Log visit' },
-      screenings: { path: '/health/screenings', empty: 'No screening programs yet', create: null },
+      incidents: {
+        path: '/health/incidents',
+        empty: 'No incidents yet',
+        create: 'Log visit',
+        tenantWide: true,
+      },
+      screenings: {
+        path: '/health/screenings',
+        empty: 'No screening programs yet',
+        create: null,
+        tenantWide: false,
+      },
     } as const;
     // School-bound personas with no staff assignment, and the registers the health
     // service refuses them (defects.md O1, spec 65 P3 evidence).
@@ -96,13 +112,21 @@ test.describe('Health defect fixes — live (E2E_BACKEND_READY)', () => {
         expect(await status(request, p, r.path), `${role} GET ${r.path} (precondition)`).toBe(403);
         await page.goto(r.path, { waitUntil: 'domcontentloaded' });
         const panel = page.getByTestId('list-load-failure');
-        await expect(panel, `${role} ${r.path} access panel`).toHaveAttribute(
-          'data-failure-kind',
-          'denied',
-          { timeout: 20_000 },
-        );
-        await expect(panel).toContainText(DENIED_TITLE);
-        await expect(panel).toContainText('Reference: HTTP 403');
+        if (r.tenantWide) {
+          await expect(
+            page.getByText(TENANT_WIDE_DENIED),
+            `${role} ${r.path} access card`,
+          ).toHaveCount(1, { timeout: 20_000 });
+          await expect(panel).toHaveCount(0);
+        } else {
+          await expect(panel, `${role} ${r.path} access panel`).toHaveAttribute(
+            'data-failure-kind',
+            'denied',
+            { timeout: 20_000 },
+          );
+          await expect(panel).toContainText(DENIED_TITLE);
+          await expect(panel).toContainText('Reference: HTTP 403');
+        }
         await expect(page.getByText(r.empty), `${role} ${r.path} empty state`).toHaveCount(0);
         if (r.create) {
           await expect(page.getByRole('link', { name: r.create })).toHaveCount(0);

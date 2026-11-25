@@ -26,6 +26,7 @@ import {
 import { featureRegistry, type FeatureModule } from '@/featureRegistry';
 import { useAuth } from '@/providers/AuthProvider';
 import { isHiddenForRole, roleHaystack } from '@/components/layout/nav-permissions';
+import { navRolesAllowHref } from '@/lib/auth/domain-route-guards';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -190,7 +191,8 @@ export function buildPaletteItems(
       seen.add(item.href);
     }
   }
-  return merged;
+  // UATENV-D24: never list a screen the route guard refuses this role.
+  return merged.filter((item) => navRolesAllowHref(item.href, userRoles));
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

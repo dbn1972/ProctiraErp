@@ -48,6 +48,7 @@ import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import {
   canAccessHealthRecords,
+  canAccessTenantWideHealthLists,
   listHealthRecordsResult,
   type HealthRecord,
 } from '@/lib/api/health';
@@ -117,6 +118,7 @@ export default async function HealthRecordsPage() {
     ),
   }));
   const total = records.length;
+  const tenantWideLists = canAccessTenantWideHealthLists(session.user.roles ?? []);
   const withAllergies = records.filter((r) => (r.allergies?.length ?? 0) > 0).length;
   const withChronic = records.filter((r) => (r.chronicConditions?.length ?? 0) > 0).length;
 
@@ -139,12 +141,17 @@ export default async function HealthRecordsPage() {
           <Button asChild variant="outline" size="sm">
             <Link href="/health/allergies">Allergies</Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/health/vaccinations">Vaccinations</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/health/incidents">Incidents</Link>
-          </Button>
+          {/* UATENV-D26: tenant-wide registers, refused to school-bound roles. */}
+          {tenantWideLists ? (
+            <>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/health/vaccinations">Vaccinations</Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/health/incidents">Incidents</Link>
+              </Button>
+            </>
+          ) : null}
           <Button asChild variant="outline" size="sm">
             <Link href="/health/phi-access">PHI access</Link>
           </Button>

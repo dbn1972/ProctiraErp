@@ -25,22 +25,23 @@ import {
   type WorkflowUiSeed,
 } from './workflow-ui-seed.js';
 
-/** Roles allowed to manage / approve workflows via redesign UI. */
-const WORKFLOW_UI_ROLES = new Set([
-  'SUPER_ADMIN',
+/**
+ * Role ids allowed to manage / approve workflows via redesign UI, in the
+ * normalised form `normalizeRole` gives (lowercase, `-`/space -> `_`).
+ *
+ * UATENV-D25: matched on the stable `roleId` only (`callerRoleKeys`), as the
+ * decider check already is. The list used to match `roleName ?? roleId`, so
+ * the tenant administrator (`admin`, display name "Administrator") was
+ * refused, and a tenant-editable role named "ADMIN" was admitted.
+ */
+const WORKFLOW_UI_ROLES: ReadonlySet<string> = new Set([
+  'super_admin',
   'system_admin',
-  'SYSTEM_ADMIN',
-  'TENANT_ADMIN',
   'tenant_admin',
-  'ADMIN',
   'admin',
-  'PRINCIPAL',
   'principal',
-  'DISTRICT_ADMIN',
   'district_admin',
-  'WORKFLOW_ADMIN',
   'workflow_admin',
-  'HR_ADMIN',
   'hr_admin',
 ]);
 
@@ -52,20 +53,8 @@ interface JwtUserLike {
   roles?: Array<{ roleName?: string; roleId?: string } | string>;
 }
 
-function extractRoleNames(user: JwtUserLike | undefined): string[] {
-  if (!user?.roles) return [];
-  return user.roles
-    .map((role) => {
-      if (typeof role === 'string') return role;
-      return role.roleName ?? role.roleId ?? '';
-    })
-    .filter(Boolean);
-}
-
-function hasWorkflowUiAccess(roles: string[]): boolean {
-  return roles.some(
-    (role) => WORKFLOW_UI_ROLES.has(role) || WORKFLOW_UI_ROLES.has(role.toUpperCase()),
-  );
+function hasWorkflowUiAccess(user: JwtUserLike | undefined): boolean {
+  return [...callerRoleKeys(user)].some((role) => WORKFLOW_UI_ROLES.has(role));
 }
 
 function resolveTenantId(request: FastifyRequest): string | null {
@@ -91,7 +80,7 @@ function assertWorkflowAccess(
   },
 ): string | null {
   const user = (request as FastifyRequest & { user?: JwtUserLike }).user;
-  if (!hasWorkflowUiAccess(extractRoleNames(user))) {
+  if (!hasWorkflowUiAccess(user)) {
     deny(reply, 'WORKFLOW_ACCESS_DENIED', 'Not authorized to access workflows');
     return null;
   }

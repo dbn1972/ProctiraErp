@@ -163,7 +163,8 @@ const DENIED_ROLE_SETS = [
   [],
 ];
 
-const ALLOWED_ROLE_SETS = [['principal'], ['admin']];
+// UATENV-D20: the librarian holds the gateway `library: manage` grant.
+const ALLOWED_ROLE_SETS = [['principal'], ['admin'], ['librarian']];
 
 describe('library route guard (A-batch)', () => {
   it('covers every page under /library', () => {

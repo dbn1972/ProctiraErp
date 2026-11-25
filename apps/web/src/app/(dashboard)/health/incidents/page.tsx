@@ -5,7 +5,12 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
-import { canAccessHealthRecords, listNurseIncidentsResult } from '@/lib/api/health';
+import {
+  canAccessHealthRecords,
+  canAccessTenantWideHealthLists,
+  listNurseIncidentsResult,
+} from '@/lib/api/health';
+import { TenantWideHealthListDenied } from '@/lib/auth/health-route-guards';
 import { personDisplayName } from '@/lib/entity-label';
 import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
@@ -15,6 +20,11 @@ export default async function HealthIncidentsPage() {
   const session = await requireSession('/health/incidents');
   if (!canAccessHealthRecords(session.user.roles ?? [])) {
     return <p className="p-6 text-sm">You need a health role.</p>;
+  }
+  // UATENV-D26: the register is tenant-wide; the health service refuses a
+  // school-bound nurse or counsellor, so they get the access card, not a 403 list.
+  if (!canAccessTenantWideHealthLists(session.user.roles ?? [])) {
+    return <TenantWideHealthListDenied />;
   }
   const result = await listNurseIncidentsResult();
   if (!result.ok) {

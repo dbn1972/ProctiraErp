@@ -28,17 +28,26 @@ vi.mock('@/lib/auth/server', () => ({
 const child: ReactNode = <p data-testid="workflows-child">workflows screen</p>;
 
 describe('workflows layout guard (A-batch)', () => {
-  it.each([['registrar'], ['hr_officer'], ['nurse'], ['student'], ['guardian'], ['parent'], []])(
-    'replaces every workflows screen with access denied for roles %j',
-    async (...roles) => {
-      auth.roles = roles;
-      render(<>{await WorkflowsLayout({ children: child })}</>);
-      expect(screen.getByTestId('route-access-denied')).toBeInTheDocument();
-      expect(screen.queryByTestId('workflows-child')).toBeNull();
-    },
-  );
+  it.each([
+    // UATENV-D25: the gateway workflow UI plugin refuses these.
+    ['teacher'],
+    ['staff'],
+    ['platform_admin'],
+    ['registrar'],
+    ['hr_officer'],
+    ['nurse'],
+    ['student'],
+    ['guardian'],
+    ['parent'],
+    [],
+  ])('replaces every workflows screen with access denied for roles %j', async (...roles) => {
+    auth.roles = roles;
+    render(<>{await WorkflowsLayout({ children: child })}</>);
+    expect(screen.getByTestId('route-access-denied')).toBeInTheDocument();
+    expect(screen.queryByTestId('workflows-child')).toBeNull();
+  });
 
-  it.each([['admin'], ['principal'], ['teacher'], ['staff'], ['super-admin'], ['platform_admin']])(
+  it.each([['admin'], ['principal'], ['super-admin']])(
     'renders the workflows screen for %s',
     async (role) => {
       auth.roles = [role];

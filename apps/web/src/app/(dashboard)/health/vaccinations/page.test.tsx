@@ -8,6 +8,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HealthVaccinationsPage from './page';
+import { requireSession } from '@/lib/auth/server';
 
 const gatewayFetch = vi.fn();
 vi.mock('@/lib/api/gateway', () => ({
@@ -152,5 +153,30 @@ describe('/health/vaccinations student labels (HN-F1, HN-R5, HN-R6)', () => {
     expect(document.querySelector(`a[href="/health/${FOREIGN_1}"]`)?.textContent).toBe(
       'अज्ञात छात्र',
     );
+  });
+});
+
+describe('/health/vaccinations is tenant-wide (UATENV-D26)', () => {
+  it.each(['nurse', 'school_nurse', 'health_officer', 'counsellor'])(
+    'a school-bound %s gets the access card and no register read',
+    async (roleName) => {
+      vi.mocked(requireSession).mockResolvedValueOnce({
+        user: { sub: 'n-1', roles: [{ roleId: roleName, roleName }] },
+      } as never);
+      render(await HealthVaccinationsPage());
+      expect(screen.getByText('Access denied')).toBeInTheDocument();
+      expect(screen.queryByTestId('list-load-failure')).toBeNull();
+      expect(gatewayFetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('a system admin reads the register', async () => {
+    vi.mocked(requireSession).mockResolvedValueOnce({
+      user: { sub: 'sa-1', roles: [{ roleId: 'system_admin', roleName: 'SYSTEM_ADMIN' }] },
+    } as never);
+    gatewayFetch.mockResolvedValue({ ok: true, status: 200, data: { data: [] } });
+    render(await HealthVaccinationsPage());
+    expect(screen.queryByText('Access denied')).toBeNull();
+    expect(gatewayFetch).toHaveBeenCalled();
   });
 });
