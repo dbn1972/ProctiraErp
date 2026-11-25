@@ -29,7 +29,9 @@ export type TenantWipeDisposition =
   | { action: 'wipe'; domain: string }
   | { action: 'retain'; domain: RetainedDomain; basis: string }
   | { action: 'preserve'; domain: PreservedDomain; basis: string }
-  | { action: 'manual'; domain: string; basis: string };
+  | { action: 'manual'; domain: string; basis: string }
+  /** PRC-L147 / DR48: append-only; erased only through the database's decommission-only path. */
+  | { action: 'decommission'; domain: string; basis: string };
 
 const FEES_BASIS = 'Financial records retained under statutory retention';
 const PAYROLL_BASIS = 'Payroll and employment records retained under statutory retention';
@@ -151,6 +153,19 @@ const MANUAL: Record<string, { domain: string; basis: string }> = {
   },
 };
 
+/**
+ * PRC-L147 / DR48: append-only tables the generic executor never deletes. They are
+ * erased by a SECURITY DEFINER decommission function (db/sql/317) that requires a
+ * second-actor-approved, in-progress offboard job and writes the platform audit event.
+ */
+const DECOMMISSION: Record<string, { domain: string; basis: string }> = {
+  tenant_theme_versions: {
+    domain: 'institution',
+    basis:
+      'Append-only branding history; erased only by privacy_decommission_erase_theme_versions (DR48)',
+  },
+};
+
 const WIPE: Record<string, readonly string[]> = {
   academics: [
     'academic_calendar_events',
@@ -267,7 +282,6 @@ const WIPE: Record<string, readonly string[]> = {
     'institution_subjects',
     'institutions',
     'tenant_theme_drafts',
-    'tenant_theme_versions',
   ],
   integrations: [
     'developer_portal_api_keys',
@@ -385,6 +399,7 @@ function buildWipeRegistry(): ReadonlyMap<string, TenantWipeDisposition> {
     for (const t of tables) put(t, { action: 'preserve', domain, basis: preservedBasis[domain] });
   }
   for (const [t, m] of Object.entries(MANUAL)) put(t, { action: 'manual', ...m });
+  for (const [t, m] of Object.entries(DECOMMISSION)) put(t, { action: 'decommission', ...m });
   for (const [domain, tables] of Object.entries(WIPE)) {
     for (const t of tables) put(t, { action: 'wipe', domain });
   }

@@ -261,7 +261,7 @@
     "substitutions": "dml",
     "syllabus_units": "dml",
     "tenant_theme_drafts": "dml",
-    "tenant_theme_versions": "dml",
+    "tenant_theme_versions": "append_only",
     "tenants": "dml",
     "timetable_generation_jobs": "dml",
     "timetable_teacher_absences": "dml",

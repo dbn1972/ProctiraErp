@@ -515,6 +515,40 @@ async function auditSubjectCoverage(
 // ─── Tenant wipe ─────────────────────────────────────────────────────────────
 
 /**
+ * PRC-L147 / DR48: append-only tables (registry `decommission`) are erased only by
+ * the database's decommission-only function (db/sql/317), which requires this offboard
+ * job to be in progress and approved by a second actor, refuses under a legal hold and
+ * writes the platform audit event. Refused (no second-actor approval yet) -> residual.
+ */
+async function eraseDecommissionOnlyTables(
+  client: PgQueryable,
+  jobId: string,
+): Promise<TenantWipeDomainResult> {
+  const sp = 'privacy_decommission_only';
+  await client.query(`SAVEPOINT ${sp}`);
+  try {
+    const res = await client.query(
+      `SELECT privacy_decommission_erase_theme_versions($1::uuid) AS n`,
+      [jobId],
+    );
+    await client.query(`RELEASE SAVEPOINT ${sp}`);
+    const n = Number((res.rows?.[0] as { n?: unknown } | undefined)?.n ?? 0);
+    return {
+      domain: 'decommission_only',
+      status: 'completed',
+      note: `tenant_theme_versions: ${n} row(s) erased under dual control, audited (DR48)`,
+    };
+  } catch (err) {
+    await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+    return {
+      domain: 'decommission_only',
+      status: 'residual',
+      note: `tenant_theme_versions not erased (${errMessage(err)})`,
+    };
+  }
+}
+
+/**
  * PRC-M214 / DR44: before the wipe, pseudonymise who on every consent row of the
  * tenant through the database path (db/sql/316, gated on this offboard job being
  * in progress). The append-only consent rows themselves are not deleted.
@@ -583,6 +617,7 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
       const held = await legalHoldResidual(client, input.tenantId);
       if (held) return { held };
       const consents = await anonymiseTenantConsents(client, input.jobId);
+      const decommission = await eraseDecommissionOnlyTables(client, input.jobId);
       const res = await client.query(
         `SELECT DISTINCT table_name FROM information_schema.columns
           WHERE table_schema = 'public' AND column_name = 'tenant_id'
@@ -615,7 +650,7 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
         if (next.length === pending.length) break; // no progress
         pending = next;
       }
-      return { tables, failed, consents };
+      return { tables, failed, consents, decommission };
     });
     if ('held' in outcome) {
       // PRC-M325: nothing deleted, object storage untouched; the job fails closed.
@@ -634,7 +669,8 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
         entry.tables.push(table);
         if (outcome.failed.has(table)) entry.failed.push(table);
         wiped.set(disposition.domain, entry);
-      } else {
+      } else if (disposition.action !== 'decommission') {
+        // Decommission-only tables are reported by eraseDecommissionOnlyTables.
         const key = `${disposition.action}:${disposition.domain}`;
         const entry = kept.get(key) ?? { disposition, tables: [] };
         entry.tables.push(table);
@@ -642,7 +678,7 @@ export class PgTenantWipeExecutor implements TenantWipeExecutor {
       }
     }
 
-    const results: TenantWipeDomainResult[] = [outcome.consents];
+    const results: TenantWipeDomainResult[] = [outcome.consents, outcome.decommission];
     for (const [domain, entry] of [...wiped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       results.push(
         entry.failed.length > 0
