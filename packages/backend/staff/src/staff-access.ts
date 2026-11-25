@@ -86,6 +86,23 @@ export function canViewStaffIdentity(roles: unknown): boolean {
   return hasStaffAccess(roles, 'staff.update');
 }
 
+/**
+ * PRC-M378 field-level need-to-know on staff reads:
+ * - salary band: HR officers / staff admins / admins and the payroll (finance) roles;
+ *   registrar and admissions officer read contracts without it.
+ * - leave reason (may carry health detail): only the HR writers who decide leave.
+ * - appraisal comments: only the roles that decide appraisals.
+ * Date of birth and phone follow {@link canViewStaffIdentity}.
+ */
+export function canViewStaffCompensation(roles: unknown): boolean {
+  return hasStaffAccess(roles, 'payroll.export');
+}
+export function canViewStaffLeaveReason(roles: unknown): boolean {
+  return hasStaffAccess(roles, 'staff.hr.write');
+}
+export function canViewAppraisalComments(roles: unknown): boolean {
+  return hasStaffAccess(roles, 'staff.appraisal.decide');
+}
 /** Mask all but the last 4 characters of an identity number. */
 export function maskIdentityNumber(value: string): string {
   if (value.length <= 4) return '*'.repeat(value.length);
