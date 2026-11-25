@@ -115,8 +115,20 @@ class ParentInvoice {
 
 /// Row rendered by the parent messages, consents, and fees screens.
 class ParentPortalRow {
-  const ParentPortalRow({required this.title, required this.subtitle});
+  const ParentPortalRow({
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String title;
   final String subtitle;
+
+  /// Optional row action (PRC-M039: "Pay (sandbox)" on an open invoice).
+  final String? actionLabel;
+
+  /// Runs the action and returns the message to show. A thrown
+  /// [ParentPortalException] message is shown instead; the list reloads either way.
+  final Future<String> Function()? onAction;
 }
