@@ -157,6 +157,33 @@ export function canAccessPhiAccessLogs(roles: Array<{ roleName: string }>): bool
 }
 
 /**
+ * UATENV-D26: the tenant-wide registers (`/health/incidents`,
+ * `/health/vaccinations`) are served only to `TENANT_WIDE_HEALTH_ROLES`
+ * (`hasHealthAccess` with no student, packages/backend/health/src/health-service.ts).
+ * A school-bound nurse, health officer or counsellor is refused there, so the
+ * web does not offer those screens to them.
+ *
+ * Mirrors the gateway health plugin's mapping (`apps/api-gateway/src/health-ui-plugin.ts`):
+ * role names `health_admin` / `system_admin`, and `super_admin`, which it
+ * canonicalises to `system_admin`; role ids `health_admin` / `system_admin`
+ * (never `super-admin`: a platform role gets no PHI through its role id).
+ */
+const TENANT_WIDE_HEALTH_ROLE_NAMES = new Set(['health_admin', 'system_admin', 'super_admin']);
+const TENANT_WIDE_HEALTH_ROLE_IDS = new Set(['health_admin', 'system_admin']);
+
+export function canAccessTenantWideHealthLists(
+  roles: ReadonlyArray<{ roleName?: string; roleId?: string }>,
+): boolean {
+  return roles.some(
+    (role) =>
+      (typeof role.roleName === 'string' &&
+        TENANT_WIDE_HEALTH_ROLE_NAMES.has(role.roleName.toLowerCase())) ||
+      (typeof role.roleId === 'string' &&
+        TENANT_WIDE_HEALTH_ROLE_IDS.has(role.roleId.toLowerCase().replace(/-/g, '_'))),
+  );
+}
+
+/**
  * Read the health-records list, preserving *why* it is empty.
  *
  * Reference conversion for the `throwOnError: false` + `?? []` pattern (see

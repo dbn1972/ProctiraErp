@@ -10,7 +10,11 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_ROLES } from '@proctira/auth';
 
-import { canAccessHealthRecords, canAccessPhiAccessLogs } from '@/lib/api/health';
+import {
+  canAccessHealthRecords,
+  canAccessPhiAccessLogs,
+  canAccessTenantWideHealthLists,
+} from '@/lib/api/health';
 
 const HEALTH_APP_DIR = join(__dirname, '../../app/(dashboard)/health');
 const HEALTH_LAYOUT = join(HEALTH_APP_DIR, 'layout.tsx');
@@ -119,6 +123,58 @@ describe('W1-SEC-02 (D2) health route guards', () => {
       // to enumerate both casings by hand and missed variants like School_Nurse.
       for (const roleName of ['Nurse', 'SCHOOL_NURSE', 'School_Nurse', 'Counsellor']) {
         expect(canAccessHealthRecords(role(roleName)), roleName).toBe(true);
+      }
+    });
+  });
+
+  describe('tenant-wide registers (UATENV-D26)', () => {
+    it('admits only the roles the health service serves tenant-wide lists to', () => {
+      for (const roles of [
+        [{ roleName: 'health_admin' }],
+        [{ roleName: 'HEALTH_ADMIN' }],
+        [{ roleName: 'SYSTEM_ADMIN' }],
+        // The gateway health plugin canonicalises SUPER_ADMIN to system_admin.
+        [{ roleName: 'SUPER_ADMIN' }],
+        // Keycloak-mapped catalogue id with a display name.
+        [{ roleId: 'health_admin', roleName: 'Health Admin' }],
+        [{ roleId: 'system-admin', roleName: 'System Admin' }],
+        [{ roleName: 'nurse' }, { roleName: 'health_admin' }],
+      ]) {
+        expect(canAccessTenantWideHealthLists(roles), JSON.stringify(roles)).toBe(true);
+      }
+      for (const roles of [
+        // School-bound health roles: hasHealthAccess refuses a list with no student.
+        [{ roleName: 'NURSE' }],
+        [{ roleId: 'nurse', roleName: 'Nurse' }],
+        [{ roleName: 'school_nurse' }],
+        [{ roleName: 'health_officer' }],
+        [{ roleName: 'COUNSELLOR' }],
+        [{ roleId: 'admin', roleName: 'Administrator' }],
+        [{ roleId: 'principal', roleName: 'Principal' }],
+        // A platform role gets no PHI through its role id.
+        [{ roleId: 'super-admin', roleName: 'Super Administrator' }],
+        [{ roleName: 'health_admin_trainee' }],
+        [{}],
+        [],
+      ]) {
+        expect(canAccessTenantWideHealthLists(roles), JSON.stringify(roles)).toBe(false);
+      }
+    });
+
+    it('follows the health service TENANT_WIDE_HEALTH_ROLES', () => {
+      const src = readFileSync(
+        join(__dirname, '../../../../../packages/backend/health/src/health-service.ts'),
+        'utf-8',
+      );
+      expect(src).toContain(
+        "export const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;",
+      );
+    });
+
+    it('the incidents and vaccinations registers check tenant-wide access', () => {
+      for (const page of ['incidents/page.tsx', 'vaccinations/page.tsx']) {
+        const src = readFileSync(join(HEALTH_APP_DIR, page), 'utf-8');
+        expect(src, page).toContain('canAccessTenantWideHealthLists(');
       }
     });
   });
