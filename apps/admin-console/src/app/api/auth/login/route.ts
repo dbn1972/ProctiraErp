@@ -6,6 +6,7 @@ import {
   getAuthServiceUrl,
   ADMIN_AUTH_COOKIES,
 } from '@/lib/auth';
+import { readPlatformToken } from '@/lib/auth/verified-token';
 import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL } from '@/lib/api/gateway';
 
 /**
@@ -25,6 +26,11 @@ import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL } from '@/lib/api/gateway';
  * platform `/auth/login` used. Every Keycloak-route answer, including a
  * credential rejection, is final. The middleware still accepts only a token
  * whose tenant claim is `platform` (`verified-token.ts`).
+ *
+ * UATENV-D30: the issued access token is checked with the same
+ * `readPlatformToken` before any cookie is set. A token that does not verify
+ * or belongs to another tenant gets 403 with a message the form shows, and no
+ * cookie.
  */
 const KEYCLOAK_ROUTE_ABSENT: ReadonlySet<number> = new Set([404, 405, 501, 502]);
 export async function POST(request: Request): Promise<NextResponse> {
@@ -97,6 +103,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(
       { message: 'Authentication response missing tokens.' },
       { status: 502 },
+    );
+  }
+
+  if (!(await readPlatformToken(tokens.accessToken))) {
+    return NextResponse.json(
+      {
+        message:
+          'This is not a platform account. Tenant accounts cannot sign in to the admin console.',
+      },
+      { status: 403 },
     );
   }
 
