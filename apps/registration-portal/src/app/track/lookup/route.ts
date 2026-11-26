@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 
-import { buildTrackDobCookie, decideTrackLookup, resolveRedirectBase } from '@/lib/track-lookup';
+import {
+  buildTrackDobCookie,
+  decideTrackLookup,
+  isSecureTrackContext,
+  trackLookupLocation,
+} from '@/lib/track-lookup';
 
 /**
  * POST /track/lookup
@@ -14,20 +19,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     String(form.get('trackingNumber') ?? ''),
     String(form.get('dob') ?? ''),
   );
-  // PRC-L225: build the redirect from a trusted public base, never the request Host.
-  const redirectBase = resolveRedirectBase(request.url, request.headers);
-
+  // PRC-L225 / UATENV-D31: host-relative Location, never built from the request
+  // Host or X-Forwarded-Host. NextResponse.redirect only takes absolute URLs, so
+  // the 303 is built by hand.
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: { Location: trackLookupLocation(decision) },
+  });
   if (!decision.ok) {
-    return NextResponse.redirect(new URL('/track?error=invalid', redirectBase), 303);
+    return response;
   }
 
-  const response = NextResponse.redirect(
-    new URL(`/track/${encodeURIComponent(decision.trackingNumber)}`, redirectBase),
-    303,
-  );
-  // PRC-L225: a `__Host-` cookie needs HTTPS; use it whenever the resolved base
-  // (or the deployed runtime) is secure, else the unprefixed name for local dev.
-  const secure = redirectBase.protocol === 'https:' || process.env.NODE_ENV === 'production';
+  // PRC-L225: a `__Host-` cookie needs a secure context; use it whenever the
+  // runtime is production or the request is https, else the unprefixed name.
+  const secure = isSecureTrackContext(request.url, request.headers);
   const cookie = buildTrackDobCookie(decision.dob, { secure });
   response.cookies.set(cookie.name, cookie.value, cookie.options);
   return response;
