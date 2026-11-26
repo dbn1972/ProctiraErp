@@ -404,6 +404,14 @@ export interface ClassAnalytics {
   submissionCount: number;
   uniqueStudents: number;
   submissionRate: number;
+  /** PRC-M302: SIS roster size for a section classKey, else the submitter count. */
+  rosterSize?: number;
+  /** PRC-M302: 'sis' = real section roster; 'submissions' = only students who submitted. */
+  rosterSource?: 'sis' | 'submissions';
+  /** PRC-M302: roster students with no submission (empty unless rosterSource is 'sis'). */
+  missingStudentIds?: string[];
+  /** PRC-M302: the assignment / submission / roster window cut data; figures are partial. */
+  truncated?: boolean;
   averageScore: number;
   masteryBySkill: Array<{
     skillId: string;

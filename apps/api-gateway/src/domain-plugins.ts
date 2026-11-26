@@ -111,6 +111,7 @@ import {
   createLmsRepository,
   LmsService,
   lmsPlugin,
+  type LmsClassRoster,
   type LmsLearnerMembership,
   type LmsRepository,
 } from '@proctira/backend-lms';
@@ -293,6 +294,8 @@ export function sharedLmsService(dependencies: DomainPluginDependencies): {
         // PRC-M299: learners submit, upload and post only where they are ENROLLED
         // (section_enrollments / enrollments). No pool: production refuses learner writes.
         learnerMembership: lmsLearnerMembership(),
+        // PRC-M302: class analytics reads the real section roster from the SIS.
+        classRoster: lmsClassRoster(),
       }),
     };
   }
@@ -409,6 +412,14 @@ function lmsLearnerMembership(): LmsLearnerMembership | null {
       }
     : null;
 }
+/** PRC-M302: LMS class-analytics roster port over the shared teaching-scope directory. */
+function lmsClassRoster(): LmsClassRoster | null {
+  const directory = sharedTeachingScopeDirectory();
+  return directory
+    ? { sectionRoster: (tenantId, sectionId) => directory.sectionRoster(tenantId, sectionId) }
+    : null;
+}
+
 function sharedAssignmentRepository(): ReturnType<typeof createAssignmentRepository> {
   assignmentRepositorySingleton ??= createAssignmentRepository();
   return assignmentRepositorySingleton;

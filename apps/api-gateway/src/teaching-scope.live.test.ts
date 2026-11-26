@@ -204,4 +204,23 @@ describe.skipIf(!pool)('teaching-scope directory (live)', () => {
       false,
     );
   });
+
+  it('PRC-M302: sectionRoster lists the ENROLLED students of one section only', async () => {
+    expect(await directory.sectionRoster(tenant, ids.section)).toEqual({
+      studentIds: [ids.pupil],
+      truncated: false,
+    });
+    expect(await directory.sectionRoster(tenant, ids.otherSection)).toEqual({
+      studentIds: [ids.otherPupil],
+      truncated: false,
+    });
+    expect(await directory.sectionRoster(otherTenant, ids.section)).toEqual({
+      studentIds: [],
+      truncated: false,
+    });
+    expect(await directory.sectionRoster(tenant, 'not-a-uuid')).toEqual({
+      studentIds: [],
+      truncated: false,
+    });
+  });
 });

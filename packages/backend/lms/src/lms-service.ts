@@ -378,8 +378,27 @@ export interface LmsLearnerMembership {
   studentIdsForLearner(tenantId: string, learnerUserId: string): Promise<string[]>;
 }
 
+/**
+ * PRC-M302: the SIS roster of a class section (ENROLLED section_enrollments).
+ * The gateway wires it over the shared teaching-scope directory. `truncated` is
+ * true when the directory capped the list.
+ */
+export interface LmsClassRoster {
+  sectionRoster(
+    tenantId: string,
+    sectionId: string,
+  ): Promise<{ studentIds: string[]; truncated: boolean }>;
+}
+
+/** PRC-M302: class analytics reads at most this many assignments for a class. */
+export const CLASS_ANALYTICS_ASSIGNMENT_LIMIT = 200;
+/** PRC-M302: and at most this many (newest) submissions per assignment. */
+export const CLASS_ANALYTICS_SUBMISSION_LIMIT = 500;
+
 export interface LmsServiceOptions {
   auditSink?: LmsAuditSink | null;
+  /** PRC-M302: omitted -> class analytics reports `rosterSource: 'submissions'`. */
+  classRoster?: LmsClassRoster | null;
   /** PRC-M299: omitted -> production-like envs refuse learner writes (503). */
   learnerMembership?: LmsLearnerMembership | null;
   /** Defaults to process.env.NODE_ENV (tests override). */
@@ -390,14 +409,15 @@ export class LmsService {
   private readonly auditSink: LmsAuditSink | null;
 
   private readonly learnerMembership: LmsLearnerMembership | null;
+  private readonly classRoster: LmsClassRoster | null;
   private readonly nodeEnv: string | undefined;
-
   constructor(
     private readonly repository: LmsRepository,
     options: LmsServiceOptions = {},
   ) {
     this.auditSink = options.auditSink ?? null;
     this.learnerMembership = options.learnerMembership ?? null;
+    this.classRoster = options.classRoster ?? null;
     this.nodeEnv = 'nodeEnv' in options ? options.nodeEnv : process.env.NODE_ENV;
   }
 
@@ -1891,11 +1911,13 @@ export class LmsService {
         institutionId: query.institutionId,
         boardId: query.boardId,
       },
-      { page: 1, pageSize: 200 },
+      { page: 1, pageSize: CLASS_ANALYTICS_ASSIGNMENT_LIMIT },
     );
     const assignments = listed.data.filter(
       (a) => a.gradeLevel === query.classKey || a.sectionId === query.classKey,
     );
+    // PRC-M302: say when the window cut data instead of truncating silently.
+    let truncated = listed.meta.totalItems > listed.data.length;
     let submissionCount = 0;
     const students = new Set<string>();
     const scores: number[] = [];
@@ -1910,7 +1932,9 @@ export class LmsService {
     const questionsByAssignment = groupBy(allQuestions, (q) => q.assignmentId);
     for (const assignment of assignments) {
       // Same per-assignment window as before (newest 500 submissions).
-      const submissions = (submissionsByAssignment.get(assignment.id) ?? []).slice(0, 500);
+      const allForAssignment = submissionsByAssignment.get(assignment.id) ?? [];
+      if (allForAssignment.length > CLASS_ANALYTICS_SUBMISSION_LIMIT) truncated = true;
+      const submissions = allForAssignment.slice(0, CLASS_ANALYTICS_SUBMISSION_LIMIT);
       submissionCount += submissions.length;
       const questions = questionsByAssignment.get(assignment.id) ?? [];
       for (const sub of submissions) {
@@ -1945,17 +1969,29 @@ export class LmsService {
         }
       }
     }
+    // PRC-M302: a section classKey uses the real SIS roster. Otherwise (grade
+    // level, or no roster port) only submitters are known: rosterSource says so
+    // and missingStudentIds stays empty because it cannot be computed.
+    const roster =
+      this.classRoster && UUID_RE.test(query.classKey)
+        ? await this.classRoster.sectionRoster(tenantId, query.classKey)
+        : null;
+    if (roster?.truncated) truncated = true;
+    const rosterSize = roster ? roster.studentIds.length : students.size;
+    const missingStudentIds = roster ? roster.studentIds.filter((id) => !students.has(id)) : [];
     return {
       classKey: query.classKey,
       assignmentCount: assignments.length,
       submissionCount,
       uniqueStudents: students.size,
-      rosterSize: students.size,
+      rosterSize,
+      rosterSource: roster ? ('sis' as const) : ('submissions' as const),
       submissionRate:
-        assignments.length === 0 || students.size === 0
+        assignments.length === 0 || rosterSize === 0
           ? 0
-          : Math.round((submissionCount / (assignments.length * students.size)) * 10000) / 10000,
-      missingStudentIds: [] as string[],
+          : Math.round((submissionCount / (assignments.length * rosterSize)) * 10000) / 10000,
+      missingStudentIds,
+      truncated,
       averageScore: mean(scores) ?? 0,
       masteryBySkill: Array.from(skillHits.entries()).map(([id, row]) => ({
         skillId: id,
