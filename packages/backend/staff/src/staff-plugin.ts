@@ -25,7 +25,11 @@ import type { StaffHrStore } from './hr-store.js';
 import type { StaffLeaveRepository } from './leave-repository.js';
 import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
-import { resolvePayrollProrationPolicy, type PayrollProrationPolicy } from './payroll-compute.js';
+import {
+  resolvePayrollLopDivisor,
+  resolvePayrollProrationPolicy,
+  type PayrollProrationPolicy,
+} from './payroll-compute.js';
 import { createStaffLeaveRepository } from './pg-leave-repository.js';
 import { registerStaffRoutes } from './routes.js';
 import type { StaffAuditSink } from './staff-audit.js';
@@ -139,6 +143,9 @@ export const staffPlugin = fp(
     const hrService = new StaffHrService(hrStore, staffService, {
       payrollProration:
         options.payrollProration ?? resolvePayrollProrationPolicy(process.env.PAYROLL_PRORATION),
+      // PRC-M370: LOP divisor (DR37) and approved unpaid leave as a pay deduction.
+      lopDivisor: resolvePayrollLopDivisor(process.env.PAYROLL_LOP_DIVISOR),
+      unpaidLeaveSource: leaveRepository,
       auditSink,
     });
     fastify.decorate('staffHrService', hrService);

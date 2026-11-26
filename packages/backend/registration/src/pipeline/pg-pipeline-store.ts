@@ -1,12 +1,12 @@
 import { ConflictError } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
-  withPgTenant,
   type PgPoolWithConnect,
   type PgQueryable,
 } from '@proctira/database';
 
 import type { ListPage } from '../pagination.js';
+import { runInRegistrationTransaction, withRegistrationTenant } from '../pg-ambient-transaction.js';
 import { ensureRegistrationSchema, type PgPoolLike } from '../pg-registration-repository.js';
 
 import {
@@ -205,6 +205,11 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
     return this.withAdvisoryLock(tenantId, seatLockName(key), work);
   }
 
+  async runAtomically<T>(tenantId: string, work: () => Promise<T>): Promise<T> {
+    await ensureAdmissionsPipelineSchema(this.pool);
+    return runInRegistrationTransaction(this.pool, tenantId, work);
+  }
+
   private async withAdvisoryLock<T>(
     tenantId: string,
     lockName: string,
@@ -236,7 +241,8 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
     fn: (client: PgQueryable) => Promise<T>,
   ): Promise<T> {
     await ensureAdmissionsPipelineSchema(this.pool);
-    return withPgTenant(this.pool, tenantId, fn);
+    // PRC-M537: joins runInRegistrationTransaction when one is open for the tenant.
+    return withRegistrationTenant(this.pool, tenantId, fn);
   }
 
   async createEnquiry(record: EnquiryRecord): Promise<EnquiryRecord> {

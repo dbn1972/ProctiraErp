@@ -549,8 +549,9 @@ export const CreateTransportFeeStructureSchema = Type.Object({
   stopId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   minDistanceKm: Type.Optional(Type.Number({ minimum: 0 })),
   maxDistanceKm: Type.Optional(Type.Number({ minimum: 0 })),
-  amountCents: Type.Number({ minimum: 0 }),
-  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+  // PRC-M452 (D1): integer minor units and an upper-case ISO-4217 code.
+  amountCents: Type.Integer({ minimum: 0 }),
+  currency: Type.Optional(Type.String({ pattern: '^[A-Z]{3}$' })),
 });
 
 export type CreateTransportFeeStructureInput = Static<typeof CreateTransportFeeStructureSchema>;

@@ -3,7 +3,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { BOARD, SECTION, TENANT, setupGradebook } from './gradebook-test-setup.js';
+import {
+  BOARD,
+  SECTION,
+  TENANT,
+  setupGradebook,
+  upsertApprovedGrade,
+} from './gradebook-test-setup.js';
 
 const student = (n: number) => `33333333-3333-4333-8333-${String(n).padStart(12, '0')}`;
 
@@ -11,7 +17,7 @@ describe('PRC-M269 class rank', () => {
   it('ranking 200 students issues bounded queries and creates 0 gpa_snapshots', async () => {
     const { repo, service } = setupGradebook();
     for (let i = 0; i < 200; i += 1) {
-      await service.upsertGradeEntry(TENANT, {
+      await upsertApprovedGrade(service, TENANT, {
         sectionId: SECTION,
         studentId: student(i),
         assessmentCode: 'MATH',

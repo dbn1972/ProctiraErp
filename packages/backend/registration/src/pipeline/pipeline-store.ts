@@ -132,6 +132,12 @@ export interface AdmissionsPipelineStore {
   withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T>;
   /** PRC-M328: exclusive lock on one seat-matrix key (institution, period, grade, quota). */
   withSeatLock<T>(tenantId: string, key: SeatKey, work: () => Promise<T>): Promise<T>;
+  /**
+   * PRC-M537: run `work` in one transaction that every registration store call
+   * inside it joins (waitlist, applications, pipeline). Optional: the in-memory
+   * store has no transactions.
+   */
+  runAtomically?<T>(tenantId: string, work: () => Promise<T>): Promise<T>;
   createEnquiry(record: EnquiryRecord): Promise<EnquiryRecord>;
   /** With `page`, returns up to `page.limit + 1` rows (PRC-M337). */
   listEnquiries(tenantId: string, page?: ListPage): Promise<EnquiryRecord[]>;

@@ -9,21 +9,18 @@ import { DocumentUploadSlots } from '@/features/scholarships/components/document
 import type { UploadedScholarshipDocument } from '@/features/scholarships/components/document-upload-slots';
 import { missingRequiredDocuments } from '@/features/scholarships/document-upload';
 import {
+  EDUCATION_LEVEL_OPTIONS,
+  gpaRangeMessage,
+  programGpaScaleMax,
+} from '@/lib/scholarships/academic-record';
+import {
   BrowserGatewayError,
   scholarshipBrowserFetch,
 } from '@/features/scholarships/scholarship-browser';
-
 const API = '/api/parent-portal/scholarships';
 
-/**
- * Gateway contract: `AcademicRecordSchema.gpa` is `minimum: 0, maximum: 4.0`
- * (packages/backend/scholarship/src/schemas.ts). The form validates against the same
- * scale so a guardian never submits a value the gateway rejects with 400. 10-point
- * CGPA support needs a backend contract change (declared scale) first.
- */
-const GPA_MAX = 4.0;
-const GPA_ERROR = `Enter a GPA between 0 and ${GPA_MAX.toFixed(1)} (4.0 scale).`;
-
+// PRC-M152: the GPA scale is the program's `eligibility.gpaScaleMax` (tenant-configured,
+// default 4.0); the gateway enforces the same bound.
 /** P-O1: same copy as the gateway's 422 ENROLMENT_REQUIRED (parent-scholarship-routes.ts). */
 const ENROLMENT_REQUIRED_COPY =
   'This child is not enrolled yet. Contact the school to complete enrolment before applying.';
@@ -42,7 +39,7 @@ function safeFormError(err: unknown, fallback: string): string {
 interface OpenProgram {
   id: string;
   name: string;
-  eligibility: { requiredDocuments: string[] };
+  eligibility: { requiredDocuments: string[]; gpaScaleMax?: number | null };
 }
 
 interface OwnApplication {
@@ -92,6 +89,8 @@ export function ParentScholarshipApply({
 
   const program = programs.find((item) => item.id === programId);
   const required = program?.eligibility.requiredDocuments ?? [];
+  const gpaMax = programGpaScaleMax(program?.eligibility);
+  const gpaRangeError = gpaRangeMessage(gpaMax);
   const own = applications.filter((row) => row.applicantId === childId);
 
   const startDraft = async () => {
@@ -106,9 +105,9 @@ export function ParentScholarshipApply({
       setError('Enter the current school / institution name.');
       return;
     }
-    if (!Number.isFinite(gpaValue) || gpaValue < 0 || gpaValue > GPA_MAX) {
-      setGpaError(GPA_ERROR);
-      setError(GPA_ERROR);
+    if (!Number.isFinite(gpaValue) || gpaValue < 0 || gpaValue > gpaMax) {
+      setGpaError(gpaRangeError);
+      setError(gpaRangeError);
       return;
     }
     if (!Number.isFinite(incomeValue) || incomeValue <= 0) {
@@ -263,23 +262,23 @@ export function ParentScholarshipApply({
                 aria-label="Education level"
                 onChange={(event) => setEducationLevel(event.target.value)}
               >
-                <option value="primary">Primary</option>
-                <option value="middle">Middle</option>
-                <option value="secondary">Secondary</option>
-                <option value="senior_secondary">Senior secondary</option>
-                <option value="undergraduate">Undergraduate</option>
+                {EDUCATION_LEVEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
             <div className="text-sm">
               <label className="block" htmlFor="parent-scholarship-gpa">
-                GPA (0–4.0 scale)
+                GPA (0–{gpaMax.toFixed(1)} scale)
               </label>
               <input
                 id="parent-scholarship-gpa"
                 type="number"
                 inputMode="decimal"
                 min={0}
-                max={GPA_MAX}
+                max={gpaMax}
                 step="0.01"
                 className="mt-1 min-h-12 w-full rounded-md border px-3"
                 value={gpa}
@@ -297,7 +296,7 @@ export function ParentScholarshipApply({
                 required
               />
               <p id="parent-scholarship-gpa-hint" className="mt-1 text-xs text-muted-foreground">
-                Enter the GPA on a 4.0 scale.
+                Enter the GPA on a {gpaMax.toFixed(1)} scale.
               </p>
               {gpaError ? (
                 <p
