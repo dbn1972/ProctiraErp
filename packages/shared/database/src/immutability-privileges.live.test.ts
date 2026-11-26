@@ -76,9 +76,13 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
         [studentId, tenantId],
       );
       await client.query(
+        // PRC-L292 (db/sql/329): a new ISSUED row is KMS_HMAC with key provenance.
         `INSERT INTO transcript_issuances (
-           id, tenant_id, student_id, version, status, checksum_sha256, signature_hmac, metadata
-         ) VALUES ($1, $2, $3, 1, 'ISSUED', repeat('a', 64), repeat('c', 64), '{}'::jsonb)`,
+           id, tenant_id, student_id, version, status, checksum_sha256, signature_hmac, metadata,
+           seal_status
+         ) VALUES ($1, $2, $3, 1, 'ISSUED', repeat('a', 64), repeat('c', 64),
+           '{"signatureAlg":"HMAC-SHA256","signingKeyId":"test-key","kmsKeyRef":"env:TRANSCRIPT_SIGNING_SECRET"}'::jsonb,
+           'KMS_HMAC')`,
         [transcriptId, tenantId, studentId],
       );
       await client.query('COMMIT');

@@ -32,6 +32,7 @@ export type {
   NettableScholarshipDisbursement,
   ScholarshipDisbursementLookup,
 } from './fees-service.js';
+export type { ReminderDeliveryPort, ReminderProvider } from './reminder-sandbox.js';
 export type {
   FeePlanEntity,
   FeeInvoiceEntity,

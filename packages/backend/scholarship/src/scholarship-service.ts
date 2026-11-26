@@ -319,7 +319,15 @@ export class ScholarshipService {
       updateData.applicationStartDate = input.applicationStartDate;
     if (input.applicationEndDate !== undefined)
       updateData.applicationEndDate = input.applicationEndDate;
-    if (input.totalSlots !== undefined) updateData.totalSlots = input.totalSlots;
+    if (input.totalSlots !== undefined) {
+      // PRC-M197: the database refuses used_slots > total_slots (db/sql/326).
+      if (input.totalSlots < existing.usedSlots) {
+        throw new ConflictError(
+          `totalSlots cannot be lower than the ${existing.usedSlots} slot(s) already awarded`,
+        );
+      }
+      updateData.totalSlots = input.totalSlots;
+    }
     if (input.amountPerRecipient !== undefined || input.amountPerRecipientCents !== undefined) {
       const major = input.amountPerRecipient ?? existing.amountPerRecipient;
       const money = resolveMoneyPair(major, input.amountPerRecipientCents, 'amountPerRecipient');

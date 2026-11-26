@@ -46,6 +46,8 @@ const RETAINED: Record<RetainedDomain, readonly string[]> = {
   fees: [
     'fee_concessions',
     'fee_credit_notes',
+    // 324 (PRC-L107): per-tenant invoice/receipt number counters.
+    'fee_document_sequences',
     'fee_ledger_entries',
     'fee_reconciliation_batches',
     'fee_reconciliation_rows',
@@ -483,7 +485,8 @@ export const SUBJECT_LINK_REGISTRY: Record<SubjectKind, readonly SubjectLink[]> 
     link('class_rank_snapshots', 'student_id', 'pseudonymous'),
     link('enrollments', 'student_id', 'pseudonymous'),
     link('examination_academic_records', 'student_id', 'pseudonymous'),
-    link('examination_candidate_registrations', 'student_id', 'pseudonymous'),
+    // PRC-L036: holds the board registration number, cleared by the anonymizer.
+    link('examination_candidate_registrations', 'student_id', 'handled'),
     link('examination_candidates', 'student_id', 'pseudonymous'),
     link('gpa_snapshots', 'student_id', 'pseudonymous'),
     link('grade_entries', 'student_id', 'pseudonymous'),

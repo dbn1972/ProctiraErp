@@ -73,6 +73,11 @@ export type TranscriptIssuanceEntity = {
   checksumSha256: string | null;
   /** HMAC-SHA256 over checksum; required for ISSUED rows at the DB (069/076). */
   signatureHmac?: string | null;
+  /**
+   * PRC-L292 (db/sql/329): KMS_HMAC for dedicated-key seals; LEGACY_UNSIGNED for
+   * 076's unkeyed backfill (not a verifiable signature). New issuances are KMS_HMAC.
+   */
+  sealStatus?: 'KMS_HMAC' | 'LEGACY_UNSIGNED' | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

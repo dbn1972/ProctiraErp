@@ -5,7 +5,12 @@
  * db/sql/016_scholarships_schema.sql. Uses withPgTenant for RLS (G-103 / G-204).
  */
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
-import { majorUnitsNumberFromCents, pgIntegerCents, pgNumericMajorToCents } from '@proctira/common';
+import {
+  ConflictError,
+  majorUnitsNumberFromCents,
+  pgIntegerCents,
+  pgNumericMajorToCents,
+} from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
@@ -87,6 +92,15 @@ function parseJson<T>(value: unknown, fallback: T): T {
     }
   }
   return value as T;
+}
+
+/** PRC-M197: db/sql/327 allows one live application per applicant and programme. */
+function rethrowLiveApplicationConflict(err: unknown): never {
+  const pgErr = err as { code?: string; constraint?: string };
+  if (pgErr.code === '23505' && pgErr.constraint === 'scholarship_applications_one_live_uidx') {
+    throw new ConflictError('Applicant has already submitted an application for this program');
+  }
+  throw err;
 }
 
 function resolveAmountCents(centsRaw: unknown, majorRaw: unknown): number {
@@ -425,7 +439,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         ],
       );
       return mapApplication(result.rows[0] as Record<string, unknown>);
-    });
+    }).catch(rethrowLiveApplicationConflict);
   }
 
   async updateApplication(

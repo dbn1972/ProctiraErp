@@ -397,6 +397,15 @@ export const RegisterCandidateSchema = Type.Object({
     minItems: 1,
     description: 'Subject UUIDs the candidate is registering for',
   }),
+  /** PRC-L036: board-issued registration number, when the board has issued one. */
+  boardRegistrationNumber: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 64,
+      pattern: '^\\S(?:.*\\S)?$',
+      description: 'Registration number issued by the examining board',
+    }),
+  ),
 });
 
 export type RegisterCandidateInput = Static<typeof RegisterCandidateSchema>;

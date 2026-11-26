@@ -1,6 +1,7 @@
 /**
  * PRC-L036 — the candidates table must not present a UUID fragment as an
- * issued registration number (the backend does not issue one yet).
+ * issued registration number; it shows the board registration number recorded
+ * on the candidate registration (examination_candidate_registrations).
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -13,5 +14,11 @@ describe('examination candidates column (PRC-L036)', () => {
     expect(src).not.toContain('Registration #');
     expect(src).not.toContain("resolveEntityLabel(candidate.id, {}, 'Reg')");
     expect(src).toContain('Candidate ref');
+  });
+
+  it('shows the board-issued registration number when one is recorded', () => {
+    expect(src).toContain('Board reg. no.');
+    expect(src).toContain('candidate.boardRegistrationNumber');
+    expect(src).toContain('Not recorded');
   });
 });

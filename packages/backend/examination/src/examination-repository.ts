@@ -113,6 +113,8 @@ export interface CandidateRegistration {
   subjectIds: string[];
   status: 'REGISTERED' | 'CONFIRMED' | 'CANCELLED';
   registeredAt: Date;
+  /** PRC-L036: board-issued registration number; null until recorded. */
+  boardRegistrationNumber?: string | null;
 }
 
 /**

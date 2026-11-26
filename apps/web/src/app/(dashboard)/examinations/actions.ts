@@ -90,6 +90,13 @@ const registerCandidateSchema = z.object({
   studentId: UUID,
   centerId: UUID,
   subjectIds: z.array(UUID).min(1, 'Select at least one subject'),
+  // PRC-L036: optional board-issued registration number (blank = not recorded yet).
+  boardRegistrationNumber: z
+    .string()
+    .trim()
+    .max(64, 'At most 64 characters')
+    .optional()
+    .transform((value) => (value ? value : undefined)),
 });
 
 export async function registerCandidateAction(
