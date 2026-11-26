@@ -100,6 +100,7 @@
     "examinations": "dml",
     "fee_concessions": "dml",
     "fee_credit_notes": "dml",
+    "fee_document_sequences": "dml",
     "fee_ledger_entries": "append_only",
     "fee_reconciliation_batches": "dml",
     "fee_reconciliation_rows": "dml",

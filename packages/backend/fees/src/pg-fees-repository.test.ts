@@ -16,6 +16,7 @@ function createMockFeesPool(): PgPoolLike {
   const invoices: Row[] = [];
   const payments: Row[] = [];
   const receipts: Row[] = [];
+  const sequences = new Map<string, number>();
   const now = () => new Date();
 
   async function query(text: string, values: unknown[] = []): Promise<{ rows: unknown[] }> {
@@ -26,6 +27,13 @@ function createMockFeesPool(): PgPoolLike {
     }
     if (/CREATE TABLE|ALTER TABLE|CREATE INDEX/i.test(sql)) {
       return { rows: [] };
+    }
+    if (/INSERT INTO fee_document_sequences/i.test(sql)) {
+      // PRC-L107: per-tenant counter (db/sql/324).
+      const key = `${String(values[0])}:${String(values[1])}`;
+      const next = (sequences.get(key) ?? 0) + 1;
+      sequences.set(key, next);
+      return { rows: [{ last_value: next }] };
     }
 
     if (/INSERT INTO parent_fee_plans/i.test(sql)) {
@@ -104,14 +112,9 @@ function createMockFeesPool(): PgPoolLike {
     }
 
     if (/UPDATE parent_fee_invoices/i.test(sql)) {
-      const idx =
-        /amount_cents/i.test(sql)
-          ? invoices.findIndex(
-              (row) => row.id === values[2] && row.tenant_id === values[3],
-            )
-          : invoices.findIndex(
-              (row) => row.id === values[1] && row.tenant_id === values[2],
-            );
+      const idx = /amount_cents/i.test(sql)
+        ? invoices.findIndex((row) => row.id === values[2] && row.tenant_id === values[3])
+        : invoices.findIndex((row) => row.id === values[1] && row.tenant_id === values[2]);
       if (idx < 0) return { rows: [] };
       invoices[idx] = {
         ...invoices[idx]!,

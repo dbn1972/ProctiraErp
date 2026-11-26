@@ -272,6 +272,11 @@ describe('FeesService', () => {
         title: 'Recon target',
         amountCents: 5000,
       });
+      // PRC-M251: a bank line reconciles a recorded payment, not the invoice face.
+      await service.recordPayment(TENANT_A, 'cashier-1', {
+        invoiceId: invoice.id,
+        method: 'upi',
+      });
       const csv = `invoiceNumber,amountCents\n${invoice.invoiceNumber},5000\nMISSING,100`;
       const imported = await service.importReconciliationCsv(
         TENANT_A,
@@ -334,10 +339,6 @@ describe('FeesService', () => {
     });
   });
 
-
-
-
-
   describe('W2-FIN-04 concession approval', () => {
     it('creates concessions as pending without changing invoice until four-eyes approve', async () => {
       const structure = await service.createFeeStructure(TENANT_A, 'staff-1', {
@@ -367,11 +368,7 @@ describe('FeesService', () => {
         service.approveConcession(TENANT_A, 'clerk-1', pending.concession.id),
       ).rejects.toThrow(/self-approve/i);
 
-      const approved = await service.approveConcession(
-        TENANT_A,
-        'bursar-1',
-        pending.concession.id,
-      );
+      const approved = await service.approveConcession(TENANT_A, 'bursar-1', pending.concession.id);
       expect(approved.concession.status).toBe('approved');
       expect(approved.concession.approverId).toBe('bursar-1');
       expect(approved.invoice?.amountCents).toBe(8_000);
@@ -648,11 +645,11 @@ describe('FeesService', () => {
         title: 'Tuition',
         amountCents: 10_000,
       });
-      const { creditNote, invoice: updated } = await service.issueCreditNote(
-        TENANT_A,
-        'bursar-1',
-        { invoiceId: invoice.id, amountCents: 2_500, reason: 'billing error' },
-      );
+      const { creditNote, invoice: updated } = await service.issueCreditNote(TENANT_A, 'bursar-1', {
+        invoiceId: invoice.id,
+        amountCents: 2_500,
+        reason: 'billing error',
+      });
       expect(creditNote.amountCents).toBe(2_500);
       expect(creditNote.status).toBe('posted');
       expect(updated.amountCents).toBe(7_500);
@@ -716,11 +713,11 @@ describe('FeesService', () => {
         invoiceId: invoice.id,
         amountCents: 3_000,
       });
-      const { writeOff, invoice: updated } = await service.writeOffInvoice(
-        TENANT_A,
-        'bursar-1',
-        { invoiceId: invoice.id, amountCents: 5_000, reason: 'left school' },
-      );
+      const { writeOff, invoice: updated } = await service.writeOffInvoice(TENANT_A, 'bursar-1', {
+        invoiceId: invoice.id,
+        amountCents: 5_000,
+        reason: 'left school',
+      });
       expect(writeOff.amountCents).toBe(5_000);
       expect(updated.amountCents).toBe(3_000);
       expect(updated.status).toBe('written_off');
@@ -772,5 +769,4 @@ describe('FeesService', () => {
       ).rejects.toThrow(/exceeds unpaid balance/);
     });
   });
-
 });

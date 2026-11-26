@@ -79,6 +79,7 @@ export function RegisterCandidateDialog({
         studentId: String(formData.get('studentId') ?? '').trim(),
         centerId: String(formData.get('centerId') ?? ''),
         subjectIds: selected,
+        boardRegistrationNumber: String(formData.get('boardRegistrationNumber') ?? ''),
       });
       setState(res);
       if (res.status === 'success') {
@@ -141,6 +142,21 @@ export function RegisterCandidateDialog({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="candidate-board-registration">
+                Board registration number (optional)
+              </Label>
+              <Input
+                id="candidate-board-registration"
+                name="boardRegistrationNumber"
+                maxLength={64}
+                autoComplete="off"
+                aria-describedby="candidate-board-registration-hint"
+              />
+              <p id="candidate-board-registration-hint" className="text-xs text-muted-foreground">
+                The number the examining board issued. Leave blank if it is not issued yet.
+              </p>
             </div>
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Subjects</legend>

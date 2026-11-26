@@ -15,6 +15,7 @@ import {
   type FeeReconciliationBatchEntity,
   type FeeReconciliationRowEntity,
   type FeeCreditNoteEntity,
+  type FeeDocumentKind,
   type FeeRefundEntity,
   type FeeWriteOffEntity,
   type FeeStructureComponentEntity,
@@ -103,6 +104,15 @@ export class InMemoryFeesRepository implements FeesRepository {
 
   async runInTransaction<T>(_tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T> {
     return this.runAtomically(() => fn(this));
+  }
+
+  private readonly documentSequences = new Map<string, number>();
+
+  async nextDocumentNumber(tenantId: string, kind: FeeDocumentKind): Promise<number> {
+    const key = `${tenantId}:${kind}`;
+    const next = (this.documentSequences.get(key) ?? 0) + 1;
+    this.documentSequences.set(key, next);
+    return next;
   }
 
   async withInvoiceLock<T>(
@@ -513,7 +523,7 @@ export class InMemoryFeesRepository implements FeesRepository {
   async updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId' | 'journalId'>>,
   ): Promise<FeeConcessionEntity | null> {
     const index = this.concessions.findIndex((row) => row.id === id && row.tenantId === tenantId);
     if (index === -1) return null;
@@ -577,6 +587,31 @@ export class InMemoryFeesRepository implements FeesRepository {
     const entity: FeeReconciliationBatchEntity = { ...data, createdAt: new Date() };
     this.reconBatches.push(entity);
     return entity;
+  }
+
+  async findReconciliationBatchByContentHash(
+    tenantId: string,
+    contentHash: string,
+  ): Promise<FeeReconciliationBatchEntity | null> {
+    const found = this.reconBatches.find(
+      (b) => b.tenantId === tenantId && b.contentHash === contentHash,
+    );
+    return found ? { ...found } : null;
+  }
+
+  async listMatchedReconciliationRows(
+    tenantId: string,
+    filter: { paymentIds: string[]; bankReferences: string[] },
+  ): Promise<FeeReconciliationRowEntity[]> {
+    return this.reconRows
+      .filter(
+        (r) =>
+          r.tenantId === tenantId &&
+          r.matched &&
+          ((r.paymentId != null && filter.paymentIds.includes(r.paymentId)) ||
+            (r.bankReference != null && filter.bankReferences.includes(r.bankReference))),
+      )
+      .map((r) => ({ ...r }));
   }
 
   async createReconciliationRows(
@@ -677,7 +712,12 @@ export class InMemoryFeesRepository implements FeesRepository {
         throw new BusinessRuleError('Invoice has no remaining balance');
       }
 
-      const settlement = await build({ invoice, paidCents, remainingCents });
+      const settlement = await build({
+        invoice,
+        paidCents,
+        remainingCents,
+        nextDocumentNumber: (kind) => this.nextDocumentNumber(tenantId, kind),
+      });
       if (!Number.isInteger(settlement.paymentAmountCents) || settlement.paymentAmountCents <= 0) {
         throw new BusinessRuleError('Payment amountCents must be a positive integer');
       }

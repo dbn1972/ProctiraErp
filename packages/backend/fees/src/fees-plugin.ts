@@ -1775,13 +1775,15 @@ export const feesPlugin = fp(
             result.data.csv,
             result.data.filename,
           );
-          return reply.status(201).send({
+          // PRC-M251: re-importing the same file returns the stored batch (200).
+          return reply.status(imported.idempotent ? 200 : 201).send({
             batch: {
               ...imported.batch,
               createdAt: imported.batch.createdAt.toISOString(),
             },
             matched: imported.matched,
             unmatched: imported.unmatched,
+            idempotent: imported.idempotent,
           });
         } catch (error: unknown) {
           return sendFeesError(reply, error);

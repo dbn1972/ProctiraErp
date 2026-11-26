@@ -218,6 +218,8 @@ export interface FeeConcessionEntity {
   status: ConcessionStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeCreditNoteEntity {
@@ -229,6 +231,8 @@ export interface FeeCreditNoteEntity {
   status: AdjustmentStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeWriteOffEntity {
@@ -240,6 +244,8 @@ export interface FeeWriteOffEntity {
   status: AdjustmentStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeRefundEntity {
@@ -252,6 +258,8 @@ export interface FeeRefundEntity {
   status: RefundStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeReconciliationBatchEntity {
@@ -262,6 +270,8 @@ export interface FeeReconciliationBatchEntity {
   unmatchedCount: number;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M251: sha256 of the normalised CSV; a re-import of the same content is idempotent. */
+  contentHash?: string | null;
 }
 
 export type ReconExceptionStatus = 'none' | 'open' | 'resolved' | 'ignored';
@@ -280,13 +290,24 @@ export interface FeeReconciliationRowEntity {
   resolvedAt: Date | null;
   resolutionNote: string | null;
   createdAt: Date;
+  /** PRC-M251: bank side of the matching key (UTR, amount, value date). */
+  bankReference?: string | null;
+  /** YYYY-MM-DD as on the bank statement. */
+  valueDate?: string | null;
+  /** PRC-M251: the succeeded payment a matched line reconciles (once only). */
+  paymentId?: string | null;
 }
+
+/** PRC-L107: documents numbered from a per-tenant counter (db/sql/324). */
+export type FeeDocumentKind = 'invoice' | 'receipt';
 
 /** Invoice balance read under row lock (W3-RACE-03). */
 export interface InvoicePaymentBalance {
   invoice: FeeInvoiceEntity;
   paidCents: number;
   remainingCents: number;
+  /** PRC-L107: next per-tenant document number, drawn in the payment transaction. */
+  nextDocumentNumber: (kind: FeeDocumentKind) => Promise<number>;
 }
 
 /** PRC-H058: invoice snapshot + money totals read while the invoice row is locked. */
@@ -430,7 +451,7 @@ export interface FeesRepository {
   updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId' | 'journalId'>>,
   ): Promise<FeeConcessionEntity | null>;
   findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null>;
   findConcessionBySourceDisbursementId(
@@ -465,6 +486,16 @@ export interface FeesRepository {
     rows: Omit<FeeReconciliationRowEntity, 'createdAt'>[],
   ): Promise<FeeReconciliationRowEntity[]>;
   listReconciliationBatches(tenantId: string): Promise<FeeReconciliationBatchEntity[]>;
+  /** PRC-M251: the batch already imported with this content hash, if any. */
+  findReconciliationBatchByContentHash(
+    tenantId: string,
+    contentHash: string,
+  ): Promise<FeeReconciliationBatchEntity | null>;
+  /** PRC-M251: matched rows that already reconcile one of these payments or bank lines. */
+  listMatchedReconciliationRows(
+    tenantId: string,
+    filter: { paymentIds: string[]; bankReferences: string[] },
+  ): Promise<FeeReconciliationRowEntity[]>;
   listReconciliationRows(tenantId: string, batchId: string): Promise<FeeReconciliationRowEntity[]>;
   findReconciliationRowById(
     tenantId: string,
@@ -519,6 +550,12 @@ export interface FeesRepository {
    * all of them back (e.g. invoice row + issuance journal).
    */
   runInTransaction<T>(tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T>;
+  /**
+   * PRC-L107: next value of the tenant's invoice or receipt counter (1, 2, ...).
+   * Call it on a transaction-bound repository so the number commits or rolls
+   * back with the document that uses it.
+   */
+  nextDocumentNumber(tenantId: string, kind: FeeDocumentKind): Promise<number>;
 
   /**
    * PRC-H058: lock the invoice row (Pg: SELECT … FOR UPDATE), compute succeeded

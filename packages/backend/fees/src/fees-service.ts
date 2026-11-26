@@ -2,6 +2,8 @@
  * Fees service — plans, invoices, sandbox payments, receipts.
  * recordPayment enforces receipt.amountCents === payment.amountCents === invoice.amountCents.
  */
+import { createHash } from 'node:crypto';
+
 import {
   BusinessRuleError,
   ConflictError,
@@ -19,12 +21,15 @@ import type {
   FeePaymentEntity,
   FeePlanEntity,
   FeeReceiptEntity,
+  FeeReconciliationBatchEntity,
+  FeeReconciliationRowEntity,
   FeesMoneyAuditSink,
   FeesPageRequest,
   FeesRepository,
   LedgerAccount,
   LockedInvoiceBalance,
   PaymentMethod,
+  ReconExceptionStatus,
 } from './fees-repository.js';
 import { PaymentIdempotencyReplay } from './fees-repository.js';
 import {
@@ -35,9 +40,12 @@ import {
 } from './instalment-schedule.js';
 import { createPaymentAdapterFromEnv, type PaymentAdapter } from './payment-adapter.js';
 import {
+  FEES_REMINDER_LIVE_HONESTY_NOTE,
   FEES_REMINDER_SANDBOX_HONESTY_NOTE,
   type ReminderChannel,
+  type ReminderDeliveryPort,
   type ReminderSendAuditEntity,
+  type ReminderSendMode,
   type ReminderSuppressionEntity,
   type SendReminderResultRow,
 } from './reminder-sandbox.js';
@@ -234,16 +242,60 @@ export interface WriteOffInvoiceInput {
 export interface ReconciliationCsvRow {
   invoiceNumber: string;
   amountCents: number;
+  /** PRC-M251: bank reference / UTR (optional column). */
+  bankReference: string | null;
+  /** PRC-M251: value date YYYY-MM-DD (optional column); NaN-equivalent is `invalidValueDate`. */
+  valueDate: string | null;
+  invalidValueDate?: boolean;
 }
 
-function receiptNumberFor(paymentId: string): string {
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+/** PRC-M251: sha256 of the CSV with blank lines and surrounding whitespace removed. */
+export function reconciliationContentHash(csv: string): string {
+  const normalised = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join('\n');
+  return createHash('sha256').update(normalised).digest('hex');
 }
 
-function invoiceNumberFor(invoiceId: string): string {
+const RECON_COLUMNS: Record<
+  string,
+  keyof Pick<ReconciliationCsvRow, 'invoiceNumber' | 'amountCents' | 'bankReference' | 'valueDate'>
+> = {
+  invoicenumber: 'invoiceNumber',
+  invoice: 'invoiceNumber',
+  invoice_number: 'invoiceNumber',
+  amountcents: 'amountCents',
+  amount: 'amountCents',
+  amount_cents: 'amountCents',
+  utr: 'bankReference',
+  bankreference: 'bankReference',
+  bank_reference: 'bankReference',
+  reference: 'bankReference',
+  valuedate: 'valueDate',
+  value_date: 'valueDate',
+};
+
+function isIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
+// PRC-L107: <prefix>-<yyyymmdd>-<per-tenant counter, at least 6 digits>. The counter
+// (db/sql/324) is drawn in the document's transaction, so numbers never collide.
+function documentNumber(prefix: 'INV' | 'RCP', sequence: number): string {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  return `INV-${stamp}-${invoiceId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  return `${prefix}-${stamp}-${String(sequence).padStart(6, '0')}`;
+}
+
+function receiptNumberFor(sequence: number): string {
+  return documentNumber('RCP', sequence);
+}
+
+function invoiceNumberFor(sequence: number): string {
+  return documentNumber('INV', sequence);
 }
 
 export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
@@ -252,29 +304,55 @@ export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   if (lines.length === 0) return [];
-  const start = /invoice/i.test(lines[0]!) ? 1 : 0;
+  const hasHeader = /invoice/i.test(lines[0]!);
+  // PRC-M251: header names pick the columns (invoiceNumber, amountCents, utr, valueDate);
+  // without a header the order is invoiceNumber, amountCents[, utr[, valueDate]].
+  const order: Array<keyof typeof RECON_COLUMNS | undefined> = hasHeader
+    ? lines[0]!.split(',').map((h) => h.trim().toLowerCase())
+    : ['invoicenumber', 'amountcents', 'utr', 'valuedate'];
   const rows: ReconciliationCsvRow[] = [];
-  for (const line of lines.slice(start)) {
-    const [invoiceNumber, amountRaw] = line.split(',').map((part) => part.trim());
+  for (const line of lines.slice(hasHeader ? 1 : 0)) {
+    const cells: Partial<
+      Record<'invoiceNumber' | 'amountCents' | 'bankReference' | 'valueDate', string>
+    > = {};
+    line.split(',').forEach((cell, i) => {
+      const name = order[i];
+      const key = name ? RECON_COLUMNS[name] : undefined;
+      if (key) cells[key] = cell.trim();
+    });
+    const invoiceNumber = cells.invoiceNumber ?? '';
     if (!invoiceNumber) continue;
     // W1-DATA-09: bank CSV amounts must already be integer cents — never Math.round(Number()).
+    let amountCents: number;
     try {
-      rows.push({ invoiceNumber, amountCents: pgIntegerCents(amountRaw) });
+      amountCents = pgIntegerCents(cells.amountCents);
     } catch {
-      rows.push({ invoiceNumber, amountCents: Number.NaN });
+      amountCents = Number.NaN;
     }
+    const valueDate = cells.valueDate ? cells.valueDate : null;
+    rows.push({
+      invoiceNumber,
+      amountCents,
+      bankReference: cells.bankReference ? cells.bankReference : null,
+      valueDate,
+      ...(valueDate && !isIsoDate(valueDate) ? { invalidValueDate: true } : {}),
+    });
   }
   return rows;
 }
 
 export class FeesService {
   private readonly paymentAdapter: PaymentAdapter;
+  private readonly reminderDelivery: ReminderDeliveryPort | null;
 
   constructor(
     private readonly repository: FeesRepository,
     paymentAdapter?: PaymentAdapter,
+    options: { reminderDelivery?: ReminderDeliveryPort } = {},
   ) {
     this.paymentAdapter = paymentAdapter ?? createPaymentAdapterFromEnv();
+    // PRC-L291: no delivery port -> reminders stay sandbox (no provider is wired yet).
+    this.reminderDelivery = options.reminderDelivery ?? null;
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
@@ -359,7 +437,7 @@ export class FeesService {
         status: 'open',
         dueAt: input.dueAt ? new Date(input.dueAt) : null,
         createdBy: actorId,
-        invoiceNumber: invoiceNumberFor(invoiceId),
+        invoiceNumber: invoiceNumberFor(await tx.nextDocumentNumber(tenantId, 'invoice')),
         structureId: null,
         classId: null,
         gradeId: null,
@@ -397,12 +475,13 @@ export class FeesService {
     memo: string,
     legs: ReadonlyArray<readonly [LedgerAccount, 'debit' | 'credit']>,
     amountCents: number,
-    refs: { paymentId?: string; receiptId?: string } = {},
+    refs: { paymentId?: string; receiptId?: string; journalId?: string } = {},
   ): Promise<FeeLedgerEntryEntity[]> {
     if (!Number.isInteger(amountCents) || amountCents < 0) {
       throw new BusinessRuleError('Journal amountCents must be a non-negative integer');
     }
-    const journalId = uuidv4();
+    // PRC-M202: an adjustment row carries the id of the journal that posted it.
+    const journalId = refs.journalId ?? uuidv4();
     const postedAt = new Date();
     return repo.postLedgerEntries(
       legs.map(([account, side]) => ({
@@ -691,7 +770,7 @@ export class FeesService {
     const { invoice, payment, receipt } = await this.repository.recordPaymentOnInvoice(
       tenantId,
       input.invoiceId,
-      async ({ invoice, paidCents, remainingCents }) => {
+      async ({ invoice, paidCents, remainingCents, nextDocumentNumber }) => {
         const paymentAmountCents = input.amountCents ?? remainingCents;
         if (!Number.isInteger(paymentAmountCents) || paymentAmountCents <= 0) {
           throw new BusinessRuleError('Payment amountCents must be a positive integer');
@@ -743,7 +822,7 @@ export class FeesService {
             tenantId,
             paymentId,
             invoiceId: invoice.id,
-            receiptNumber: receiptNumberFor(paymentId),
+            receiptNumber: receiptNumberFor(await nextDocumentNumber('receipt')),
             amountCents: paymentAmountCents,
             currency: invoice.currency,
             issuedAt: paidAt,
@@ -1148,7 +1227,7 @@ export class FeesService {
           status: 'open',
           dueAt,
           createdBy: actorId,
-          invoiceNumber: invoiceNumberFor(invoiceId),
+          invoiceNumber: invoiceNumberFor(await tx.nextDocumentNumber(tenantId, 'invoice')),
           structureId: structure.id,
           classId: classId ?? null,
           gradeId: gradeId ?? null,
@@ -1414,7 +1493,8 @@ export class FeesService {
     }
     const applied = Math.min(discount, unpaid);
     const nextAmount = invoice.amountCents - applied;
-    if (applied > 0) {
+    const journalId = applied > 0 ? uuidv4() : null;
+    if (journalId) {
       await this.postJournal(
         tx,
         invoice,
@@ -1425,6 +1505,7 @@ export class FeesService {
           ['accounts_receivable', 'credit'],
         ],
         applied,
+        { journalId },
       );
     }
     // PRC-M245: nothing left to collect -> settled.
@@ -1432,7 +1513,10 @@ export class FeesService {
       amountCents: nextAmount,
       ...(nextAmount <= locked.paidCents ? { status: 'paid' as const } : {}),
     });
-    await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
+    await tx.updateConcession(concession.id, tenantId, {
+      invoiceId: invoice.id,
+      ...(journalId ? { journalId } : {}),
+    });
     const refreshed = await tx.findConcessionById(concession.id, tenantId);
     await audit?.(tx, {
       kind: auditKind,
@@ -1487,6 +1571,7 @@ export class FeesService {
         );
       }
       const paymentId = target.id;
+      const journalId = uuidv4();
       const refund = await tx.createRefund({
         id: uuidv4(),
         tenantId,
@@ -1496,6 +1581,7 @@ export class FeesService {
         reason: input.reason,
         status: 'posted',
         createdBy: actorId,
+        journalId,
       });
       await this.postJournal(
         tx,
@@ -1507,6 +1593,7 @@ export class FeesService {
           ['cash', 'credit'],
         ],
         input.amountCents,
+        { journalId },
       );
       await audit?.(tx, {
         kind: 'refund',
@@ -1557,6 +1644,7 @@ export class FeesService {
         );
       }
 
+      const journalId = uuidv4();
       const creditNote = await tx.createCreditNote({
         id: uuidv4(),
         tenantId,
@@ -1565,6 +1653,7 @@ export class FeesService {
         reason,
         status: 'posted',
         createdBy: actorId,
+        journalId,
       });
 
       // PRC-M245: a credit note that clears the unpaid balance settles the invoice.
@@ -1584,6 +1673,7 @@ export class FeesService {
           ['accounts_receivable', 'credit'],
         ],
         input.amountCents,
+        { journalId },
       );
       await audit?.(tx, {
         kind: 'credit_note',
@@ -1631,6 +1721,7 @@ export class FeesService {
         );
       }
 
+      const journalId = uuidv4();
       const writeOff = await tx.createWriteOff({
         id: uuidv4(),
         tenantId,
@@ -1639,6 +1730,7 @@ export class FeesService {
         reason,
         status: 'posted',
         createdBy: actorId,
+        journalId,
       });
 
       const nextUnpaid = unpaid - input.amountCents;
@@ -1657,6 +1749,7 @@ export class FeesService {
           ['accounts_receivable', 'credit'],
         ],
         input.amountCents,
+        { journalId },
       );
       await audit?.(tx, {
         kind: 'write_off',
@@ -1764,10 +1857,15 @@ export class FeesService {
     input: SendRemindersInput,
     asOf: Date = new Date(),
   ): Promise<{
-    mode: 'sandbox';
+    mode: ReminderSendMode;
     honestyNote: string;
     results: SendReminderResultRow[];
   }> {
+    const delivery = this.reminderDelivery;
+    const mode: ReminderSendMode = delivery ? 'live' : 'sandbox';
+    const honestyNote = delivery
+      ? FEES_REMINDER_LIVE_HONESTY_NOTE
+      : FEES_REMINDER_SANDBOX_HONESTY_NOTE;
     const channels = [...new Set(input.channels)];
     if (channels.length === 0) {
       throw new BusinessRuleError('At least one channel (email or sms) is required');
@@ -1839,7 +1937,7 @@ export class FeesService {
         // PRC-L106: one reminder per (tenant, invoice, channel, day). The message id is
         // derived from those, so a retried or repeated run reuses it instead of minting
         // a new Date.now() id and a second audit row.
-        const messageId = `sandbox-${channel}:fees:${tenantId}:${invoiceId}:${sendDay}`;
+        const messageId = `${mode}-${channel}:fees:${tenantId}:${invoiceId}:${sendDay}`;
         if (cadenceDays > 0) {
           const cutoff = asOf.getTime() - cadenceDays * 86_400_000;
           const recent = (lastSentAt.get(`${invoiceId}:${channel}`) ?? -1) >= cutoff;
@@ -1869,6 +1967,16 @@ export class FeesService {
           continue;
         }
 
+        // PRC-L291: a live row carries the provider's own message id (db/sql/328).
+        const sent = delivery
+          ? await delivery.send({
+              tenantId,
+              invoiceId,
+              studentId: row.studentId,
+              channel,
+              idempotencyKey: messageId,
+            })
+          : null;
         const audit: ReminderSendAuditEntity = {
           id: uuidv4(),
           tenantId,
@@ -1876,8 +1984,10 @@ export class FeesService {
           studentId: row.studentId,
           channel,
           messageId,
-          mode: 'sandbox',
-          honestyNote: FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+          mode,
+          provider: sent?.provider ?? null,
+          providerMessageId: sent?.providerMessageId ?? null,
+          honestyNote,
           actorId,
           createdAt: new Date(),
         };
@@ -1895,8 +2005,8 @@ export class FeesService {
     }
 
     return {
-      mode: 'sandbox',
-      honestyNote: FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+      mode,
+      honestyNote,
       results,
     };
   }
@@ -1978,89 +2088,171 @@ export class FeesService {
     };
   }
 
+  /**
+   * PRC-M251: a bank line reconciles one succeeded payment on the named invoice with the
+   * same amount (not the invoice face), and the link is stored on the row (payment_id).
+   * Matching key (owner topic 8): bank reference / UTR + amount in minor units + value
+   * date; a line already reconciled under that key, or a payment already reconciled, is
+   * an exception. Re-importing the same file content returns the existing batch.
+   * A bank credit with no recorded payment stays an open exception (nothing is posted).
+   */
   async importReconciliationCsv(
     tenantId: string,
     actorId: string,
     csv: string,
     filename = 'import.csv',
   ) {
+    const contentHash = reconciliationContentHash(csv);
+    const prior = await this.repository.findReconciliationBatchByContentHash(tenantId, contentHash);
+    if (prior) return this.replayReconciliationBatch(tenantId, prior);
     const parsed = parseReconciliationCsv(csv);
-    const matched: Array<{ invoiceNumber: string; amountCents: number; invoiceId: string }> = [];
-    const unmatched: Array<{ invoiceNumber: string; amountCents: number; note: string }> = [];
-
+    type ReconLine = {
+      invoiceNumber: string;
+      amountCents: number;
+      bankReference: string | null;
+      valueDate: string | null;
+    };
+    const matched: Array<ReconLine & { invoiceId: string; paymentId: string }> = [];
+    const unmatched: Array<ReconLine & { note: string; invoiceId: string | null }> = [];
+    const claimedPayments = new Set<string>();
+    const claimedLines = new Set<string>();
+    const lineKey = (l: ReconLine) =>
+      l.bankReference && l.valueDate ? `${l.bankReference}|${l.amountCents}|${l.valueDate}` : null;
     for (const row of parsed) {
+      const line: ReconLine = {
+        invoiceNumber: row.invoiceNumber,
+        amountCents: Number.isFinite(row.amountCents) ? row.amountCents : 0,
+        bankReference: row.bankReference,
+        valueDate: row.invalidValueDate ? null : row.valueDate,
+      };
+      const reject = (note: string, invoiceId: string | null = null) =>
+        unmatched.push({ ...line, note, invoiceId });
       if (!Number.isFinite(row.amountCents)) {
-        unmatched.push({
-          invoiceNumber: row.invoiceNumber,
-          amountCents: 0,
-          note: 'invalid amount',
-        });
+        reject('invalid amount');
+        continue;
+      }
+      if (row.invalidValueDate) {
+        reject('invalid value date');
         continue;
       }
       const invoice = await this.repository.findInvoiceByNumber(tenantId, row.invoiceNumber);
       if (!invoice) {
-        unmatched.push({
-          invoiceNumber: row.invoiceNumber,
-          amountCents: row.amountCents,
-          note: 'invoice not found',
-        });
+        reject('invoice not found');
         continue;
       }
-      if (invoice.amountCents !== row.amountCents) {
-        unmatched.push({
-          invoiceNumber: row.invoiceNumber,
-          amountCents: row.amountCents,
-          note: `amount mismatch (invoice ${invoice.amountCents})`,
-        });
-        continue;
-      }
-      matched.push({
-        invoiceNumber: row.invoiceNumber,
-        amountCents: row.amountCents,
-        invoiceId: invoice.id,
+      const key = lineKey(line);
+      const payments = (await this.repository.listPaymentsForInvoice(tenantId, invoice.id)).filter(
+        (p) => p.status === 'succeeded',
+      );
+      const reconciled = await this.repository.listMatchedReconciliationRows(tenantId, {
+        paymentIds: payments.map((p) => p.id),
+        bankReferences: line.bankReference ? [line.bankReference] : [],
       });
+      const lineTaken =
+        key != null &&
+        (claimedLines.has(key) || reconciled.some((r) => lineKey(r as ReconLine) === key));
+      if (lineTaken) {
+        reject('bank line already reconciled', invoice.id);
+        continue;
+      }
+      const taken = new Set([
+        ...claimedPayments,
+        ...reconciled.map((r) => r.paymentId).filter((id): id is string => id != null),
+      ]);
+      const payment = payments.find((p) => p.amountCents === row.amountCents && !taken.has(p.id));
+      if (!payment) {
+        reject(
+          payments.some((p) => p.amountCents === row.amountCents)
+            ? 'payment already reconciled'
+            : 'no recorded payment of this amount on the invoice',
+          invoice.id,
+        );
+        continue;
+      }
+      claimedPayments.add(payment.id);
+      if (key) claimedLines.add(key);
+      matched.push({ ...line, invoiceId: invoice.id, paymentId: payment.id });
     }
-
-    const batch = await this.repository.createReconciliationBatch({
+    const toRow = (
+      line: ReconLine & { invoiceId: string | null; paymentId?: string; note?: string },
+      batchId: string,
+    ) => ({
       id: uuidv4(),
       tenantId,
-      filename,
-      matchedCount: matched.length,
-      unmatchedCount: unmatched.length,
-      createdBy: actorId,
+      batchId,
+      invoiceNumber: line.invoiceNumber,
+      amountCents: line.amountCents,
+      matched: line.paymentId != null,
+      invoiceId: line.invoiceId,
+      note: line.note ?? null,
+      exceptionStatus: (line.paymentId != null ? 'none' : 'open') as ReconExceptionStatus,
+      resolvedBy: null as string | null,
+      resolvedAt: null as Date | null,
+      resolutionNote: null as string | null,
+      bankReference: line.bankReference,
+      valueDate: line.valueDate,
+      paymentId: line.paymentId ?? null,
     });
-    const rows = [
-      ...matched.map((row) => ({
-        id: uuidv4(),
-        tenantId,
-        batchId: batch.id,
-        invoiceNumber: row.invoiceNumber,
-        amountCents: row.amountCents,
-        matched: true,
-        invoiceId: row.invoiceId,
-        note: null as string | null,
-        exceptionStatus: 'none' as const,
-        resolvedBy: null as string | null,
-        resolvedAt: null as Date | null,
-        resolutionNote: null as string | null,
-      })),
-      ...unmatched.map((row) => ({
-        id: uuidv4(),
-        tenantId,
-        batchId: batch.id,
-        invoiceNumber: row.invoiceNumber,
-        amountCents: row.amountCents,
-        matched: false,
-        invoiceId: null as string | null,
-        note: row.note,
-        exceptionStatus: 'open' as const,
-        resolvedBy: null as string | null,
-        resolvedAt: null as Date | null,
-        resolutionNote: null as string | null,
-      })),
-    ];
-    await this.repository.createReconciliationRows(rows);
-    return { batch, matched, unmatched };
+    try {
+      // Batch and rows commit together; the unique indexes (db/sql/331) are the backstop
+      // for a concurrent import of the same file or of a line for the same payment.
+      const batch = await this.repository.runInTransaction(tenantId, async (tx) => {
+        const created = await tx.createReconciliationBatch({
+          id: uuidv4(),
+          tenantId,
+          filename,
+          matchedCount: matched.length,
+          unmatchedCount: unmatched.length,
+          createdBy: actorId,
+          contentHash,
+        });
+        await tx.createReconciliationRows([
+          ...matched.map((line) => toRow(line, created.id)),
+          ...unmatched.map((line) => toRow(line, created.id)),
+        ]);
+        return created;
+      });
+      return { batch, matched, unmatched, idempotent: false as boolean };
+    } catch (err) {
+      const e = err as { code?: string; constraint?: string } | null;
+      if (e?.code === '23505' && e.constraint === 'fee_reconciliation_batches_content_hash_uidx') {
+        const winner = await this.repository.findReconciliationBatchByContentHash(
+          tenantId,
+          contentHash,
+        );
+        if (winner) return this.replayReconciliationBatch(tenantId, winner);
+      }
+      if (
+        e?.code === '23505' &&
+        String(e.constraint ?? '').startsWith('fee_reconciliation_rows_')
+      ) {
+        throw new ConflictError(
+          'A payment or bank line in this file was reconciled by another import; retry the import',
+        );
+      }
+      throw err;
+    }
+  }
+
+  /** PRC-M251: the stored outcome of an already imported file. */
+  private async replayReconciliationBatch(tenantId: string, batch: FeeReconciliationBatchEntity) {
+    const rows = await this.repository.listReconciliationRows(tenantId, batch.id);
+    const line = (r: FeeReconciliationRowEntity) => ({
+      invoiceNumber: r.invoiceNumber,
+      amountCents: r.amountCents,
+      bankReference: r.bankReference ?? null,
+      valueDate: r.valueDate ?? null,
+    });
+    return {
+      batch,
+      matched: rows
+        .filter((r) => r.matched)
+        .map((r) => ({ ...line(r), invoiceId: r.invoiceId ?? '', paymentId: r.paymentId ?? '' })),
+      unmatched: rows
+        .filter((r) => !r.matched)
+        .map((r) => ({ ...line(r), note: r.note ?? '', invoiceId: r.invoiceId })),
+      idempotent: true as boolean,
+    };
   }
 
   async listReconciliationBatches(tenantId: string) {

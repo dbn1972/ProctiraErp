@@ -126,6 +126,29 @@ describe('PRC-H077 domain anonymizers', () => {
     expect(probes[0]).toContain('tenant_id::text = $2');
   });
 
+  it('PRC-L036: clears the board registration number on the candidate registration', async () => {
+    const { pool, queries } = studentPool({
+      discovery: [
+        ['students', 'id'],
+        ['examination_candidate_registrations', 'student_id'],
+      ],
+    });
+    const anonymizer = new PgDomainSubjectAnonymizer(pool as never, {
+      objectEraser: eraser([]),
+    });
+    const result = await anonymizer.anonymize({ ...input, subjectType: 'student' });
+    expect(result.fieldsTouched).toContain(
+      'examination_candidate_registrations.board_registration_number',
+    );
+    const clear = queries.find((q) => q.sql.includes('UPDATE examination_candidate_registrations'));
+    expect(clear?.sql).toContain('SET board_registration_number = NULL');
+    expect(clear?.values).toEqual([input.subjectId, input.tenantId]);
+    // Handled now, so the table is not probed for a residual.
+    expect(
+      queries.some((q) => isProbe(q.sql) && q.sql.includes('examination_candidate_registrations')),
+    ).toBe(false);
+  });
+
   it('fails closed with a residual when unhandled child-PII tables still hold rows', async () => {
     const { pool } = studentPool({
       discovery: [

@@ -108,6 +108,7 @@ export {
   defaultDomainAnonymizers,
   readFinanceHealthErasureMode,
   studentSiblingsAnonymizer,
+  examinationRegistrationsAnonymizer,
 } from './domain-anonymizers.js';
 export {
   SUBJECT_LINK_COLUMNS,
