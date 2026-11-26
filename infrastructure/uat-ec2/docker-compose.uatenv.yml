@@ -283,6 +283,12 @@ services:
       args:
         APP_NAME: registration-portal
         APP_PORT: '3002'
+    environment:
+      # The portal sends the applicant's public tenant host as `Host` so the
+      # gateway resolves the tenant. Through the proxy that host routes back
+      # to the portal itself, so it calls the gateway on the compose network
+      # instead of the shared public GATEWAY_URL (UATENV-D27).
+      GATEWAY_URL: http://api-gateway:3000
     ports: !override
       - '${UATENV_BIND:-127.0.0.1}:29032:3002'
     deploy:

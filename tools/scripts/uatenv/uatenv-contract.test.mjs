@@ -95,6 +95,15 @@ test('app images come from the Release Dockerfiles, local tags, never pulled', (
   }
 });
 
+test('the registration portal calls the gateway on the compose network (UATENV-D27)', () => {
+  // The portal forwards the tenant host as `Host`; via the proxy that host
+  // routes back to the portal, so the shared public GATEWAY_URL must not reach it.
+  assert.equal(
+    overlay.services['registration-portal'].environment?.GATEWAY_URL,
+    'http://api-gateway:3000',
+  );
+});
+
 test('proxy image is digest-pinned through the env file and keycloak runs in production mode', () => {
   assert.match(overlay.services.proxy.image, /UATENV_PROXY_IMAGE:\?/);
   const secrets = readFileSync(join(HERE, 'uatenv-secrets.sh'), 'utf8');
