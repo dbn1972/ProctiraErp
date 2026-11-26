@@ -364,6 +364,8 @@ export const TransportStudentAssignmentListQuerySchema = Type.Composite([
     studentId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
     routeId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
     stopId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+    // PRC-M130: riders whose assignment covers this date (the trip roster).
+    activeOn: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' })),
   }),
 ]);
 
