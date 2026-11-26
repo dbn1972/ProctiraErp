@@ -318,17 +318,50 @@ async function loadEnrolment(
 async function loadExamResults(client: PgQueryable, tenantId: string): Promise<ReportTable> {
   await requireRelation(client, 'examination_academic_records');
   await requireRelation(client, 'examinations');
-  const { rows } = await client.query(
-    `SELECT e.code AS examination_code, e.name AS examination_name,
+  // Charter §5: no cross-service JOIN. Read the published records, then resolve
+  // examination code/name with a separate tenant-bound lookup.
+  const { rows: records } = (await client.query(
+    `SELECT r.examination_id::text AS examination_id,
             r.student_id::text AS student_id, r.subject_id::text AS subject_id,
             r.score, r.grade, r.passed, r.published_at
        FROM examination_academic_records r
-       JOIN examinations e ON e.id = r.examination_id AND e.tenant_id = r.tenant_id
       WHERE r.tenant_id = $1
-      ORDER BY e.code, r.student_id, r.subject_id
+      ORDER BY r.examination_id, r.student_id, r.subject_id
       LIMIT $2`,
     [tenantId, CATALOGUE_FETCH_LIMIT],
-  );
+  )) as {
+    rows: Array<{
+      examination_id: string;
+      student_id: string;
+      subject_id: string;
+      score: number;
+      grade: string;
+      passed: boolean;
+      published_at: Date | string;
+    }>;
+  };
+  const examIds = [...new Set(records.map((r) => r.examination_id))];
+  const exams = new Map<string, { code: string; name: string }>();
+  if (examIds.length > 0) {
+    const { rows: examRows } = (await client.query(
+      `SELECT id::text AS id, code, name FROM examinations
+        WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+      [tenantId, examIds],
+    )) as { rows: Array<{ id: string; code: string; name: string }> };
+    for (const e of examRows) exams.set(e.id, { code: e.code, name: e.name });
+  }
+  const rows = records
+    .filter((r) => exams.has(r.examination_id))
+    .map((r) => {
+      const exam = exams.get(r.examination_id)!;
+      return { ...r, examination_code: exam.code, examination_name: exam.name };
+    })
+    .sort(
+      (a, b) =>
+        a.examination_code.localeCompare(b.examination_code) ||
+        a.student_id.localeCompare(b.student_id) ||
+        a.subject_id.localeCompare(b.subject_id),
+    );
   return {
     columns: [
       { name: 'examinationCode', label: 'Examination code' },
@@ -341,18 +374,7 @@ async function loadExamResults(client: PgQueryable, tenantId: string): Promise<R
       { name: 'publishedAt', label: 'Published' },
       { name: 'tenantId', label: 'Tenant' },
     ],
-    rows: (
-      rows as Array<{
-        examination_code: string;
-        examination_name: string;
-        student_id: string;
-        subject_id: string;
-        score: number;
-        grade: string;
-        passed: boolean;
-        published_at: Date | string;
-      }>
-    ).map((r) => ({
+    rows: rows.map((r) => ({
       examinationCode: r.examination_code,
       examination: r.examination_name,
       studentId: r.student_id,

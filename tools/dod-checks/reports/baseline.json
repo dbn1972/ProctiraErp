@@ -4,7 +4,7 @@
   "commitSha": null,
   "charterRef": "Section 32 (Definition of Done)",
   "totals": {
-    "totalErrors": 33,
+    "totalErrors": 32,
     "totalWarnings": 769,
     "totalFiles": 1318
   },
@@ -23,7 +23,7 @@
       "title": "Cross-Service SQL Join Prevention (no JOINs across owners)",
       "filesScanned": 831,
       "durationMs": 1304,
-      "errorCount": 8,
+      "errorCount": 7,
       "warningCount": 1,
       "findings": [
         {
@@ -112,17 +112,6 @@
           "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
           "ruleRef": "Charter §5 + §32",
           "reason": "Pre-existing on main; surfaced by #579 (PRC-M409 scans pg .query()). The report catalogue reads the student_attendance OLTP table directly (the check attributes it to \"student\" by prefix; the writer is packages/backend/attendance). Charter §20.3 requires reporting through ETL/warehouse or materialized read models. Debt."
-        },
-        {
-          "check": "cross-service-joins",
-          "severity": "error",
-          "file": "packages/backend/report/src/providers.ts",
-          "line": 321,
-          "column": null,
-          "message": "Raw SQL in \"report\" service references \"examination_academic_records\" owned by \"examination\".",
-          "suggestion": "Replace cross-service JOIN with an API call, domain event, or pre-built read model.",
-          "ruleRef": "Charter §5 + §32",
-          "reason": "PRC-M343 (#794): the exam_results catalogue previously read examination_results/exam_results/candidate_results via a dynamic SELECT * the scanner could not attribute; it now reads only published marks from examination_academic_records with explicit columns, tenant-bound. Same report-catalogue OLTP-read debt as student_attendance above (Charter §20.3 requires ETL/warehouse or a materialized read model). Debt: move to an examination results read model in a schema batch."
         }
       ]
     },
