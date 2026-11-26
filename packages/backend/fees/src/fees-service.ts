@@ -236,14 +236,19 @@ export interface ReconciliationCsvRow {
   amountCents: number;
 }
 
-function receiptNumberFor(paymentId: string): string {
+// PRC-L107: <prefix>-<yyyymmdd>-<per-tenant counter, at least 6 digits>. The counter
+// (db/sql/324) is drawn in the document's transaction, so numbers never collide.
+function documentNumber(prefix: 'INV' | 'RCP', sequence: number): string {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  return `${prefix}-${stamp}-${String(sequence).padStart(6, '0')}`;
 }
 
-function invoiceNumberFor(invoiceId: string): string {
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  return `INV-${stamp}-${invoiceId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+function receiptNumberFor(sequence: number): string {
+  return documentNumber('RCP', sequence);
+}
+
+function invoiceNumberFor(sequence: number): string {
+  return documentNumber('INV', sequence);
 }
 
 export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
@@ -359,7 +364,7 @@ export class FeesService {
         status: 'open',
         dueAt: input.dueAt ? new Date(input.dueAt) : null,
         createdBy: actorId,
-        invoiceNumber: invoiceNumberFor(invoiceId),
+        invoiceNumber: invoiceNumberFor(await tx.nextDocumentNumber(tenantId, 'invoice')),
         structureId: null,
         classId: null,
         gradeId: null,
@@ -692,7 +697,7 @@ export class FeesService {
     const { invoice, payment, receipt } = await this.repository.recordPaymentOnInvoice(
       tenantId,
       input.invoiceId,
-      async ({ invoice, paidCents, remainingCents }) => {
+      async ({ invoice, paidCents, remainingCents, nextDocumentNumber }) => {
         const paymentAmountCents = input.amountCents ?? remainingCents;
         if (!Number.isInteger(paymentAmountCents) || paymentAmountCents <= 0) {
           throw new BusinessRuleError('Payment amountCents must be a positive integer');
@@ -744,7 +749,7 @@ export class FeesService {
             tenantId,
             paymentId,
             invoiceId: invoice.id,
-            receiptNumber: receiptNumberFor(paymentId),
+            receiptNumber: receiptNumberFor(await nextDocumentNumber('receipt')),
             amountCents: paymentAmountCents,
             currency: invoice.currency,
             issuedAt: paidAt,
@@ -1149,7 +1154,7 @@ export class FeesService {
           status: 'open',
           dueAt,
           createdBy: actorId,
-          invoiceNumber: invoiceNumberFor(invoiceId),
+          invoiceNumber: invoiceNumberFor(await tx.nextDocumentNumber(tenantId, 'invoice')),
           structureId: structure.id,
           classId: classId ?? null,
           gradeId: gradeId ?? null,

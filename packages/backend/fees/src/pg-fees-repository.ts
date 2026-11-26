@@ -26,6 +26,7 @@ import {
   type ConcessionStatus,
   type FeeConcessionEntity,
   type FeeCreditNoteEntity,
+  type FeeDocumentKind,
   type FeeInvoiceEntity,
   type FeeLedgerEntryEntity,
   type FeePaymentEntity,
@@ -393,6 +394,22 @@ export class PgFeesRepository implements FeesRepository {
   async runInTransaction<T>(tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T> {
     await this.ensureSchema();
     return this.withTenant(tenantId, (client) => fn(this.bindTx(client, tenantId)));
+  }
+
+  async nextDocumentNumber(tenantId: string, kind: FeeDocumentKind): Promise<number> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      // PRC-L107: the row lock serialises issuers; a rollback returns the number.
+      const result = await client.query(
+        `INSERT INTO fee_document_sequences (tenant_id, kind, last_value)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (tenant_id, kind)
+         DO UPDATE SET last_value = fee_document_sequences.last_value + 1, updated_at = now()
+         RETURNING last_value`,
+        [tenantId, kind],
+      );
+      return Number((result.rows[0] as { last_value: string | number }).last_value);
+    });
   }
 
   async withInvoiceLock<T>(
@@ -835,7 +852,13 @@ export class PgFeesRepository implements FeesRepository {
         throw new BusinessRuleError('Invoice has no remaining balance');
       }
 
-      const settlement = await build({ invoice, paidCents, remainingCents });
+      const settlement = await build({
+        invoice,
+        paidCents,
+        remainingCents,
+        nextDocumentNumber: (kind) =>
+          this.bindTx(client, tenantId).nextDocumentNumber(tenantId, kind),
+      });
       if (!Number.isInteger(settlement.paymentAmountCents) || settlement.paymentAmountCents <= 0) {
         throw new BusinessRuleError('Payment amountCents must be a positive integer');
       }

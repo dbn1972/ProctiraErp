@@ -46,6 +46,8 @@ const RETAINED: Record<RetainedDomain, readonly string[]> = {
   fees: [
     'fee_concessions',
     'fee_credit_notes',
+    // 324 (PRC-L107): per-tenant invoice/receipt number counters.
+    'fee_document_sequences',
     'fee_ledger_entries',
     'fee_reconciliation_batches',
     'fee_reconciliation_rows',

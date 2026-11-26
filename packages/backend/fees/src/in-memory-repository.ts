@@ -15,6 +15,7 @@ import {
   type FeeReconciliationBatchEntity,
   type FeeReconciliationRowEntity,
   type FeeCreditNoteEntity,
+  type FeeDocumentKind,
   type FeeRefundEntity,
   type FeeWriteOffEntity,
   type FeeStructureComponentEntity,
@@ -103,6 +104,15 @@ export class InMemoryFeesRepository implements FeesRepository {
 
   async runInTransaction<T>(_tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T> {
     return this.runAtomically(() => fn(this));
+  }
+
+  private readonly documentSequences = new Map<string, number>();
+
+  async nextDocumentNumber(tenantId: string, kind: FeeDocumentKind): Promise<number> {
+    const key = `${tenantId}:${kind}`;
+    const next = (this.documentSequences.get(key) ?? 0) + 1;
+    this.documentSequences.set(key, next);
+    return next;
   }
 
   async withInvoiceLock<T>(
@@ -677,7 +687,12 @@ export class InMemoryFeesRepository implements FeesRepository {
         throw new BusinessRuleError('Invoice has no remaining balance');
       }
 
-      const settlement = await build({ invoice, paidCents, remainingCents });
+      const settlement = await build({
+        invoice,
+        paidCents,
+        remainingCents,
+        nextDocumentNumber: (kind) => this.nextDocumentNumber(tenantId, kind),
+      });
       if (!Number.isInteger(settlement.paymentAmountCents) || settlement.paymentAmountCents <= 0) {
         throw new BusinessRuleError('Payment amountCents must be a positive integer');
       }

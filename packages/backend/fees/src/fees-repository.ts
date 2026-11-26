@@ -290,11 +290,16 @@ export interface FeeReconciliationRowEntity {
   createdAt: Date;
 }
 
+/** PRC-L107: documents numbered from a per-tenant counter (db/sql/324). */
+export type FeeDocumentKind = 'invoice' | 'receipt';
+
 /** Invoice balance read under row lock (W3-RACE-03). */
 export interface InvoicePaymentBalance {
   invoice: FeeInvoiceEntity;
   paidCents: number;
   remainingCents: number;
+  /** PRC-L107: next per-tenant document number, drawn in the payment transaction. */
+  nextDocumentNumber: (kind: FeeDocumentKind) => Promise<number>;
 }
 
 /** PRC-H058: invoice snapshot + money totals read while the invoice row is locked. */
@@ -527,6 +532,12 @@ export interface FeesRepository {
    * all of them back (e.g. invoice row + issuance journal).
    */
   runInTransaction<T>(tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T>;
+  /**
+   * PRC-L107: next value of the tenant's invoice or receipt counter (1, 2, ...).
+   * Call it on a transaction-bound repository so the number commits or rolls
+   * back with the document that uses it.
+   */
+  nextDocumentNumber(tenantId: string, kind: FeeDocumentKind): Promise<number>;
 
   /**
    * PRC-H058: lock the invoice row (Pg: SELECT … FOR UPDATE), compute succeeded

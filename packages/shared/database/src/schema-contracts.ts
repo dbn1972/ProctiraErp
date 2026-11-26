@@ -55,6 +55,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
     'public.fee_reminder_send_audits',
     'public.fee_credit_notes',
     'public.fee_write_offs',
+    'public.fee_document_sequences',
   ],
   healthBreakGlass: ['public.health_phi_break_glass', 'public.health_phi_access_log'],
   healthCounselling: ['public.counselling_sessions'],
