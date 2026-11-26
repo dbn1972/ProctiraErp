@@ -68,7 +68,12 @@ import {
   parseWebhookFanOutEvents,
   type RedisLikeForReplay,
 } from '@proctira/backend-developer-portal';
-import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
+import {
+  createPipelineRepository,
+  etlPlugin,
+  OutboxAdminNotifier,
+  OutboxPipelineEventPublisher,
+} from '@proctira/backend-etl';
 import {
   createDocumentRepository,
   createDocumentOutboxFromEnv,
@@ -1660,10 +1665,24 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Wave 10 Option C — unpark ETL. PG document store when DATABASE_URL (046).
       const repository = createPipelineRepository();
+      // PRC-L098: with a queue configured, pipeline events and retries-exhausted
+      // alerts go through the transactional outbox + relay instead of process memory.
+      const outboxHandle = await createDocumentOutboxFromEnv();
+      if (outboxHandle) {
+        scope.addHook('onClose', async () => {
+          await outboxHandle.disconnect();
+        });
+      }
       await scope.register(etlPlugin, {
         repository,
         config: {
           defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
+          ...(outboxHandle
+            ? {
+                eventPublisher: new OutboxPipelineEventPublisher(outboxHandle.outboxStore),
+                adminNotifier: new OutboxAdminNotifier(outboxHandle.outboxStore),
+              }
+            : {}),
         },
         prefix: '/pipelines',
       });
