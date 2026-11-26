@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 
 /**
  * /forbidden — shown when an operator's role is not allowed in the requested
- * area. The audit log records the redirect.
+ * area. The denial is not written to the audit log yet (follow-up FU-T1-E).
  */
 export default async function ForbiddenPage({
   searchParams,
@@ -32,9 +32,6 @@ export default async function ForbiddenPage({
             Your assigned platform role does not include access to{' '}
             <strong className="text-foreground">{area}</strong>. If you believe this is incorrect,
             contact the security team.
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            This attempt was recorded to the audit log.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <Button asChild variant="secondary">
