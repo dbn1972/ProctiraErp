@@ -131,7 +131,9 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
  * mirror the gateway. Each set holds the gateway role catalogue roles that have
  * the gateway read grant (apps/api-gateway/src/rbac-registry.ts) AND are in the
  * backend package read set:
- * - admissions: registration-access.ts REGISTRATION_STAFF_ROLES
+ * - admissions: registration-access.ts REGISTRATION_STAFF_ROLES (UATENV-D19: the
+ *   registrar holds the gateway `registration` grant from @proctira/auth
+ *   admissions-domain-roles.ts; admissions_officer still holds none)
  * - assessments: assessment-access.ts ASSESSMENT_STAFF_ROLES
  * - communication: communication-access.ts COMMUNICATION_STAFF_ROLES
  *   (UATENV-D24: every `/communication/*` screen reads a `communication.staff`
@@ -155,7 +157,7 @@ const DOMAIN_PACKAGE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<strin
  * Kept in sync by domain-route-guards.test.ts.
  */
 export const DOMAIN_ROUTE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<string>>> = {
-  admissions: new Set(['admin', 'principal', 'super-admin']),
+  admissions: new Set(['admin', 'principal', 'super-admin', 'registrar']),
   assessments: new Set(['admin', 'principal', 'teacher', 'super-admin']),
   communication: new Set(['admin', 'principal', 'super-admin', 'communications_officer']),
   library: new Set(['admin', 'principal', 'super-admin', 'librarian']),

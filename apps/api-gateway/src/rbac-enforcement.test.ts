@@ -588,6 +588,23 @@ describe('G-301 campus module RBAC deny matrix', () => {
       deniedRole: 'teacher',
       allowedRole: 'admin',
     },
+    // UATENV-D19: the registrar processes admissions (create/update), the nurse does not.
+    {
+      id: 'registration-registrar-create',
+      method: 'POST',
+      url: '/api/v1/admissions/enquiries',
+      payload: { parentName: 'Alex', contactPhone: '+15550001111', gradeApplied: '10' },
+      deniedRole: 'nurse',
+      allowedRole: 'registrar',
+    },
+    {
+      id: 'registration-registrar-update',
+      method: 'PATCH',
+      url: '/api/v1/admissions/enquiries/00000000-0000-4000-8000-000000000001',
+      payload: { notes: 'called back' },
+      deniedRole: 'nurse',
+      allowedRole: 'registrar',
+    },
     {
       id: 'billing',
       method: 'POST',

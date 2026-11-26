@@ -31,7 +31,6 @@ describe('admissions layout guard (A-batch)', () => {
   it.each([
     ['teacher'],
     ['staff'],
-    ['registrar'],
     ['admissions_officer'],
     ['platform_admin'],
     ['student'],
@@ -45,7 +44,8 @@ describe('admissions layout guard (A-batch)', () => {
     expect(screen.queryByTestId('admissions-child')).toBeNull();
   });
 
-  it.each([['admin'], ['principal'], ['super-admin']])(
+  // UATENV-D19: the registrar reads and processes admissions.
+  it.each([['admin'], ['principal'], ['super-admin'], ['registrar']])(
     'renders the admissions screen for %s',
     async (role) => {
       auth.roles = [role];

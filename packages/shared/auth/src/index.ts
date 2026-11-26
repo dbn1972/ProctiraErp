@@ -92,6 +92,14 @@ export {
   FEES_READ_ONLY_ROLE_IDS,
   FEES_STAFF_ROLE_IDS,
 } from './fees-domain-roles.js';
+// Registrar admissions grants shared by the gateway and web registries (UATENV-D19)
+export {
+  ADMISSIONS_DOMAIN_ROLE_GRANTS,
+  ADMISSIONS_LOOKUP_GRANTS,
+  ADMISSIONS_STAFF_ROLE_IDS,
+  applyAdmissionsDomainRoleGrants,
+  applyAdmissionsLookupReadGrants,
+} from './admissions-domain-roles.js';
 // Role-id spelling normalisation against the role catalogue (PRC-M015)
 export { canonicalRoleId, ROLE_ID_SYNONYMS } from './role-catalogue.js';
 // Password strength scoring (Task 49.6)
