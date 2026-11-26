@@ -2,6 +2,21 @@
  * G-918 staff HR persistence: contracts, qualifications, daily attendance.
  * In-memory map for unit tests / no DATABASE_URL; Postgres via pg-hr-ops-store.
  */
+import { ConflictError } from '@proctira/common';
+
+/**
+ * PRC-M368: an unreversed posted payroll run already exists for the tenant and
+ * month, found by the pre-check or raised by the 246 partial unique index (23505)
+ * when a concurrent post won the race. HTTP 409.
+ */
+export class PayrollRunAlreadyPostedError extends ConflictError {
+  constructor(month: string) {
+    super(
+      `staff_payroll_runs posted export already exists for ${month}; reverse and replace instead of overwrite`,
+    );
+    this.name = 'PayrollRunAlreadyPostedError';
+  }
+}
 export type StaffContractType = 'permanent' | 'probation' | 'fixed_term' | 'visiting' | 'intern';
 export type StaffContractStatus = 'draft' | 'active' | 'expired' | 'terminated';
 export type StaffAttendanceStatus = 'present' | 'absent' | 'leave' | 'half_day';
@@ -351,11 +366,7 @@ export class InMemoryStaffHrStore implements StaffHrStore {
 
   async savePayrollExport(record: StaffPayrollExportRecord): Promise<StaffPayrollExportRecord> {
     const existing = await this.findPayrollExport(record.tenantId, record.month);
-    if (existing) {
-      throw new Error(
-        `staff_payroll_runs posted export already exists for ${record.month}; reverse and replace instead of overwrite`,
-      );
-    }
+    if (existing) throw new PayrollRunAlreadyPostedError(record.month);
     const stored: StaffPayrollExportRecord = {
       ...clone(record),
       status: 'posted',

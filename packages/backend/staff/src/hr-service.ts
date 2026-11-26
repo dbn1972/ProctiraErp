@@ -26,6 +26,7 @@ import type {
   StaffHrStore,
   StaffQualificationRecord,
 } from './hr-store.js';
+import { PayrollRunAlreadyPostedError } from './hr-store.js';
 import { readOffboardMeta } from './offboard-meta.js';
 import {
   assertPayrollRowBalanced,
@@ -920,7 +921,24 @@ export class StaffHrService {
     if (query.replace) {
       await this.store.reverseAndReplacePayrollExport(exportRecord);
     } else {
-      await this.store.savePayrollExport(exportRecord);
+      try {
+        await this.store.savePayrollExport(exportRecord);
+      } catch (err) {
+        // PRC-M368: a concurrent post for the same month won the race. Return the
+        // winner's run, exactly as a sequential re-export would (no second audit).
+        if (!(err instanceof PayrollRunAlreadyPostedError)) throw err;
+        const winner = await this.store.findPayrollExport(tenantId, query.month);
+        if (!winner) throw err;
+        return {
+          month: winner.month,
+          filename: winner.filename,
+          csv: winner.csv,
+          rows: JSON.parse(winner.rowsJson) as PayrollRow[],
+          runId: winner.runId,
+          idempotent: true,
+          trialBalance: JSON.parse(winner.trialBalanceJson) as PayrollLedgerTrial,
+        };
+      }
     }
     await emitStaffAudit(this.auditSink, {
       tenantId,
