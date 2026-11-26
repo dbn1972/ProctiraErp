@@ -22,6 +22,7 @@ import {
   DEFAULT_BRAND,
   BRAND_CACHE_TTL_MS,
   BRAND_ENDPOINT,
+  PUBLIC_BRAND_ENDPOINT,
   clearBrandCache,
   defaultBrandFetcher,
   fetchBrandCached,
@@ -286,6 +287,63 @@ describe('BrandConfigProvider — fallback when API fails (Requirement 43.4)', (
     const brand = await fetchBrandCached(defaultBrandFetcher);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(brand.name).toBe('Acme School');
+  });
+});
+
+describe('BrandConfigProvider — role refused tenant branding (UATENV-D22)', () => {
+  const PUBLIC_PAYLOAD = { slug: 'sunrise-public-school', name: 'Sunrise Public School' };
+
+  function stubFetch(primaryStatus: number, publicResponse: () => Response) {
+    return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === BRAND_ENDPOINT) {
+        return new Response(JSON.stringify({ code: 'FORBIDDEN' }), { status: primaryStatus });
+      }
+      if (url === PUBLIC_BRAND_ENDPOINT) return publicResponse();
+      throw new Error(`unexpected fetch ${url}`);
+    });
+  }
+
+  const publicOk = () =>
+    new Response(JSON.stringify(PUBLIC_PAYLOAD), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  it.each([403, 401])(
+    'HTTP %i on tenant branding: shows the school from the public brand',
+    async (status) => {
+      const fetchSpy = stubFetch(status, publicOk);
+      const { result } = renderHook(() => useBrand(), {
+        wrapper: ({ children }) => <BrandConfigProvider>{children}</BrandConfigProvider>,
+      });
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.name).toBe('Sunrise Public School');
+      expect(result.current.error).toBeNull();
+      expect(readTenantVar('--tenant-name')).toBe("'Sunrise Public School'");
+      // The public read needs no session, so the cookie is not sent with it.
+      expect(fetchSpy).toHaveBeenCalledWith(
+        PUBLIC_BRAND_ENDPOINT,
+        expect.objectContaining({ credentials: 'omit' }),
+      );
+    },
+  );
+
+  it('403 and no public brand: product default', async () => {
+    stubFetch(403, () => new Response('', { status: 404 }));
+    await expect(defaultBrandFetcher()).resolves.toEqual(DEFAULT_BRAND);
+  });
+
+  it('403 and the public brand fails with 5xx: throws so nothing is cached', async () => {
+    stubFetch(403, () => new Response('down', { status: 503 }));
+    await expect(fetchBrandCached(defaultBrandFetcher)).rejects.toThrow(/503/);
+    expect(_peekBrandCache()).toBeNull();
+  });
+
+  it('404 on tenant branding still means no branding: no public read', async () => {
+    const fetchSpy = stubFetch(404, publicOk);
+    await expect(defaultBrandFetcher()).resolves.toEqual(DEFAULT_BRAND);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
 
