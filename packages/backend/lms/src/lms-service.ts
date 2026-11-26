@@ -381,12 +381,14 @@ export interface LmsLearnerMembership {
 /**
  * PRC-M302: the SIS roster of a class section (ENROLLED section_enrollments).
  * The gateway wires it over the shared teaching-scope directory. `truncated` is
- * true when the directory capped the list.
+ * true when the directory capped the list. When `allowedInstitutionIds` is set,
+ * a section outside those institutions yields an empty roster.
  */
 export interface LmsClassRoster {
   sectionRoster(
     tenantId: string,
     sectionId: string,
+    allowedInstitutionIds?: readonly string[],
   ): Promise<{ studentIds: string[]; truncated: boolean }>;
 }
 
@@ -1971,10 +1973,14 @@ export class LmsService {
     }
     // PRC-M302: a section classKey uses the real SIS roster. Otherwise (grade
     // level, or no roster port) only submitters are known: rosterSource says so
-    // and missingStudentIds stays empty because it cannot be computed.
+    // and missingStudentIds stays empty because it cannot be computed. The read
+    // is fenced like the assignment window: to the requested institution, else to
+    // a school-bound caller's own institutions, so another school's section
+    // roster never comes back as missingStudentIds.
+    const rosterFence = query.institutionId ? [query.institutionId] : scopeFenceFor(actor);
     const roster =
       this.classRoster && UUID_RE.test(query.classKey)
-        ? await this.classRoster.sectionRoster(tenantId, query.classKey)
+        ? await this.classRoster.sectionRoster(tenantId, query.classKey, rosterFence)
         : null;
     if (roster?.truncated) truncated = true;
     const rosterSize = roster ? roster.studentIds.length : students.size;

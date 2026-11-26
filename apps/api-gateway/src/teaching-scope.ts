@@ -46,10 +46,12 @@ export interface TeachingScopeDirectory {
   /**
    * PRC-M302: ENROLLED students of a live section (LMS class analytics roster),
    * at most {@link SECTION_ROSTER_LIMIT}; `truncated` when there were more.
+   * With `allowedInstitutionIds`, a section outside those institutions is empty.
    */
   sectionRoster(
     tenantId: string,
     sectionId: string,
+    allowedInstitutionIds?: readonly string[],
   ): Promise<{ studentIds: string[]; truncated: boolean }>;
 }
 
@@ -179,8 +181,9 @@ export function createPgTeachingScopeDirectory(run: Runner): TeachingScopeDirect
       );
     },
 
-    async sectionRoster(tenantId, sectionId) {
+    async sectionRoster(tenantId, sectionId, allowedInstitutionIds) {
       if (!sectionId) return { studentIds: [], truncated: false };
+      const fence = allowedInstitutionIds ? [...allowedInstitutionIds] : null;
       return run(tenantId, async (db) => {
         const res = await db.query(
           `SELECT DISTINCT se.student_id::text AS id
@@ -191,9 +194,10 @@ export function createPgTeachingScopeDirectory(run: Runner): TeachingScopeDirect
             WHERE se.tenant_id = $1::uuid
               AND se.section_id::text = $2
               AND se.status = 'ENROLLED'
+              AND ($4::text[] IS NULL OR sec.institution_id::text = ANY($4::text[]))
             ORDER BY 1
             LIMIT $3`,
-          [tenantId, sectionId, SECTION_ROSTER_LIMIT + 1],
+          [tenantId, sectionId, SECTION_ROSTER_LIMIT + 1, fence],
         );
         const ids = (res.rows as Array<{ id: unknown }>).map((row) => String(row.id));
         return {

@@ -223,4 +223,20 @@ describe.skipIf(!pool)('teaching-scope directory (live)', () => {
       truncated: false,
     });
   });
+
+  it('PRC-M302: sectionRoster is fenced to the allowed institutions', async () => {
+    // Both sections belong to ids.institution.
+    expect(await directory.sectionRoster(tenant, ids.section, [ids.institution])).toEqual({
+      studentIds: [ids.pupil],
+      truncated: false,
+    });
+    expect(await directory.sectionRoster(tenant, ids.section, [ids.otherInstitution])).toEqual({
+      studentIds: [],
+      truncated: false,
+    });
+    expect(await directory.sectionRoster(tenant, ids.otherSection, [])).toEqual({
+      studentIds: [],
+      truncated: false,
+    });
+  });
 });

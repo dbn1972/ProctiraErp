@@ -421,7 +421,10 @@ function lmsLearnerMembership(): LmsLearnerMembership | null {
 function lmsClassRoster(): LmsClassRoster | null {
   const directory = sharedTeachingScopeDirectory();
   return directory
-    ? { sectionRoster: (tenantId, sectionId) => directory.sectionRoster(tenantId, sectionId) }
+    ? {
+        sectionRoster: (tenantId, sectionId, allowedInstitutionIds) =>
+          directory.sectionRoster(tenantId, sectionId, allowedInstitutionIds),
+      }
     : null;
 }
 

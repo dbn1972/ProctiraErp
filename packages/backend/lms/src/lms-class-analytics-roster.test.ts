@@ -53,7 +53,7 @@ describe('class analytics roster (PRC-M302)', () => {
       teacher,
     );
 
-    expect(sectionRoster).toHaveBeenCalledWith(TENANT, SECTION);
+    expect(sectionRoster).toHaveBeenCalledWith(TENANT, SECTION, [SCHOOL]);
     expect(analytics).toMatchObject({
       rosterSource: 'sis',
       rosterSize: 3,
@@ -92,6 +92,41 @@ describe('class analytics roster (PRC-M302)', () => {
     expect(
       await plain.getClassAnalytics(TENANT, { classKey: SECTION, institutionId: SCHOOL }, teacher),
     ).toMatchObject({ rosterSource: 'submissions' });
+  });
+
+  it("does not return another school's section roster to a school-bound teacher", async () => {
+    const OTHER_SCHOOL = randomUUID();
+    const OTHER_SECTION = randomUUID();
+    const otherPupils = [randomUUID(), randomUUID()];
+    // Directory fake: honours the institution fence like the SQL does.
+    const sections = new Map([
+      [SECTION, { institutionId: SCHOOL, studentIds: [randomUUID()] }],
+      [OTHER_SECTION, { institutionId: OTHER_SCHOOL, studentIds: otherPupils }],
+    ]);
+    const sectionRoster = vi.fn(
+      async (_tenant: string, sectionId: string, fence?: readonly string[]) => {
+        const sec = sections.get(sectionId);
+        const visible = sec && (!fence || fence.includes(sec.institutionId));
+        return { studentIds: visible ? sec.studentIds : [], truncated: false };
+      },
+    );
+    const svc = new LmsService(new InMemoryLmsRepository(), { classRoster: { sectionRoster } });
+    // With the requested institution (the gateway injects it for GETs) and without it.
+    for (const query of [{ institutionId: SCHOOL }, {}]) {
+      const res = await svc.getClassAnalytics(
+        TENANT,
+        { classKey: OTHER_SECTION, ...query },
+        teacher,
+      );
+      expect(res.missingStudentIds).toEqual([]);
+      expect(res.rosterSize).toBe(0);
+    }
+    expect(sectionRoster).toHaveBeenLastCalledWith(TENANT, OTHER_SECTION, [SCHOOL]);
+    // A tenant admin with no institution filter is unfenced.
+    const admin = { userId: randomUUID(), roles: ['admin'], institutions: [SCHOOL] };
+    const all = await svc.getClassAnalytics(TENANT, { classKey: OTHER_SECTION }, admin);
+    expect([...all.missingStudentIds].sort()).toEqual([...otherPupils].sort());
+    expect(sectionRoster).toHaveBeenLastCalledWith(TENANT, OTHER_SECTION, undefined);
   });
 
   it('flags truncation when the submission window or roster is cut', async () => {
