@@ -332,6 +332,7 @@ function mapReconBatch(row: Record<string, unknown>): FeeReconciliationBatchEnti
     unmatchedCount: Number(row.unmatched_count),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    contentHash: row.content_hash == null ? null : String(row.content_hash),
   };
 }
 
@@ -361,6 +362,9 @@ function mapReconRow(row: Record<string, unknown>): FeeReconciliationRowEntity {
     resolvedAt: row.resolved_at == null ? null : toDate(row.resolved_at),
     resolutionNote: row.resolution_note == null ? null : String(row.resolution_note),
     createdAt: toDate(row.created_at),
+    bankReference: row.bank_reference == null ? null : String(row.bank_reference),
+    valueDate: row.value_date == null ? null : pgDateOnly(row.value_date),
+    paymentId: row.payment_id == null ? null : String(row.payment_id),
   };
 }
 
@@ -1719,8 +1723,8 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_reconciliation_batches (
-           id, tenant_id, filename, matched_count, unmatched_count, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+           id, tenant_id, filename, matched_count, unmatched_count, created_by, content_hash
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1728,6 +1732,7 @@ export class PgFeesRepository implements FeesRepository {
           data.matchedCount,
           data.unmatchedCount,
           data.createdBy,
+          data.contentHash ?? null,
         ],
       );
       return mapReconBatch(result.rows[0] as Record<string, unknown>);
@@ -1746,8 +1751,9 @@ export class PgFeesRepository implements FeesRepository {
         const result = await client.query(
           `INSERT INTO fee_reconciliation_rows (
              id, tenant_id, batch_id, invoice_number, amount_cents, matched, invoice_id, note,
-             exception_status, resolved_by, resolved_at, resolution_note
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+             exception_status, resolved_by, resolved_at, resolution_note,
+             bank_reference, value_date, payment_id
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::date,$15) RETURNING *`,
           [
             row.id,
             row.tenantId,
@@ -1761,6 +1767,9 @@ export class PgFeesRepository implements FeesRepository {
             row.resolvedBy,
             row.resolvedAt,
             row.resolutionNote,
+            row.bankReference ?? null,
+            row.valueDate ?? null,
+            row.paymentId ?? null,
           ],
         );
         out.push(mapReconRow(result.rows[0] as Record<string, unknown>));
@@ -1777,6 +1786,38 @@ export class PgFeesRepository implements FeesRepository {
         [tenantId],
       );
       return result.rows.map((row) => mapReconBatch(row as Record<string, unknown>));
+    });
+  }
+
+  async findReconciliationBatchByContentHash(
+    tenantId: string,
+    contentHash: string,
+  ): Promise<FeeReconciliationBatchEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_reconciliation_batches WHERE tenant_id = $1 AND content_hash = $2`,
+        [tenantId, contentHash],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapReconBatch(row) : null;
+    });
+  }
+
+  async listMatchedReconciliationRows(
+    tenantId: string,
+    filter: { paymentIds: string[]; bankReferences: string[] },
+  ): Promise<FeeReconciliationRowEntity[]> {
+    if (filter.paymentIds.length === 0 && filter.bankReferences.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_reconciliation_rows
+          WHERE tenant_id = $1 AND matched
+            AND (payment_id = ANY($2::uuid[]) OR bank_reference = ANY($3::text[]))`,
+        [tenantId, filter.paymentIds, filter.bankReferences],
+      );
+      return result.rows.map((row) => mapReconRow(row as Record<string, unknown>));
     });
   }
 

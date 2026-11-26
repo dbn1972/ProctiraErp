@@ -589,6 +589,31 @@ export class InMemoryFeesRepository implements FeesRepository {
     return entity;
   }
 
+  async findReconciliationBatchByContentHash(
+    tenantId: string,
+    contentHash: string,
+  ): Promise<FeeReconciliationBatchEntity | null> {
+    const found = this.reconBatches.find(
+      (b) => b.tenantId === tenantId && b.contentHash === contentHash,
+    );
+    return found ? { ...found } : null;
+  }
+
+  async listMatchedReconciliationRows(
+    tenantId: string,
+    filter: { paymentIds: string[]; bankReferences: string[] },
+  ): Promise<FeeReconciliationRowEntity[]> {
+    return this.reconRows
+      .filter(
+        (r) =>
+          r.tenantId === tenantId &&
+          r.matched &&
+          ((r.paymentId != null && filter.paymentIds.includes(r.paymentId)) ||
+            (r.bankReference != null && filter.bankReferences.includes(r.bankReference))),
+      )
+      .map((r) => ({ ...r }));
+  }
+
   async createReconciliationRows(
     rows: Omit<FeeReconciliationRowEntity, 'createdAt'>[],
   ): Promise<FeeReconciliationRowEntity[]> {

@@ -270,6 +270,8 @@ export interface FeeReconciliationBatchEntity {
   unmatchedCount: number;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M251: sha256 of the normalised CSV; a re-import of the same content is idempotent. */
+  contentHash?: string | null;
 }
 
 export type ReconExceptionStatus = 'none' | 'open' | 'resolved' | 'ignored';
@@ -288,6 +290,12 @@ export interface FeeReconciliationRowEntity {
   resolvedAt: Date | null;
   resolutionNote: string | null;
   createdAt: Date;
+  /** PRC-M251: bank side of the matching key (UTR, amount, value date). */
+  bankReference?: string | null;
+  /** YYYY-MM-DD as on the bank statement. */
+  valueDate?: string | null;
+  /** PRC-M251: the succeeded payment a matched line reconciles (once only). */
+  paymentId?: string | null;
 }
 
 /** PRC-L107: documents numbered from a per-tenant counter (db/sql/324). */
@@ -478,6 +486,16 @@ export interface FeesRepository {
     rows: Omit<FeeReconciliationRowEntity, 'createdAt'>[],
   ): Promise<FeeReconciliationRowEntity[]>;
   listReconciliationBatches(tenantId: string): Promise<FeeReconciliationBatchEntity[]>;
+  /** PRC-M251: the batch already imported with this content hash, if any. */
+  findReconciliationBatchByContentHash(
+    tenantId: string,
+    contentHash: string,
+  ): Promise<FeeReconciliationBatchEntity | null>;
+  /** PRC-M251: matched rows that already reconcile one of these payments or bank lines. */
+  listMatchedReconciliationRows(
+    tenantId: string,
+    filter: { paymentIds: string[]; bankReferences: string[] },
+  ): Promise<FeeReconciliationRowEntity[]>;
   listReconciliationRows(tenantId: string, batchId: string): Promise<FeeReconciliationRowEntity[]>;
   findReconciliationRowById(
     tenantId: string,
