@@ -57,6 +57,102 @@ export function unpaidAbsenceDeductionCents(
   return Math.floor((monthlyGrossCents * absentDays) / daysInMonth);
 }
 
+/**
+ * PRC-M370 (DR37): loss-of-pay (LOP) rules, approved by the owner 2026-10-27.
+ * - Per-day rate = monthly gross / divisor days. Divisor (config
+ *   `PAYROLL_LOP_DIVISOR`): calendar days in the month (default), a flat 30,
+ *   or the month's working (Mon-Fri) days.
+ * - An absent day or an approved unpaid-leave day is 1 LOP day; a half day is 0.5.
+ *   A date counts once, at its highest weight.
+ * - Deduction = LOP days x per-day rate, applied to gross, rounded to the
+ *   nearest rupee (100 minor units) and never above gross.
+ */
+export type PayrollLopDivisor = 'calendar_days' | 'thirty' | 'working_days';
+export const PAYROLL_LOP_DIVISORS: readonly PayrollLopDivisor[] = [
+  'calendar_days',
+  'thirty',
+  'working_days',
+];
+export const DEFAULT_PAYROLL_LOP_DIVISOR: PayrollLopDivisor = 'calendar_days';
+
+/** Unset/blank -> `calendar_days`; `30` is accepted for `thirty`; unknown values throw. */
+export function resolvePayrollLopDivisor(raw: string | undefined | null): PayrollLopDivisor {
+  const value = (raw ?? '').trim().toLowerCase();
+  if (!value) return DEFAULT_PAYROLL_LOP_DIVISOR;
+  if (value === '30') return 'thirty';
+  if ((PAYROLL_LOP_DIVISORS as readonly string[]).includes(value)) {
+    return value as PayrollLopDivisor;
+  }
+  throw new BusinessRuleError(
+    `PAYROLL_LOP_DIVISOR must be one of ${PAYROLL_LOP_DIVISORS.join(', ')} or 30; got '${String(raw)}'`,
+  );
+}
+
+/** A dated LOP event: `full` (absent / unpaid leave) or `half` (half day). */
+export interface LopDay {
+  date: string;
+  weight: 'full' | 'half';
+}
+
+function isWeekday(iso: string): boolean {
+  const dow = parseIsoDay(iso).getUTCDay();
+  return dow !== 0 && dow !== 6;
+}
+
+/**
+ * Total LOP days for one staff member in `month` (YYYY-MM), counted in half days
+ * so the value stays an integer: returns `{ halfDays, lopDays }`.
+ * Under `working_days` only Mon-Fri dates count, matching that divisor.
+ */
+export function countLopDays(
+  month: string,
+  days: readonly LopDay[],
+  divisor: PayrollLopDivisor = DEFAULT_PAYROLL_LOP_DIVISOR,
+): { halfDays: number; lopDays: number } {
+  const byDate = new Map<string, number>();
+  for (const day of days) {
+    if (!day.date.startsWith(`${month}-`)) continue;
+    if (divisor === 'working_days' && !isWeekday(day.date)) continue;
+    const weight = day.weight === 'full' ? 2 : 1;
+    byDate.set(day.date, Math.max(byDate.get(day.date) ?? 0, weight));
+  }
+  let halfDays = 0;
+  for (const weight of byDate.values()) halfDays += weight;
+  return { halfDays, lopDays: halfDays / 2 };
+}
+
+/** Divisor days for `month` under the configured LOP divisor. */
+export function lopDivisorDays(month: string, divisor: PayrollLopDivisor): number {
+  const daysInMonth = calendarDaysInMonth(month);
+  if (divisor === 'thirty') return 30;
+  if (divisor === 'working_days') {
+    return countDays(`${month}-01`, `${month}-${String(daysInMonth).padStart(2, '0')}`, true);
+  }
+  return daysInMonth;
+}
+
+/** LOP deduction in minor units: gross x (halfDays / 2) / divisorDays, nearest rupee, <= gross. */
+export function lossOfPayDeductionCents(input: {
+  monthlyGrossCents: number;
+  halfDays: number;
+  divisorDays: number;
+}): number {
+  const { monthlyGrossCents, halfDays, divisorDays } = input;
+  if (
+    !Number.isInteger(monthlyGrossCents) ||
+    monthlyGrossCents < 0 ||
+    !Number.isInteger(halfDays) ||
+    halfDays < 0 ||
+    !Number.isInteger(divisorDays) ||
+    divisorDays <= 0
+  ) {
+    throw new BusinessRuleError('Invalid payroll deduction inputs');
+  }
+  if (monthlyGrossCents === 0 || halfDays === 0) return 0;
+  const exact = (monthlyGrossCents * halfDays) / (2 * divisorDays);
+  return Math.min(monthlyGrossCents, Math.round(exact / 100) * 100);
+}
+
 export function assertPayrollRowBalanced(row: {
   grossCents: number;
   deductionsCents: number;
