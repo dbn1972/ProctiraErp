@@ -56,6 +56,22 @@ export interface StudentEntity {
   customData: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * PRC-M031: current placement from the student's ENROLLED enrollment (the one
+   * matching the list's enrollment filter when one is set). `null` when the
+   * student has no such enrollment; `undefined` when the repository does not
+   * resolve placement (in-memory store).
+   */
+  placement?: StudentPlacement | null;
+}
+
+/** PRC-M031: institution / grade / class of one enrollment, with display names. */
+export interface StudentPlacement {
+  institutionId: string;
+  gradeId: string;
+  gradeName: string | null;
+  classId: string | null;
+  className: string | null;
 }
 
 /**

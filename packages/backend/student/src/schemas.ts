@@ -271,6 +271,14 @@ export const StudentResponseSchema = Type.Object({
   customData: Type.Record(Type.String(), Type.Unknown(), { description: 'Custom fields' }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
+  // PRC-M031: additive placement from the current ENROLLED enrollment (null when none).
+  institutionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  gradeId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  grade: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Grade name' })),
+  classId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  className: Type.Optional(
+    Type.Union([Type.String(), Type.Null()], { description: 'Class / section name' }),
+  ),
 });
 
 export type StudentResponse = Static<typeof StudentResponseSchema>;

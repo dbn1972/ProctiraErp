@@ -34,6 +34,7 @@ import {
   resolveStudentReadScope,
   type StudentPortalBinding,
 } from './student-portal-access.js';
+import type { StudentPlacement } from './student-repository.js';
 import type { StudentService } from './student-service.js';
 import { UUID_PATTERN } from './uuid-pattern.js';
 
@@ -158,6 +159,7 @@ function formatStudentResponse(entity: {
   customData: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
+  placement?: StudentPlacement | null;
 }) {
   return {
     id: entity.id,
@@ -179,6 +181,23 @@ function formatStudentResponse(entity: {
       null,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
+    ...placementFields(entity.placement),
+  };
+}
+
+/**
+ * PRC-M031: additive placement fields from the current enrollment. Omitted when
+ * the repository does not resolve placement; null values when the student has no
+ * matching enrollment. Mobile `Student.fromJson` reads `className` / `grade`.
+ */
+function placementFields(placement: StudentPlacement | null | undefined) {
+  if (placement === undefined) return {};
+  return {
+    institutionId: placement?.institutionId ?? null,
+    gradeId: placement?.gradeId ?? null,
+    grade: placement?.gradeName ?? null,
+    classId: placement?.classId ?? null,
+    className: placement?.className ?? null,
   };
 }
 

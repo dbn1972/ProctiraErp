@@ -5,6 +5,9 @@
  *  - PRC-M148: `gradeId` / `enrollmentStatus` (and `institutionId`) filter on one
  *    enrollment row. Before the fix the relation filter named a `deletedAt`
  *    column the enrollments table does not have, and grade/status were ignored.
+ *  - PRC-M031: list / findById return the current placement (institution, grade
+ *    and class ids plus grade and class names) so the mobile roster can filter by
+ *    class. Before the fix no class or grade field existed on the student.
  *
  * Skipped without DATABASE_URL (loud warning; CI's live gate forbids the skip).
  */
@@ -123,15 +126,16 @@ async function enroll(
 describe('PrismaStudentRepository.list enrollment filters (live) — PRC-M148', () => {
   let repo: PrismaStudentRepository;
   let fx: Fixture;
-
+  let ashaId = '';
+  let chitraId = '';
   beforeAll(async () => {
     if (!live) return;
     prisma = createPrismaClient({ datasourceUrl: DATABASE_URL! });
     repo = new PrismaStudentRepository(prisma);
     fx = await seedFixture();
-    await enroll(fx, 'Asha', fx.grade5, fx.class5A, 'ENROLLED');
+    ashaId = await enroll(fx, 'Asha', fx.grade5, fx.class5A, 'ENROLLED');
     await enroll(fx, 'Bina', fx.grade6, fx.class6A, 'ENROLLED');
-    await enroll(fx, 'Chitra', fx.grade5, fx.class5A, 'WITHDRAWN');
+    chitraId = await enroll(fx, 'Chitra', fx.grade5, fx.class5A, 'WITHDRAWN');
   }, 60_000);
 
   afterAll(async () => {
@@ -156,5 +160,31 @@ describe('PrismaStudentRepository.list enrollment filters (live) — PRC-M148', 
     expect(await names({ enrollmentStatus: 'WITHDRAWN' })).toEqual(['Chitra']);
     expect(await names({ enrollmentStatus: 'WITHDRAWN', gradeId: fx.grade6 })).toEqual([]);
     expect(await names({ enrollmentStatus: 'WITHDRAWN', gradeId: fx.grade5 })).toEqual(['Chitra']);
+  });
+
+  it.skipIf(!live)('PRC-M031: list and findById carry the current placement', async () => {
+    const page = await repo.list(fx.tenantId, {}, { page: 1, pageSize: 50 });
+    const asha = page.data.find((s) => s.id === ashaId);
+    expect(asha?.placement).toEqual({
+      institutionId: fx.institutionId,
+      gradeId: fx.grade5,
+      gradeName: 'Grade 5',
+      classId: fx.class5A,
+      className: '5-A',
+    });
+    // Only an ENROLLED enrollment is a current placement.
+    expect(page.data.find((s) => s.id === chitraId)?.placement).toBeNull();
+    expect((await repo.findById(ashaId, fx.tenantId))?.placement?.className).toBe('5-A');
+  });
+
+  it.skipIf(!live)('PRC-M031: a status filter reports the matching enrollment', async () => {
+    const page = await repo.list(
+      fx.tenantId,
+      { enrollmentStatus: 'WITHDRAWN' },
+      { page: 1, pageSize: 50 },
+    );
+    expect(page.data.map((s) => [s.firstName, s.placement?.className])).toEqual([
+      ['Chitra', '5-A'],
+    ]);
   });
 });

@@ -29,6 +29,7 @@ import type {
   StudentEntity,
   StudentFilter,
   StudentGuardian,
+  StudentPlacement,
   IdentityDocument,
   StudentBulkWrite,
   StudentBulkWriteResult,
@@ -74,6 +75,51 @@ interface StudentRow {
   customData: unknown;
   createdAt: Date;
   updatedAt: Date;
+  /** PRC-M031: present when the query included {@link placementInclude}. */
+  enrollments?: PlacementRow[];
+}
+
+/** PRC-M031: the enrollment columns (and names) the placement include reads. */
+interface PlacementRow {
+  institutionId: string;
+  gradeId: string;
+  classId: string | null;
+  grade?: { name: string } | null;
+  class?: { name: string } | null;
+}
+
+/**
+ * PRC-M031: include the student's current placement: the newest enrollment that
+ * matches the list's enrollment filter, or the newest ENROLLED one without a filter.
+ */
+function placementInclude(filter: StudentFilter = {}): Record<string, unknown> {
+  return {
+    enrollments: {
+      where: enrollmentMatch(filter) ?? { status: 'ENROLLED' },
+      orderBy: [{ enrolledAt: 'desc' }, { createdAt: 'desc' }],
+      take: 1,
+      select: {
+        institutionId: true,
+        gradeId: true,
+        classId: true,
+        grade: { select: { name: true } },
+        class: { select: { name: true } },
+      },
+    },
+  };
+}
+
+function toPlacement(rows: PlacementRow[] | undefined): StudentPlacement | null | undefined {
+  if (rows === undefined) return undefined;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    institutionId: row.institutionId,
+    gradeId: row.gradeId,
+    gradeName: row.grade?.name ?? null,
+    classId: row.classId ?? null,
+    className: row.class?.name ?? null,
+  };
 }
 
 function toIsoDate(value: Date): string {
@@ -136,6 +182,7 @@ function toEntity(row: StudentRow): StudentEntity {
     customData: userCustomData,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    ...(row.enrollments !== undefined ? { placement: toPlacement(row.enrollments) } : {}),
   };
 }
 
@@ -380,6 +427,7 @@ export class PrismaStudentRepository implements StudentRepository {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const row = (await tx.student.findFirst({
         where: { id, tenantId, deletedAt: null },
+        include: placementInclude(),
       })) as StudentRow | null;
       return row ? toEntity(row) : null;
     });
@@ -406,7 +454,7 @@ export class PrismaStudentRepository implements StudentRepository {
 
       const [totalItems, rows] = await Promise.all([
         tx.student.count({ where }),
-        tx.student.findMany({ where, orderBy, skip, take }),
+        tx.student.findMany({ where, orderBy, skip, take, include: placementInclude(filter) }),
       ]);
 
       return toPage(rows as StudentRow[], totalItems, pagination);
@@ -430,6 +478,7 @@ export class PrismaStudentRepository implements StudentRepository {
           orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
           skip,
           take,
+          include: placementInclude(),
         }),
       ]);
 
@@ -491,15 +540,18 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
   // PRC-M148: institution, grade and status match one enrollment row. The
   // enrollments table has no deleted_at column, so the relation filter must not
   // name one (Prisma rejects unknown fields at query time).
-  if (filter.institutionId || filter.gradeId || filter.enrollmentStatus) {
-    const enrollment: Record<string, unknown> = {
-      status: filter.enrollmentStatus ?? 'ENROLLED',
-    };
-    if (filter.institutionId) enrollment.institutionId = filter.institutionId;
-    if (filter.gradeId) enrollment.gradeId = filter.gradeId;
-    where.enrollments = { some: enrollment };
-  }
+  const enrollment = enrollmentMatch(filter);
+  if (enrollment) where.enrollments = { some: enrollment };
   return where;
+}
+
+/** PRC-M148: the one-row enrollment predicate for the list filters, or null when unset. */
+function enrollmentMatch(filter: StudentFilter): Record<string, unknown> | null {
+  if (!filter.institutionId && !filter.gradeId && !filter.enrollmentStatus) return null;
+  const enrollment: Record<string, unknown> = { status: filter.enrollmentStatus ?? 'ENROLLED' };
+  if (filter.institutionId) enrollment.institutionId = filter.institutionId;
+  if (filter.gradeId) enrollment.gradeId = filter.gradeId;
+  return enrollment;
 }
 
 function buildSearchWhere(
