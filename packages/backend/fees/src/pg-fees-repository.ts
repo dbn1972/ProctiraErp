@@ -54,7 +54,11 @@ import {
   type RecordPaymentOnInvoiceSettlement,
   type RefundStatus,
 } from './fees-repository.js';
-import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
+import type {
+  ReminderProvider,
+  ReminderSendAuditEntity,
+  ReminderSuppressionEntity,
+} from './reminder-sandbox.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -146,7 +150,9 @@ function mapReminderSendAudit(row: Record<string, unknown>): ReminderSendAuditEn
     studentId: String(row.student_id),
     channel: String(row.channel) as ReminderSendAuditEntity['channel'],
     messageId: String(row.message_id),
-    mode: 'sandbox',
+    mode: row.mode === 'live' ? 'live' : 'sandbox',
+    provider: row.provider == null ? null : (String(row.provider) as ReminderProvider),
+    providerMessageId: row.provider_message_id == null ? null : String(row.provider_message_id),
     honestyNote: String(row.honesty_note),
     actorId: String(row.actor_id),
     createdAt: toDate(row.created_at),
@@ -1229,8 +1235,9 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_reminder_send_audits (
-           id, tenant_id, invoice_id, student_id, channel, message_id, mode, honesty_note, actor_id, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+           id, tenant_id, invoice_id, student_id, channel, message_id, mode, honesty_note, actor_id, created_at,
+           provider, provider_message_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1242,6 +1249,8 @@ export class PgFeesRepository implements FeesRepository {
           data.honestyNote,
           data.actorId,
           data.createdAt,
+          data.provider ?? null,
+          data.providerMessageId ?? null,
         ],
       );
       return mapReminderSendAudit(result.rows[0] as Record<string, unknown>);

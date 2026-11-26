@@ -35,9 +35,12 @@ import {
 } from './instalment-schedule.js';
 import { createPaymentAdapterFromEnv, type PaymentAdapter } from './payment-adapter.js';
 import {
+  FEES_REMINDER_LIVE_HONESTY_NOTE,
   FEES_REMINDER_SANDBOX_HONESTY_NOTE,
   type ReminderChannel,
+  type ReminderDeliveryPort,
   type ReminderSendAuditEntity,
+  type ReminderSendMode,
   type ReminderSuppressionEntity,
   type SendReminderResultRow,
 } from './reminder-sandbox.js';
@@ -274,12 +277,16 @@ export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
 
 export class FeesService {
   private readonly paymentAdapter: PaymentAdapter;
+  private readonly reminderDelivery: ReminderDeliveryPort | null;
 
   constructor(
     private readonly repository: FeesRepository,
     paymentAdapter?: PaymentAdapter,
+    options: { reminderDelivery?: ReminderDeliveryPort } = {},
   ) {
     this.paymentAdapter = paymentAdapter ?? createPaymentAdapterFromEnv();
+    // PRC-L291: no delivery port -> reminders stay sandbox (no provider is wired yet).
+    this.reminderDelivery = options.reminderDelivery ?? null;
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
@@ -1784,10 +1791,15 @@ export class FeesService {
     input: SendRemindersInput,
     asOf: Date = new Date(),
   ): Promise<{
-    mode: 'sandbox';
+    mode: ReminderSendMode;
     honestyNote: string;
     results: SendReminderResultRow[];
   }> {
+    const delivery = this.reminderDelivery;
+    const mode: ReminderSendMode = delivery ? 'live' : 'sandbox';
+    const honestyNote = delivery
+      ? FEES_REMINDER_LIVE_HONESTY_NOTE
+      : FEES_REMINDER_SANDBOX_HONESTY_NOTE;
     const channels = [...new Set(input.channels)];
     if (channels.length === 0) {
       throw new BusinessRuleError('At least one channel (email or sms) is required');
@@ -1859,7 +1871,7 @@ export class FeesService {
         // PRC-L106: one reminder per (tenant, invoice, channel, day). The message id is
         // derived from those, so a retried or repeated run reuses it instead of minting
         // a new Date.now() id and a second audit row.
-        const messageId = `sandbox-${channel}:fees:${tenantId}:${invoiceId}:${sendDay}`;
+        const messageId = `${mode}-${channel}:fees:${tenantId}:${invoiceId}:${sendDay}`;
         if (cadenceDays > 0) {
           const cutoff = asOf.getTime() - cadenceDays * 86_400_000;
           const recent = (lastSentAt.get(`${invoiceId}:${channel}`) ?? -1) >= cutoff;
@@ -1889,6 +1901,16 @@ export class FeesService {
           continue;
         }
 
+        // PRC-L291: a live row carries the provider's own message id (db/sql/328).
+        const sent = delivery
+          ? await delivery.send({
+              tenantId,
+              invoiceId,
+              studentId: row.studentId,
+              channel,
+              idempotencyKey: messageId,
+            })
+          : null;
         const audit: ReminderSendAuditEntity = {
           id: uuidv4(),
           tenantId,
@@ -1896,8 +1918,10 @@ export class FeesService {
           studentId: row.studentId,
           channel,
           messageId,
-          mode: 'sandbox',
-          honestyNote: FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+          mode,
+          provider: sent?.provider ?? null,
+          providerMessageId: sent?.providerMessageId ?? null,
+          honestyNote,
           actorId,
           createdAt: new Date(),
         };
@@ -1915,8 +1939,8 @@ export class FeesService {
     }
 
     return {
-      mode: 'sandbox',
-      honestyNote: FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+      mode,
+      honestyNote,
       results,
     };
   }
