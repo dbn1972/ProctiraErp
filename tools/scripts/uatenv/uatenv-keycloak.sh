@@ -26,8 +26,15 @@ TENANT_BASE="${UATENV_TENANT_BASE_DOMAIN:-proctira.localhost}"
 PORT_SUFFIX=":${UATENV_PUBLIC_PORT:-29080}"
 SCHEME="${UATENV_PUBLIC_SCHEME:-http}"
 [[ "$SCHEME:${UATENV_PUBLIC_PORT:-29080}" == "https:443" ]] && PORT_SUFFIX=''
+# Platform-tenant users (tenant id and slug `platform`, the tenant the admin
+# console requires: apps/admin-console/src/lib/auth/verified-token.ts) sign in
+# on the admin console host instead of a tenant host.
+PLATFORM_TENANT=platform
+ADMIN_HOST="admin.${UATENV_PLATFORM_DOMAIN:-proctira-uat.localhost}"
 
 # username-prefix | realm role | tenant slug | tenant id | display name
+#   uat-health-admin (UATENV-D26): tenant-wide health registers and the PHI access log.
+#   uat-platform-operator (UATENV-D23): platform operator for the admin console.
 ROLE_USERS=(
   "uat-platform-admin|super-admin|sunrise-public-school|$SUNRISE_ID|Platform Admin"
   "uat-tenant-admin|admin|sunrise-public-school|$SUNRISE_ID|Tenant Admin"
@@ -42,8 +49,10 @@ ROLE_USERS=(
   "uat-librarian|librarian|sunrise-public-school|$SUNRISE_ID|Librarian"
   "uat-parent|guardian|sunrise-public-school|$SUNRISE_ID|Parent"
   "uat-student|student|sunrise-public-school|$SUNRISE_ID|Student"
+  "uat-health-admin|health_admin|sunrise-public-school|$SUNRISE_ID|Health Admin"
   "uat-b-tenant-admin|admin|e2e-tenant-a|$TENANT_B_ID|Tenant B Admin"
   "uat-b-teacher|teacher|e2e-tenant-a|$TENANT_B_ID|Tenant B Teacher"
+  "uat-platform-operator|platform_admin|$PLATFORM_TENANT|$PLATFORM_TENANT|Platform Operator"
 )
 USER_DOMAIN="${UATENV_USER_DOMAIN:-proctira-uat.test}"
 
@@ -140,6 +149,7 @@ apply_users() {
     IFS='|' read -r prefix role slug tid name <<<"$spec"
     username="$prefix@$USER_DOMAIN"
     host="$SCHEME://$slug.$TENANT_BASE$PORT_SUFFIX"
+    [[ "$slug" == "$PLATFORM_TENANT" ]] && host="$SCHEME://$ADMIN_HOST$PORT_SUFFIX"
     pw="$(tsv_password "$username")"
     [[ -n "$pw" ]] || pw="$(new_password)"
     U_NAME="$username" U_SLUG="$slug" U_TID="$tid" U_DISPLAY="$name" json_body "$TMP/user.json" '

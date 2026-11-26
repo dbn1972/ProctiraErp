@@ -277,6 +277,41 @@ test('rendered realm drops committed users and the dev secret, adds the UAT role
   assert.throws(() => renderRealm(realm, hostOptions({}), ''));
 });
 
+/** ROLE_USERS rows of uatenv-keycloak.sh: [prefix, role, slug, tenantId, displayName]. */
+function roleUsers() {
+  const s = src('uatenv-keycloak.sh');
+  const block = s.slice(s.indexOf('ROLE_USERS=('), s.indexOf('\n)\n', s.indexOf('ROLE_USERS=(')));
+  return [...block.matchAll(/^\s*"([^"]+)"$/gm)].map((m) => m[1].split('|'));
+}
+test('every UAT role user holds a rendered realm role (UATENV-D23, UATENV-D26)', () => {
+  const users = roleUsers();
+  assert.ok(users.length >= 17, `expected the full UAT roster, got ${users.length}`);
+  for (const [prefix, role] of users) {
+    assert.ok(UAT_REALM_ROLES.includes(role), `${prefix} role ${role} is not in UAT_REALM_ROLES`);
+  }
+  const byPrefix = Object.fromEntries(users.map((u) => [u[0], u]));
+  // D26: a tenant-wide health administrator in the Sunrise tenant.
+  assert.deepEqual(byPrefix['uat-health-admin'].slice(1, 4), [
+    'health_admin',
+    'sunrise-public-school',
+    '$SUNRISE_ID',
+  ]);
+  // D23: a platform operator whose tenant claim is the console's platform tenant.
+  assert.deepEqual(byPrefix['uat-platform-operator'].slice(1, 4), [
+    'platform_admin',
+    '$PLATFORM_TENANT',
+    '$PLATFORM_TENANT',
+  ]);
+  const consoleTenant = /PLATFORM_TENANT_ID = '([^']+)'/.exec(
+    readFileSync(join(ROOT, 'apps/admin-console/src/lib/auth/verified-token.ts'), 'utf8'),
+  )?.[1];
+  assert.match(src('uatenv-keycloak.sh'), new RegExp(`^PLATFORM_TENANT=${consoleTenant}$`, 'm'));
+  // Only the platform operator is outside a school tenant.
+  assert.deepEqual(
+    users.filter((u) => u[2] === '$PLATFORM_TENANT').map((u) => u[0]),
+    ['uat-platform-operator'],
+  );
+});
 test('UAT detail records (UATENV-D17) are guarded and never a production seed', () => {
   const sqlFile = 'uatenv-detail-records.sql';
   const sql = src(sqlFile);
