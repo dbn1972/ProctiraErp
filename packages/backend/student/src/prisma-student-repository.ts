@@ -488,14 +488,16 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
   if (filter.ids) {
     where.id = { in: filter.ids };
   }
-  if (filter.institutionId) {
-    where.enrollments = {
-      some: {
-        institutionId: filter.institutionId,
-        status: 'ENROLLED',
-        deletedAt: null,
-      },
+  // PRC-M148: institution, grade and status match one enrollment row. The
+  // enrollments table has no deleted_at column, so the relation filter must not
+  // name one (Prisma rejects unknown fields at query time).
+  if (filter.institutionId || filter.gradeId || filter.enrollmentStatus) {
+    const enrollment: Record<string, unknown> = {
+      status: filter.enrollmentStatus ?? 'ENROLLED',
     };
+    if (filter.institutionId) enrollment.institutionId = filter.institutionId;
+    if (filter.gradeId) enrollment.gradeId = filter.gradeId;
+    where.enrollments = { some: enrollment };
   }
   return where;
 }

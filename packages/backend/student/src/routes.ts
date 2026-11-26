@@ -14,6 +14,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
   CreateStudentSchema,
+  STUDENT_ENROLLMENT_STATUSES,
   UpdateStudentSchema,
   StudentParamsSchema,
   MergeStudentsSchema,
@@ -21,6 +22,7 @@ import {
   type UpdateStudentInput,
   type StudentListQuery,
   type StudentSearchQuery,
+  type StudentEnrollmentStatus,
   type StudentParams,
   type MergeStudentsInput,
 } from './schemas.js';
@@ -45,6 +47,29 @@ function parseIdsFilter(raw: string | undefined): string[] | undefined | null {
   return ids;
 }
 
+/**
+ * PRC-M148: `gradeId` / `status` enrollment filters. An unknown value is a 400,
+ * never a silently ignored parameter that returns the unfiltered page.
+ */
+function parseEnrollmentFilters(
+  query: StudentListQuery,
+): { gradeId?: string; enrollmentStatus?: StudentEnrollmentStatus } | { error: string } {
+  const { gradeId, status } = query;
+  if (gradeId !== undefined && gradeId !== '' && !STUDENT_ID_RE.test(gradeId)) {
+    return { error: 'gradeId must be a UUID' };
+  }
+  if (
+    status !== undefined &&
+    status !== '' &&
+    !(STUDENT_ENROLLMENT_STATUSES as readonly string[]).includes(status)
+  ) {
+    return { error: `status must be one of ${STUDENT_ENROLLMENT_STATUSES.join(', ')}` };
+  }
+  return {
+    ...(gradeId ? { gradeId } : {}),
+    ...(status ? { enrollmentStatus: status as StudentEnrollmentStatus } : {}),
+  };
+}
 function getRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
   return user?.roles ?? [];
@@ -413,6 +438,14 @@ export async function registerStudentRoutes(
           statusCode: 400,
         });
       }
+      const enrollmentFilters = parseEnrollmentFilters(query);
+      if ('error' in enrollmentFilters) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: enrollmentFilters.error,
+          statusCode: 400,
+        });
+      }
       try {
         // PRC-C010: listing all students is a staff surface; portal roles are denied.
         const roles = getRoles(request);
@@ -428,6 +461,7 @@ export async function registerStudentRoutes(
             // HN-F4-R3: national ID is searchable only by roles that may view it.
             matchNationalId: mayViewNationalId(roles),
             institutionId: query.institutionId,
+            ...enrollmentFilters,
             ids,
           },
           { page, pageSize, sortBy, sortOrder },

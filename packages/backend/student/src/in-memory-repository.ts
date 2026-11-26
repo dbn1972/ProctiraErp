@@ -161,6 +161,17 @@ export class InMemoryStudentRepository implements StudentRepository {
         return custom?.['institutionId'] === institutionId;
       });
     }
+    // PRC-M148: the in-memory store has no enrollments table; it reads the same
+    // customData placement keys as the institution filter above.
+    if (filter.gradeId || filter.enrollmentStatus) {
+      const { gradeId, enrollmentStatus } = filter;
+      items = items.filter((entity) => {
+        const custom = entity.customData as Record<string, unknown> | null;
+        if (gradeId && custom?.['gradeId'] !== gradeId) return false;
+        const status = custom?.['enrollmentStatus'] ?? 'ENROLLED';
+        return status === (enrollmentStatus ?? 'ENROLLED');
+      });
+    }
 
     // Sort
     const sortBy = pagination.sortBy ?? 'lastName';

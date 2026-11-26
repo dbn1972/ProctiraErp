@@ -66,6 +66,14 @@ export interface StudentFilter {
   search?: string;
   /** When set, only students enrolled at this institution are returned. */
   institutionId?: string;
+  /** PRC-M148: only students with an enrollment in this grade. */
+  gradeId?: string;
+  /**
+   * PRC-M148: only students with an enrollment in this status. The placement
+   * filters (institutionId, gradeId) apply to the same enrollment row and default
+   * to ENROLLED when this is unset.
+   */
+  enrollmentStatus?: 'ENROLLED' | 'TRANSFERRED' | 'WITHDRAWN' | 'GRADUATED';
   /** When set, only these student ids are returned (batch label lookup). */
   ids?: string[];
   /**
