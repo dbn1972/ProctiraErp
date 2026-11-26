@@ -289,6 +289,32 @@ describe('BrandConfigProvider — fallback when API fails (Requirement 43.4)', (
   });
 });
 
+describe('BrandConfigProvider — public brand for roles refused tenant branding (UATENV-D22)', () => {
+  it('renders the school name from the public brand subset the route returns', async () => {
+    // For a 403 role the route answers with the gateway's public brand subset.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ slug: 'sunrise-public-school', name: 'Sunrise Public School' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const { result } = renderHook(() => useBrand(), {
+      wrapper: ({ children }) => <BrandConfigProvider>{children}</BrandConfigProvider>,
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.name).toBe('Sunrise Public School');
+    expect(result.current.error).toBeNull();
+    expect(readTenantVar('--tenant-name')).toBe("'Sunrise Public School'");
+  });
+
+  it('a 403 the route passes through keeps the product default', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ code: 'FORBIDDEN' }), { status: 403 }),
+    );
+    await expect(defaultBrandFetcher()).resolves.toEqual(DEFAULT_BRAND);
+  });
+});
+
 describe('normalizeBrandResponse — accepts both canonical and backend shapes', () => {
   it('coerces the backend BrandingConfigSchema (camelCase) shape', () => {
     const backendPayload = {

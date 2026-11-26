@@ -38,12 +38,24 @@
  * tenant header, so forwarding one would only turn a resolvable request into a
  * confusing 4xx — and it would make the security property here depend on the
  * gateway's check instead of on this route.
+ *
+ * ## Roles refused tenant branding (UATENV-D22)
+ *
+ * Bursar, registrar, warden, librarian, nurse and other roles get 403 from the
+ * gateway's tenant branding, so their sidebar card and header showed the product name.
+ * On that 403 this route answers with the public brand subset for the session's own
+ * `tenant_slug` on the inbound Host (`fetchSessionPublicBrand`). When that does not apply
+ * (no slug claim, no usable Host, or the Host belongs to another tenant, UATENV-D09) the
+ * 403 is passed through and the provider keeps the product default. A 429 or 5xx from
+ * the public read becomes 503, which the provider does not cache. Only a 403 qualifies:
+ * there the gateway has verified the token, so its claims hold.
  */
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL } from '@/lib/api/gateway';
 import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
+import { fetchSessionPublicBrand } from '@/lib/tenant-theme/session-public-brand';
 
 export async function GET(): Promise<Response> {
   const cookieStore = await cookies();
@@ -71,6 +83,15 @@ export async function GET(): Promise<Response> {
     });
 
     const body = await upstream.text();
+    if (upstream.status === 403) {
+      const publicBody = await fetchSessionPublicBrand(accessToken, (await headers()).get('host'));
+      if (publicBody) {
+        return new NextResponse(publicBody, {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+        });
+      }
+    }
     return new NextResponse(body, {
       status: upstream.status,
       headers: {
