@@ -8,12 +8,18 @@
 # Sharding: the chromium PR/nightly set is ~43 minutes of Playwright (run
 # 36284769618 finished in 42.7 min; run 36305756098 was cancelled at the 45
 # minute job timeout still inside a11y-axe, before 44-students-360). Setup
-# before the harness on that run was ~2 minutes. Four shards each run the
-# full stack and `playwright test --shard=i/4` so every spec still runs.
+# before the harness on that run was ~2 minutes. Each shard runs the full
+# stack and `playwright test --shard=i/n` so every spec still runs.
 # The matrix legs are NOT the required check. The aggregator job keeps the
 # exact name `E2E backend-ready live gate (G-401 / G-706)` so branch
 # protection still matches. CI Aggregate does not depend on this workflow.
-# Shard count is 4 — keep the matrix and E2E_SHARD_TOTAL in sync.
+# Shard count is 4 for pull_request and 8 for schedule/dispatch (the nightly
+# set): keep the matrix and E2E_SHARD_TOTAL in sync. Nightly 45633212011 lost
+# shards 3/4 (45 min timeout) and 4/4 (runner shutdown): each shard serves the
+# web app with `next dev`, whose RSS grows with every route it compiles, and
+# with 4 shards one runner compiled all 155 a11y-axe routes (18.3 GB peak RSS
+# locally against the runner's 16 GB). 8 shards halve the routes and the time
+# per nightly shard.
 #
 # Modes:
 #   pull_request  — HARD gate (E2E_REQUIRE_LIVE=1): gateway must come up and the
@@ -79,8 +85,10 @@ env:
   JWT_SECRET: dev-secret-change-in-production
   E2E_GATEWAY_URL: http://127.0.0.1:3000
   NEXT_PUBLIC_GATEWAY_URL: http://127.0.0.1:3000
-  # Must match jobs.e2e-backend-ready-shard.strategy.matrix.shard length.
-  E2E_SHARD_TOTAL: '4'
+  # Must match jobs.e2e-backend-ready-shard.strategy.matrix.shard length for
+  # the same event: 4 for pull_request, 8 for the nightly set (schedule and
+  # workflow_dispatch).
+  E2E_SHARD_TOTAL: ${{ github.event_name == 'pull_request' && '4' || '8' }}
   # PR gate: HS256-cookie live smokes that need only Postgres + gateway.
   # G-722: PR gate includes authenticated axe matrix (a11y-axe) + 17c smoke.
   PR_SPECS: >-
@@ -217,7 +225,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # Same split as E2E_SHARD_TOTAL (env is not readable in strategy).
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1, 2, 3, 4]' || '[1, 2, 3, 4, 5, 6, 7, 8]') }}
     # Hard-fail Playwright when it actually runs (no continue-on-error).
     # Scaffolding skip path exits 0 from the harness with a clear summary.
     services:
@@ -415,8 +424,8 @@ jobs:
           # UAT-ENV-015: one worker per shard to cut runner contention. The web
           # server is `next dev` (routes compile on first request); in nightly
           # 43423176859, 16f:57 timed out on all three attempts with 15-16 s
-          # requests. Shards still run as four parallel jobs; expected 10-20 min
-          # of Playwright per shard (to be confirmed on the first runs).
+          # requests. Shards still run as parallel jobs (4 on PRs, 8 nightly);
+          # expected 10-20 min of Playwright per shard.
           PLAYWRIGHT_WORKERS: '1'
           # `next dev` restarts once used heap passes 80% of its limit, and its
           # default limit is half of RAM (8 GB on this 16 GB runner), so the
