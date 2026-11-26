@@ -21,6 +21,7 @@ import {
   pickStaff,
   postOk,
   seedClassAndSubject,
+  seedMeeting,
   seedPayrollMonth,
   seedTemplate,
   setLeaveBalance,
@@ -36,8 +37,8 @@ import {
  * reloads to prove it came back from the database, and reads the row through the API.
  * All dates are derived from the run.
  *
- * Not here: `/staff/substitutions` cannot save today (S-D3, the form gets no staff list);
- * its form-save test is kept in the task's patches/ for the fix PR.
+ * S-D3 is fixed: `/staff/substitutions` now passes the staff directory to its form, and the
+ * "S-D3 /staff/substitutions" test below covers the save.
  */
 
 /**
@@ -487,5 +488,33 @@ test.describe('Staff screens — form saves (E2E_BACKEND_READY)', () => {
       rowText,
       { timeout: SAVE_TIMEOUT },
     );
+  });
+
+  test('S-D3 /staff/substitutions: the assign-substitute form saves a substitution', async ({
+    page,
+    request,
+  }) => {
+    const tag = newTag();
+    const admin = hrAdmin(`st-admin-${tag}`);
+    const m = await seedMeeting(request, admin, tag);
+    await openAs(page, admin);
+    const reason = `ST form cover ${tag}`;
+
+    await page.goto('/staff/substitutions', { waitUntil: 'domcontentloaded' });
+    const form = page
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Assign substitute' }) });
+    await form.getByLabel('Meeting slot').selectOption(m.meetingId);
+    await form.getByTestId('substitute-staff').selectOption(m.substitute.id);
+    await form.getByLabel('Date').fill(m.date);
+    await form.getByLabel('Reason (optional)').fill(reason);
+    await form.getByRole('button', { name: 'Assign substitute' }).click();
+
+    const row = page.locator('main tbody tr').filter({ hasText: reason });
+    await expect(row).toHaveCount(1, { timeout: SAVE_TIMEOUT });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(row.locator('td').nth(0)).toHaveText(m.date);
+    await expect(row.locator('td').nth(2)).toHaveText(m.original.label);
+    await expect(row.locator('td').nth(3)).toHaveText(m.substitute.label);
   });
 });
