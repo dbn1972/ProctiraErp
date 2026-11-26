@@ -513,7 +513,7 @@ export class InMemoryFeesRepository implements FeesRepository {
   async updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId' | 'journalId'>>,
   ): Promise<FeeConcessionEntity | null> {
     const index = this.concessions.findIndex((row) => row.id === id && row.tenantId === tenantId);
     if (index === -1) return null;

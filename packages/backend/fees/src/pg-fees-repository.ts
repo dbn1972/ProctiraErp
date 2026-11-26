@@ -269,6 +269,7 @@ function mapConcession(row: Record<string, unknown>): FeeConcessionEntity {
     status: String(row.status) as ConcessionStatus,
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -282,6 +283,7 @@ function mapCreditNote(row: Record<string, unknown>): FeeCreditNoteEntity {
     status: String(row.status) as FeeCreditNoteEntity['status'],
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -295,6 +297,7 @@ function mapWriteOff(row: Record<string, unknown>): FeeWriteOffEntity {
     status: String(row.status) as FeeWriteOffEntity['status'],
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -309,6 +312,7 @@ function mapRefund(row: Record<string, unknown>): FeeRefundEntity {
     status: String(row.status) as RefundStatus,
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -1409,8 +1413,9 @@ export class PgFeesRepository implements FeesRepository {
       const result = await client.query(
         `INSERT INTO fee_concessions (
            id, tenant_id, student_id, structure_id, invoice_id, kind, percent,
-           amount_cents, reason, source_disbursement_id, approver_id, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+           amount_cents, reason, source_disbursement_id, approver_id, status, created_by,
+           journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1425,6 +1430,7 @@ export class PgFeesRepository implements FeesRepository {
           data.approverId,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapConcession(result.rows[0] as Record<string, unknown>);
@@ -1509,7 +1515,7 @@ export class PgFeesRepository implements FeesRepository {
   async updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId' | 'journalId'>>,
   ): Promise<FeeConcessionEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -1517,10 +1523,18 @@ export class PgFeesRepository implements FeesRepository {
         `UPDATE fee_concessions
          SET invoice_id = COALESCE($1, invoice_id),
              status = COALESCE($2, status),
-             approver_id = COALESCE($3, approver_id)
+             approver_id = COALESCE($3, approver_id),
+             journal_id = COALESCE($6, journal_id)
          WHERE id = $4 AND tenant_id = $5
          RETURNING *`,
-        [data.invoiceId ?? null, data.status ?? null, data.approverId ?? null, id, tenantId],
+        [
+          data.invoiceId ?? null,
+          data.status ?? null,
+          data.approverId ?? null,
+          id,
+          tenantId,
+          data.journalId ?? null,
+        ],
       );
       if (!result.rows[0]) return null;
       return mapConcession(result.rows[0] as Record<string, unknown>);
@@ -1534,8 +1548,8 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_credit_notes (
-           id, tenant_id, invoice_id, amount_cents, reason, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+           id, tenant_id, invoice_id, amount_cents, reason, status, created_by, journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1544,6 +1558,7 @@ export class PgFeesRepository implements FeesRepository {
           data.reason,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapCreditNote(result.rows[0] as Record<string, unknown>);
@@ -1580,8 +1595,8 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_write_offs (
-           id, tenant_id, invoice_id, amount_cents, reason, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+           id, tenant_id, invoice_id, amount_cents, reason, status, created_by, journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1590,6 +1605,7 @@ export class PgFeesRepository implements FeesRepository {
           data.reason,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapWriteOff(result.rows[0] as Record<string, unknown>);
@@ -1623,8 +1639,9 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_refunds (
-           id, tenant_id, invoice_id, payment_id, amount_cents, reason, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+           id, tenant_id, invoice_id, payment_id, amount_cents, reason, status, created_by,
+           journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1634,6 +1651,7 @@ export class PgFeesRepository implements FeesRepository {
           data.reason,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapRefund(result.rows[0] as Record<string, unknown>);

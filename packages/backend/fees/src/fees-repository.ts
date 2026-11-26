@@ -218,6 +218,8 @@ export interface FeeConcessionEntity {
   status: ConcessionStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeCreditNoteEntity {
@@ -229,6 +231,8 @@ export interface FeeCreditNoteEntity {
   status: AdjustmentStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeWriteOffEntity {
@@ -240,6 +244,8 @@ export interface FeeWriteOffEntity {
   status: AdjustmentStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeRefundEntity {
@@ -252,6 +258,8 @@ export interface FeeRefundEntity {
   status: RefundStatus;
   createdBy: string | null;
   createdAt: Date;
+  /** PRC-M202: fee_ledger_entries journal that posted this adjustment (NULL on legacy rows). */
+  journalId?: string | null;
 }
 
 export interface FeeReconciliationBatchEntity {
@@ -430,7 +438,7 @@ export interface FeesRepository {
   updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId' | 'journalId'>>,
   ): Promise<FeeConcessionEntity | null>;
   findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null>;
   findConcessionBySourceDisbursementId(

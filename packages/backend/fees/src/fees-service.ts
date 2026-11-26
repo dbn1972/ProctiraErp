@@ -397,12 +397,13 @@ export class FeesService {
     memo: string,
     legs: ReadonlyArray<readonly [LedgerAccount, 'debit' | 'credit']>,
     amountCents: number,
-    refs: { paymentId?: string; receiptId?: string } = {},
+    refs: { paymentId?: string; receiptId?: string; journalId?: string } = {},
   ): Promise<FeeLedgerEntryEntity[]> {
     if (!Number.isInteger(amountCents) || amountCents < 0) {
       throw new BusinessRuleError('Journal amountCents must be a non-negative integer');
     }
-    const journalId = uuidv4();
+    // PRC-M202: an adjustment row carries the id of the journal that posted it.
+    const journalId = refs.journalId ?? uuidv4();
     const postedAt = new Date();
     return repo.postLedgerEntries(
       legs.map(([account, side]) => ({
@@ -1414,7 +1415,8 @@ export class FeesService {
     }
     const applied = Math.min(discount, unpaid);
     const nextAmount = invoice.amountCents - applied;
-    if (applied > 0) {
+    const journalId = applied > 0 ? uuidv4() : null;
+    if (journalId) {
       await this.postJournal(
         tx,
         invoice,
@@ -1425,6 +1427,7 @@ export class FeesService {
           ['accounts_receivable', 'credit'],
         ],
         applied,
+        { journalId },
       );
     }
     // PRC-M245: nothing left to collect -> settled.
@@ -1432,7 +1435,10 @@ export class FeesService {
       amountCents: nextAmount,
       ...(nextAmount <= locked.paidCents ? { status: 'paid' as const } : {}),
     });
-    await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
+    await tx.updateConcession(concession.id, tenantId, {
+      invoiceId: invoice.id,
+      ...(journalId ? { journalId } : {}),
+    });
     const refreshed = await tx.findConcessionById(concession.id, tenantId);
     await audit?.(tx, {
       kind: auditKind,
@@ -1487,6 +1493,7 @@ export class FeesService {
         );
       }
       const paymentId = target.id;
+      const journalId = uuidv4();
       const refund = await tx.createRefund({
         id: uuidv4(),
         tenantId,
@@ -1496,6 +1503,7 @@ export class FeesService {
         reason: input.reason,
         status: 'posted',
         createdBy: actorId,
+        journalId,
       });
       await this.postJournal(
         tx,
@@ -1507,6 +1515,7 @@ export class FeesService {
           ['cash', 'credit'],
         ],
         input.amountCents,
+        { journalId },
       );
       await audit?.(tx, {
         kind: 'refund',
@@ -1557,6 +1566,7 @@ export class FeesService {
         );
       }
 
+      const journalId = uuidv4();
       const creditNote = await tx.createCreditNote({
         id: uuidv4(),
         tenantId,
@@ -1565,6 +1575,7 @@ export class FeesService {
         reason,
         status: 'posted',
         createdBy: actorId,
+        journalId,
       });
 
       // PRC-M245: a credit note that clears the unpaid balance settles the invoice.
@@ -1584,6 +1595,7 @@ export class FeesService {
           ['accounts_receivable', 'credit'],
         ],
         input.amountCents,
+        { journalId },
       );
       await audit?.(tx, {
         kind: 'credit_note',
@@ -1631,6 +1643,7 @@ export class FeesService {
         );
       }
 
+      const journalId = uuidv4();
       const writeOff = await tx.createWriteOff({
         id: uuidv4(),
         tenantId,
@@ -1639,6 +1652,7 @@ export class FeesService {
         reason,
         status: 'posted',
         createdBy: actorId,
+        journalId,
       });
 
       const nextUnpaid = unpaid - input.amountCents;
@@ -1657,6 +1671,7 @@ export class FeesService {
           ['accounts_receivable', 'credit'],
         ],
         input.amountCents,
+        { journalId },
       );
       await audit?.(tx, {
         kind: 'write_off',
