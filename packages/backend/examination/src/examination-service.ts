@@ -631,6 +631,7 @@ export class ExaminationService {
       subjectIds: input.subjectIds,
       status: 'REGISTERED',
       registeredAt: new Date(),
+      boardRegistrationNumber: input.boardRegistrationNumber ?? null,
     };
 
     return this.repository.createCandidateRegistration(registration);

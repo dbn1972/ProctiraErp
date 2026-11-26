@@ -1157,6 +1157,8 @@ export class GradebookService {
       artifactUri,
       checksumSha256: checksum,
       signatureHmac: signature,
+      // PRC-L292: sealed with the dedicated transcript key (provenance in metadata).
+      sealStatus: 'KMS_HMAC',
       metadata: {
         ...payload,
         immutable: true,

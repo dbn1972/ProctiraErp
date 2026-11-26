@@ -56,6 +56,7 @@ interface RegistrationRow {
   subjectIds: unknown;
   status: string;
   registeredAt: Date;
+  boardRegistrationNumber?: string | null;
 }
 
 function toIsoDate(value: Date): string {
@@ -96,6 +97,7 @@ function toRegistration(row: RegistrationRow): CandidateRegistration {
     subjectIds: jsonArray<string>(row.subjectIds),
     status: row.status as CandidateRegistration['status'],
     registeredAt: row.registeredAt,
+    boardRegistrationNumber: row.boardRegistrationNumber ?? null,
   };
 }
 
@@ -368,6 +370,7 @@ export class PrismaExaminationRepository implements ExaminationRepository {
           subjectIds: data.subjectIds as unknown as Prisma.InputJsonValue,
           status: data.status,
           registeredAt: data.registeredAt,
+          boardRegistrationNumber: data.boardRegistrationNumber ?? null,
         },
       })) as RegistrationRow;
       return toRegistration(row);

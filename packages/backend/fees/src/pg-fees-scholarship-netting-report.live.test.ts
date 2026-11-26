@@ -55,10 +55,10 @@ async function paidDisbursement(tenantId: string, studentId: string, amountCents
     await client.query(
       `INSERT INTO scholarship_programs
          (id, tenant_id, name, application_start_date, application_end_date, total_slots,
-          amount_per_recipient, currency, status)
+          amount_per_recipient, amount_per_recipient_cents, currency, status)
        VALUES ($1, $2, 'Live report programme', DATE '2020-01-01', DATE '2099-12-31', 5,
-               $3, 'INR', 'open')`,
-      [programId, tenantId, amountCents / 100],
+               $3, $4, 'INR', 'open')`,
+      [programId, tenantId, amountCents / 100, amountCents],
     );
     await client.query(
       `INSERT INTO scholarship_applications

@@ -26,6 +26,7 @@ import {
   type ConcessionStatus,
   type FeeConcessionEntity,
   type FeeCreditNoteEntity,
+  type FeeDocumentKind,
   type FeeInvoiceEntity,
   type FeeLedgerEntryEntity,
   type FeePaymentEntity,
@@ -53,7 +54,11 @@ import {
   type RecordPaymentOnInvoiceSettlement,
   type RefundStatus,
 } from './fees-repository.js';
-import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
+import type {
+  ReminderProvider,
+  ReminderSendAuditEntity,
+  ReminderSuppressionEntity,
+} from './reminder-sandbox.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
@@ -145,7 +150,9 @@ function mapReminderSendAudit(row: Record<string, unknown>): ReminderSendAuditEn
     studentId: String(row.student_id),
     channel: String(row.channel) as ReminderSendAuditEntity['channel'],
     messageId: String(row.message_id),
-    mode: 'sandbox',
+    mode: row.mode === 'live' ? 'live' : 'sandbox',
+    provider: row.provider == null ? null : (String(row.provider) as ReminderProvider),
+    providerMessageId: row.provider_message_id == null ? null : String(row.provider_message_id),
     honestyNote: String(row.honesty_note),
     actorId: String(row.actor_id),
     createdAt: toDate(row.created_at),
@@ -269,6 +276,7 @@ function mapConcession(row: Record<string, unknown>): FeeConcessionEntity {
     status: String(row.status) as ConcessionStatus,
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -282,6 +290,7 @@ function mapCreditNote(row: Record<string, unknown>): FeeCreditNoteEntity {
     status: String(row.status) as FeeCreditNoteEntity['status'],
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -295,6 +304,7 @@ function mapWriteOff(row: Record<string, unknown>): FeeWriteOffEntity {
     status: String(row.status) as FeeWriteOffEntity['status'],
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -309,6 +319,7 @@ function mapRefund(row: Record<string, unknown>): FeeRefundEntity {
     status: String(row.status) as RefundStatus,
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    journalId: row.journal_id == null ? null : String(row.journal_id),
   };
 }
 
@@ -321,6 +332,7 @@ function mapReconBatch(row: Record<string, unknown>): FeeReconciliationBatchEnti
     unmatchedCount: Number(row.unmatched_count),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
+    contentHash: row.content_hash == null ? null : String(row.content_hash),
   };
 }
 
@@ -350,6 +362,9 @@ function mapReconRow(row: Record<string, unknown>): FeeReconciliationRowEntity {
     resolvedAt: row.resolved_at == null ? null : toDate(row.resolved_at),
     resolutionNote: row.resolution_note == null ? null : String(row.resolution_note),
     createdAt: toDate(row.created_at),
+    bankReference: row.bank_reference == null ? null : String(row.bank_reference),
+    valueDate: row.value_date == null ? null : pgDateOnly(row.value_date),
+    paymentId: row.payment_id == null ? null : String(row.payment_id),
   };
 }
 
@@ -389,6 +404,22 @@ export class PgFeesRepository implements FeesRepository {
   async runInTransaction<T>(tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T> {
     await this.ensureSchema();
     return this.withTenant(tenantId, (client) => fn(this.bindTx(client, tenantId)));
+  }
+
+  async nextDocumentNumber(tenantId: string, kind: FeeDocumentKind): Promise<number> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      // PRC-L107: the row lock serialises issuers; a rollback returns the number.
+      const result = await client.query(
+        `INSERT INTO fee_document_sequences (tenant_id, kind, last_value)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (tenant_id, kind)
+         DO UPDATE SET last_value = fee_document_sequences.last_value + 1, updated_at = now()
+         RETURNING last_value`,
+        [tenantId, kind],
+      );
+      return Number((result.rows[0] as { last_value: string | number }).last_value);
+    });
   }
 
   async withInvoiceLock<T>(
@@ -831,7 +862,13 @@ export class PgFeesRepository implements FeesRepository {
         throw new BusinessRuleError('Invoice has no remaining balance');
       }
 
-      const settlement = await build({ invoice, paidCents, remainingCents });
+      const settlement = await build({
+        invoice,
+        paidCents,
+        remainingCents,
+        nextDocumentNumber: (kind) =>
+          this.bindTx(client, tenantId).nextDocumentNumber(tenantId, kind),
+      });
       if (!Number.isInteger(settlement.paymentAmountCents) || settlement.paymentAmountCents <= 0) {
         throw new BusinessRuleError('Payment amountCents must be a positive integer');
       }
@@ -1202,8 +1239,9 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_reminder_send_audits (
-           id, tenant_id, invoice_id, student_id, channel, message_id, mode, honesty_note, actor_id, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+           id, tenant_id, invoice_id, student_id, channel, message_id, mode, honesty_note, actor_id, created_at,
+           provider, provider_message_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1215,6 +1253,8 @@ export class PgFeesRepository implements FeesRepository {
           data.honestyNote,
           data.actorId,
           data.createdAt,
+          data.provider ?? null,
+          data.providerMessageId ?? null,
         ],
       );
       return mapReminderSendAudit(result.rows[0] as Record<string, unknown>);
@@ -1409,8 +1449,9 @@ export class PgFeesRepository implements FeesRepository {
       const result = await client.query(
         `INSERT INTO fee_concessions (
            id, tenant_id, student_id, structure_id, invoice_id, kind, percent,
-           amount_cents, reason, source_disbursement_id, approver_id, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+           amount_cents, reason, source_disbursement_id, approver_id, status, created_by,
+           journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1425,6 +1466,7 @@ export class PgFeesRepository implements FeesRepository {
           data.approverId,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapConcession(result.rows[0] as Record<string, unknown>);
@@ -1509,7 +1551,7 @@ export class PgFeesRepository implements FeesRepository {
   async updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId' | 'journalId'>>,
   ): Promise<FeeConcessionEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
@@ -1517,10 +1559,18 @@ export class PgFeesRepository implements FeesRepository {
         `UPDATE fee_concessions
          SET invoice_id = COALESCE($1, invoice_id),
              status = COALESCE($2, status),
-             approver_id = COALESCE($3, approver_id)
+             approver_id = COALESCE($3, approver_id),
+             journal_id = COALESCE($6, journal_id)
          WHERE id = $4 AND tenant_id = $5
          RETURNING *`,
-        [data.invoiceId ?? null, data.status ?? null, data.approverId ?? null, id, tenantId],
+        [
+          data.invoiceId ?? null,
+          data.status ?? null,
+          data.approverId ?? null,
+          id,
+          tenantId,
+          data.journalId ?? null,
+        ],
       );
       if (!result.rows[0]) return null;
       return mapConcession(result.rows[0] as Record<string, unknown>);
@@ -1534,8 +1584,8 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_credit_notes (
-           id, tenant_id, invoice_id, amount_cents, reason, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+           id, tenant_id, invoice_id, amount_cents, reason, status, created_by, journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1544,6 +1594,7 @@ export class PgFeesRepository implements FeesRepository {
           data.reason,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapCreditNote(result.rows[0] as Record<string, unknown>);
@@ -1580,8 +1631,8 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_write_offs (
-           id, tenant_id, invoice_id, amount_cents, reason, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+           id, tenant_id, invoice_id, amount_cents, reason, status, created_by, journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1590,6 +1641,7 @@ export class PgFeesRepository implements FeesRepository {
           data.reason,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapWriteOff(result.rows[0] as Record<string, unknown>);
@@ -1623,8 +1675,9 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_refunds (
-           id, tenant_id, invoice_id, payment_id, amount_cents, reason, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+           id, tenant_id, invoice_id, payment_id, amount_cents, reason, status, created_by,
+           journal_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1634,6 +1687,7 @@ export class PgFeesRepository implements FeesRepository {
           data.reason,
           data.status,
           data.createdBy,
+          data.journalId ?? null,
         ],
       );
       return mapRefund(result.rows[0] as Record<string, unknown>);
@@ -1669,8 +1723,8 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO fee_reconciliation_batches (
-           id, tenant_id, filename, matched_count, unmatched_count, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+           id, tenant_id, filename, matched_count, unmatched_count, created_by, content_hash
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1678,6 +1732,7 @@ export class PgFeesRepository implements FeesRepository {
           data.matchedCount,
           data.unmatchedCount,
           data.createdBy,
+          data.contentHash ?? null,
         ],
       );
       return mapReconBatch(result.rows[0] as Record<string, unknown>);
@@ -1696,8 +1751,9 @@ export class PgFeesRepository implements FeesRepository {
         const result = await client.query(
           `INSERT INTO fee_reconciliation_rows (
              id, tenant_id, batch_id, invoice_number, amount_cents, matched, invoice_id, note,
-             exception_status, resolved_by, resolved_at, resolution_note
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+             exception_status, resolved_by, resolved_at, resolution_note,
+             bank_reference, value_date, payment_id
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::date,$15) RETURNING *`,
           [
             row.id,
             row.tenantId,
@@ -1711,6 +1767,9 @@ export class PgFeesRepository implements FeesRepository {
             row.resolvedBy,
             row.resolvedAt,
             row.resolutionNote,
+            row.bankReference ?? null,
+            row.valueDate ?? null,
+            row.paymentId ?? null,
           ],
         );
         out.push(mapReconRow(result.rows[0] as Record<string, unknown>));
@@ -1727,6 +1786,38 @@ export class PgFeesRepository implements FeesRepository {
         [tenantId],
       );
       return result.rows.map((row) => mapReconBatch(row as Record<string, unknown>));
+    });
+  }
+
+  async findReconciliationBatchByContentHash(
+    tenantId: string,
+    contentHash: string,
+  ): Promise<FeeReconciliationBatchEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_reconciliation_batches WHERE tenant_id = $1 AND content_hash = $2`,
+        [tenantId, contentHash],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapReconBatch(row) : null;
+    });
+  }
+
+  async listMatchedReconciliationRows(
+    tenantId: string,
+    filter: { paymentIds: string[]; bankReferences: string[] },
+  ): Promise<FeeReconciliationRowEntity[]> {
+    if (filter.paymentIds.length === 0 && filter.bankReferences.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_reconciliation_rows
+          WHERE tenant_id = $1 AND matched
+            AND (payment_id = ANY($2::uuid[]) OR bank_reference = ANY($3::text[]))`,
+        [tenantId, filter.paymentIds, filter.bankReferences],
+      );
+      return result.rows.map((row) => mapReconRow(row as Record<string, unknown>));
     });
   }
 

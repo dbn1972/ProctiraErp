@@ -119,15 +119,30 @@ describe.skipIf(!DATABASE_URL)('PRC-M201+M202 payroll/fee adjustment immutabilit
        ) VALUES ($1, $2, $3, 'Adjustment immutability fixture', '', 10000, 'INR', 'open')`,
       [invoiceId, tenantId, studentId],
     );
+    // PRC-M202 (db/sql/321): a posted adjustment carries the journal that posted it.
+    const creditJournalId = randomUUID();
+    const writeOffJournalId = randomUUID();
+    for (const [journalId, debitAccount] of [
+      [creditJournalId, 'fee_revenue'],
+      [writeOffJournalId, 'bad_debt_expense'],
+    ] as const) {
+      await client.query(
+        `INSERT INTO fee_ledger_entries (
+           tenant_id, journal_id, invoice_id, account, side, amount_cents, currency
+         ) VALUES ($1, $2, $3, $4, 'debit', 500, 'INR'),
+                  ($1, $2, $3, 'accounts_receivable', 'credit', 500, 'INR')`,
+        [tenantId, journalId, invoiceId, debitAccount],
+      );
+    }
     await client.query(
-      `INSERT INTO fee_credit_notes (id, tenant_id, invoice_id, amount_cents, reason, status)
-       VALUES ($1, $2, $3, 500, 'test credit', 'posted')`,
-      [creditNoteId, tenantId, invoiceId],
+      `INSERT INTO fee_credit_notes (id, tenant_id, invoice_id, amount_cents, reason, status, journal_id)
+       VALUES ($1, $2, $3, 500, 'test credit', 'posted', $4)`,
+      [creditNoteId, tenantId, invoiceId, creditJournalId],
     );
     await client.query(
-      `INSERT INTO fee_write_offs (id, tenant_id, invoice_id, amount_cents, reason, status)
-       VALUES ($1, $2, $3, 500, 'test write-off', 'posted')`,
-      [writeOffId, tenantId, invoiceId],
+      `INSERT INTO fee_write_offs (id, tenant_id, invoice_id, amount_cents, reason, status, journal_id)
+       VALUES ($1, $2, $3, 500, 'test write-off', 'posted', $4)`,
+      [writeOffId, tenantId, invoiceId, writeOffJournalId],
     );
     return { tenantId, studentId, invoiceId, creditNoteId, writeOffId };
   }

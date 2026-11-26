@@ -171,8 +171,8 @@ describe.skipIf(!live)('PRC-M325 legal-hold guard on subject tables (live Postgr
     );
     await asOwner(
       tenantId,
-      `INSERT INTO parent_fee_payments (id, invoice_id, tenant_id, payer_user_id, amount_cents, status)
-       VALUES ($1, $2, $3, $4, 100, 'pending')`,
+      `INSERT INTO parent_fee_payments (id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status)
+       VALUES ($1, $2, $3, $4, 100, 'cash', 'pending')`,
       [randomUUID(), invoiceId, tenantId, guardian],
     );
     await hold(tenantId, 'parent', guardian);
