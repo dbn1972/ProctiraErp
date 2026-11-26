@@ -53,6 +53,8 @@ export interface AudiencePreview {
   breakdown: Record<string, number>;
   honestyNote: string;
   source?: string;
+  /** PRC-L089: the live count query failed; the figure is the estimator fallback. */
+  liveCountError?: { code: string; message: string };
 }
 
 export interface CreateEmergencyBlastInput {

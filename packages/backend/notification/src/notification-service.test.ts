@@ -129,7 +129,9 @@ describe('NotificationService', () => {
       expect(notifications).toHaveLength(1);
       expect(notifications[0]!.recipientUserId).toBe(userId1);
       expect(notifications[0]!.channel).toBe('email');
-      expect(notifications[0]!.status).toBe('delivered');
+      // PRC-M308: no email sender is configured, so nothing was delivered.
+      expect(notifications[0]!.status).toBe('sent');
+      expect(notifications[0]!.deliveredAt).toBeNull();
     });
 
     it('should send notification to all users matching role criteria', async () => {

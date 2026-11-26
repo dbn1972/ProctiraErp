@@ -79,6 +79,14 @@ export async function previewAudienceAction(
 ): Promise<CommunicationActionState> {
   try {
     const preview = await previewCampaignAudience(audienceJson);
+    // PRC-L089: a failed live count is an error, not an unavailable estimate.
+    if (preview.liveCountError) {
+      return {
+        status: 'error',
+        message: 'The live recipient count failed. Try the preview again.',
+        honestyNote: preview.honestyNote,
+      };
+    }
     // PRC-M074: only a live count is data. The fixed-base estimator is not a
     // recipient number and must not be shown as a headline figure.
     if (preview.source !== 'live') {

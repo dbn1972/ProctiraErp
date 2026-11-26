@@ -13,6 +13,8 @@ const actions = vi.hoisted(() => ({
   registerVehicleDeviceAction: vi.fn(),
 }));
 vi.mock('../actions', () => actions);
+// PRC-M130: the attendance panel reloads the trip through the App Router.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }) }));
 
 import { AttendancePanel } from './attendance-panel';
 import { AlertsPanel } from './alerts-panel';

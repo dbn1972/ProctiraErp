@@ -1107,6 +1107,7 @@ export async function registerTransportRoutes(
           routeId?: string;
           stopId?: string;
           isActive?: string;
+          activeOn?: string;
         };
       }>,
       reply: FastifyReply,
@@ -1132,7 +1133,13 @@ export async function registerTransportRoutes(
 
       const result = await transportService.listStudentAssignments(
         tenantId,
-        { studentId: query.studentId, routeId: query.routeId, stopId: query.stopId, isActive },
+        {
+          studentId: query.studentId,
+          routeId: query.routeId,
+          stopId: query.stopId,
+          isActive,
+          activeOn: query.activeOn,
+        },
         { page, pageSize, sortBy, sortOrder },
       );
 

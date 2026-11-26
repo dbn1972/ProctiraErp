@@ -1,6 +1,6 @@
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
-import { listStudentAssignments, listTransportRoutes } from '@/lib/api/transport';
+import { listStudentAssignments, listTransportRoutes, listTripRiders } from '@/lib/api/transport';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { toLabelMap } from '@/lib/entity-label';
 import { getTripAttendance } from '@/lib/transport/api';
@@ -18,23 +18,21 @@ export default async function TransportAttendancePage(props: PageProps) {
     return <RouteAccessDenied />;
   }
   const query = await props.searchParams;
-  const [routes, assignments, students] = await Promise.all([
+  const direction: 'pickup' | 'drop' | null =
+    query.direction === 'drop' ? 'drop' : query.direction === 'pickup' ? 'pickup' : null;
+  const tripQuery =
+    query.routeId && query.tripDate && direction
+      ? { routeId: query.routeId, tripDate: query.tripDate, direction }
+      : null;
+  // PRC-M130: with a trip loaded, offer only that route's riders on the trip date.
+  const [routes, assignments, students, trip] = await Promise.all([
     listTransportRoutes(),
-    listStudentAssignments(),
+    tripQuery ? listTripRiders(tripQuery) : listStudentAssignments(),
     loadStudentOptions(),
+    tripQuery ? getTripAttendance(tripQuery) : Promise.resolve(null),
   ]);
   const studentLabels = Object.fromEntries(toLabelMap(students));
   const routeLabels = Object.fromEntries(routes.map((route) => [route.id, route.name]));
-  const direction =
-    query.direction === 'drop' ? 'drop' : query.direction === 'pickup' ? 'pickup' : null;
-  const trip =
-    query.routeId && query.tripDate && direction
-      ? await getTripAttendance({
-          routeId: query.routeId,
-          tripDate: query.tripDate,
-          direction,
-        })
-      : null;
 
   return (
     <div className="space-y-6 p-6">
@@ -48,6 +46,7 @@ export default async function TransportAttendancePage(props: PageProps) {
         routes={routes}
         assignments={assignments}
         trip={trip}
+        tripQuery={tripQuery}
         studentLabels={studentLabels}
         routeLabels={routeLabels}
       />

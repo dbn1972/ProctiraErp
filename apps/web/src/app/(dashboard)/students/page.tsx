@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { Plus, Upload, Eye, Pencil, MoreVertical } from 'lucide-react';
 
 import { listInstitutions } from '@/lib/api/institutions';
+import { listGrades } from '@/lib/institutions/api';
 import {
   listStudents,
   type EnrollmentEntry,
@@ -158,24 +159,14 @@ export default async function StudentListPage(props: PageProps) {
     filters.status = status as StudentListFilters['status'];
   }
 
-  const [studentsResponse, institutions] = await Promise.all([
+  const [studentsResponse, institutions, gradeRows] = await Promise.all([
     listStudents(filters),
     listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
+    // PRC-M148: GET /students now filters by gradeId, so the Grade filter lists
+    // the tenant's grades. A failed grade read only empties the dropdown.
+    listGrades().catch(() => []),
   ]);
-
-  // Grade filter options.
-  //
-  // This previously read `inst.grades` through an `as unknown as { grades?: … }`
-  // cast. `GET /api/v1/institutions` does not return a `grades` key — its objects
-  // carry only id/name/code/status/area/contact/type fields — so the expression was
-  // always `[]` and the cast is what stopped the compiler from saying so. Removing
-  // the cast keeps the behaviour identical and makes the gap visible in the types.
-  //
-  // Grade filter options stay empty on purpose. GET /students does not filter
-  // by gradeId, so a populated dropdown would look like it filtered the page
-  // when the API ignores the parameter. The Grade / Section column below is
-  // resolved from each row's enrollment class, not from this dropdown.
-  const grades: { id: string; name: string }[] = [];
+  const grades = gradeRows.map((g) => ({ id: g.id, name: g.name }));
 
   const enrollmentByStudent = await loadActiveEnrollments(
     studentsResponse.data.map((student) => student.id),

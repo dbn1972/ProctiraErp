@@ -76,13 +76,17 @@ describe('transport actor attribution (PRC-L392)', () => {
 
   it('records the principal sub as the actor', async () => {
     const repo = new InMemoryTransportRepository();
-    const route = await seedRoute(new TransportService(repo));
+    const service = new TransportService(repo);
+    const route = await seedRoute(service);
+    const payload = attendancePayload(route.id);
+    // PRC-M130: only a rider of the route on the trip date can be marked.
+    await service.createStudentAssignment(
+      TENANT,
+      { studentId: payload.studentId, routeId: route.id, startDate: '2026-09-01' },
+      'seed',
+    );
     app = await buildApp(repo, { sub: 'officer-1', roles: ['transport_officer'] });
-    const res = await app.inject({
-      method: 'POST',
-      url: '/transport/attendance',
-      payload: attendancePayload(route.id),
-    });
+    const res = await app.inject({ method: 'POST', url: '/transport/attendance', payload });
     expect(res.statusCode).toBe(200);
     expect(res.json().recordedBy).toBe('officer-1');
   });

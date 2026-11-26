@@ -208,4 +208,18 @@ describe('audience preview (PRC-M074)', () => {
     expect(result.message).toBe('42 recipients (live count).');
     expect(result.estimatedRecipients).toBe(42);
   });
+  it('PRC-L089: a failed live count is reported as an error', async () => {
+    api.previewCampaignAudience.mockResolvedValue({
+      estimatedRecipients: 40,
+      scope: 'route',
+      breakdown: { routeShare: 0.08 },
+      honestyNote: 'estimator',
+      source: 'estimator',
+      liveCountError: { code: 'LIVE_COUNT_FAILED', message: 'failed' },
+    });
+    const result = await previewAudienceAction({ scope: 'route', routeId: 'r' });
+    expect(result.status).toBe('error');
+    expect(result.message).toBe('The live recipient count failed. Try the preview again.');
+    expect(result.estimatedRecipients).toBeUndefined();
+  });
 });

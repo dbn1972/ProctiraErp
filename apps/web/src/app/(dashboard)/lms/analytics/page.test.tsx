@@ -73,6 +73,38 @@ describe('LMS class analytics (PRC-M107)', () => {
     );
   });
 
+  it('PRC-M302: shows the SIS roster gap and a truncation notice', async () => {
+    lms.listAssignmentsPage.mockResolvedValue({ ok: true, items: [], meta: { totalItems: 0 } });
+    lms.getClassAnalytics.mockResolvedValue({
+      assignmentCount: 4,
+      averageScore: 70,
+      uniqueStudents: 28,
+      rosterSize: 30,
+      rosterSource: 'sis',
+      missingStudentIds: ['s1', 's2'],
+      truncated: true,
+    });
+    render(await Page({ searchParams: Promise.resolve({ classKey: '7A' }) }));
+    expect(screen.getByTestId('lms-analytics-roster').textContent).toMatch(
+      /2 of 30 enrolled\s+learners have not submitted/,
+    );
+    expect(screen.getByTestId('lms-analytics-truncated').getAttribute('role')).toBe('status');
+  });
+  it('PRC-M302: no roster line for a submitters-only roster, no notice when complete', async () => {
+    lms.listAssignmentsPage.mockResolvedValue({ ok: true, items: [], meta: { totalItems: 0 } });
+    lms.getClassAnalytics.mockResolvedValue({
+      assignmentCount: 4,
+      averageScore: 70,
+      uniqueStudents: 28,
+      rosterSize: 28,
+      rosterSource: 'submissions',
+      missingStudentIds: [],
+      truncated: false,
+    });
+    render(await Page({ searchParams: Promise.resolve({ classKey: '7A' }) }));
+    expect(screen.queryByTestId('lms-analytics-roster')).toBeNull();
+    expect(screen.queryByTestId('lms-analytics-truncated')).toBeNull();
+  });
   it('shows an error when the quiz page fails to load', async () => {
     lms.listAssignmentsPage.mockResolvedValue({ ok: false, kind: 'unavailable', status: 503 });
     render(await Page({ searchParams: Promise.resolve({ classKey: '7A' }) }));

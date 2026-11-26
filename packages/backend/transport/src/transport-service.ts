@@ -963,6 +963,22 @@ export class TransportService {
 
   async upsertTripAttendance(tenantId: string, input: UpsertBusAttendanceInput, actorId: string) {
     await this.getRouteById(tenantId, input.routeId);
+    // PRC-M130: only a rider of this route on the trip date can be marked.
+    const riders = await this.repository.listStudentAssignments(
+      tenantId,
+      {
+        studentId: input.studentId,
+        routeId: input.routeId,
+        isActive: true,
+        activeOn: input.tripDate,
+      },
+      { page: 1, pageSize: 1 },
+    );
+    if (riders.data.length === 0) {
+      throw new BusinessRuleError(
+        'The student has no active assignment on this route for the trip date',
+      );
+    }
     if (input.stopId) {
       const stop = await this.repository.findStopById(input.stopId, tenantId);
       if (!stop) {
