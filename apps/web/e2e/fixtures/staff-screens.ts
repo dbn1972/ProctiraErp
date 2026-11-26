@@ -18,7 +18,10 @@
  * it unchanged. Each payroll test therefore uses its own random past month (years 1000–1899,
  * 10 800 months; nothing else in the suite exports them) and asserts the run it posted.
  * Amounts are the seed's: a contract of `PAYROLL_DAILY_CENTS` × days in the month, one
- * absent day, so the unpaid-absence deduction is exactly one daily rate.
+ * absent day and one half day. Under the DR37 loss-of-pay rule (PRC-M370) with the default
+ * `calendar_days` divisor (`PAYROLL_LOP_DIVISOR` unset, as in CI) the per-day rate is exactly
+ * `PAYROLL_DAILY_CENTS`, the absent day is 1 LOP day, the half day is 0.5 and the paid leave
+ * day is 0, so the deduction is 1.5 daily rates.
  *
  * Screen persona: a tenant administrator (`roleId: 'admin'`); gateway RBAC, the web guard and
  * staff-access.ts all allow it. Strings never look like real people: they start with `St` /
@@ -46,6 +49,8 @@ export const INSTITUTION_A_NAME = 'E2E Demo School';
 export const CONTRACT_START_DAYS = 4000;
 /** Payroll contracts pay this many cents per calendar day of the month. */
 export const PAYROLL_DAILY_CENTS = 100_000;
+/** DR37 LOP for the seeded marks: absent (1) + half day (0.5) = 1.5 daily rates. */
+export const PAYROLL_LOP_CENTS = (PAYROLL_DAILY_CENTS * 3) / 2;
 
 /** 8 upper-case hex characters, unique per call. */
 export function newTag(): string {
@@ -288,8 +293,8 @@ export async function seedPayrollMonth(
     leaveDays: 1,
     absentDays: 1,
     payableDays: 1.5,
-    deductionsCents: PAYROLL_DAILY_CENTS,
-    netCents: m.grossCents - PAYROLL_DAILY_CENTS,
+    deductionsCents: PAYROLL_LOP_CENTS,
+    netCents: m.grossCents - PAYROLL_LOP_CENTS,
   };
 }
 
