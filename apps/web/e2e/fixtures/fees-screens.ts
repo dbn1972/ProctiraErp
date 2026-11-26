@@ -517,13 +517,16 @@ export async function seedFeesData(
   const structurePaid = await pay(request, p, structureInv.id, 99, `${prefix}-UPI-${tag}`, 'upi');
   const filename = `${prefix.toLowerCase()}-read-${tag}.csv`;
   const missing = `${prefix}-NOPE-${tag}`;
+  // PRC-M251: a bank line matches a recorded succeeded payment of the same amount on the
+  // invoice. The ₹0.99 line matches the UPI payment above; the ₹999.99 line (the invoice
+  // face, never paid) stays an exception, and so does the unknown invoice number.
   const imported = await send<{ batch: { id: string } }>(
     request,
     p,
     'POST',
     '/fees/reconciliation/import',
     {
-      csv: `invoiceNumber,amountCents\n${structureInv.invoiceNumber},99999\n${missing},1234`,
+      csv: `invoiceNumber,amountCents\n${structureInv.invoiceNumber},99\n${structureInv.invoiceNumber},99999\n${missing},1234`,
       filename,
     },
   );
