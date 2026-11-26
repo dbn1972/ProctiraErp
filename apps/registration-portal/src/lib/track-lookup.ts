@@ -11,71 +11,53 @@ export const TRACK_DOB_COOKIE = 'registration_track_dob';
  */
 export const TRACK_DOB_COOKIE_HOST = `__Host-${TRACK_DOB_COOKIE}` as const;
 
-type TrackRedirectEnv = {
-  PUBLIC_BASE_URL?: string;
-  PUBLIC_URL?: string;
+type TrackCookieEnv = {
   NODE_ENV?: string;
 };
 
-function defaultEnv(): TrackRedirectEnv {
+function defaultEnv(): TrackCookieEnv {
   return (
     (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
   );
 }
 
 /**
- * A deployed environment is anything other than development/test. In those
- * environments the redirect `Location` must come from a trusted configured base
- * and never from a client-supplied Host header.
+ * PRC-L225 / UATENV-D31: the redirect `Location` after a lookup is a
+ * host-relative path. It never contains a scheme or host, so neither the
+ * request Host, a forged `X-Forwarded-Host`, nor the proxy-internal origin can
+ * end up in it. The browser resolves it against the host it used, which keeps
+ * each tenant's applicants on their own portal host, where the host-only DOB
+ * cookie lives and the gateway resolves the right tenant. A single fixed public
+ * base cannot do that for a portal that serves several tenant hosts.
+ *
+ * The path is built only from a validated tracking number (`REG-` plus 8
+ * alphanumerics) and is URI-encoded, so it always starts with `/track` and can
+ * never become a protocol-relative `//host` redirect.
  */
-function isDeployedEnv(nodeEnv: string | undefined): boolean {
-  const normalized = nodeEnv?.trim().toLowerCase();
-  return normalized !== 'development' && normalized !== 'test';
-}
-
-function parseTrustedBase(env: TrackRedirectEnv): URL | null {
-  const configured = env.PUBLIC_BASE_URL?.trim() || env.PUBLIC_URL?.trim();
-  if (!configured) return null;
-  try {
-    return new URL(configured);
-  } catch {
-    return null;
-  }
+export function trackLookupLocation(decision: TrackLookupDecision): string {
+  if (!decision.ok) return '/track?error=invalid';
+  return `/track/${encodeURIComponent(decision.trackingNumber)}`;
 }
 
 /**
- * PRC-L225: build the redirect base from a trusted configured public URL, never
- * from a forgeable request Host. `PUBLIC_BASE_URL` (or its `PUBLIC_URL` alias)
- * always wins. In a deployed environment a trusted base is REQUIRED: if it is
- * missing or malformed the call throws rather than fall back to the
- * `X-Forwarded-Host`/request origin (an open-redirect / host-injection vector).
- * Only local/dev falls back to the forwarded host and then the request URL.
+ * PRC-L225: whether the DOB cookie must be `Secure` (and so `__Host-`
+ * prefixed). Production is always secure. Elsewhere an https request URL or an
+ * https `X-Forwarded-Proto` makes it secure; a header can only upgrade the
+ * cookie, never downgrade it, so a forged value cannot weaken it.
  */
-export function resolveRedirectBase(
+export function isSecureTrackContext(
   requestUrl: string,
   headers: { get(name: string): string | null },
-  env: TrackRedirectEnv = defaultEnv(),
-): URL {
-  const trusted = parseTrustedBase(env);
-  if (trusted) {
-    return trusted;
+  env: TrackCookieEnv = defaultEnv(),
+): boolean {
+  if (env.NODE_ENV?.trim().toLowerCase() === 'production') return true;
+  const forwardedProto = headers.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase();
+  if (forwardedProto === 'https') return true;
+  try {
+    return new URL(requestUrl).protocol === 'https:';
+  } catch {
+    return false;
   }
-  if (isDeployedEnv(env.NODE_ENV)) {
-    throw new Error(
-      'PRC-L225: refusing to build a redirect without a trusted public base (set PUBLIC_BASE_URL/PUBLIC_URL)',
-    );
-  }
-  // Local/dev only: the forwarded host and request origin are acceptable here.
-  const forwardedHost = headers.get('x-forwarded-host')?.split(',')[0]?.trim();
-  if (forwardedHost) {
-    const proto = headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https';
-    try {
-      return new URL(`${proto}://${forwardedHost}`);
-    } catch {
-      /* fall through */
-    }
-  }
-  return new URL(requestUrl);
 }
 
 export interface TrackDobCookie {
