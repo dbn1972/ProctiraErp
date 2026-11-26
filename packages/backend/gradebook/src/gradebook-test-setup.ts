@@ -51,3 +51,17 @@ export function setupGradebook(): { repo: InMemoryGradebookRepository; service: 
   });
   return { repo, service: new GradebookService(repo) };
 }
+
+/**
+ * PRC-M268: GPA and class rank count approved grades only. Enters a grade and
+ * moves it DRAFT -> SUBMITTED -> APPROVED.
+ */
+export async function upsertApprovedGrade(
+  service: GradebookService,
+  tenantId: string,
+  input: Parameters<GradebookService['upsertGradeEntry']>[1],
+) {
+  const entry = await service.upsertGradeEntry(tenantId, input);
+  await service.transitionGradeEntry(tenantId, entry.id, 'submit');
+  return service.transitionGradeEntry(tenantId, entry.id, 'approve');
+}

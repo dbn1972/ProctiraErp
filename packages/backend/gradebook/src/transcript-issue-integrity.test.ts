@@ -13,11 +13,12 @@ import {
   STUDENT_B,
   TENANT,
   setupGradebook,
+  upsertApprovedGrade,
 } from './gradebook-test-setup.js';
 import { transcriptArtifactPaths } from './transcript-artifact.js';
 
 async function seedGpa(service: ReturnType<typeof setupGradebook>['service'], studentId: string) {
-  await service.upsertGradeEntry(TENANT, {
+  await upsertApprovedGrade(service, TENANT, {
     sectionId: SECTION,
     studentId,
     assessmentCode: 'MATH',

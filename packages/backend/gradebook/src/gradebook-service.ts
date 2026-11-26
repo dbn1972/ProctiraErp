@@ -90,6 +90,12 @@ export interface GradebookAuditEntry {
   details: Record<string, unknown>;
 }
 
+/** PRC-M268: a grade counts toward GPA once approved (approved, locked or published). */
+function isApprovedGradeEntry(entry: GradeEntryEntity): boolean {
+  const status = readGradeWorkflowStatus(entry.metadata, entry.lockedAt, entry.publishedAt);
+  return status === 'APPROVED' || status === 'LOCKED' || status === 'PUBLISHED';
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -814,13 +820,24 @@ export class GradebookService {
       throw new ValidationError('No grade entries in section; enter grades before ranking');
     }
     const studentIds = [...new Set(entries.map((e) => e.studentId))];
+    // PRC-M268: the term is the requested period, else the section's own period.
+    const termPeriodId =
+      input.academicPeriodId ??
+      (await this.repo.getSection(tenantId, input.sectionId))?.academicPeriodId ??
+      null;
     // PRC-M269: one batched entries query + one context load; pure calculation,
     // no gpa_snapshots written by ranking.
     const ctx = await this.loadGpaContext(tenantId, {
       studentId: '',
       boardId: input.boardId ?? null,
     });
-    const allEntries = await this.repo.listGradeEntries(tenantId, { studentIds });
+    // PRC-M268: only approved (or locked / published) grades count toward GPA.
+    const allEntries = (await this.repo.listGradeEntries(tenantId, { studentIds })).filter(
+      isApprovedGradeEntry,
+    );
+    const termSections = termPeriodId
+      ? await this.sectionIdsInPeriod(tenantId, allEntries, termPeriodId)
+      : null;
     const byStudent = new Map<string, GradeEntryEntity[]>();
     for (const e of allEntries) {
       const list = byStudent.get(e.studentId) ?? [];
@@ -830,20 +847,30 @@ export class GradebookService {
     const rankInputs = [];
     for (const studentId of studentIds) {
       const studentEntries = byStudent.get(studentId) ?? [];
-      // Term and cumulative use the same entry set today (entries are not period-filtered),
-      // matching the previous two computeGpa calls without the duplicate work.
-      const { detail } = await this.calculateGpa(
+      // PRC-M268: term GPA uses the term's sections only; CGPA uses every period.
+      const termEntries = termSections
+        ? studentEntries.filter((e) => e.sectionId != null && termSections.has(e.sectionId))
+        : studentEntries;
+      const { detail: term } = await this.calculateGpa(
         tenantId,
         { studentId, boardId: input.boardId ?? null },
-        studentEntries,
+        termEntries,
         ctx,
       );
+      const { detail: cumulative } = termSections
+        ? await this.calculateGpa(
+            tenantId,
+            { studentId, boardId: input.boardId ?? null },
+            studentEntries,
+            ctx,
+          )
+        : { detail: term };
       rankInputs.push({
         studentId,
-        weightedGpa: detail.weightedGpa,
-        unweightedGpa: detail.unweightedGpa,
-        cgpa: detail.weightedGpa,
-        creditsEarned: detail.creditsEarned,
+        weightedGpa: term.weightedGpa,
+        unweightedGpa: term.unweightedGpa,
+        cgpa: cumulative.weightedGpa,
+        creditsEarned: term.creditsEarned,
       });
     }
     const ranked = computeClassRanks(rankInputs);
@@ -875,6 +902,21 @@ export class GradebookService {
 
   listClassRanks(tenantId: string, sectionId: string) {
     return this.extras.listLatestRanks(tenantId, sectionId);
+  }
+
+  /** PRC-M268: ids of the sections (among `entries`) that belong to `academicPeriodId`. */
+  private async sectionIdsInPeriod(
+    tenantId: string,
+    entries: GradeEntryEntity[],
+    academicPeriodId: string,
+  ): Promise<Set<string>> {
+    const sectionIds = [...new Set(entries.map((e) => e.sectionId).filter(Boolean))] as string[];
+    const inPeriod = new Set<string>();
+    for (const sid of sectionIds) {
+      const section = await this.repo.getSection(tenantId, sid);
+      if (section?.academicPeriodId === academicPeriodId) inPeriod.add(sid);
+    }
+    return inPeriod;
   }
 
   /** PRC-M269: grading context (scale + credit rules) loaded once per computation batch. */
@@ -932,10 +974,18 @@ export class GradebookService {
         includeInGpa: entry.metadata.includeInGpa !== false,
       });
     }
+    // PRC-M268: the grade-point cap comes from the scale (10 for CBSE bands, 4 for a
+    // US scale), not a hard-coded 10.
+    const scaleMax = Math.max(
+      0,
+      ...scale.bands.map((b) =>
+        b.gradePoints != null && Number.isFinite(b.gradePoints) ? b.gradePoints : 0,
+      ),
+    );
     const policy: GpaPolicy = {
       passingPercent: input.passingPercent ?? 33,
       weightMode: input.weightMode ?? 'CREDITS',
-      maxGradePoints: 10,
+      maxGradePoints: scaleMax > 0 ? scaleMax : 10,
       roundTo: 3,
     };
     return { detail: computeGpaSnapshot(courses, scale.bands, policy), policy, scale };
@@ -945,11 +995,19 @@ export class GradebookService {
     tenantId: string,
     input: ComputeGpaInput,
   ): Promise<{ snapshot: GpaSnapshotEntity; detail: ReturnType<typeof computeGpaSnapshot> }> {
-    const entries = await this.repo.listGradeEntries(tenantId, {
-      studentId: input.studentId,
-    });
+    // PRC-M268: approved (or locked / published) grades only, restricted to the
+    // requested period when one is given.
+    let entries = (
+      await this.repo.listGradeEntries(tenantId, { studentId: input.studentId })
+    ).filter(isApprovedGradeEntry);
+    if (input.academicPeriodId) {
+      const inPeriod = await this.sectionIdsInPeriod(tenantId, entries, input.academicPeriodId);
+      entries = entries.filter((e) => e.sectionId != null && inPeriod.has(e.sectionId));
+    }
     if (entries.length === 0) {
-      throw new ValidationError('No grade entries for student; enter grades before computing GPA');
+      throw new ValidationError(
+        'No approved grade entries for student in scope; approve grades before computing GPA',
+      );
     }
     const ctx = await this.loadGpaContext(tenantId, input);
     const { detail, policy, scale } = await this.calculateGpa(tenantId, input, entries, ctx);
