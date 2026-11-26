@@ -253,8 +253,8 @@ describe.skipIf(!DATABASE_URL)('tenant-composite FKs (live)', () => {
     });
 
     it('parent_fee_payments cannot reference another tenant’s invoice', async () => {
-      const sql = `INSERT INTO parent_fee_payments (id, invoice_id, tenant_id, payer_user_id, amount_cents)
-                   VALUES ($1, $2, $3, 'live-test', 100)`;
+      const sql = `INSERT INTO parent_fee_payments (id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status)
+                   VALUES ($1, $2, $3, 'live-test', 100, 'cash', 'pending')`;
       await expectCrossTenantRejected(
         'parent_fee_payments_invoice_id_tenant_fk',
         sql,
