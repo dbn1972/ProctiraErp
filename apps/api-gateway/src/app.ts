@@ -605,6 +605,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         `http://localhost:${config.port}/api/v1/auth/callback`,
       webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
       tenantDirectory: getTenantRepository(),
+      // UATENV-D09: post-login return to the user's own tenant host (`<slug>.<base>`).
+      tenantWebBaseDomain: config.tenant.baseDomain,
       // PRC-M500: one-time login tickets must be redeemable on any replica.
       ...(rateLimitRedis ? { webTicketStore: new RedisWebTicketStore(rateLimitRedis) } : {}),
       // PRC-M497: /password mints the pre-MFA ticket; /password/mfa redeems completion tickets.
