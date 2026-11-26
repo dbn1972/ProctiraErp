@@ -286,7 +286,9 @@ export class NotificationService {
 
     let success = false;
     let errorMessage: string | undefined;
-
+    // PRC-M308: a sandbox sender, or no sender at all, accepts the message without
+    // handing it to a provider. That is not a delivery: the row stays 'sent'.
+    let confirmed = false;
     try {
       switch (notification.channel) {
         case 'email':
@@ -299,8 +301,9 @@ export class NotificationService {
             });
             success = result.success;
             errorMessage = result.error;
+            confirmed = result.mode !== 'sandbox';
           } else {
-            // No email sender configured — mark as delivered (in-process)
+            // No email sender configured: accepted in-process, nothing was sent.
             success = true;
           }
           break;
@@ -308,6 +311,7 @@ export class NotificationService {
         case 'in_app':
           // In-app notifications are delivered by creating the record (already done)
           success = true;
+          confirmed = true;
           break;
 
         case 'push':
@@ -320,7 +324,9 @@ export class NotificationService {
             });
             success = result.success;
             errorMessage = result.error;
+            confirmed = result.mode !== 'sandbox';
           } else {
+            // No push sender configured: accepted in-process, nothing was sent.
             success = true;
           }
           break;
@@ -349,6 +355,7 @@ export class NotificationService {
             });
             success = result.success;
             errorMessage = result.error;
+            confirmed = true;
           }
           break;
 
@@ -361,8 +368,9 @@ export class NotificationService {
             });
             success = result.success;
             errorMessage = result.error;
+            confirmed = result.mode !== 'sandbox';
           } else {
-            // No SMS sender configured — sandbox accept (honesty via delivery-capabilities).
+            // No SMS sender configured: sandbox accept (honesty via delivery-capabilities).
             success = true;
           }
           break;
@@ -372,10 +380,19 @@ export class NotificationService {
       errorMessage = error instanceof Error ? error.message : 'Unknown delivery error';
     }
 
-    if (success) {
+    if (success && confirmed) {
       await this.repository.updateNotificationStatus(notification.id, notification.tenantId, {
         status: 'delivered',
         deliveredAt: new Date(),
+        releaseClaimToken: claimToken,
+      });
+    } else if (success) {
+      // PRC-M308: accepted without a provider (sandbox / no sender). Keep 'sent' with
+      // no deliveredAt so inbox and status readers never report a delivery that did not happen.
+      await this.repository.updateNotificationStatus(notification.id, notification.tenantId, {
+        status: 'sent',
+        sentAt: notification.sentAt ?? new Date(),
+        deliveredAt: null,
         releaseClaimToken: claimToken,
       });
     } else {
