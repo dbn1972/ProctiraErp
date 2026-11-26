@@ -12,6 +12,7 @@ import {
 } from '@proctira/common';
 
 import { isApplicantRole, ownsApplicant, type ScholarshipActor } from './document-access.js';
+import { assertGpaWithinProgramScale } from './gpa-scale.js';
 import type { AcademicRecord, FinancialInfo } from './schemas.js';
 import { hasScholarshipAccess } from './scholarship-access.js';
 import type {
@@ -75,6 +76,14 @@ export async function updateDraftApplication(
     for (const other of patch.financialInfo.otherScholarships ?? []) {
       majorUnitsToCents(other.amount);
     }
+  }
+  if (patch.academicRecords) {
+    // PRC-M152: same GPA-scale rule as create, against the (possibly new) program.
+    const program = await repository.findProgramById(
+      patch.programId ?? application.programId,
+      tenantId,
+    );
+    if (program) assertGpaWithinProgramScale(program, patch.academicRecords);
   }
   const changes: Partial<ScholarshipApplicationEntity> = {};
   if (patch.programId) changes.programId = patch.programId;

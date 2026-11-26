@@ -19,11 +19,35 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 // ─── Scholarship Program Schemas ─────────────────────────────────────────────
 
 /**
+ * PRC-M152: controlled vocabulary for an academic record's education level
+ * (the web, mobile and parent forms offer exactly these values).
+ */
+export const EDUCATION_LEVELS = [
+  'primary',
+  'middle',
+  'secondary',
+  'senior_secondary',
+  'undergraduate',
+] as const;
+export type EducationLevel = (typeof EDUCATION_LEVELS)[number];
+
+/**
+ * PRC-M152: GPA scale of a program that does not configure `gpaScaleMax`
+ * (programs created before the scale became configurable used 4.0).
+ */
+export const DEFAULT_GPA_SCALE_MAX = 4;
+
+/**
  * Eligibility criteria for a scholarship program.
  */
 export const EligibilityCriteriaSchema = Type.Object({
+  // PRC-M152: the tenant configures the program's GPA scale (4, 5, 10 ...);
+  // minGPA and every declared GPA must lie within it.
+  gpaScaleMax: Type.Optional(
+    Type.Number({ exclusiveMinimum: 0, maximum: 100, description: 'Top of the GPA scale' }),
+  ),
   minGPA: Type.Optional(
-    Type.Number({ minimum: 0, maximum: 4.0, description: 'Minimum GPA required' }),
+    Type.Number({ minimum: 0, maximum: 100, description: 'Minimum GPA required' }),
   ),
   maxAge: Type.Optional(
     Type.Number({ minimum: 1, maximum: 100, description: 'Maximum age of applicant' }),
@@ -167,8 +191,12 @@ export type UpdateScholarshipProgramInput = Static<typeof UpdateScholarshipProgr
  */
 export const AcademicRecordSchema = Type.Object({
   institutionName: Type.String({ minLength: 1, maxLength: 255, description: 'Institution name' }),
-  educationLevel: Type.String({ minLength: 1, maxLength: 100, description: 'Education level' }),
-  gpa: Type.Optional(Type.Number({ minimum: 0, maximum: 4.0, description: 'GPA' })),
+  educationLevel: Type.Union(
+    EDUCATION_LEVELS.map((level) => Type.Literal(level)),
+    { description: 'Education level' },
+  ),
+  // PRC-M152: bounded by the program's gpaScaleMax in the service.
+  gpa: Type.Optional(Type.Number({ minimum: 0, maximum: 100, description: 'GPA' })),
   yearCompleted: Type.Optional(
     Type.Number({ minimum: 1900, maximum: 2100, description: 'Year completed' }),
   ),

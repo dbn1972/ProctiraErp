@@ -77,11 +77,14 @@ describe('ScholarshipApplication', () => {
       target: { value: INSTITUTION },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    const [schoolName, level] = Array.from(
+    const [schoolName] = Array.from(
       container.querySelectorAll<HTMLInputElement>('fieldset input[type="text"]'),
     );
     fireEvent.change(schoolName!, { target: { value: 'North High' } });
-    fireEvent.change(level!, { target: { value: 'Grade 10' } });
+    // PRC-M152: education level is a controlled-vocabulary select.
+    fireEvent.change(screen.getByLabelText('Education Level *'), {
+      target: { value: 'secondary' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 

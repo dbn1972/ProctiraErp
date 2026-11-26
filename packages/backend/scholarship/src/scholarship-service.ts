@@ -27,6 +27,7 @@ import {
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { assertGpaScale, assertGpaWithinProgramScale } from './gpa-scale.js';
 import type {
   CreateScholarshipProgramInput,
   UpdateScholarshipProgramInput,
@@ -254,6 +255,7 @@ export class ScholarshipService {
       'amountPerRecipient',
     );
     assertCentRepresentableMoney({}, input.eligibility);
+    assertGpaScale(input.eligibility);
 
     const program: Omit<ScholarshipProgramEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
@@ -333,6 +335,7 @@ export class ScholarshipService {
         input.disbursementFrequency as ScholarshipProgramEntity['disbursementFrequency'];
     if (input.eligibility !== undefined) {
       assertCentRepresentableMoney({}, input.eligibility);
+      assertGpaScale(input.eligibility);
       updateData.eligibility = input.eligibility;
     }
     if (input.status !== undefined)
@@ -450,6 +453,7 @@ export class ScholarshipService {
     }
 
     assertCentRepresentableMoney(input.financialInfo);
+    assertGpaWithinProgramScale(program, input.academicRecords);
 
     // Create application
     const application: Omit<ScholarshipApplicationEntity, 'createdAt' | 'updatedAt'> = {
