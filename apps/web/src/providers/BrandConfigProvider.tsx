@@ -147,14 +147,6 @@ export const BRAND_CACHE_TTL_MS = 5 * 60 * 1000;
 /** Endpoint the provider hits at boot (Design §M, Task 57.1). */
 export const BRAND_ENDPOINT = '/api/v1/tenant/branding';
 
-/**
- * UATENV-D22: public, Host-resolved brand subset (name, logo, favicon, colours) that the
- * gateway serves without a role grant (PRC-M132). Used only when `BRAND_ENDPOINT` refuses
- * the signed-in role (401/403), so bursar, registrar, nurse and other roles that cannot
- * read tenant settings still see their school name instead of the product default.
- */
-export const PUBLIC_BRAND_ENDPOINT = '/api/v1/registrations/branding';
-
 // ─── Module-level cache (Task 57.1: cached for 5 minutes) ────────────────────
 
 interface CacheEntry {
@@ -432,9 +424,7 @@ function pickString(obj: Record<string, unknown>, keys: string[]): string | unde
  * `error`, keep painting the safe default, and — because `fetchBrandCached`
  * only caches successful results — re-fetch on the next call instead of
  * pinning the fallback for the whole 5-minute TTL. A 4xx is a definitive
- * "no branding for this tenant" and resolves to `DEFAULT_BRAND`, except a
- * 401/403 (UATENV-D22): the role may not read tenant settings, so the public
- * brand subset at `PUBLIC_BRAND_ENDPOINT` is used instead.
+ * "no branding for this tenant" and resolves to `DEFAULT_BRAND`.
  */
 export async function defaultBrandFetcher(): Promise<Brand> {
   if (!isBrowser()) return DEFAULT_BRAND;
@@ -446,7 +436,6 @@ export async function defaultBrandFetcher(): Promise<Brand> {
   if (response.status >= 500) {
     throw new Error(`Brand config request failed (HTTP ${response.status})`);
   }
-  if (response.status === 401 || response.status === 403) return fetchPublicBrand();
   if (!response.ok) return DEFAULT_BRAND;
   // 204 is the route's answer for an anonymous visitor: no tenant context, so no
   // branding to resolve. It satisfies `response.ok`, so without this branch the
@@ -454,23 +443,6 @@ export async function defaultBrandFetcher(): Promise<Brand> {
   if (response.status === 204) return DEFAULT_BRAND;
   const payload = (await response.json()) as unknown;
   return normalizeBrandResponse(payload);
-}
-/**
- * UATENV-D22: read the public brand subset for the current Host. It needs no session, so
- * no cookie is sent. A 5xx throws (not cached, retried on the next call, as PRC-M158);
- * any other non-2xx resolves to `DEFAULT_BRAND`.
- */
-async function fetchPublicBrand(): Promise<Brand> {
-  const response = await fetch(PUBLIC_BRAND_ENDPOINT, {
-    method: 'GET',
-    credentials: 'omit',
-    headers: { Accept: 'application/json' },
-  });
-  if (response.status >= 500) {
-    throw new Error(`Public brand request failed (HTTP ${response.status})`);
-  }
-  if (!response.ok || response.status === 204) return DEFAULT_BRAND;
-  return normalizeBrandResponse((await response.json()) as unknown);
 }
 /**
  * Cached brand fetch. Honors a 5-minute module-level TTL and de-dupes
