@@ -8,7 +8,6 @@ import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import {
   createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
-  withPgTenant,
   type PgQueryable,
 } from '@proctira/database';
 import { Value } from '@sinclair/typebox/value';
@@ -16,6 +15,7 @@ import type pg from 'pg';
 
 import { haversineKm } from './in-memory-repository.js';
 import type { ListPage } from './pagination.js';
+import { withRegistrationTenant } from './pg-ambient-transaction.js';
 import {
   institutionFilterOptionsFrom,
   type InstitutionFilterOptions,
@@ -172,7 +172,8 @@ export class PgRegistrationRepository implements RegistrationRepository {
   }
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
-    return withPgTenant(this.pool, tenantId, fn);
+    // PRC-M537: joins runInRegistrationTransaction when one is open for the tenant.
+    return withRegistrationTenant(this.pool, tenantId, fn);
   }
 
   async create(entity: LegacyRegistrationCreate): Promise<RegistrationEntity> {

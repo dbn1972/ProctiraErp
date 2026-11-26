@@ -13,7 +13,7 @@
  *  - `bookSlot` is idempotent per (slot, application).
  */
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import type { PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -25,6 +25,7 @@ import type {
   InterviewSlot,
   WaitlistEntry,
 } from './admissions-crm-store.js';
+import { withRegistrationTenant } from './pg-ambient-transaction.js';
 import { ensureRegistrationSchema, type PgPoolLike } from './pg-registration-repository.js';
 
 function toDate(value: unknown): Date {
@@ -83,7 +84,8 @@ export class PgAdmissionsCrmStore implements AdmissionsCrmStore {
     fn: (client: PgQueryable) => Promise<T>,
   ): Promise<T> {
     await this.ensureSchema();
-    return withPgTenant(this.pool, tenantId, fn);
+    // PRC-M537: joins runInRegistrationTransaction when one is open for the tenant.
+    return withRegistrationTenant(this.pool, tenantId, fn);
   }
 
   async listWaitlist(tenantId: string, institutionId?: string): Promise<WaitlistEntry[]> {
