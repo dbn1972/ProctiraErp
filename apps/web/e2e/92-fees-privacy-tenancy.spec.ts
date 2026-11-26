@@ -401,8 +401,11 @@ test.describe('Fees privacy and tenancy — live (E2E_BACKEND_READY)', () => {
       ];
       for (const [viewer, own, other, otherTenant] of views) {
         const who = viewer.tenantId === TENANT_A ? 'tenant A' : 'tenant B';
+        // Invoice and receipt numbers come from a per-tenant counter (PRC-L107), so the
+        // viewer's own documents can carry the same numbers as the other tenant's. The other
+        // tenant's invoices and receipts are still caught by their ids and tagged titles.
         const leaked = [
-          ...other.strings,
+          ...other.strings.filter((s) => !other.documentNumbers.includes(s)),
           ...other.ids,
           other.student.id,
           other.student.label,
