@@ -43,6 +43,7 @@ async function setup(opts: {
   monthlyGrossCents?: number;
   divisor?: Divisor;
   leaves?: (staffId: string) => StaffLeaveEntity[];
+  offboardOn?: string;
 }) {
   const tenantId = randomUUID();
   const staffService = new StaffService(new InMemoryStaffRepository());
@@ -68,6 +69,9 @@ async function setup(opts: {
     startDate: '2026-01-01',
     monthlyGrossCents: opts.monthlyGrossCents ?? 3_000_000,
   });
+  if (opts.offboardOn) {
+    await staffService.offboard(tenantId, staffId, { effectiveDate: opts.offboardOn }, 'hr-1');
+  }
   const mark = (date: string, status: 'absent' | 'half_day' | 'present') =>
     hr.markAttendance(tenantId, { staffId, date, status }, 'hr-1');
   const run = async (month: string) => {
@@ -116,6 +120,20 @@ describe('PRC-M370 loss-of-pay rules', () => {
     await mark('2026-09-10', 'half_day');
     await mark('2026-09-11', 'absent');
     expect((await run('2026-09')).deductionsCents).toBe(200_000);
+  });
+
+  it('LOP after the offboard date is not deducted again from the pro-rated pay', async () => {
+    // Exit 2026-09-15 (calendar_days): gross 15/30 = 1,500,000. Unpaid leave 10th-30th
+    // only counts 10th-15th (6 days x 100,000); the absent mark on the 20th is post-exit.
+    const { mark, run } = await setup({
+      offboardOn: '2026-09-15',
+      leaves: (staffId) => [leave(staffId, '2026-09-10', '2026-09-30')],
+    });
+    await mark('2026-09-20', 'absent');
+    const row = await run('2026-09');
+    expect(row.grossCents).toBe(1_500_000);
+    expect(row.deductionsCents).toBe(600_000);
+    expect(row.netCents).toBe(900_000);
   });
 
   it('flat 30-day divisor in a 31-day month', async () => {

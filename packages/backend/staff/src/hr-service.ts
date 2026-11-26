@@ -865,8 +865,14 @@ export class StaffHrService {
       });
       const grossCents = prorated.grossCents;
       // PRC-M370 (DR37): LOP days x (full-month gross / divisor days), nearest rupee;
-      // clamp so deductions never exceed the (pro-rated) pay.
-      const lop = countLopDays(query.month, lopDays.get(staff.id) ?? [], this.lopDivisor);
+      // clamp so deductions never exceed the (pro-rated) pay. When proration already
+      // stops pay at the offboard date, LOP days after that date are not charged again.
+      const lopCutoff =
+        this.payrollProration !== 'full_month' && lastDay && lastDay < to ? lastDay : null;
+      const staffLopDays = (lopDays.get(staff.id) ?? []).filter(
+        (day) => lopCutoff === null || day.date <= lopCutoff,
+      );
+      const lop = countLopDays(query.month, staffLopDays, this.lopDivisor);
       const deductionsCents = Math.min(
         grossCents,
         lossOfPayDeductionCents({
