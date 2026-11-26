@@ -309,25 +309,62 @@ async function loadEnrolment(
   };
 }
 
+/**
+ * PRC-M343 (topic 9 Option A): results are read only from published marks.
+ * `examination_academic_records` is written at result publication (one row per
+ * student x subject x examination), so draft or double-entry marks
+ * (`exam_marks_entries`) never reach this report. Explicit columns only.
+ */
 async function loadExamResults(client: PgQueryable, tenantId: string): Promise<ReportTable> {
-  for (const table of ['examination_results', 'exam_results', 'candidate_results']) {
-    if (!(await relationExists(client, table))) continue;
-    // `table` comes from the fixed allow-list above (not user input).
-    const result = await client.query(`SELECT * FROM ${table} LIMIT $1`, [CATALOGUE_FETCH_LIMIT]);
-    const rows = result.rows as Record<string, unknown>[];
-    const fieldNames = Array.isArray(result.fields)
-      ? (result.fields as Array<{ name: string }>).map((f) => f.name)
-      : Object.keys(rows[0] ?? {});
-    const keys = fieldNames.filter((k) => k !== 'tenant_id').slice(0, 6);
-    return {
-      columns: [...keys.map((k) => ({ name: k, label: k })), { name: 'tenantId', label: 'Tenant' }],
-      rows: rows.map((r) => ({
-        ...Object.fromEntries(keys.map((k) => [k, r[k]])),
-        tenantId,
-      })),
-    };
-  }
-  throw new ReportDataUnavailableError('No examination results relation is available');
+  await requireRelation(client, 'examination_academic_records');
+  await requireRelation(client, 'examinations');
+  const { rows } = await client.query(
+    `SELECT e.code AS examination_code, e.name AS examination_name,
+            r.student_id::text AS student_id, r.subject_id::text AS subject_id,
+            r.score, r.grade, r.passed, r.published_at
+       FROM examination_academic_records r
+       JOIN examinations e ON e.id = r.examination_id AND e.tenant_id = r.tenant_id
+      WHERE r.tenant_id = $1
+      ORDER BY e.code, r.student_id, r.subject_id
+      LIMIT $2`,
+    [tenantId, CATALOGUE_FETCH_LIMIT],
+  );
+  return {
+    columns: [
+      { name: 'examinationCode', label: 'Examination code' },
+      { name: 'examination', label: 'Examination' },
+      { name: 'studentId', label: 'Student' },
+      { name: 'subjectId', label: 'Subject' },
+      { name: 'score', label: 'Marks' },
+      { name: 'grade', label: 'Grade' },
+      { name: 'result', label: 'Result' },
+      { name: 'publishedAt', label: 'Published' },
+      { name: 'tenantId', label: 'Tenant' },
+    ],
+    rows: (
+      rows as Array<{
+        examination_code: string;
+        examination_name: string;
+        student_id: string;
+        subject_id: string;
+        score: number;
+        grade: string;
+        passed: boolean;
+        published_at: Date | string;
+      }>
+    ).map((r) => ({
+      examinationCode: r.examination_code,
+      examination: r.examination_name,
+      studentId: r.student_id,
+      subjectId: r.subject_id,
+      score: Number(r.score),
+      grade: r.grade,
+      result: r.passed ? 'PASS' : 'FAIL',
+      publishedAt:
+        r.published_at instanceof Date ? r.published_at.toISOString() : String(r.published_at),
+      tenantId,
+    })),
+  };
 }
 
 async function loadLive(
