@@ -83,6 +83,39 @@ describe('G-902 examinations UI contract', () => {
     await app.close();
   });
 
+  it('PRC-L036: records and lists a board registration number on the candidate', async () => {
+    const created = await app.inject({ method: 'POST', url: '/examinations', payload: examBody() });
+    const exam = created.json();
+    const [math] = exam.subjects as Array<{ id: string }>;
+    const center = exam.centers[0] as { id: string };
+    const studentId = randomUUID();
+    repository.setStudentEnrollment({
+      studentId,
+      status: 'enrolled',
+      institutionId: randomUUID(),
+      completedSubjectCodes: ['MATH', 'SCI'],
+    });
+    const payload = { studentId, centerId: center.id, subjectIds: [math!.id] };
+    const blank = await app.inject({
+      method: 'POST',
+      url: `/examinations/${exam.id}/candidates`,
+      payload: { ...payload, boardRegistrationNumber: '   ' },
+    });
+    expect(blank.statusCode).toBe(400);
+    const registered = await app.inject({
+      method: 'POST',
+      url: `/examinations/${exam.id}/candidates`,
+      payload: { ...payload, boardRegistrationNumber: 'B/2026/0012345' },
+    });
+    expect(registered.statusCode).toBe(201);
+    expect(registered.json().boardRegistrationNumber).toBe('B/2026/0012345');
+    const listed = await app.inject({ method: 'GET', url: `/examinations/${exam.id}/candidates` });
+    expect(listed.json().data[0]).toMatchObject({
+      studentId,
+      boardRegistrationNumber: 'B/2026/0012345',
+    });
+  });
+
   it('register → list candidates → marks → publish → results → documents', async () => {
     const created = await app.inject({ method: 'POST', url: '/examinations', payload: examBody() });
     expect(created.statusCode).toBe(201);

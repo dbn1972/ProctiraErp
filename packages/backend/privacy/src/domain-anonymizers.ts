@@ -316,6 +316,27 @@ export const studentSiblingsAnonymizer: DomainSubjectAnonymizer = {
 };
 
 /**
+ * PRC-L036: a candidate registration keeps the exam facts under the student's opaque
+ * id, but the board-issued registration number identifies the student, so it is
+ * cleared on erasure (the registration row itself stays).
+ */
+export const examinationRegistrationsAnonymizer: DomainSubjectAnonymizer = {
+  domain: 'examination_registrations',
+  covers: ['examination_candidate_registrations.student_id'],
+  appliesTo: isType('student'),
+  async anonymize(client, input) {
+    await client.query(
+      `UPDATE examination_candidate_registrations
+          SET board_registration_number = NULL
+        WHERE tenant_id::text = $2 AND student_id::text = $1
+          AND board_registration_number IS NOT NULL`,
+      [input.subjectId, input.tenantId],
+    );
+    return { fieldsTouched: ['examination_candidate_registrations.board_registration_number'] };
+  },
+};
+
+/**
  * PRC-M214 / DR44: consent records are append-only proof (who, what, when, version,
  * channel). Once the student is erased, who is pseudonymised through the database's
  * SECURITY DEFINER path (db/sql/316), which checks that this job and its erasure
@@ -370,6 +391,7 @@ export function defaultDomainAnonymizers(
     createStudentFilesAnonymizer(options.objectEraser),
     createStudentPhotoAnonymizer(options.objectEraser),
     studentSiblingsAnonymizer,
+    examinationRegistrationsAnonymizer,
     studentConsentsAnonymizer,
     createRetainedRecordsAnonymizer('fees', mode),
     createRetainedRecordsAnonymizer('health', mode),

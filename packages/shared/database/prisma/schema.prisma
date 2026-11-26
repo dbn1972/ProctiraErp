@@ -729,6 +729,8 @@ model ExaminationCandidateRegistration {
   subjectIds    Json     @default("[]") @map("subject_ids") @db.JsonB
   status        String   @default("REGISTERED") @db.VarChar(20)
   registeredAt  DateTime @map("registered_at")
+  /// PRC-L036: board-issued registration number; NULL until recorded.
+  boardRegistrationNumber String? @map("board_registration_number") @db.VarChar(64)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 

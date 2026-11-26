@@ -90,6 +90,7 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
                     (system reference, not a board registration number)
                   </span>
                 </TableHead>
+                <TableHead>Board reg. no.</TableHead>
                 <TableHead>Student</TableHead>
                 <TableHead>Centre</TableHead>
                 <TableHead>Subjects</TableHead>
@@ -104,6 +105,13 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
                     <span className="text-xs text-muted-foreground" title={candidate.id}>
                       {resolveEntityLabel(candidate.id, {}, 'Ref')}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    {candidate.boardRegistrationNumber ? (
+                      <span className="font-mono text-xs">{candidate.boardRegistrationNumber}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Not recorded</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {resolveEntityLabel(candidate.studentId, studentLabels, 'Student')}

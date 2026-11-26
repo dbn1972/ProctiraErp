@@ -54,6 +54,8 @@ export interface ExaminationCandidate {
   /** Backend registration status is REGISTERED | CONFIRMED | CANCELLED. */
   status: 'REGISTERED' | 'CONFIRMED' | 'CANCELLED' | 'WITHDRAWN';
   registeredAt: string;
+  /** PRC-L036: board-issued registration number; null until recorded. */
+  boardRegistrationNumber?: string | null;
 }
 
 /** Row on the Results tab, merged from recorded marks and the publication. */
@@ -249,6 +251,8 @@ export interface RegisterCandidateInput {
   studentId: string;
   centerId: string;
   subjectIds: string[];
+  /** PRC-L036: registration number issued by the examining board, when known. */
+  boardRegistrationNumber?: string;
 }
 
 /** POST /examinations/:id/candidates — eligibility validated server-side. */

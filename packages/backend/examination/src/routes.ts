@@ -389,6 +389,7 @@ export async function registerExaminationRoutes(
             subjectIds: registration.subjectIds,
             status: registration.status,
             registeredAt: registration.registeredAt.toISOString(),
+            boardRegistrationNumber: registration.boardRegistrationNumber ?? null,
           })),
           meta: { total: registrations.length },
         });
@@ -462,6 +463,7 @@ export async function registerExaminationRoutes(
           subjectIds: registration.subjectIds,
           status: registration.status,
           registeredAt: registration.registeredAt.toISOString(),
+          boardRegistrationNumber: registration.boardRegistrationNumber ?? null,
         });
       } catch (error: unknown) {
         if (error instanceof AppError) {
