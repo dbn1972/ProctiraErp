@@ -7,7 +7,7 @@
   "profile": "core",
   "gateways": 2,
   "runner": "vitest",
-  "include": ["src/tracks/t05-concurrency-races/**/*.aitest.ts"],
+  "include": ["src/tracks/t05-concurrency-races/concurrency-races.aitest.ts"],
   "timeoutMinutes": 60,
   "env": {
     "AITEST_RACE_ROUNDS": "20"
