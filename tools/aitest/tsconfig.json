@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node", "vitest/globals"],
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "incremental": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "vitest.config.ts",
+    "vitest.aitest.config.ts",
+    "playwright.aitest.config.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

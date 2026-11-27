@@ -1,0 +1,25 @@
+[
+  {
+    "id": "foundation-smoke",
+    "title": "Foundation smoke: stack, seed, manifest, role-user tokens, tenancy, inventories, snapshot",
+    "cadence": ["nightly", "weekly"],
+    "reason": "Cheap (core profile, about 3 minutes); proves the shared harness still works and keeps both scheduled matrices non-empty.",
+    "unit": "foundation",
+    "profile": "core",
+    "runner": "vitest",
+    "include": ["src/foundation/foundation-smoke.aitest.ts"],
+    "timeoutMinutes": 30
+  },
+  {
+    "id": "foundation-keycloak-smoke",
+    "title": "Foundation smoke on a full stack with Keycloak: one password-grant token per UAT role user",
+    "cadence": ["weekly"],
+    "reason": "Full profile with Kafka, RabbitMQ, MinIO and Keycloak is heavier; weekly keeps the Keycloak path used by t09 and t12 working.",
+    "unit": "foundation",
+    "profile": "full",
+    "keycloak": true,
+    "runner": "vitest",
+    "include": ["src/foundation/foundation-smoke.aitest.ts"],
+    "timeoutMinutes": 45
+  }
+]

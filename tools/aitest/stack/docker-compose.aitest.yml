@@ -1,0 +1,69 @@
+# aitest overlay for the repo docker-compose.yml (program plan D4, section 4.3).
+#
+# Used only as: docker compose -p proctira-aitest-<unit> --project-directory <repo>
+#   -f docker-compose.yml -f tools/aitest/stack/docker-compose.aitest.yml --env-file <generated>
+# (tools/aitest/src/foundation/stack/compose.ts builds that command and refuses
+# any project outside proctira-aitest-*).
+#
+# - Datastores never restart on their own: a throwaway stack that dies stays down.
+# - Every container carries com.proctira.aitest.unit so teardown can prove it is gone.
+# - Kafka advertises the host port the stack really uses (the base file hard-codes 9092).
+# - Keycloak gets a readiness check on its management port (no curl in the image).
+# - Application containers move to the `aitest-never` profile: aitest runs the
+#   gateway, workers and Next apps on the host from the worktree under test.
+services:
+  postgres:
+    restart: 'no'
+    labels:
+      com.proctira.aitest.unit: ${AITEST_UNIT:?AITEST_UNIT is set by aitest}
+  redis:
+    restart: 'no'
+    labels:
+      com.proctira.aitest.unit: ${AITEST_UNIT:?AITEST_UNIT is set by aitest}
+  kafka:
+    restart: 'no'
+    labels:
+      com.proctira.aitest.unit: ${AITEST_UNIT:?AITEST_UNIT is set by aitest}
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://127.0.0.1:${KAFKA_PORT:?KAFKA_PORT is set by aitest}
+  rabbitmq:
+    restart: 'no'
+    labels:
+      com.proctira.aitest.unit: ${AITEST_UNIT:?AITEST_UNIT is set by aitest}
+  minio:
+    restart: 'no'
+    labels:
+      com.proctira.aitest.unit: ${AITEST_UNIT:?AITEST_UNIT is set by aitest}
+  keycloak:
+    restart: 'no'
+    labels:
+      com.proctira.aitest.unit: ${AITEST_UNIT:?AITEST_UNIT is set by aitest}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": *"UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  api-gateway:
+    profiles: ['aitest-never']
+  etl-worker:
+    profiles: ['aitest-never']
+  exam-document-worker:
+    profiles: ['aitest-never']
+  web:
+    profiles: ['aitest-never']
+  registration-portal:
+    profiles: ['aitest-never']
+  public-website:
+    profiles: ['aitest-never']
+  admin-console:
+    profiles: ['aitest-never']
+  developer-portal:
+    profiles: ['aitest-never']
+  install-wizard:
+    profiles: ['aitest-never']
