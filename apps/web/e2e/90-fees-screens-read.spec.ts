@@ -224,7 +224,8 @@ test.describe('Fees screens — read path (E2E_BACKEND_READY)', () => {
     const match = page.getByTestId('recon-match-row');
     await expect(match).toHaveCount(1);
     await expect(match).toContainText(d.structureInvoice.invoiceNumber);
-    await expect(match).toContainText('₹999.99 · matched');
+    // The bank line matched the ₹0.99 UPI payment (PRC-M251), not the ₹999.99 face.
+    await expect(match).toContainText('₹0.99 · matched');
     const exception = page.getByTestId('recon-exception-row');
     await expect(exception).toHaveCount(1);
     await expect(exception).toContainText(d.batch.missing);

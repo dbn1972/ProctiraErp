@@ -1468,6 +1468,12 @@ JOIN classes c
  AND c.deleted_at IS NULL
 WHERE e.id = picked.id;
 
+-- Both tables were just loaded in this transaction and have no statistics on a
+-- fresh database. With the 308 RLS predicates the planner then picks a nested
+-- loop over (tenant_id, institution_id) and this UPDATE took 2-4 minutes in CI
+-- (5.9 s before 308). ANALYZE sees this transaction's own rows.
+ANALYZE student_attendance;
+ANALYZE enrollments;
 UPDATE student_attendance a
 SET class_id = e.class_id
 FROM enrollments e
