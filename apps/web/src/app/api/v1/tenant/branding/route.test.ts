@@ -41,8 +41,15 @@ vi.mock('@/lib/api/gateway', () => ({
   GATEWAY_BASE_URL: 'http://gateway.test',
   GATEWAY_API_PREFIX: '/api/v1',
 }));
+// UATENV-D22: the public brand read goes through a Host-routed node:http transport.
+const hostRoutedGet = vi.fn();
+vi.mock('@/lib/tenant-theme/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/tenant-theme/server')>()),
+  hostRoutedGet: (url: string, host: string) => hostRoutedGet(url, host),
+}));
 
 import { GET } from './route';
+import { clearSessionPublicBrandCache } from '@/lib/tenant-theme/session-public-brand';
 
 /** A syntactically real HS256 token, so `decodeTokenPayload` does actual work. */
 function signlessToken(payload: Record<string, unknown>): string {
@@ -170,5 +177,118 @@ describe('GET /api/v1/tenant/branding', () => {
     expect(detail).toBe('fetch failed');
     expect(cause).toContain('ECONNREFUSED');
     logged.mockRestore();
+  });
+});
+
+describe('GET /api/v1/tenant/branding: role refused tenant branding (UATENV-D22)', () => {
+  const HOST = 'sunrise-public-school.proctira.localhost:29080';
+  const PUBLIC_URL = 'http://gateway.test/api/v1/registrations/branding?slug=sunrise-public-school';
+  const PUBLIC_BRAND = { slug: 'sunrise-public-school', name: 'Sunrise Public School' };
+
+  function forbidden(): Response {
+    return new Response(JSON.stringify({ code: 'FORBIDDEN' }), {
+      status: 403,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  function signIn(claims: Record<string, unknown>): void {
+    cookieValues.set(
+      AUTH_COOKIES.ACCESS_TOKEN,
+      signlessToken({ sub: 'u1', tenant_id: 't-sunrise', ...claims }),
+    );
+  }
+
+  function publicAnswers(status: number, body: unknown = PUBLIC_BRAND): void {
+    hostRoutedGet.mockResolvedValue({ status, body: JSON.stringify(body) });
+  }
+
+  beforeEach(() => {
+    cookieValues.clear();
+    headerValues.clear();
+    headerValues.set('host', HOST);
+    hostRoutedGet.mockReset();
+    clearSessionPublicBrandCache();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => forbidden()),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('403: answers with the public brand of the session tenant on this Host', async () => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    publicAnswers(200);
+    const res = await GET();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual(PUBLIC_BRAND);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    // The session's own slug goes with the inbound Host, so the gateway refuses a mismatch.
+    expect(hostRoutedGet).toHaveBeenCalledWith(PUBLIC_URL, HOST);
+  });
+
+  it('accepts a single-valued tenant_slug array claim (Keycloak attribute)', async () => {
+    signIn({ tenant_slug: ['sunrise-public-school'] });
+    publicAnswers(200);
+    expect((await GET()).status).toBe(200);
+  });
+
+  it('session tenant differs from the Host tenant: gateway 404, the 403 passes through', async () => {
+    signIn({ tenant_slug: 'tenant-b' });
+    publicAnswers(404, { code: 'PUBLIC_BRANDING_NOT_FOUND' });
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(hostRoutedGet).toHaveBeenCalledWith(
+      'http://gateway.test/api/v1/registrations/branding?slug=tenant-b',
+      HOST,
+    );
+  });
+
+  it('a public brand for another slug is not used even when the gateway returns it', async () => {
+    signIn({ tenant_slug: 'tenant-b' });
+    publicAnswers(200);
+    expect((await GET()).status).toBe(403);
+  });
+
+  it('no tenant slug claim: no public read, the 403 passes through', async () => {
+    signIn({});
+    expect((await GET()).status).toBe(403);
+    expect(hostRoutedGet).not.toHaveBeenCalled();
+  });
+
+  it('no usable Host: no public read, the 403 passes through', async () => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    headerValues.delete('host');
+    expect((await GET()).status).toBe(403);
+    expect(hostRoutedGet).not.toHaveBeenCalled();
+  });
+
+  it.each([429, 502])(
+    'public read answers %i: 503 so the provider does not cache',
+    async (status) => {
+      signIn({ tenant_slug: 'sunrise-public-school' });
+      publicAnswers(status, { code: 'X' });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      expect((await GET()).status).toBe(503);
+      logged.mockRestore();
+    },
+  );
+
+  it('keeps a definitive public answer for a minute (one gateway read)', async () => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    publicAnswers(200);
+    expect((await GET()).status).toBe(200);
+    expect((await GET()).status).toBe(200);
+    expect(hostRoutedGet).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([401, 404])('upstream %i is passed through with no public read', async (status) => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status })));
+    expect((await GET()).status).toBe(status);
+    expect(hostRoutedGet).not.toHaveBeenCalled();
   });
 });
