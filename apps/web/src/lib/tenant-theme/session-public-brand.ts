@@ -14,6 +14,10 @@
  */
 import { GATEWAY_BASE_URL } from '@/lib/api/gateway';
 import { decodeJwtPayload } from '@/lib/auth/jwt-payload';
+import {
+  extractPublishedTokens,
+  tenantTokensToBrandFields,
+} from '@/lib/branding/tenant-token-fields';
 
 import {
   PUBLISHED_THEME_PATH,
@@ -79,4 +83,53 @@ export async function fetchSessionPublicBrand(
   if (cache.size >= CACHE_MAX_ENTRIES) cache.clear();
   cache.set(cacheKey, { body, expiresAt: now + SESSION_PUBLIC_BRAND_TTL_MS });
   return body;
+}
+
+/** Top-level name keys `normalizeBrandResponse` reads, in the same order. */
+const BRAND_NAME_KEYS = ['name', 'organizationName', 'brand_name', 'brandName'] as const;
+
+function carriesBrandName(payload: Record<string, unknown>): boolean {
+  if (BRAND_NAME_KEYS.some((key) => typeof payload[key] === 'string' && payload[key] !== '')) {
+    return true;
+  }
+  const tokens = extractPublishedTokens(payload);
+  return Boolean(tokens && tenantTokensToBrandFields(tokens).name);
+}
+
+/**
+ * UATENV-D32: admin roles get the published theme (`{ tokens, revision }`) from the
+ * gateway's tenant branding, with no school name, so the tab title fell back to the
+ * product name while the sidebar card showed the school. When a 200 branding body has
+ * no name, this adds `name` and `slug` from the session tenant's public brand (same
+ * guards as `fetchSessionPublicBrand`). Fields the gateway sent are kept as they are.
+ *
+ * Returns the body unchanged when it already has a name, is not a JSON object, the
+ * public brand does not apply, or the public read fails: the theme tokens still apply
+ * and only the title keeps the product name.
+ */
+export async function withSessionBrandName(
+  body: string,
+  accessToken: string,
+  requestHost: string | null | undefined,
+  transport: HostRoutedTransport = hostRoutedGet,
+): Promise<string> {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    return body;
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return body;
+  const brand = payload as Record<string, unknown>;
+  if (carriesBrandName(brand)) return body;
+  let publicBody: string | null;
+  try {
+    publicBody = await fetchSessionPublicBrand(accessToken, requestHost, transport);
+  } catch {
+    return body;
+  }
+  if (!publicBody) return body;
+  const publicBrand = JSON.parse(publicBody) as { slug?: unknown; name?: unknown };
+  if (typeof publicBrand.name !== 'string' || publicBrand.name.trim() === '') return body;
+  return JSON.stringify({ name: publicBrand.name, slug: publicBrand.slug, ...brand });
 }

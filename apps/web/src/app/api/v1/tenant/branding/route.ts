@@ -49,13 +49,23 @@
  * 403 is passed through and the provider keeps the product default. A 429 or 5xx from
  * the public read becomes 503, which the provider does not cache. Only a 403 qualifies:
  * there the gateway has verified the token, so its claims hold.
+ *
+ * ## Admin roles get a theme without a name (UATENV-D32)
+ *
+ * For admins the gateway answers 200 with the published theme (`{ tokens, revision }`),
+ * which carries no school name, so the tab title showed the product name. On a 200 body
+ * with no name this route adds `name` and `slug` from the same session public brand
+ * (`withSessionBrandName`); when that does not apply the body passes through unchanged.
  */
 import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL } from '@/lib/api/gateway';
 import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
-import { fetchSessionPublicBrand } from '@/lib/tenant-theme/session-public-brand';
+import {
+  fetchSessionPublicBrand,
+  withSessionBrandName,
+} from '@/lib/tenant-theme/session-public-brand';
 
 export async function GET(): Promise<Response> {
   const cookieStore = await cookies();
@@ -82,7 +92,10 @@ export async function GET(): Promise<Response> {
       cache: 'no-store',
     });
 
-    const body = await upstream.text();
+    let body = await upstream.text();
+    if (upstream.status === 200) {
+      body = await withSessionBrandName(body, accessToken, (await headers()).get('host'));
+    }
     if (upstream.status === 403) {
       const publicBody = await fetchSessionPublicBrand(accessToken, (await headers()).get('host'));
       if (publicBody) {

@@ -18,7 +18,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AUTH_COOKIES } from '@/lib/auth';
-import { BRAND_ENDPOINT } from '@/providers/BrandConfigProvider';
+import { BRAND_ENDPOINT, normalizeBrandResponse } from '@/providers/BrandConfigProvider';
 
 const cookieValues = new Map<string, string>();
 const headerValues = new Map<string, string>();
@@ -290,5 +290,100 @@ describe('GET /api/v1/tenant/branding: role refused tenant branding (UATENV-D22)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status })));
     expect((await GET()).status).toBe(status);
     expect(hostRoutedGet).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/v1/tenant/branding: admin theme without a name (UATENV-D32)', () => {
+  const HOST = 'sunrise-public-school.proctira.localhost:29080';
+  const PUBLIC_URL = 'http://gateway.test/api/v1/registrations/branding?slug=sunrise-public-school';
+  const PUBLIC_BRAND = { slug: 'sunrise-public-school', name: 'Sunrise Public School' };
+  const THEME = { tokens: { '--tenant-primary': 'hsl(10, 50%, 40%)' }, revision: 3 };
+
+  function themeAnswers(payload: unknown): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(
+        async () =>
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+  }
+
+  function signIn(claims: Record<string, unknown>): void {
+    cookieValues.set(
+      AUTH_COOKIES.ACCESS_TOKEN,
+      signlessToken({ sub: 'u1', tenant_id: 't-sunrise', ...claims }),
+    );
+  }
+
+  function publicAnswers(status: number, body: unknown = PUBLIC_BRAND): void {
+    hostRoutedGet.mockResolvedValue({ status, body: JSON.stringify(body) });
+  }
+
+  beforeEach(() => {
+    cookieValues.clear();
+    headerValues.clear();
+    headerValues.set('host', HOST);
+    hostRoutedGet.mockReset();
+    clearSessionPublicBrandCache();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('adds the session tenant public name and slug, keeping the theme tokens', async () => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    themeAnswers(THEME);
+    publicAnswers(200);
+    const res = await GET();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ...PUBLIC_BRAND, ...THEME });
+    expect(hostRoutedGet).toHaveBeenCalledWith(PUBLIC_URL, HOST);
+  });
+
+  it('the provider then resolves the school name for the tab title', async () => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    themeAnswers(THEME);
+    publicAnswers(200);
+    const brand = normalizeBrandResponse(await (await GET()).json());
+    expect(brand.name).toBe('Sunrise Public School');
+    expect(brand.primary_color).toBe('hsl(10, 50%, 40%)');
+  });
+
+  it.each([
+    ['a top-level name', { ...THEME, name: 'Gateway Name' }],
+    ['a --tenant-name token', { tokens: { '--tenant-name': "'Gateway Name'" }, revision: 1 }],
+  ])('a body that already has %s is passed through with no public read', async (_label, body) => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    themeAnswers(body);
+    await expect((await GET()).json()).resolves.toEqual(body);
+    expect(hostRoutedGet).not.toHaveBeenCalled();
+  });
+
+  it('session tenant differs from the Host tenant: the theme passes through unnamed', async () => {
+    signIn({ tenant_slug: 'tenant-b' });
+    themeAnswers(THEME);
+    publicAnswers(404, { code: 'PUBLIC_BRANDING_NOT_FOUND' });
+    await expect((await GET()).json()).resolves.toEqual(THEME);
+  });
+
+  it('no tenant slug claim: no public read, the theme passes through', async () => {
+    signIn({});
+    themeAnswers(THEME);
+    await expect((await GET()).json()).resolves.toEqual(THEME);
+    expect(hostRoutedGet).not.toHaveBeenCalled();
+  });
+
+  it.each([429, 502])('public read answers %i: the theme still answers 200', async (status) => {
+    signIn({ tenant_slug: 'sunrise-public-school' });
+    themeAnswers(THEME);
+    publicAnswers(status, { code: 'X' });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual(THEME);
   });
 });

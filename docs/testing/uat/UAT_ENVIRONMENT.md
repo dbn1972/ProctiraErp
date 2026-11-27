@@ -1,6 +1,6 @@
 # UAT environment on the EC2 host
 
-Status: deployed and smoke-tested on commit `219093a4` (21 Nov 2026). Release-plan row E3 is **PARTIAL**; the unmet items are listed in "Smoke results (E3 evidence)" and in `docs/testing/uat/UAT_RELEASE_PLAN.md` row E3.
+Status: deployed and smoke-tested on commit `f7e06695` (27 Nov 2026; first deploy `219093a4`, 21 Nov 2026). Release-plan row E3 is **PARTIAL** (2 of 8 E3 items met); the unmet items are listed in "Smoke results (E3 evidence)" and in `docs/testing/uat/UAT_RELEASE_PLAN.md` row E3.
 
 This page describes the ProctiraERP UAT stack that runs on the shared EC2 build host: what is deployed, how to reach it, the role users, and how to redeploy, reset, back up, restore and tear it down. It names secrets only. Every value lives in the host-only secrets folder.
 
@@ -36,12 +36,12 @@ The running stack depends only on the host folder `UATENV_HOME` (`/home/ec2-user
 
 ## Deployed commit
 
-| Item          | Value                                                                                                                                        |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Commit        | `219093a481c7cc02fe76f5372cd1de54f3c0f2e1` (latest `origin/main` commit with a green push CI when the deploy started)                        |
-| CI push run   | [CI 44916905863](https://github.com/dbn1972/ProctiraErp/actions/runs/44916905863)                                                            |
-| Image tag     | `uatenv-219093a481c7`                                                                                                                        |
-| Secondary set | not deployed: admin-console and install-wizard fail to build on `main` until PR #735 merges, so public-website and developer-portal wait too |
+| Item          | Value                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Commit        | `f7e066958b8030d0bd4905f932a73c87df48c9c0` (newest `origin/main` commit with a green push CI when the deploy started, 27 Nov 2026) |
+| CI push run   | [CI 45931166161](https://github.com/dbn1972/ProctiraErp/actions/runs/45931166161)                                                  |
+| Image tag     | `uatenv-f7e066958b80`                                                                                                              |
+| Secondary set | deployed with `--with-secondary`: public-website, admin-console, developer-portal and install-wizard, all healthy                  |
 
 ## Services, ports and health endpoints
 
@@ -296,6 +296,25 @@ Hardening that is already in place for the public listener:
 
 ## Smoke results (E3 evidence)
 
+### E3 items on `f7e06695` (27 Nov 2026)
+
+Results after the redeploys for fix batches b1-b8; each row gives the newest run of that item. Summary: `UATENV_HOME/redeploy-main/evidence/smoke-summary.md`. Items that wait for a post-merge re-check are counted unmet.
+
+| #   | E3 item                                                           | Result                  | Counts                                                                                                                                               | Open cause                                                                                                            |
+| --- | ----------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1   | Right home screen for every role user; email/password form        | unmet                   | home screen 12/15; password form 200                                                                                                                 | D19 registrar, D09 two tenant-B users (owner)                                                                         |
+| 2   | Render pass, 209 web routes                                       | unmet                   | 188 PASS / 3 FAIL / 15 SKIP / 3 BLOCKED; allow 174/177, deny 153/153, portal bounce 25/25, public 14/14; raw server text 0, 5xx 0                    | 15 SKIP D17 and 3 BLOCKED health routes (owner); 2 FAIL harness role choice; 1 expected `/__tests/error-boundary` 404 |
+| 3   | Playwright nightly spec set compatible with the deployed stack    | unmet                   | first-run 59 specs: 7 pass / 52 incompatible / 0 fail; 17 added web specs: 0 pass / 17 incompatible; registration live journey 5 of 5 runnable tests | D28 harness HS256 sessions                                                                                            |
+| 4   | Screen-level cross-tenant checks                                  | met                     | screens A->B 10/10, B->A 9/9, positive controls 4/4, 0 INCONCLUSIVE                                                                                  | none                                                                                                                  |
+| 5   | Session survives past the 5-minute access-token lifetime          | met (on `b57cd037`)     | active 15/15, idle 15/15                                                                                                                             | none                                                                                                                  |
+| 6   | Secondary apps deployed and checked                               | unmet (deploy part met) | 4/4 apps healthy; 34 routes: 19 PASS / 0 FAIL / 11 BLOCKED / 4 SKIP; console refuses tenant accounts 4/4                                             | D23 platform-operator identity (owner)                                                                                |
+| 7   | Payments testable                                                 | unmet                   | not exercised: no `RAZORPAY_*` in the gateway; staff sandbox payments not enabled (`FEES_STAFF_SANDBOX_PAYMENTS`)                                    | Razorpay test keys (owner)                                                                                            |
+| 8   | Tenant-B users land on their own tenant host after Keycloak login | unmet                   | 2/2 land on the Sunrise host; their data stays tenant-B only                                                                                         | D09 (owner)                                                                                                           |
+
+E3 items met: 2 of 8. Non-owner items left: item 2 (2 harness role-choice FAILs) and item 3 (D28). Smoke items met on `f7e06695`: health 42/42 probes, 16/16 containers, loopback-only ports, 15/15 Keycloak logins, cross-tenant gateway A->B 7/7 and B->A 6/6. Backup and the restore drill were met on 25 Nov. UATENV-D32 (admin tab title shows the product name, cosmetic) is fixed in the PR that carries this update and stays open until the post-merge re-check.
+
+### First smoke run on `219093a4` (21 Nov 2026)
+
 Smoke run on the deployed commit `219093a4`, 21 Nov 2026, 18:51-21:58 UTC. Evidence files are in `UATENV_HOME/evidence/` (summary: `smoke-summary.md`); the defect ledger is `UATENV_HOME/defects.md`.
 
 | #   | Smoke item                                                  | Result                         | Counts                                                                                                                                                                                                                                                                   | Evidence                                                  |
@@ -307,7 +326,7 @@ Smoke run on the deployed commit `219093a4`, 21 Nov 2026, 18:51-21:58 UTC. Evide
 | 5   | Cross-tenant spot checks (5 screens each way, plus the API) | PASS on the API, PARTIAL on UI | 13 PASS, 0 FAIL, 13 INCONCLUSIVE. No tenant-B row reached tenant A (or the reverse) on any rendered screen or gateway call, including a spoofed `X-Tenant-ID`. Only the dashboard rendered data; the other screens showed the D06/D12 error boundary                     | `cross-tenant.md`, `cross-tenant.json`, `cross-tenant/`   |
 | 6   | Failures recorded as defects                                | DONE                           | 17 ledger rows (below); the 9 code defects are fixed on `main`                                                                                                                                                                                                           | `defects.md`                                              |
 
-The code fixes for every smoke failure above are merged to `main` (tip `45cf9c68`) but are not yet deployed. After a redeploy with `uatenv-redeploy.sh`, re-run smoke items 2, 3 (axe specs), 4 and 5 before E3 can move to PASSED.
+The code fixes for these failures (#753-#757) were deployed by the later redeploys; the current results are in the E3 table above.
 
 ## Defects
 
@@ -333,10 +352,13 @@ Full ledger with requests, responses and evidence: `UATENV_HOME/defects.md`. Cod
 | UATENV-D16 | code (web session refresh) | refresh posts to `/auth/refresh` and fails, so users are signed out after 5 minutes                                                    | merged #755 (`45cf9c68`); UAT re-run pending redeploy; residual: a user idle over 300 s returns to `/login` |
 | UATENV-D17 | product (demo seed)        | the Sunrise seed has no rows for 15 detail routes                                                                                      | pending owner                                                                                               |
 
+Statuses above are as of the first run. The merged fixes are in the deployed `f7e06695`. D18-D32, found on later redeploys, and their status are in `UATENV_HOME/redeploy-main/evidence/smoke-summary.md` ("Defects from this run").
+
 ## Pending owner
 
-- Redeploy UAT to a green `main` commit that contains #753-#757 (tip `45cf9c68` once its push CI is green), then re-run smoke items 2-5.
-- PR #735 (admin-console and install-wizard builds), then `uatenv-redeploy.sh <sha> --with-secondary`.
+- After the D32 fix merges: redeploy to a green `main` and re-check the admin tab titles.
+- E3 Track 3: install the #798 UAT tooling (D17 detail records, D23 platform-operator user, D26 health_admin user) and re-run the render and secondary passes.
+- Owner: D19 (registrar admissions grant), D23 (platform-operator identity).
 - Decisions: D09 (per-tenant OIDC return origin), D10 (bursar and librarian grants), D11 (Helm ingress routing), D17 (demo seed coverage).
 - Repo config fix PRs for D02 and D04 (Helm and compose).
 - External provider credentials: Razorpay test keys (payments cannot be exercised until then), MSG91, SES, FCM, AWS KMS keys, and a Keycloak service-account client if tenant onboarding is tested.
