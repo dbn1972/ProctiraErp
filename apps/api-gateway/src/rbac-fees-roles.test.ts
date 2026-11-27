@@ -137,7 +137,13 @@ describe('finance role matrix in the gateway registry (F-D3)', () => {
       registry
         .getRole('registrar')!
         .permissions.map((p) => `${p.resource}:${p.action}`)
-        .filter((p) => !p.startsWith('staff:'))
+        // registration and institution (UATENV-D19): rbac-admissions-roles.test.ts.
+        .filter(
+          (p) =>
+            !p.startsWith('staff:') &&
+            !p.startsWith('registration:') &&
+            !p.startsWith('institution:'),
+        )
         .sort(),
     ).toEqual([
       'fees:list',

@@ -63,8 +63,8 @@ export async function requireSession(returnTo?: string): Promise<AdminServerSess
 
 /**
  * Enforces both authentication and role membership for the given area.
- * Operators without the required role are redirected to /forbidden so the
- * audit log can record the attempted access.
+ * Operators without the required role are redirected to /forbidden. The denial
+ * is not written to the audit log yet (follow-up FU-T1-E).
  */
 export async function requireRole(area: AdminArea, returnTo?: string): Promise<AdminServerSession> {
   const session = await requireSession(returnTo);

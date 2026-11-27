@@ -5,6 +5,7 @@
  * Gated (E2E_BACKEND_READY): mark ABSENT → regularise (requester self-approve
  * is 403) → a second actor approves → leave approve → register device →
  * ingest twice (idempotent) → tenant B deny.
+ * UAT E3: /attendance lists the tenant academic periods and loads the roster.
  */
 import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -86,8 +87,10 @@ async function postOk(
 
 interface AttendanceFixture {
   periodId: string;
+  gradeId: string;
   classId: string;
   studentId: string;
+  studentLastName: string;
 }
 
 async function buildClassStudent(request: APIRequestContext): Promise<AttendanceFixture> {
@@ -127,8 +130,10 @@ async function buildClassStudent(request: APIRequestContext): Promise<Attendance
   );
   return {
     periodId: period.id as string,
+    gradeId: grade.id as string,
     classId: klass.id as string,
     studentId: student.id as string,
+    studentLastName: `Att ${tag}`,
   };
 }
 
@@ -287,6 +292,47 @@ test.describe('Attendance ops — live chain (E2E_BACKEND_READY)', () => {
     await page.goto('/attendance/ops', { waitUntil: 'domcontentloaded' });
     await hydrated(page, 'attendance-ops-page');
     await expect(page.getByTestId('attendance-ops-panel')).toBeVisible();
+  });
+
+  test('UAT E3: Mark attendance offers academic periods and loads the class roster', async ({
+    page,
+    request,
+  }) => {
+    const fx = await buildClassStudent(request);
+    await postOk(
+      request,
+      '/enrollments',
+      {
+        studentId: fx.studentId,
+        institutionId: INSTITUTION_A,
+        gradeId: fx.gradeId,
+        classId: fx.classId,
+        academicPeriodId: fx.periodId,
+        enrolledAt: weekdayIso(5),
+      },
+      201,
+    );
+
+    // Before the fix the page asked a non-existent per-institution route and
+    // the period picker only offered "No academic periods".
+    await page.goto(`/attendance?institutionId=${INSTITUTION_A}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await hydrated(page, 'attendance-marking-form');
+    await page.getByLabel('Academic period').click();
+    await expect(page.getByRole('option', { name: 'No academic periods' })).toHaveCount(0);
+    await expect(page.locator('[role="option"]:not([aria-disabled="true"])').first()).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.goto(
+      `/attendance?institutionId=${INSTITUTION_A}&classId=${fx.classId}&academicPeriodId=${fx.periodId}&date=${todayIso()}`,
+      { waitUntil: 'domcontentloaded' },
+    );
+    await hydrated(page, 'attendance-marking-form');
+    // The "Selected period" fallback is shown only when the period is missing
+    // from the list the page loaded.
+    await expect(page.getByLabel('Academic period')).not.toContainText('Selected period');
+    await expect(page.getByText(fx.studentLastName, { exact: false }).first()).toBeVisible();
   });
 
   test('cross-tenant: tenant B cannot approve tenant A regularisation', async ({ request }) => {

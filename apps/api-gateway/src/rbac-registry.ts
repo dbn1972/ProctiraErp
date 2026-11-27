@@ -2,7 +2,12 @@
  * Gateway RBAC registry — DEFAULT_ROLES plus campus/platform extensions (G-101).
  */
 
-import { applyCampusDomainRoleGrants, applyFeesDomainRoleGrants } from '@proctira/auth';
+import {
+  applyAdmissionsDomainRoleGrants,
+  applyAdmissionsLookupReadGrants,
+  applyCampusDomainRoleGrants,
+  applyFeesDomainRoleGrants,
+} from '@proctira/auth';
 import type { Permission, PermissionAction, RoleDefinition } from '@proctira/backend-auth';
 import { DEFAULT_ROLES, RbacPermissionRegistry } from '@proctira/backend-auth';
 
@@ -398,6 +403,12 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   // shared matrix with the web registry; the fees package guard still decides
   // each fees action (e.g. the accountant cannot approve concessions).
   applyFeesDomainRoleGrants(roles);
+  // UATENV-D19: the registrar reads and processes admissions (registration read/list/create/
+  // update; the registration package guard still decides each action), plus gateway-only
+  // institution read/list for the school-structure lookups the admissions screens show. No fees,
+  // finance or delete grant is added.
+  applyAdmissionsDomainRoleGrants(roles);
+  applyAdmissionsLookupReadGrants(roles);
   // PRC-H111: case workers — case access only; scope is enforced in CaseService.
   for (const roleId of CASE_WORKER_ROLE_IDS) {
     roles.push({

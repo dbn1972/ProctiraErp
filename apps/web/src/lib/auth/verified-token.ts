@@ -19,7 +19,23 @@ export interface ReadSessionTokenOptions {
   ignoreExpiry?: boolean;
 }
 
-/** Verified (or, in decode-only mode, decoded) claims, or null when refused. */
+/**
+ * Tenant claim of platform operators. Their tokens are for the admin console only
+ * (apps/admin-console verified-token.ts, UATENV-D30 #790), never for a school host.
+ */
+export const PLATFORM_OPERATOR_TENANT_ID = 'platform';
+
+/** True when the token's tenant claim is the platform operator tenant (decode only). */
+export function isPlatformOperatorClaims(claims: SessionTokenClaims | null): boolean {
+  return tenantIdFromClaims(claims) === PLATFORM_OPERATOR_TENANT_ID;
+}
+
+/**
+ * Verified (or, in decode-only mode, decoded) claims, or null when refused.
+ *
+ * UATENV-D23: a platform operator token is refused here, so the middleware, `getSession()` and
+ * the gateway client all treat it as no session on a school host.
+ */
 export async function readSessionToken(
   token: string,
   options: ReadSessionTokenOptions = {},
@@ -27,7 +43,8 @@ export async function readSessionToken(
   const result = await verifyShellAccessToken(token, process.env, {
     ignoreExpiry: options.ignoreExpiry,
   });
-  return result.ok ? result.claims : null;
+  if (!result.ok || isPlatformOperatorClaims(result.claims)) return null;
+  return result.claims;
 }
 
 /**
