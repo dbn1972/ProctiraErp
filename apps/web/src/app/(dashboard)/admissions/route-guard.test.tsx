@@ -168,13 +168,13 @@ afterEach(() => {
 });
 
 /**
- * Teaching, office and portal roles, and admissions officers (gateway grant but
- * no backend registration staff role), hold no admissions read.
+ * Teaching, office and portal roles, and admissions officers (no gateway
+ * registration grant), hold no admissions read. UATENV-D19: the registrar
+ * does (owner-delegated decision 2026-11-26).
  */
 const DENIED_ROLE_SETS = [
   ['teacher'],
   ['staff'],
-  ['registrar'],
   ['admissions_officer'],
   ['platform_admin'],
   ['student'],
@@ -183,7 +183,7 @@ const DENIED_ROLE_SETS = [
   [],
 ];
 
-const ALLOWED_ROLE_SETS = [['admin'], ['principal']];
+const ALLOWED_ROLE_SETS = [['admin'], ['principal'], ['registrar']];
 
 describe('admissions route guard (A-batch)', () => {
   it('covers every page under /admissions', () => {

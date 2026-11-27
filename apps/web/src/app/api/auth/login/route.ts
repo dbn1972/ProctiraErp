@@ -8,6 +8,7 @@ import {
 } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
 import { resolveTenantForRequest, TENANT_UNRESOLVED_BODY } from '@/lib/api/request-tenant';
+import { isPlatformOperatorClaims, type SessionTokenClaims } from '@/lib/auth/verified-token';
 
 /**
  * POST /api/auth/login
@@ -131,6 +132,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  // UATENV-D23: platform operator accounts sign in to the admin console only (#790). Refuse on a
+  // school host before any cookie is set. Decode only: this check can only refuse.
+  if (isPlatformOperatorClaims(decodeClaims(tokens.accessToken))) {
+    return NextResponse.json(
+      {
+        message: 'This is a platform operator account. Sign in to the admin console instead.',
+        code: 'PLATFORM_ACCOUNT_NOT_ALLOWED',
+      },
+      { status: 403 },
+    );
+  }
+
   const response = NextResponse.json({ success: true });
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
@@ -160,5 +173,18 @@ async function safeJson(response: Response): Promise<Record<string, unknown>> {
     return text ? JSON.parse(text) : {};
   } catch {
     return {};
+  }
+}
+
+/** JWT payload without verification (used only to refuse, never to grant). */
+function decodeClaims(token: string): SessionTokenClaims | null {
+  const part = token.split('.')[1];
+  if (!part) return null;
+  try {
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    const claims: unknown = JSON.parse(json);
+    return claims && typeof claims === 'object' ? (claims as SessionTokenClaims) : null;
+  } catch {
+    return null;
   }
 }

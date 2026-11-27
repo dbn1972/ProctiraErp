@@ -134,8 +134,15 @@ describe('campus staff role matrix in the gateway registry (H-D2, T-O1)', () => 
     expect(
       registrar.permissions
         .map((p) => `${p.resource}:${p.action}`)
-        // fees:read/list (F-D3) is pinned by rbac-fees-roles.test.ts.
-        .filter((p) => !p.startsWith('staff:') && !p.startsWith('fees:'))
+        // fees:read/list (F-D3) is pinned by rbac-fees-roles.test.ts; registration and
+        // institution (UATENV-D19) by rbac-admissions-roles.test.ts.
+        .filter(
+          (p) =>
+            !p.startsWith('staff:') &&
+            !p.startsWith('fees:') &&
+            !p.startsWith('registration:') &&
+            !p.startsWith('institution:'),
+        )
         .sort(),
     ).toEqual(['hostel:list', 'hostel:read', 'transport:list', 'transport:read']);
   });

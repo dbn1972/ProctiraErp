@@ -54,6 +54,13 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
   passwordThrottle?: PasswordLoginThrottle | PasswordThrottleOptions;
   /** Tenant repository used by GET /tenants for real name/slug/status (PRC-L084). */
   tenantDirectory?: TenantDirectoryReader;
+  /**
+   * UATENV-D09: base domain of per-tenant web hosts (`TENANT_BASE_DOMAIN`). When {@link webOrigin}
+   * is itself `<label>.<base>`, the browser callback returns to `<tenant slug>.<base>` for the
+   * signed-in user's tenant (looked up in {@link tenantDirectory}), keeping the configured scheme
+   * and port. Unset, or a web origin outside the base domain, keeps the single {@link webOrigin}.
+   */
+  tenantWebBaseDomain?: string;
   /** Upper bound for logout denylist entries in seconds (PRC-L282). Default 3600. */
   maxRevocationTtlSeconds?: number;
   /** JWKS client used to verify tokens presented at logout (tests/DI). */
@@ -551,6 +558,50 @@ async function refuseBlockedTenant(
   return true;
 }
 
+/** One DNS label: lowercase letters, digits and inner hyphens, at most 63 characters. */
+const TENANT_HOST_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * UATENV-D09: the web origin for this tenant's own host, or `undefined` to keep
+ * `config.webOrigin`. The host comes only from server data: the tenant record for the tenant id
+ * established by the token exchange / identity link, the configured base domain, and the scheme
+ * and port of the configured web origin. Request headers, query and state are never consulted.
+ * Anything unexpected fails safe to the configured origin.
+ */
+async function tenantWebOrigin(
+  config: KeycloakRouteConfig,
+  tenantId: string | undefined,
+  log: FastifyRequest['log'],
+): Promise<string | undefined> {
+  const baseDomain = config.tenantWebBaseDomain
+    ?.trim()
+    .toLowerCase()
+    .replace(/^\.+|\.+$/g, '');
+  if (!config.webOrigin || !baseDomain || !config.tenantDirectory || !tenantId) return undefined;
+  let url: URL;
+  try {
+    url = new URL(config.webOrigin);
+  } catch {
+    return undefined;
+  }
+  const host = url.hostname.toLowerCase();
+  const suffix = `.${baseDomain}`;
+  // Only deployments whose configured web host is itself a tenant subdomain use per-tenant hosts.
+  if (!host.endsWith(suffix) || !TENANT_HOST_LABEL.test(host.slice(0, -suffix.length))) {
+    return undefined;
+  }
+  let slug: unknown;
+  try {
+    slug = (await config.tenantDirectory.findTenantById(tenantId))?.slug;
+  } catch (error) {
+    log.warn({ err: error, tenantId }, 'tenant lookup for the web return host failed');
+    return undefined;
+  }
+  if (typeof slug !== 'string' || !TENANT_HOST_LABEL.test(slug)) return undefined;
+  url.hostname = `${slug}${suffix}`;
+  return url.origin;
+}
+
 export async function registerKeycloakAuthRoutes(
   fastify: FastifyInstance,
   config: KeycloakRouteConfig,
@@ -766,9 +817,10 @@ export async function registerKeycloakAuthRoutes(
         }
       }
 
+      const tenantId = user?.tenantId ?? claimTenantId(tokens.access_token);
       if (
         await refuseBlockedTenant(config, request, reply, {
-          tenantId: user?.tenantId ?? claimTenantId(tokens.access_token),
+          tenantId,
           issuedRefreshToken: tokens.refresh_token,
         })
       ) {
@@ -787,7 +839,9 @@ export async function registerKeycloakAuthRoutes(
       if (returnTo && config.webOrigin) {
         const ticket = mintWebTicketId();
         await webTicketStore.put(ticket, JSON.stringify(issued), WEB_TICKET_TTL_SECONDS);
-        const next = new URL('/api/auth/callback', config.webOrigin);
+        // UATENV-D09: the web session cookies are host-only, so land on the tenant's own host.
+        const origin = (await tenantWebOrigin(config, tenantId, request.log)) ?? config.webOrigin;
+        const next = new URL('/api/auth/callback', origin);
         next.searchParams.set('ticket', ticket);
         next.searchParams.set('returnTo', returnTo);
         return reply.redirect(next.toString(), 302);
