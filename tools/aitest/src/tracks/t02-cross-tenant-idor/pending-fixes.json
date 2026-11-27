@@ -1,0 +1,17 @@
+{
+  "$comment": "Case ids whose correct-behaviour assertion currently fails, mapped to the finding id. A pending case still runs and is reported pending-fix (not fail); P/t02-cross-tenant-idor/patches/<finding id>.patch removes the entry so the restore step can re-assert it once the fix merges. All entries are the same class: a non-UUID path id crashes the handler with a Prisma 'Error creating UUID' -> 500 instead of a clean 400/404 (missing param validation). No cross-tenant data leak or state change was found.",
+  "cases": {
+    "idor:A->S:GET /api/v1/academic-periods/:id:path.id:sequential": "AIT-T02-001",
+    "idor:S->A:GET /api/v1/academic-periods/:id:path.id:sequential": "AIT-T02-001",
+    "idor:A->S:GET /api/v1/academic-periods/:id/calendar:path.id:sequential": "AIT-T02-002",
+    "idor:S->A:GET /api/v1/academic-periods/:id/calendar:path.id:sequential": "AIT-T02-002",
+    "idor:A->S:GET /api/v1/attendance/audit/:attendanceId:path.attendanceId:sequential": "AIT-T02-003",
+    "idor:S->A:GET /api/v1/attendance/audit/:attendanceId:path.attendanceId:sequential": "AIT-T02-003",
+    "idor:A->S:DELETE /api/v1/academic-periods/:id:path.id:sequential": "AIT-T02-004",
+    "idor:S->A:DELETE /api/v1/academic-periods/:id:path.id:sequential": "AIT-T02-004",
+    "idor:A->S:POST /api/v1/academic-periods/:id/calendar:path.id:sequential": "AIT-T02-005",
+    "idor:S->A:POST /api/v1/academic-periods/:id/calendar:path.id:sequential": "AIT-T02-005",
+    "idor:A->S:POST /api/v1/academic-periods/:id/rollover:path.id:sequential": "AIT-T02-006",
+    "idor:S->A:POST /api/v1/academic-periods/:id/rollover:path.id:sequential": "AIT-T02-006"
+  }
+}

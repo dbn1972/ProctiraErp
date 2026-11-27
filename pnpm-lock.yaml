@@ -3832,6 +3832,9 @@ importers:
       '@proctira/auth':
         specifier: workspace:*
         version: link:../../packages/shared/auth
+      '@proctira/tenant-isolation-tests':
+        specifier: workspace:*
+        version: link:../tenant-isolation-tests
     devDependencies:
       '@axe-core/playwright':
         specifier: ^4.13.0

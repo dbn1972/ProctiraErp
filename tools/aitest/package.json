@@ -16,7 +16,8 @@
     "aitest": "tsx src/foundation/cli.ts"
   },
   "dependencies": {
-    "@proctira/auth": "workspace:*"
+    "@proctira/auth": "workspace:*",
+    "@proctira/tenant-isolation-tests": "workspace:*"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

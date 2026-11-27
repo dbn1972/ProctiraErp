@@ -1,0 +1,25 @@
+[
+  {
+    "id": "t02-cross-tenant-idor",
+    "title": "Cross-tenant / IDOR fuzzing: path, query and body id substitution, list filters, exports, header tampering",
+    "cadence": ["weekly"],
+    "reason": "Full sweep is ~949 routes x id positions x 4 id kinds x 2 directions plus list/export and header probes; too heavy for nightly, so it runs weekly.",
+    "unit": "t02-cross-tenant-idor",
+    "profile": "core",
+    "runner": "vitest",
+    "include": ["src/tracks/t02-cross-tenant-idor/idor.aitest.ts"],
+    "timeoutMinutes": 180
+  },
+  {
+    "id": "t02-cross-tenant-idor-quick",
+    "title": "Cross-tenant / IDOR quick: GET routes with path ids only, one direction (A attacks S)",
+    "cadence": ["nightly"],
+    "reason": "GET path-id substitution is read-only and fast; nightly guards against new cross-tenant read regressions without the full matrix.",
+    "unit": "t02-cross-tenant-idor",
+    "profile": "core",
+    "runner": "vitest",
+    "include": ["src/tracks/t02-cross-tenant-idor/idor.aitest.ts"],
+    "timeoutMinutes": 45,
+    "env": { "AITEST_T02_SCOPE": "get-path" }
+  }
+]
