@@ -199,6 +199,20 @@ describe('POST /api/auth/login refuses non-platform tokens (UATENV-D30)', () => 
     expect(res.headers.get('set-cookie')).toBeNull();
   });
 
+  it('answers 403 for a tenant account holding platform realm roles (UATENV-D33)', async () => {
+    const tenantWithPlatformRoles = signedToken({
+      tenantId: undefined,
+      roles: undefined,
+      tenant_id: '5a58f9ff-b6a6-43bd-a014-bb622f763e48',
+      realm_access: { roles: ['platform_admin'] },
+    });
+    stubFetch(vi.fn().mockResolvedValue(keycloakAnswer(tenantWithPlatformRoles)));
+    const POST = await loadPost();
+    const res = await POST(req());
+    expect(res.status).toBe(403);
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
   it('answers 403 and sets no cookie for a platform-claimed token that does not verify', async () => {
     stubFetch(vi.fn().mockResolvedValue(keycloakAnswer(forgedToken())));
     const POST = await loadPost();

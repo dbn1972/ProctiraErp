@@ -8,8 +8,17 @@
  * route template, not the raw URL); any matched auth route that is not in the
  * table is still audited as `auth.other` (fail closed: no silent gaps).
  *
- * Payloads never contain OTP codes, phone numbers, passwords or tokens; only
- * the attempted login identifier (username/email) is kept for failed logins.
+ * UATENV-D36: rows name the actor by user id and tenant only. They never
+ * contain OTP codes, phone numbers, passwords, tokens, emails, login
+ * identifiers or user agents. The client IP stays: the audit schema requires
+ * it, as for every other audit row.
+ *
+ * UATENV-D36: a row is written only for a tenant UUID from a verified source
+ * (the verified request JWT, or the user / access token the gateway itself
+ * returns). `audit_log_entries.tenant_id` is a uuid with a foreign key to
+ * tenants (db/sql/100), so platform-operator (`platform`) and anonymous events
+ * are written to the gateway log as one structured line instead. Successful
+ * refreshes are written at most once per user per hour per gateway replica.
  */
 import type { AuditOperation } from '@proctira/backend-audit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -83,16 +92,48 @@ export function authAuditOutcome(statusCode: number, errorCode?: string): AuthAu
   return 'success';
 }
 
+/**
+ * UATENV-D36: each row records a new auth event, so it is a CREATE; logout ends
+ * a session (DELETE). UPDATE requires before/after values, which an auth event
+ * does not have, so AuditService refused every login/ticket/refresh row.
+ */
 function operationFor(action: AuthAuditAction): AuditOperation {
-  if (action === 'auth.logout') return 'DELETE';
-  if (
-    action === 'auth.login.password' ||
-    action === 'auth.login.sso_callback' ||
-    action === 'auth.invite.create'
-  ) {
-    return 'CREATE';
+  return action === 'auth.logout' ? 'DELETE' : 'CREATE';
+}
+
+/** Any RFC 4122 layout (seeded and real tenant ids are not all version 4). */
+const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True when the audit store can hold rows for this tenant id. */
+export function isAuditTenantId(tenantId: string): boolean {
+  return TENANT_UUID.test(tenantId);
+}
+
+/**
+ * Claims of the access token in the gateway's own response body. The gateway
+ * obtained it from the IdP over the back channel (or from its own ticket
+ * store), so only the subject and tenant are read from it; it is never used to
+ * authorise anything.
+ */
+function issuedTokenClaims(body: Record<string, unknown> | null): Record<string, unknown> | null {
+  const token = body ? body['accessToken'] : undefined;
+  if (typeof token !== 'string') return null;
+  const segment = token.split('.')[1];
+  if (!segment) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as unknown;
+    return claims && typeof claims === 'object' ? (claims as Record<string, unknown>) : null;
+  } catch {
+    return null;
   }
-  return 'UPDATE';
+}
+
+/** Single-valued tenant claim (`tenant_id` from Keycloak, or `tenantId`). */
+function claimTenant(claims: Record<string, unknown> | null): string | undefined {
+  if (!claims) return undefined;
+  const raw = claims['tenant_id'] ?? claims['tenantId'];
+  const value: unknown = Array.isArray(raw) ? (raw.length === 1 ? raw[0] : undefined) : raw;
+  return str(value, 64);
 }
 
 function parsePayload(payload: unknown): Record<string, unknown> | null {
@@ -115,6 +156,7 @@ export type AuthAuditRecord = {
   entityId: AuthAuditAction;
   operation: AuditOperation;
   userId: string;
+  /** The user id again: no display name or email (UATENV-D36). */
   userName: string;
   ipAddress: string;
   beforeValues: null;
@@ -122,7 +164,7 @@ export type AuthAuditRecord = {
   metadata: Record<string, unknown>;
 };
 
-/** Build the audit row. Only identifiers and outcome; never secrets/codes/phones. */
+/** Build the audit row. Only user id, tenant, IP and outcome (UATENV-D36). */
 export function buildAuthAuditRecord(
   request: FastifyRequest,
   action: AuthAuditAction,
@@ -135,28 +177,21 @@ export function buildAuthAuditRecord(
       ? (body['user'] as Record<string, unknown>)
       : null;
   const reqUser = (request as FastifyRequest & { user?: Record<string, unknown> }).user;
-  const reqBody =
-    request.body && typeof request.body === 'object'
-      ? (request.body as Record<string, unknown>)
-      : {};
+  const issued = statusCode < 400 ? issuedTokenClaims(body) : null;
 
+  // The IdP subject, as on every authenticated request (request.user.sub).
   const actorId =
     str(reqUser?.['sub']) ??
     str(reqUser?.['userId']) ??
+    str(issued?.['sub']) ??
     str(responseUser?.['userId']) ??
     'anonymous';
-  // Attempted identifier for password logins only (needed to trace lockouts).
-  const attempted =
-    action === 'auth.login.password'
-      ? (str(reqBody['username']) ?? str(reqBody['email']))
-      : undefined;
   const tenantId =
     str(reqUser?.['tenantId']) ??
     str(responseUser?.['tenantId']) ??
+    claimTenant(issued) ??
     str((request as FastifyRequest & { tenantId?: string }).tenantId) ??
     'platform';
-  const claimedTenant =
-    str(request.headers['x-tenant-id'] as string | undefined, 64) ?? str(reqBody['tenantId'], 64);
   const errorCode = body && statusCode >= 400 ? str(body['code'], 64) : undefined;
   const outcome = authAuditOutcome(statusCode, errorCode);
 
@@ -166,7 +201,7 @@ export function buildAuthAuditRecord(
     entityId: action,
     operation: operationFor(action),
     userId: actorId,
-    userName: str(reqUser?.['email']) ?? str(responseUser?.['email']) ?? attempted ?? actorId,
+    userName: actorId,
     ipAddress: request.ip,
     beforeValues: null,
     afterValues: null,
@@ -177,19 +212,17 @@ export function buildAuthAuditRecord(
       method: request.method,
       route: request.routeOptions?.url,
       ...(errorCode ? { errorCode } : {}),
-      ...(attempted && actorId === 'anonymous' ? { attemptedIdentifier: attempted } : {}),
-      // Unverified tenant hint (header/body) is kept as metadata only so a caller
-      // cannot write rows into another tenant's audit chain.
-      ...(tenantId === 'platform' && claimedTenant ? { claimedTenantId: claimedTenant } : {}),
-      ...(request.headers['user-agent']
-        ? { userAgent: String(request.headers['user-agent']).slice(0, 256) }
-        : {}),
       requestId: request.id,
     },
   };
 }
 
 type AuditSink = { recordAudit: (input: AuthAuditRecord) => Promise<unknown> };
+
+/** UATENV-D36: at most one successful-refresh row per user in this window. */
+export const REFRESH_AUDIT_INTERVAL_MS = 60 * 60 * 1000;
+/** Bound on the per-replica refresh throttle state. */
+const REFRESH_AUDIT_MAX_TRACKED = 10_000;
 
 /**
  * Register the auth audit onSend hook. Audit-write failures are logged and do
@@ -201,10 +234,54 @@ export function registerAuthAudit(
   resolveSink: () => AuditSink | undefined = () =>
     (app as unknown as { auditService?: AuditSink }).auditService,
 ): void {
+  const lastRefreshRow = new Map<string, number>();
+  /** Claims the refresh slot for `key`; false while a row is inside the window. */
+  const refreshRowDue = (key: string, now: number): boolean => {
+    const last = lastRefreshRow.get(key);
+    if (last !== undefined && now - last < REFRESH_AUDIT_INTERVAL_MS) return false;
+    lastRefreshRow.delete(key);
+    if (lastRefreshRow.size >= REFRESH_AUDIT_MAX_TRACKED) {
+      for (const [k, at] of lastRefreshRow) {
+        if (now - at >= REFRESH_AUDIT_INTERVAL_MS) lastRefreshRow.delete(k);
+      }
+      // Still full: drop the oldest entry (Map keeps insertion order).
+      const oldest = lastRefreshRow.keys().next();
+      if (lastRefreshRow.size >= REFRESH_AUDIT_MAX_TRACKED && !oldest.done) {
+        lastRefreshRow.delete(oldest.value);
+      }
+    }
+    lastRefreshRow.set(key, now);
+    return true;
+  };
+
   app.addHook('onSend', async (request, reply, payload) => {
     const action = classifyAuthAuditAction(request.method, request.routeOptions?.url);
     if (!action) return payload;
     const record = buildAuthAuditRecord(request, action, reply.statusCode, payload);
+    const outcome = record.metadata['outcome'];
+    if (!isAuditTenantId(record.tenantId)) {
+      // UATENV-D36: no tenant audit chain for platform-operator or anonymous
+      // events; one structured line, no identifiers beyond user id and tenant.
+      request.log.info(
+        {
+          authAudit: {
+            action,
+            outcome,
+            statusCode: reply.statusCode,
+            userId: record.userId,
+            tenantId: record.tenantId,
+            requestId: request.id,
+          },
+        },
+        'auth event without a tenant audit chain (UATENV-D36)',
+      );
+      return payload;
+    }
+    const refreshKey =
+      action === 'auth.refresh' && outcome === 'success'
+        ? `${record.tenantId}:${record.userId}`
+        : null;
+    if (refreshKey && !refreshRowDue(refreshKey, Date.now())) return payload;
     const sink = resolveSink();
     if (!sink) {
       request.log.error({ action }, 'auth audit sink missing (PRC-M501)');
@@ -213,6 +290,7 @@ export function registerAuthAudit(
     try {
       await sink.recordAudit(record);
     } catch (err) {
+      if (refreshKey) lastRefreshRow.delete(refreshKey);
       request.log.error({ err, action }, 'auth audit write failed (PRC-M501)');
     }
     return payload;

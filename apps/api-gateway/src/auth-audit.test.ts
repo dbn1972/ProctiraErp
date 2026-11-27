@@ -97,7 +97,10 @@ describe('PRC-M501 auth audit rows through buildApp', () => {
       .filter((r) => r['entityType'] === 'auth');
   }
 
-  it('MFA verify failure writes one row with tenant, ip, outcome and no code', async () => {
+  // UATENV-D36: an unauthenticated request has no verified tenant. The unverified
+  // tenant header never selects the audit chain, and a non-UUID tenant is not sent
+  // to the store (it is logged instead; see auth-audit-d36.test.ts).
+  it('MFA verify failure (unauthenticated) never writes into the claimed tenant', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
@@ -105,29 +108,17 @@ describe('PRC-M501 auth audit rows through buildApp', () => {
       payload: { mfaToken: 'bogus-token', code: '123456' },
     });
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
-    const rows = authRows();
-    expect(rows).toHaveLength(1);
-    const row = rows[0]!;
-    expect(row['entityId']).toBe('auth.mfa.verify');
-    // Unauthenticated: unverified tenant header is metadata only, never the row's tenant.
-    expect(row['tenantId']).toBe('platform');
-    expect(row['userId']).toBe('anonymous');
-    expect(row['ipAddress']).toBeTruthy();
-    expect((row['metadata'] as Record<string, unknown>)['outcome']).toBe('failure');
-    expect(JSON.stringify(row)).not.toContain('123456');
+    expect(authRows()).toHaveLength(0);
   });
 
-  it('OTP send writes a row and never stores the phone number', async () => {
+  it('OTP send (unauthenticated) never writes into the claimed tenant', async () => {
     await app.inject({
       method: 'POST',
       url: '/api/v1/auth/mfa/otp/send',
       headers: { 'x-tenant-id': TENANT },
       payload: { phone: '+919876543210', userId: 'u-1' },
     });
-    const rows = authRows();
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!['entityId']).toBe('auth.mfa.send');
-    expect(JSON.stringify(rows[0])).not.toContain('9876543210');
+    expect(authRows()).toHaveLength(0);
   });
 
   it('authenticated caller: actor and tenant come from the verified JWT', async () => {
@@ -149,8 +140,16 @@ describe('PRC-M501 auth audit rows through buildApp', () => {
     });
     const rows = authRows();
     expect(rows).toHaveLength(1);
+    expect(rows[0]!['entityId']).toBe('auth.mfa.send');
     expect(rows[0]!['userId']).toBe('user-m501');
     expect(rows[0]!['tenantId']).toBe(TENANT);
+    expect(rows[0]!['ipAddress']).toBeTruthy();
+    // UATENV-D36: user id and tenant only; no email, phone or user agent.
+    expect(rows[0]!['userName']).toBe('user-m501');
+    const serialized = JSON.stringify(rows[0]);
+    expect(serialized).not.toContain('u@example.com');
+    expect(serialized).not.toContain('9876543210');
+    expect(serialized).not.toContain('userAgent');
   });
 
   it('non-auth requests do not produce auth rows', async () => {

@@ -56,24 +56,42 @@ export async function middleware(request: NextRequest) {
   }
 
   const accessToken = request.cookies.get(ADMIN_AUTH_COOKIES.ACCESS_TOKEN)?.value;
-  // PRC-L202: only a token whose signature, issuer and audience verify against
-  // the IdP JWKS, issued for the platform tenant, opens a console page.
-  const claims = accessToken ? await readPlatformToken(accessToken, { ignoreExpiry: true }) : null;
+  const refreshToken = request.cookies.get(ADMIN_AUTH_COOKIES.REFRESH_TOKEN)?.value;
   const toLogin = () => {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('returnTo', sanitizeReturnTo(pathname));
     return withCsp(request, () => NextResponse.redirect(loginUrl));
   };
-  if (!claims) return toLogin();
-  if (!isAccessTokenFresh(claims)) {
-    // PRC-M464: an authentic but expired token is rotated with the refresh
-    // token instead of forcing a new sign-in; the navigation is then replayed.
-    const refreshToken = request.cookies.get(ADMIN_AUTH_COOKIES.REFRESH_TOKEN)?.value;
-    const setCookies = refreshToken ? await refreshOnce(request, refreshToken) : null;
-    if (!setCookies || setCookies.length === 0) return toLogin();
+  // PRC-M464: the session is rotated with the refresh token instead of forcing
+  // a new sign-in; the navigation is then replayed with the rotated cookies.
+  const refreshAndReplay = async (token: string) => {
+    const setCookies = await refreshOnce(request, token);
+    if (!setCookies || setCookies.length === 0) {
+      const expired = toLogin();
+      // Clear the stale tokens so the operator gets a clean state on retry.
+      expired.cookies.delete(ADMIN_AUTH_COOKIES.ACCESS_TOKEN);
+      expired.cookies.delete(ADMIN_AUTH_COOKIES.REFRESH_TOKEN);
+      return expired;
+    }
     const replay = NextResponse.redirect(request.url);
     setCookies.forEach((cookie) => replay.headers.append('set-cookie', cookie));
     return replay;
+  };
+  // UATENV-D34 (web UATENV-D18): the access cookie's maxAge equals the
+  // access-token lifetime, so after an idle period the browser has dropped it
+  // while the refresh cookie is still valid. That session takes the refresh
+  // path instead of /login. The refresh route only installs a verified
+  // platform-tenant token.
+  if (!accessToken) {
+    return refreshToken ? refreshAndReplay(refreshToken) : toLogin();
+  }
+  // PRC-L202: only a token whose signature, issuer and audience verify against
+  // the IdP JWKS, issued for the platform tenant, opens a console page. A
+  // present token that does not verify goes to /login without a refresh.
+  const claims = await readPlatformToken(accessToken, { ignoreExpiry: true });
+  if (!claims) return toLogin();
+  if (!isAccessTokenFresh(claims)) {
+    return refreshToken ? refreshAndReplay(refreshToken) : toLogin();
   }
   return withCsp(request, next);
 }
