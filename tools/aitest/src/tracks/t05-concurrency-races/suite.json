@@ -1,0 +1,15 @@
+{
+  "id": "t05-concurrency-races",
+  "title": "Concurrency and race tests: duplicate submits, shared invoices, payroll posting, seats, beds, copies, marks over two gateways",
+  "cadence": ["nightly"],
+  "reason": "Fixed rounds (20 per variant: about 1 minute of races, 100 rounds took 183 s locally, plus the core stack bring-up with two gateways); race regressions need a daily signal, and because races are probabilistic each night adds more rounds.",
+  "unit": "t05-concurrency-races",
+  "profile": "core",
+  "gateways": 2,
+  "runner": "vitest",
+  "include": ["src/tracks/t05-concurrency-races/**/*.aitest.ts"],
+  "timeoutMinutes": 60,
+  "env": {
+    "AITEST_RACE_ROUNDS": "20"
+  }
+}

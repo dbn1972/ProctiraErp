@@ -1,0 +1,12 @@
+{
+  "$comment": "Cases whose correct-behaviour assertion fails today, mapped to their finding id (program plan D9). Each still runs and reports pending-fix. Restore by applying P/t05-concurrency-races/patches/<finding id>.patch after the fix merges.",
+  "cases": {
+    "race:payroll-post:replace-x3": "AIT-T05-001",
+    "race:payroll-post:replace-x3:status": "AIT-T05-001",
+    "race:library-checkout:3-copies-x10": "AIT-T05-002",
+    "race:library-checkout:3-copies-x10:status": "AIT-T05-002",
+    "race:section-seat:capacity-5-of-10:status": "AIT-T05-003",
+    "compat:seeded-student-id:exam-candidate": "AIT-T05-004",
+    "compat:seeded-student-id:hostel-assignment": "AIT-T05-004"
+  }
+}
