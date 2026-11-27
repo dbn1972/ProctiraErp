@@ -81,6 +81,46 @@ config sets `reuseExistingServer: true` outside CI.
 | `E2E_GATEWAY_URL`                              | Optional API gateway URL used by `seedTestData` for pre-flight health check. | _(unset, no-op)_                       |
 | `E2E_SEED_TOKEN`                               | Optional bearer token for the seed helper.                                   | _(unset)_                              |
 
+## Keycloak session mode (UATENV-D28)
+
+A gateway that verifies Keycloak tokens only (the UAT stack) answers 401 to the HS256 harness
+sessions. With `E2E_SESSION_MODE=keycloak`, `createSignedJwt`, `setupGatewayTenantSession` and
+`loginAsTenantAdmin` sign in as a real realm user through the gateway password grant
+(`POST /api/v1/auth/password`, the route the login form uses) and return or set that user's
+access and refresh tokens. Gateway token checks are unchanged.
+
+| Variable                  | Purpose                                                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E2E_SESSION_MODE`        | `keycloak` turns the mode on. Unset keeps HS256 minting.                                                                                                      |
+| `E2E_KEYCLOAK_USERS_FILE` | Mode-600 TSV with columns `username`, `role`, `tenant_slug`, `password` (optional `tenant_id`). On the UAT host this is the existing `secrets/uat-users.tsv`. |
+| `E2E_KEYCLOAK_TENANT_IDS` | `slug=uuid,slug=uuid`: tenant id for each `tenant_slug` when the file has no `tenant_id` column.                                                              |
+| `E2E_GATEWAY_URL`         | Gateway base URL used for the sign-in and refresh calls (falls back to `NEXT_PUBLIC_GATEWAY_URL`).                                                            |
+
+- The account is chosen by the spec's `tenantId` and role names, in the spec's order. Role names
+  are normalised (`SUPER_ADMIN` → `super_admin`) and a few aliases apply, never to a higher
+  privilege: `SUPER_ADMIN` → `super-admin`, then `admin`; `Administrator` → `admin`;
+  `Parent` → `guardian`; `HEALTH_OFFICER` → `health_admin`. With no match the helper throws a
+  harness error naming the tenant and roles.
+- Other claims the spec passes (`sub`, `email`, `institutions`) are not applied: the token is the
+  real user's. Specs that model a specific actor by `sub`, or seed rows through `DATABASE_URL`,
+  still need their own fixtures on such a stack.
+- Tokens are cached per worker and refreshed through `POST /api/v1/auth/refresh` 30 s before
+  expiry; a failed refresh signs in again. Calls with explicit signing options still mint HS256.
+- Credentials go to a child process on stdin. Nothing logs a token, cookie value or password.
+
+Nightly specs against UAT (names only; values come from the UAT secrets and env docs):
+
+```bash
+cd apps/web
+env -u JWT_SECRET -u CI -u DATABASE_URL \
+  E2E_SESSION_MODE=keycloak \
+  E2E_KEYCLOAK_USERS_FILE=<uat secrets dir>/uat-users.tsv \
+  E2E_KEYCLOAK_TENANT_IDS=<slug>=<tenant uuid>,<slug>=<tenant uuid> \
+  E2E_GATEWAY_URL=<uat gateway url> NEXT_PUBLIC_GATEWAY_URL=<uat gateway url> \
+  PLAYWRIGHT_BASE_URL=<uat web url> E2E_BACKEND_READY=1 \
+  pnpm exec playwright test <NIGHTLY_SPECS> --project=chromium --workers=2
+```
+
 ## Notes
 
 - The suite uses Chromium only in CI to keep runs fast. Add additional

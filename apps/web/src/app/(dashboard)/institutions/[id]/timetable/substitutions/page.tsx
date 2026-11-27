@@ -85,13 +85,16 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
     }
   }
   const meetingById = new Map(meetings.map((m) => [m.id, m]));
-  const meetingOptions = meetings.map((m) => ({
-    id: m.id,
-    label: `${DAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek} · ${periodLabel.get(m.periodId) ?? 'Period'} · ${resolveEntityLabel(m.sectionId, sectionLabel, 'Section')} · ${resolveEntityLabel(m.staffId, staffLabel, 'Teacher')}`,
-    dayOfWeek: m.dayOfWeek,
-    periodId: m.periodId,
-    sectionId: m.sectionId,
-  }));
+  // UATENV-D37: the gateway refuses substitutions on inactive or cancelled meetings.
+  const meetingOptions = meetings
+    .filter((m) => m.status === 'active')
+    .map((m) => ({
+      id: m.id,
+      label: `${DAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek} · ${periodLabel.get(m.periodId) ?? 'Period'} · ${resolveEntityLabel(m.sectionId, sectionLabel, 'Section')} · ${resolveEntityLabel(m.staffId, staffLabel, 'Teacher')}`,
+      dayOfWeek: m.dayOfWeek,
+      periodId: m.periodId,
+      sectionId: m.sectionId,
+    }));
 
   const affected =
     searchParams.staff && searchParams.date

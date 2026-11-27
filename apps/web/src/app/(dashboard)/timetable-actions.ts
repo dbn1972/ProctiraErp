@@ -32,9 +32,17 @@ function clashList(details: unknown): MeetingClash[] | undefined {
   return Array.isArray(conflicts) ? (conflicts as MeetingClash[]) : undefined;
 }
 
-function fail(error: unknown): TimetableActionResult {
+/** Gateway refusal text from TimetableService.createSubstitution (matched server-side only). */
+const INACTIVE_MEETING_GATEWAY_MESSAGE = 'Cannot substitute an inactive or cancelled meeting';
+const INACTIVE_MEETING_ACTION_MESSAGE =
+  'This meeting slot is inactive or cancelled, so it cannot take a substitute. Choose an active slot.';
+
+function fail(
+  error: unknown,
+  fallback = 'The timetable change could not be saved.',
+): TimetableActionResult {
   // RAW-WEB: fixed copy plus a reference; code, status and the structured clash list stay.
-  const message = genericActionErrorMessage(error, 'The timetable change could not be saved.');
+  const message = genericActionErrorMessage(error, fallback);
   if (error instanceof GatewayError) {
     return {
       ok: false,
@@ -131,6 +139,14 @@ export async function createSubstitutionAction(input: {
     revalidatePath('/staff/substitutions');
     return { ok: true, id: row.id };
   } catch (error) {
+    // UATENV-D37: name the cause with fixed copy; the gateway text itself stays server-side.
+    if (
+      error instanceof GatewayError &&
+      error.status === 400 &&
+      error.message === INACTIVE_MEETING_GATEWAY_MESSAGE
+    ) {
+      return fail(error, INACTIVE_MEETING_ACTION_MESSAGE);
+    }
     return fail(error);
   }
 }

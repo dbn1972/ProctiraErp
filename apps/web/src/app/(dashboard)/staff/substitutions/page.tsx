@@ -41,10 +41,13 @@ export default async function StaffSubstitutionsPage() {
   const substitutions = subsResult.ok ? subsResult.data : [];
   const meetings = meetingsResult.ok ? meetingsResult.data : [];
 
-  const meetingOptions = meetings.map((m) => ({
-    id: m.id,
-    label: `${DAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek} · ${resolveEntityLabel(m.sectionId, {}, 'Section')} · ${resolveEntityLabel(m.staffId, staffLabels, 'Staff')}`,
-  }));
+  // UATENV-D37: the gateway refuses substitutions on inactive or cancelled meetings.
+  const meetingOptions = meetings
+    .filter((m) => m.status === 'active')
+    .map((m) => ({
+      id: m.id,
+      label: `${DAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek} · ${resolveEntityLabel(m.sectionId, {}, 'Section')} · ${resolveEntityLabel(m.staffId, staffLabels, 'Staff')}`,
+    }));
 
   return (
     <section aria-labelledby="substitutions-heading" className="space-y-6">

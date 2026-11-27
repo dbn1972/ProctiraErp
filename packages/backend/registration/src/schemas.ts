@@ -73,12 +73,12 @@ export type RegistrationFieldValue = Static<typeof RegistrationFieldValueSchema>
 export const SubmitRegistrationSchema = Type.Object({
   /** Target institution ID */
   institutionId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Target institution UUID',
   }),
   /** Published form configuration selected for this application */
   formConfigurationId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Published registration form configuration UUID',
   }),
   /** Exact immutable configuration version rendered to the applicant */
@@ -345,11 +345,11 @@ export type FormFieldDefinition = Static<typeof FormFieldDefinitionSchema>;
  */
 export const FormConfigurationSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Published configuration UUID',
   }),
   institutionId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Institution UUID this configuration belongs to',
   }),
   version: Type.Integer({ minimum: 1, description: 'Immutable version number' }),
@@ -418,7 +418,7 @@ export type UpdateApplicationStatusInput = Static<typeof UpdateApplicationStatus
 
 export const ApplicationParamsSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
   }),
 });
 
@@ -426,7 +426,7 @@ export type ApplicationParams = Static<typeof ApplicationParamsSchema>;
 
 export const CreateInterviewSlotSchema = Type.Object({
   institutionId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
   }),
   startsAt: Type.String({ minLength: 10 }),
   endsAt: Type.String({ minLength: 10 }),
@@ -438,10 +438,10 @@ export type CreateInterviewSlotInput = Static<typeof CreateInterviewSlotSchema>;
 
 export const BookInterviewSchema = Type.Object({
   slotId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
   }),
   applicationId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
   }),
 });
 

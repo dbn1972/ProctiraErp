@@ -166,7 +166,7 @@ export type UpdatePlanInput = Static<typeof UpdatePlanSchema>;
  */
 export const PlanParamsSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Plan UUID',
   }),
 });
@@ -214,11 +214,11 @@ export type PlanListQuery = Static<typeof PlanListQuerySchema>;
  */
 export const CreateSubscriptionSchema = Type.Object({
   tenantId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Tenant UUID',
   }),
   planId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Plan UUID',
   }),
   startTrial: Type.Optional(
@@ -233,7 +233,7 @@ export type CreateSubscriptionInput = Static<typeof CreateSubscriptionSchema>;
  */
 export const SubscriptionParamsSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Subscription UUID',
   }),
 });
@@ -245,7 +245,7 @@ export type SubscriptionParams = Static<typeof SubscriptionParamsSchema>;
  */
 export const ChangePlanSchema = Type.Object({
   newPlanId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'New plan UUID to switch to',
   }),
 });
@@ -259,7 +259,7 @@ export type ChangePlanInput = Static<typeof ChangePlanSchema>;
  */
 export const CheckEntitlementSchema = Type.Object({
   tenantId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Tenant UUID',
   }),
   feature: Type.String({ minLength: 1, maxLength: 100, description: 'Feature key to check' }),
@@ -272,7 +272,7 @@ export type CheckEntitlementInput = Static<typeof CheckEntitlementSchema>;
  */
 export const RecordUsageSchema = Type.Object({
   tenantId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Tenant UUID',
   }),
   metric: Type.String({ minLength: 1, maxLength: 100, description: 'Usage metric key' }),
@@ -286,7 +286,7 @@ export type RecordUsageInput = Static<typeof RecordUsageSchema>;
  */
 export const GetUsageSchema = Type.Object({
   tenantId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Tenant UUID',
   }),
   metric: Type.String({ minLength: 1, maxLength: 100, description: 'Usage metric key' }),

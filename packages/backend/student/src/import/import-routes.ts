@@ -252,7 +252,7 @@ export async function registerImportRoutes(
         const { jobId } = request.params;
         if (
           !jobId ||
-          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(jobId)
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(jobId)
         ) {
           return reply.status(400).send({
             code: 'VALIDATION_ERROR',
