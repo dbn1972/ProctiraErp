@@ -265,8 +265,11 @@ describe('CommandPalette', () => {
     const staff = buildPaletteItems(['student.read', 'fees.read', 'hostel.read'], ['teacher']).map(
       (i) => i.id,
     );
-    expect(staff).toEqual(expect.arrayContaining(['fees', 'hostel', 'admissions']));
-    expect(buildPaletteItems([], ['teacher']).map((i) => i.id)).not.toContain('admissions');
+    expect(staff).toEqual(expect.arrayContaining(['fees', 'hostel']));
+    // UATENV-D29: Admissions also needs a role in the admissions route set.
+    expect(staff).not.toContain('admissions');
+    expect(buildPaletteItems(['student.read'], ['admin']).map((i) => i.id)).toContain('admissions');
+    expect(buildPaletteItems([], ['admin']).map((i) => i.id)).not.toContain('admissions');
     expect(buildPaletteItems(['student.read'], ['teacher']).map((i) => i.id)).not.toContain('fees');
   });
   it('W2-UX-02: app-scope palette hrefs resolve to live App Router aliases', () => {
