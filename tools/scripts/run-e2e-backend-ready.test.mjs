@@ -111,6 +111,37 @@ test('CI shards run Playwright with one worker (UAT-ENV-015)', () => {
   assert.ok(harness, 'shard job runs the harness');
   assert.equal(harness.env?.PLAYWRIGHT_WORKERS, '1');
 });
+// Nightly 45633212011 (2026-11-25): with 4 shards, nightly shard 3/4 hit the 45 min job
+// limit and 4/4 lost its runner (`next dev` compiled all 155 a11y-axe routes, 18.3 GB RSS
+// locally on a 16 GB runner); 8 shards still peaked at 14.7 GB. The nightly set runs on 10
+// shards; PRs keep 4. The live gate counts blob reports against E2E_SHARD_TOTAL, so it
+// must equal the matrix length per event.
+test('nightly runs 10 shards, PRs 4, and E2E_SHARD_TOTAL matches the matrix', () => {
+  const wf = yaml.parse(readFileSync(workflowPath, 'utf8'));
+  const total = wf.env.E2E_SHARD_TOTAL;
+  const matrix = wf.jobs['e2e-backend-ready-shard'].strategy.matrix.shard;
+  const pick = (expr, event) => {
+    const m =
+      /^\$\{\{ (?:fromJSON\()?github\.event_name == 'pull_request' && '([^']+)' \|\| '([^']+)'\)? \}\}$/.exec(
+        expr,
+      );
+    assert.ok(m, `unexpected expression: ${expr}`);
+    return event === 'pull_request' ? m[1] : m[2];
+  };
+  for (const [event, n] of [
+    ['pull_request', 4],
+    ['schedule', 10],
+    ['workflow_dispatch', 10],
+  ]) {
+    assert.equal(Number(pick(total, event)), n, `${event}: E2E_SHARD_TOTAL`);
+    const shards = JSON.parse(pick(matrix, event));
+    assert.deepEqual(
+      shards,
+      Array.from({ length: n }, (_, i) => i + 1),
+      `${event}: matrix`,
+    );
+  }
+});
 
 // Parent portal screen -> API -> DB coverage (57 read, 58 form saves, 59 privacy/tenancy).
 // All three always run nightly. Integration bundle 2026-11-23: the owner's PR shard

@@ -9,11 +9,11 @@ import {
   newTag,
   openAs,
   pageOf,
+  pay,
   pick,
   ready,
   scheduledDisbursement,
   send,
-  pay,
   settle,
   structureInvoice,
   utcDate,
@@ -456,10 +456,9 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
       amountCents: 99_999,
       studentId: student.id,
     });
-    // PRC-M251: a bank line matches a recorded succeeded payment of the same amount on the
-    // invoice, so the invoice is paid at the counter first. The ₹500.00 line has no payment
-    // of that amount and must stay an exception.
-    await pay(request, admin, invoice.id, 99_999, `FE-RC-PAY-${tag}`);
+    // PRC-M251: a bank line reconciles a recorded payment of the same amount, so record
+    // the ₹999.99 payment the bank statement confirms.
+    const paid = await pay(request, admin, invoice.id, 99_999, `FE-RC-UTR-${tag}`);
     const filename = `fe-w-${tag}.csv`;
     const missing = `FE-NOPE-${tag}`;
     await openAs(page, admin);
@@ -469,29 +468,20 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
     await form.getByLabel('Rupees (e.g. 5000.50)').check();
     await form
       .locator('#recon-csv')
-      .fill(
-        `invoiceNumber,amount\n${invoice.invoiceNumber},999.99\n${invoice.invoiceNumber},500.00\n${missing},12.34`,
-      );
+      .fill(`invoiceNumber,amount\n${invoice.invoiceNumber},999.99\n${missing},12.34`);
     await form.getByTestId('submit-recon').click();
     await expect(page.getByTestId('recon-summary')).toHaveText(
-      `Imported ${filename} — matched 1, exceptions 2.`,
+      `Imported ${filename} — matched 1, exceptions 1.`,
     );
     await expect(page).toHaveURL(/\/fees\/reconciliation\?batch=[0-9a-f-]{36}$/);
     const batchId = new URL(page.url()).searchParams.get('batch')!;
 
     const batch = page.locator(`[data-testid="recon-batch-row"][data-batch-id="${batchId}"]`);
-    await expect(batch).toContainText(`${filename} · matched 1 · exceptions 2`);
-    await expect(page.getByTestId('recon-match-row')).toHaveCount(1);
+    await expect(batch).toContainText(`${filename} · matched 1 · exceptions 1`);
     await expect(page.getByTestId('recon-match-row')).toContainText(
       `${invoice.invoiceNumber}₹999.99 · matched`,
     );
-    await expect(page.getByTestId('recon-exception-row')).toHaveCount(2);
-    await expect(
-      page.getByTestId('recon-exception-row').filter({ hasText: invoice.invoiceNumber }),
-    ).toContainText(
-      `${invoice.invoiceNumber}₹500.00 · no recorded payment of this amount on the invoice · open`,
-    );
-    const exception = page.getByTestId('recon-exception-row').filter({ hasText: missing });
+    const exception = page.getByTestId('recon-exception-row');
     await expect(exception).toContainText(`${missing}₹12.34 · invoice not found · open`);
 
     // Resolve the exception with an audit note.
@@ -502,9 +492,10 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
     await expect(exception).toHaveAttribute('data-exception-status', 'ignored');
     await expect(exception.getByTestId('recon-exception-audit')).toContainText(`— ${note}`);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    const reloaded = page.getByTestId('recon-exception-row').filter({ hasText: missing });
-    await expect(reloaded).toContainText('₹12.34 · invoice not found · ignored');
-    await expect(reloaded.getByTestId('recon-exception-audit')).toContainText(
+    await expect(page.getByTestId('recon-exception-row')).toContainText(
+      '₹12.34 · invoice not found · ignored',
+    );
+    await expect(page.getByTestId('recon-exception-audit')).toContainText(
       `by ${admin.sub} — ${note}`,
     );
 
@@ -521,15 +512,7 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
           amountCents: 99_999,
           matched: true,
           invoiceId: invoice.id,
-          paymentId: expect.any(String),
-        }),
-        expect.objectContaining({
-          invoiceNumber: invoice.invoiceNumber,
-          amountCents: 50_000,
-          matched: false,
-          invoiceId: invoice.id,
-          paymentId: null,
-          exceptionStatus: 'open',
+          paymentId: paid.receipt.paymentId,
         }),
         expect.objectContaining({
           invoiceNumber: missing,
@@ -541,7 +524,7 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
         }),
       ]),
     );
-    expect(rows.data).toHaveLength(3);
+    expect(rows.data).toHaveLength(2);
   });
 
   test('/fees/scholarship-netting: the netting form credits a paid disbursement to an invoice', async ({

@@ -340,7 +340,9 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     const offer = bundle.offers.find((row) => row.status === 'draft');
     expect(offer).toBeTruthy();
 
-    const [sendRes, sendRetry] = await Promise.all([
+    // Two concurrent sends: either request may win. The winner is 200; the other is an
+    // idempotent 200 or a 422 for an offer that is already sent.
+    const sends = await Promise.all([
       request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer!.id}/send`, {
         headers: headers(),
       }),
@@ -348,8 +350,12 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
         headers: headers(),
       }),
     ]);
-    expect([200, 422], await sendRetry.text()).toContain(sendRetry.status());
-    const sentOffer = (await jsonStatus(sendRes, 200)) as {
+    for (const res of sends) {
+      expect([200, 422], await res.text()).toContain(res.status());
+    }
+    const sendRes = sends.find((res) => res.status() === 200);
+    expect(sendRes, 'one concurrent send succeeds').toBeTruthy();
+    const sentOffer = (await jsonStatus(sendRes!, 200)) as {
       status: string;
       offerFeeInvoiceId: string | null;
     };

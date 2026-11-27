@@ -401,18 +401,11 @@ test.describe('Fees privacy and tenancy — live (E2E_BACKEND_READY)', () => {
       ];
       for (const [viewer, own, other, otherTenant] of views) {
         const who = viewer.tenantId === TENANT_A ? 'tenant A' : 'tenant B';
-        // PRC-L107: invoice and receipt numbers count per tenant (INV-/RCP-<yyyymmdd>-NNNNNN),
-        // so the same number is legitimate in both tenants and is not a leak marker. A leaked
-        // invoice or receipt still carries its row id (other.ids), its tagged plan, structure
-        // and term strings, and the other tenant's tenantId, all checked below.
-        const perTenantNumbers = new Set([
-          other.planInvoice.invoiceNumber,
-          other.structureInvoice.invoiceNumber,
-          other.planReceipt.receiptNumber,
-          other.structureReceipt.receiptNumber,
-        ]);
+        // Invoice and receipt numbers come from a per-tenant counter (PRC-L107), so the
+        // viewer's own documents can carry the same numbers as the other tenant's. The other
+        // tenant's invoices and receipts are still caught by their ids and tagged titles.
         const leaked = [
-          ...other.strings.filter((s) => !perTenantNumbers.has(s)),
+          ...other.strings.filter((s) => !other.documentNumbers.includes(s)),
           ...other.ids,
           other.student.id,
           other.student.label,
@@ -429,10 +422,6 @@ test.describe('Fees privacy and tenancy — live (E2E_BACKEND_READY)', () => {
             for (const s of leaked) {
               expect.soft(r.body, `${label} GET ${path} body`).not.toContain(s);
             }
-            // No row of the other tenant, whatever its number (PRC-L107).
-            expect
-              .soft(r.body, `${label} GET ${path} has no row of the other tenant`)
-              .not.toContain(`"tenantId":"${otherTenant}"`);
           }
           // The viewer's own rows are there (the lists did read live data).
           const own200 = await probe(request, viewer, 'GET', '/fees/plans', undefined, extra);

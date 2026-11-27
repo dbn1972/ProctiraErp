@@ -37,6 +37,9 @@ export const UAT_REALM_ROLES = Object.freeze([
   'nurse',
   'librarian',
   'student',
+  // UATENV-D26 uat-health-admin and UATENV-D23 uat-platform-operator.
+  'health_admin',
+  'platform_admin',
 ]);
 
 /** Client secrets committed for local development; never rendered. */

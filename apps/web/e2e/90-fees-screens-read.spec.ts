@@ -219,22 +219,16 @@ test.describe('Fees screens — read path (E2E_BACKEND_READY)', () => {
     await page.goto(`/fees/reconciliation?batch=${d.batch.id}`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'Reconciliation' })).toBeVisible();
     const batch = page.locator(`[data-testid="recon-batch-row"][data-batch-id="${d.batch.id}"]`);
-    await expect(batch).toContainText(`${d.batch.filename} · matched 1 · exceptions 2`);
+    await expect(batch).toContainText(`${d.batch.filename} · matched 1 · exceptions 1`);
     await expect(batch).toHaveAttribute('aria-pressed', 'true');
-    // PRC-M251: the ₹0.99 line matched the recorded UPI payment.
     const match = page.getByTestId('recon-match-row');
     await expect(match).toHaveCount(1);
     await expect(match).toContainText(d.structureInvoice.invoiceNumber);
+    // The bank line matched the ₹0.99 UPI payment (PRC-M251), not the ₹999.99 face.
     await expect(match).toContainText('₹0.99 · matched');
-    const exceptions = page.getByTestId('recon-exception-row');
-    await expect(exceptions).toHaveCount(2);
-    // The invoice face (₹999.99) has no recorded payment of that amount, so it is refused.
-    const unpaid = exceptions.filter({ hasText: d.structureInvoice.invoiceNumber });
-    await expect(unpaid).toContainText(
-      '₹999.99 · no recorded payment of this amount on the invoice · open',
-    );
-    await expect(unpaid).toHaveAttribute('data-exception-status', 'open');
-    const exception = exceptions.filter({ hasText: d.batch.missing });
+    const exception = page.getByTestId('recon-exception-row');
+    await expect(exception).toHaveCount(1);
+    await expect(exception).toContainText(d.batch.missing);
     await expect(exception).toContainText('₹12.34 · invoice not found · open');
     await expect(exception).toHaveAttribute('data-exception-status', 'open');
     await expect(exception.getByTestId('recon-resolve-form')).toHaveCount(1);

@@ -4,6 +4,8 @@
 #   - tools/e2e/seed-e2e-registration.sql  registration-portal fixture tenant (e2e-registration)
 #   - db/seeds/006_sunrise_public_school_demo.sql  Sunrise demo tenant (guarded:
 #     PGOPTIONS "-c proctira.allow_demo_seed=on" for this connection only)
+#   - uatenv-detail-records.sql  UAT-only detail records for Sunrise (UATENV-D17;
+#     uatenv-seed-detail-records.sh, guard proctira.allow_uat_seed=on)
 # Then prints tenant row counts. Idempotent.
 set -euo pipefail
 # shellcheck source=uatenv-lib.sh
@@ -23,6 +25,8 @@ uatenv_psql "$MIGRATOR_DATABASE_URL" -q -v tenant_id="$REG_TENANT_ID" -v slug="$
 uatenv_log "006_sunrise_public_school_demo.sql (allow_demo_seed=on for this connection)"
 PGOPTIONS='-c proctira.allow_demo_seed=on' \
   uatenv_psql "$MIGRATOR_DATABASE_URL" -q -f "$REL/db/seeds/006_sunrise_public_school_demo.sql" >/dev/null
+
+bash "$(dirname "${BASH_SOURCE[0]}")/uatenv-seed-detail-records.sh"
 
 uatenv_log "seeded tenants"
 uatenv_psql "$MIGRATOR_DATABASE_URL" -At <<'SQL'

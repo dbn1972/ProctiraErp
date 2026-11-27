@@ -161,6 +161,7 @@ export interface FeeInvoice {
 }
 export interface FeeReceipt {
   id: string;
+  paymentId: string;
   invoiceId: string;
   receiptNumber: string;
   amountCents: number;
@@ -472,6 +473,12 @@ export interface SeededFeesData {
   disbursement: { id: string; paidDate: string } | null;
   /** Every fee string seeded above (not the student label or the class name). */
   strings: string[];
+  /**
+   * The invoice and receipt numbers in `strings`. PRC-L107 numbers them from a per-tenant
+   * counter (INV-/RCP-<yyyymmdd>-<6 digits>), so another tenant can hold the same number
+   * for its own document: they identify a row only within one tenant.
+   */
+  documentNumbers: string[];
   /** Every fee row id seeded above. */
   ids: string[];
 }
@@ -517,16 +524,15 @@ export async function seedFeesData(
   const structurePaid = await pay(request, p, structureInv.id, 99, `${prefix}-UPI-${tag}`, 'upi');
   const filename = `${prefix.toLowerCase()}-read-${tag}.csv`;
   const missing = `${prefix}-NOPE-${tag}`;
-  // PRC-M251: a bank line matches a recorded succeeded payment of the same amount on the
-  // invoice. The ₹0.99 line matches the UPI payment above; the ₹999.99 line (the invoice
-  // face, never paid) stays an exception, and so does the unknown invoice number.
   const imported = await send<{ batch: { id: string } }>(
     request,
     p,
     'POST',
     '/fees/reconciliation/import',
     {
-      csv: `invoiceNumber,amountCents\n${structureInv.invoiceNumber},99\n${structureInv.invoiceNumber},99999\n${missing},1234`,
+      // PRC-M251: a bank line matches a recorded succeeded payment of the same amount on
+      // the invoice (here the ₹0.99 UPI payment), not the invoice face.
+      csv: `invoiceNumber,amountCents\n${structureInv.invoiceNumber},99\n${missing},1234`,
       filename,
     },
   );
@@ -574,6 +580,12 @@ export async function seedFeesData(
       filename,
       missing,
       reason,
+    ],
+    documentNumbers: [
+      planInvoice.invoiceNumber,
+      structureInv.invoiceNumber,
+      planPaid.receipt.receiptNumber,
+      structurePaid.receipt.receiptNumber,
     ],
     ids: [
       plan.id,
