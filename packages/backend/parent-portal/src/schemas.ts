@@ -3,7 +3,7 @@
  */
 import { Type, type Static } from '@sinclair/typebox';
 
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
 // PRC-M317: ISO-8601 date-time (e.g. 2026-10-09T00:00:00Z or with ±hh:mm offset).
 // Expressed as a pattern (not `format`) so it is enforced by TypeBox's value

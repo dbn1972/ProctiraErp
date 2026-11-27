@@ -15,7 +15,7 @@
  */
 import { Type, type Static } from '@sinclair/typebox';
 
-const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 /** Calendar date shape; real-date validity is checked by {@link isValidIsoDate}. */
 const DatePattern = '^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$';
 

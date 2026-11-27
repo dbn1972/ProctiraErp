@@ -13,7 +13,7 @@ import { ConflictError } from '@proctira/common';
 export const STUDENT_SELF_BINDING_ASSUMPTION =
   'students has no user_id column; bind only when exactly one row has students.id = sub or custom_data.user_id = sub (no email/contact matching); 0 matches -> 404, >1 -> 409';
 
-export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** Parents and students see a grade only after it is published. */
 export function isParentVisibleGrade(input: {

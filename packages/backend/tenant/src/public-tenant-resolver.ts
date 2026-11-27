@@ -3,7 +3,7 @@ import { domainToASCII } from 'node:url';
 
 import type { TenantEntity, TenantRepository } from './tenant-repository.js';
 
-const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const TENANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** Trusted hostname-only tenant lookup used by anonymous public applications. */

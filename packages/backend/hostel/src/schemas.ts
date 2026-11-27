@@ -7,7 +7,7 @@ import { Type, type Static } from '@sinclair/typebox';
 // PRC-L117: every date field is DateSchema (YYYY-MM-DD and a real calendar date),
 // so 2026-02-31 or 'xxxxxxxxxx' is a 400 instead of a PG date error.
 
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
 export const CreateHostelSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
