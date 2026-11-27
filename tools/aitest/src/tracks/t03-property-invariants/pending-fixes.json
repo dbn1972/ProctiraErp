@@ -1,0 +1,11 @@
+{
+  "$comment": "Known defects found by t03 (program findings register P/t03-property-invariants/findings.csv). Each case still runs and is reported pending-fix. Restore: apply P/t03-property-invariants/patches/<finding>.patch after the fix merges.",
+  "cases": {
+    "prop:fees:ar-equals-outstanding": "AIT-T03-001",
+    "prop:fees:revenue-equals-recognised": "AIT-T03-001",
+    "prop:payroll:no-unexpected-error:Replace": "AIT-T03-002",
+    "prop:grades:entry-grade-matches-scale": "AIT-T03-003",
+    "prop:grades:gpa-matches-scale": "AIT-T03-003",
+    "prop:promotion:no-unexpected-error:Rollover": "AIT-T03-004"
+  }
+}
