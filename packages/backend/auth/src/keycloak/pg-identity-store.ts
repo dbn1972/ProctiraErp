@@ -43,6 +43,20 @@ interface TenantDoc {
   slug?: string;
 }
 
+/**
+ * UATENV-D23: the reserved tenant claim of platform operators (the admin console accepts only
+ * this tenant, apps/admin-console verified-token.ts). It is not a tenant uuid, and
+ * `control_plane_documents.tenant_id` is a uuid column, so platform operators' user and identity
+ * documents are platform-owned rows (`tenant_id` NULL) instead of tenant-owned ones. Binding
+ * `platform` as a tenant failed with `invalid input syntax for type uuid`, a 503 at sign-in.
+ */
+export const PLATFORM_OPERATOR_TENANT_ID = 'platform';
+
+/** Document owner for a projected tenant id: NULL (platform-owned) for platform operators. */
+function documentOwner(tenantId: string): string | null {
+  return tenantId === PLATFORM_OPERATOR_TENANT_ID ? null : tenantId;
+}
+
 export interface PgKeycloakIdentityStoreOptions {
   /** Reject unknown tenant ids / slugs instead of trusting the claim. */
   strictTenants?: boolean;
@@ -88,7 +102,11 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
   async touchIdentity(id: string): Promise<void> {
     const row = await this.identities.first({ id } as Partial<IdentityDoc>, null);
     if (!row) return;
-    await this.identities.put(row.externalId, { ...row, lastUsedAt: new Date() }, row.tenantId);
+    await this.identities.put(
+      row.externalId,
+      { ...row, lastUsedAt: new Date() },
+      documentOwner(row.tenantId),
+    );
   }
 
   async findUserByEmail(email: string, tenantId: string) {
@@ -100,7 +118,12 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
     // it a real SQL predicate, so a malformed or spoofed key cannot reach
     // another tenant's row. Verified the invariant holds in existing data: every
     // auth.keycloak_users id begins with its own tenant_id.
-    const user = await this.users.get(`${tenantId}:${normalized}`, { tenantId });
+    // UATENV-D23: platform operators' users are platform-owned rows (tenant_id IS NULL).
+    const owner = documentOwner(tenantId);
+    const user = await this.users.get(
+      `${tenantId}:${normalized}`,
+      owner ? { tenantId: owner } : { platform: true },
+    );
     return user ? this.publicUser(user) : null;
   }
 
@@ -142,7 +165,7 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
     const winner = await this.users.insertIfAbsent(
       `${user.tenantId}:${user.email}`,
       user,
-      user.tenantId,
+      documentOwner(user.tenantId),
     );
     return this.publicUser(winner);
   }
@@ -164,7 +187,7 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
       lastUsedAt: new Date(),
     };
     // PRC-L283: first writer wins; a racing login cannot repoint the subject.
-    await this.identities.insertIfAbsent(input.externalId, doc, input.tenantId);
+    await this.identities.insertIfAbsent(input.externalId, doc, documentOwner(input.tenantId));
   }
 
   private publicUser(user: UserDoc) {
