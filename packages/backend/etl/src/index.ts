@@ -133,3 +133,15 @@ export {
   type TransformError,
 } from './transformations/index.js';
 export { REDACTED_SECRET, redactConnectorSecrets } from './secret-redaction.js';
+// PRC-L098: durable pipeline events and failure alerts via the transactional outbox.
+export {
+  ETL_PIPELINE_AGGREGATE_TYPE,
+  ETL_PIPELINE_FAILURE_ALERT_TYPE,
+  OutboxAdminNotifier,
+  OutboxPipelineEventPublisher,
+  etlPipelineEventType,
+  type PipelineEventMessage,
+  type PipelineFailureAlertMessage,
+  type PipelineOutboxEntry,
+  type PipelineOutboxWriter,
+} from './outbox-pipeline-events.js';

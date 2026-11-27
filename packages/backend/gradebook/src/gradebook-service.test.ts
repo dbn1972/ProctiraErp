@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { assertGradebookAccess, hasGradebookAccess } from './gradebook-access.js';
 import { InMemoryGradebookRepository } from './in-memory-repository.js';
 import { GradebookService } from './gradebook-service.js';
+import { upsertApprovedGrade } from './gradebook-test-setup.js';
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
 const TENANT_B = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -61,14 +62,14 @@ describe('GradebookService', () => {
       boardId: BOARD,
     });
 
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'MATH',
       numericScore: 95,
       creditRuleCode: 'CORE-1',
     });
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'SCI',
@@ -122,7 +123,7 @@ describe('GradebookService', () => {
 
   it('creates report-card job with SUCCEEDED status metadata', async () => {
     const service = setup();
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'ENG',
@@ -141,7 +142,7 @@ describe('GradebookService', () => {
 
   it('isolates grade entries and transcripts across tenants', async () => {
     const service = setup();
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'MATH',
@@ -255,7 +256,7 @@ describe('GradebookService G-303 workflow + signing', () => {
 
   it('embeds HMAC signature on issued transcripts', async () => {
     const { service } = setup();
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'MATH',
@@ -333,13 +334,13 @@ describe('GradebookService G-907 rank / comments / publish / audit', () => {
     expect(listed.map((c) => c.id)).toContain(comment.id);
 
     const other = '88888888-8888-4888-8888-888888888888';
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'MATH',
       numericScore: 95,
     });
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: other,
       assessmentCode: 'MATH',

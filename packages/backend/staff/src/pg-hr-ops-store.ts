@@ -19,6 +19,7 @@ import type {
   StaffPayrollExportRecord,
   StaffQualificationRecord,
 } from './hr-store.js';
+import { PayrollRunAlreadyPostedError } from './hr-store.js';
 
 export type PgHrOpsPool = PgQueryable & { connect?: unknown };
 
@@ -104,6 +105,25 @@ function mapPayrollExport(row: Record<string, unknown>, month: string): StaffPay
     reversesRunId: row.reverses_run_id == null ? null : String(row.reverses_run_id),
     replacesRunId: row.replaces_run_id == null ? null : String(row.replaces_run_id),
   };
+}
+
+const PAYROLL_POSTED_ONCE_INDEX = 'staff_payroll_runs_posted_once_uidx';
+
+/**
+ * PRC-M368: the pre-check in savePayrollExport is a read; two concurrent posts can
+ * both pass it. The 246 partial unique index rejects the loser with 23505, which
+ * becomes the same typed conflict the pre-check raises (HTTP 409).
+ */
+async function insertPostedRunOnce<T>(month: string, insert: Promise<T>): Promise<T> {
+  try {
+    return await insert;
+  } catch (err) {
+    const pgErr = err as { code?: string; constraint?: string } | null;
+    if (pgErr?.code === '23505' && pgErr.constraint === PAYROLL_POSTED_ONCE_INDEX) {
+      throw new PayrollRunAlreadyPostedError(month);
+    }
+    throw err;
+  }
 }
 
 async function selectCurrentPayrollExport(
@@ -579,13 +599,11 @@ export class PgStaffHrStore implements StaffHrStore {
     await ensureStaffHrSchema(this.pool);
     return this.run(record.tenantId, async (client) => {
       const existing = await selectCurrentPayrollExport(client, record.tenantId, record.month);
-      if (existing) {
-        throw new Error(
-          `staff_payroll_runs posted export already exists for ${record.month}; reverse and replace instead of overwrite`,
-        );
-      }
-      await client.query(
-        `INSERT INTO staff_payroll_runs (
+      if (existing) throw new PayrollRunAlreadyPostedError(record.month);
+      await insertPostedRunOnce(
+        record.month,
+        client.query(
+          `INSERT INTO staff_payroll_runs (
            id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
            csv_artifact, trial_balance_json, lines_json, posted_at, created_at,
            reverses_run_id, replaces_run_id
@@ -593,19 +611,20 @@ export class PgStaffHrStore implements StaffHrStore {
            $1,$2,$3,'posted',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), $10,
            NULL, $11
          )`,
-        [
-          record.runId,
-          record.tenantId,
-          record.month,
-          record.grossCents,
-          record.deductionsCents,
-          record.netCents,
-          record.csv,
-          record.trialBalanceJson,
-          record.rowsJson,
-          record.createdAt,
-          record.replacesRunId ?? null,
-        ],
+          [
+            record.runId,
+            record.tenantId,
+            record.month,
+            record.grossCents,
+            record.deductionsCents,
+            record.netCents,
+            record.csv,
+            record.trialBalanceJson,
+            record.rowsJson,
+            record.createdAt,
+            record.replacesRunId ?? null,
+          ],
+        ),
       );
       return {
         ...record,
@@ -627,8 +646,10 @@ export class PgStaffHrStore implements StaffHrStore {
         replacement.month,
       );
       if (!current) {
-        await client.query(
-          `INSERT INTO staff_payroll_runs (
+        await insertPostedRunOnce(
+          replacement.month,
+          client.query(
+            `INSERT INTO staff_payroll_runs (
              id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
              csv_artifact, trial_balance_json, lines_json, posted_at, created_at,
              reverses_run_id, replaces_run_id
@@ -636,18 +657,19 @@ export class PgStaffHrStore implements StaffHrStore {
              $1,$2,$3,'posted',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), $10,
              NULL, NULL
            )`,
-          [
-            replacement.runId,
-            replacement.tenantId,
-            replacement.month,
-            replacement.grossCents,
-            replacement.deductionsCents,
-            replacement.netCents,
-            replacement.csv,
-            replacement.trialBalanceJson,
-            replacement.rowsJson,
-            replacement.createdAt,
-          ],
+            [
+              replacement.runId,
+              replacement.tenantId,
+              replacement.month,
+              replacement.grossCents,
+              replacement.deductionsCents,
+              replacement.netCents,
+              replacement.csv,
+              replacement.trialBalanceJson,
+              replacement.rowsJson,
+              replacement.createdAt,
+            ],
+          ),
         );
         return {
           ...replacement,

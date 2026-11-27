@@ -26,15 +26,21 @@ import type {
   StaffHrStore,
   StaffQualificationRecord,
 } from './hr-store.js';
+import { PayrollRunAlreadyPostedError } from './hr-store.js';
+import type { StaffLeaveRepository } from './leave-repository.js';
 import { readOffboardMeta } from './offboard-meta.js';
 import {
   assertPayrollRowBalanced,
-  calendarDaysInMonth,
+  countLopDays,
+  DEFAULT_PAYROLL_LOP_DIVISOR,
   DEFAULT_PAYROLL_PRORATION,
+  lopDivisorDays,
+  lossOfPayDeductionCents,
+  type LopDay,
+  type PayrollLopDivisor,
   prorateMonthlyGrossCents,
   type PayrollProrationPolicy,
   resolveMonthlyGrossCents,
-  unpaidAbsenceDeductionCents,
 } from './payroll-compute.js';
 import type { CreateStaffInput } from './schemas.js';
 import { emitStaffAudit, type StaffAuditOptions, type StaffAuditSink } from './staff-audit.js';
@@ -132,6 +138,10 @@ export interface PayrollRow {
 export interface StaffHrServiceOptions extends StaffAuditOptions {
   /** PRC-H089: mid-month offboard pay policy (config `PAYROLL_PRORATION`). */
   payrollProration?: PayrollProrationPolicy;
+  /** PRC-M370: per-day rate divisor for loss of pay (config `PAYROLL_LOP_DIVISOR`). */
+  lopDivisor?: PayrollLopDivisor;
+  /** PRC-M370: approved unpaid leave reduces pay; without a source only attendance counts. */
+  unpaidLeaveSource?: Pick<StaffLeaveRepository, 'listLeaves'> | null;
 }
 
 export interface PayrollLedgerTrial {
@@ -179,6 +189,22 @@ export function monthRange(month: string): { from: string; to: string } {
     from: `${month}-01`,
     to: `${month}-${String(last).padStart(2, '0')}`,
   };
+}
+
+function pushLopDay(map: Map<string, LopDay[]>, staffId: string, day: LopDay): void {
+  const list = map.get(staffId) ?? [];
+  list.push(day);
+  map.set(staffId, list);
+}
+
+/** Inclusive YYYY-MM-DD dates from `from` to `to` (empty when from > to). */
+function isoDaysBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  const end = new Date(`${to}T00:00:00.000Z`).getTime();
+  for (let t = new Date(`${from}T00:00:00.000Z`).getTime(); t <= end; t += 86_400_000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
 }
 
 export function payableDays(present: number, halfDay: number): number {
@@ -245,6 +271,8 @@ export class StaffHrService {
   /** W2-HR-01: posted payroll runs keyed by tenant:month (idempotent re-export). */
 
   private readonly payrollProration: PayrollProrationPolicy;
+  private readonly lopDivisor: PayrollLopDivisor;
+  private readonly unpaidLeaveSource: Pick<StaffLeaveRepository, 'listLeaves'> | null;
   private readonly auditSink: StaffAuditSink | null;
 
   constructor(
@@ -253,6 +281,8 @@ export class StaffHrService {
     options: StaffHrServiceOptions = {},
   ) {
     this.payrollProration = options.payrollProration ?? DEFAULT_PAYROLL_PRORATION;
+    this.lopDivisor = options.lopDivisor ?? DEFAULT_PAYROLL_LOP_DIVISOR;
+    this.unpaidLeaveSource = options.unpaidLeaveSource ?? null;
     this.auditSink = options.auditSink ?? null;
   }
 
@@ -772,11 +802,12 @@ export class StaffHrService {
     }
 
     const { from, to } = monthRange(query.month);
-    const daysInMonth = calendarDaysInMonth(query.month);
+    const divisorDays = lopDivisorDays(query.month, this.lopDivisor);
     const payrollStaff = await this.listPayrollEligibleStaff(tenantId, from);
     const contracts = await this.store.listContracts(tenantId);
     const attendance = await this.store.listAttendance(tenantId, { from, to });
     const summaries = new Map<string, AttendanceSummaryRow>();
+    const lopDays = new Map<string, LopDay[]>();
     for (const row of attendance) {
       const current = summaries.get(row.staffId) ?? {
         staffId: row.staffId,
@@ -792,6 +823,24 @@ export class StaffHrService {
       else if (row.status === 'absent') current.absent += 1;
       current.payableDays = payableDays(current.present, current.halfDay);
       summaries.set(row.staffId, current);
+      if (row.status === 'absent' || row.status === 'half_day') {
+        pushLopDay(lopDays, row.staffId, {
+          date: row.date,
+          weight: row.status === 'absent' ? 'full' : 'half',
+        });
+      }
+    }
+    // PRC-M370: every day of an approved unpaid leave inside the month is LOP.
+    if (this.unpaidLeaveSource) {
+      for (const leave of await this.unpaidLeaveSource.listLeaves(tenantId)) {
+        if (leave.leaveType !== 'unpaid' || leave.status !== 'approved') continue;
+        for (const date of isoDaysBetween(
+          leave.startDate > from ? leave.startDate : from,
+          leave.endDate < to ? leave.endDate : to,
+        )) {
+          pushLopDay(lopDays, leave.staffId, { date, weight: 'full' });
+        }
+      }
     }
 
     const rows: PayrollRow[] = payrollStaff.map((staff) => {
@@ -815,10 +864,22 @@ export class StaffHrService {
         lastDay,
       });
       const grossCents = prorated.grossCents;
-      // Daily rate stays on the full-month gross; clamp so deductions never exceed pay.
+      // PRC-M370 (DR37): LOP days x (full-month gross / divisor days), nearest rupee;
+      // clamp so deductions never exceed the (pro-rated) pay. When proration already
+      // stops pay at the offboard date, LOP days after that date are not charged again.
+      const lopCutoff =
+        this.payrollProration !== 'full_month' && lastDay && lastDay < to ? lastDay : null;
+      const staffLopDays = (lopDays.get(staff.id) ?? []).filter(
+        (day) => lopCutoff === null || day.date <= lopCutoff,
+      );
+      const lop = countLopDays(query.month, staffLopDays, this.lopDivisor);
       const deductionsCents = Math.min(
         grossCents,
-        unpaidAbsenceDeductionCents(fullMonthGrossCents, absentDays, daysInMonth),
+        lossOfPayDeductionCents({
+          monthlyGrossCents: fullMonthGrossCents,
+          halfDays: lop.halfDays,
+          divisorDays,
+        }),
       );
       const netCents = grossCents - deductionsCents;
       const row: PayrollRow = {
@@ -920,7 +981,24 @@ export class StaffHrService {
     if (query.replace) {
       await this.store.reverseAndReplacePayrollExport(exportRecord);
     } else {
-      await this.store.savePayrollExport(exportRecord);
+      try {
+        await this.store.savePayrollExport(exportRecord);
+      } catch (err) {
+        // PRC-M368: a concurrent post for the same month won the race. Return the
+        // winner's run, exactly as a sequential re-export would (no second audit).
+        if (!(err instanceof PayrollRunAlreadyPostedError)) throw err;
+        const winner = await this.store.findPayrollExport(tenantId, query.month);
+        if (!winner) throw err;
+        return {
+          month: winner.month,
+          filename: winner.filename,
+          csv: winner.csv,
+          rows: JSON.parse(winner.rowsJson) as PayrollRow[],
+          runId: winner.runId,
+          idempotent: true,
+          trialBalance: JSON.parse(winner.trialBalanceJson) as PayrollLedgerTrial,
+        };
+      }
     }
     await emitStaffAudit(this.auditSink, {
       tenantId,

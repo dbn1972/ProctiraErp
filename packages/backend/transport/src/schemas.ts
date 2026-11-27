@@ -364,6 +364,8 @@ export const TransportStudentAssignmentListQuerySchema = Type.Composite([
     studentId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
     routeId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
     stopId: Type.Optional(Type.String({ pattern: UUID_FILTER_PATTERN })),
+    // PRC-M130: riders whose assignment covers this date (the trip roster).
+    activeOn: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' })),
   }),
 ]);
 
@@ -549,8 +551,9 @@ export const CreateTransportFeeStructureSchema = Type.Object({
   stopId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   minDistanceKm: Type.Optional(Type.Number({ minimum: 0 })),
   maxDistanceKm: Type.Optional(Type.Number({ minimum: 0 })),
-  amountCents: Type.Number({ minimum: 0 }),
-  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+  // PRC-M452 (D1): integer minor units and an upper-case ISO-4217 code.
+  amountCents: Type.Integer({ minimum: 0 }),
+  currency: Type.Optional(Type.String({ pattern: '^[A-Z]{3}$' })),
 });
 
 export type CreateTransportFeeStructureInput = Static<typeof CreateTransportFeeStructureSchema>;

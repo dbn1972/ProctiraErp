@@ -3,12 +3,19 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { BOARD, SECTION, STUDENT, TENANT, setupGradebook } from './gradebook-test-setup.js';
+import {
+  BOARD,
+  SECTION,
+  STUDENT,
+  TENANT,
+  setupGradebook,
+  upsertApprovedGrade,
+} from './gradebook-test-setup.js';
 
 describe('PRC-M263 metadata namespacing', () => {
   it('issue with metadata.weightedGpa=99 -> stored/signed weightedGpa equals snapshot', async () => {
     const { service } = setupGradebook();
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'MATH',

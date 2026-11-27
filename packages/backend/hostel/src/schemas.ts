@@ -1,7 +1,11 @@
 /**
  * Typebox schemas for Hostel API validation.
  */
+import { DateSchema } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
+
+// PRC-L117: every date field is DateSchema (YYYY-MM-DD and a real calendar date),
+// so 2026-02-31 or 'xxxxxxxxxx' is a 400 instead of a PG date error.
 
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
@@ -23,8 +27,8 @@ export type HostelParams = Static<typeof HostelParamsSchema>;
 export const CreateAssignmentSchema = Type.Object({
   studentId: Type.String({ pattern: UUID_PATTERN }),
   bedId: Type.String({ pattern: UUID_PATTERN }),
-  startDate: Type.String({ minLength: 10, maxLength: 10 }),
-  endDate: Type.Optional(Type.String({ minLength: 10, maxLength: 10 })),
+  startDate: DateSchema,
+  endDate: Type.Optional(DateSchema),
   isActive: Type.Optional(Type.Boolean()),
   feeStructureId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
 });
@@ -34,8 +38,8 @@ export type CreateAssignmentInput = Static<typeof CreateAssignmentSchema>;
 export const CreateLeaveSchema = Type.Object({
   studentId: Type.String({ pattern: UUID_PATTERN }),
   hostelId: Type.String({ pattern: UUID_PATTERN }),
-  startDate: Type.String({ minLength: 10, maxLength: 10 }),
-  endDate: Type.String({ minLength: 10, maxLength: 10 }),
+  startDate: DateSchema,
+  endDate: DateSchema,
   reason: Type.Optional(Type.String({ maxLength: 1000 })),
 });
 
@@ -73,7 +77,7 @@ export const CreateVisitorSchema = Type.Object({
   hostelId: Type.String({ pattern: UUID_PATTERN }),
   visitorName: Type.String({ minLength: 1, maxLength: 255 }),
   studentId: Type.String({ pattern: UUID_PATTERN }),
-  visitDate: Type.String({ minLength: 10, maxLength: 10 }),
+  visitDate: DateSchema,
 });
 
 export type CreateVisitorInput = Static<typeof CreateVisitorSchema>;
@@ -127,8 +131,8 @@ export type CreateMessMenuItemInput = Static<typeof CreateMessMenuItemSchema>;
 export const CreateMessSubscriptionSchema = Type.Object({
   planId: Type.String({ pattern: UUID_PATTERN }),
   studentId: Type.String({ pattern: UUID_PATTERN }),
-  startDate: Type.String({ minLength: 10, maxLength: 10 }),
-  endDate: Type.Optional(Type.String({ minLength: 10, maxLength: 10 })),
+  startDate: DateSchema,
+  endDate: Type.Optional(DateSchema),
 });
 
 export type CreateMessSubscriptionInput = Static<typeof CreateMessSubscriptionSchema>;
@@ -169,7 +173,7 @@ export type CreateFeeStructureInput = Static<typeof CreateFeeStructureSchema>;
 export const CreateAttendanceSchema = Type.Object({
   blockId: Type.String({ pattern: UUID_PATTERN }),
   studentId: Type.String({ pattern: UUID_PATTERN }),
-  onDate: Type.String({ minLength: 10, maxLength: 10 }),
+  onDate: DateSchema,
   status: Type.Union([Type.Literal('present'), Type.Literal('absent'), Type.Literal('leave')]),
   reason: Type.Optional(Type.String({ maxLength: 500 })),
 });

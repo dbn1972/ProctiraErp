@@ -43,7 +43,20 @@ export interface TeachingScopeDirectory {
     learnerUserId: string,
     institutionId: string,
   ): Promise<boolean>;
+  /**
+   * PRC-M302: ENROLLED students of a live section (LMS class analytics roster),
+   * at most {@link SECTION_ROSTER_LIMIT}; `truncated` when there were more.
+   * With `allowedInstitutionIds`, a section outside those institutions is empty.
+   */
+  sectionRoster(
+    tenantId: string,
+    sectionId: string,
+    allowedInstitutionIds?: readonly string[],
+  ): Promise<{ studentIds: string[]; truncated: boolean }>;
 }
+
+/** PRC-M302: roster rows read per section (well above any real class size). */
+export const SECTION_ROSTER_LIMIT = 2000;
 
 type Runner = <T>(tenantId: string, fn: (db: PgQueryable) => Promise<T>) => Promise<T>;
 
@@ -166,6 +179,32 @@ export function createPgTeachingScopeDirectory(run: Runner): TeachingScopeDirect
           [tenantId, learnerUserId, institutionId],
         ),
       );
+    },
+
+    async sectionRoster(tenantId, sectionId, allowedInstitutionIds) {
+      if (!sectionId) return { studentIds: [], truncated: false };
+      const fence = allowedInstitutionIds ? [...allowedInstitutionIds] : null;
+      return run(tenantId, async (db) => {
+        const res = await db.query(
+          `SELECT DISTINCT se.student_id::text AS id
+             FROM section_enrollments se
+             JOIN sections sec
+               ON sec.tenant_id = se.tenant_id AND sec.id = se.section_id
+              AND sec.deleted_at IS NULL
+            WHERE se.tenant_id = $1::uuid
+              AND se.section_id::text = $2
+              AND se.status = 'ENROLLED'
+              AND ($4::text[] IS NULL OR sec.institution_id::text = ANY($4::text[]))
+            ORDER BY 1
+            LIMIT $3`,
+          [tenantId, sectionId, SECTION_ROSTER_LIMIT + 1, fence],
+        );
+        const ids = (res.rows as Array<{ id: unknown }>).map((row) => String(row.id));
+        return {
+          studentIds: ids.slice(0, SECTION_ROSTER_LIMIT),
+          truncated: ids.length > SECTION_ROSTER_LIMIT,
+        };
+      });
     },
   };
 }

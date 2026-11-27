@@ -4,7 +4,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { GradebookService, type GradebookAuditEntry } from './gradebook-service.js';
-import { BOARD, SECTION, STUDENT, TENANT, setupGradebook } from './gradebook-test-setup.js';
+import {
+  BOARD,
+  SECTION,
+  STUDENT,
+  TENANT,
+  setupGradebook,
+  upsertApprovedGrade,
+} from './gradebook-test-setup.js';
 
 describe('PRC-M266 durable gradebook audit', () => {
   it('transcript issue + download are written to the sink with actor and survive restart', async () => {
@@ -15,7 +22,7 @@ describe('PRC-M266 durable gradebook audit', () => {
         durable.push(e);
       },
     });
-    await service.upsertGradeEntry(TENANT, {
+    await upsertApprovedGrade(service, TENANT, {
       sectionId: SECTION,
       studentId: STUDENT,
       assessmentCode: 'MATH',

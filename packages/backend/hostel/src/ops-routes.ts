@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { requireHostelAction } from './hostel-http-guard.js';
 import type { HostelService } from './hostel-service.js';
+import { requireValidHostelQuery } from './query-guard.js';
 import {
   CreateAttendanceSchema,
   CreateFeeStructureSchema,
@@ -55,6 +56,7 @@ export async function registerHostelOpsRoutes(
     if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
+    if (!requireValidHostelQuery(request, reply, { uuid: ['hostelId'] })) return;
     const hostelId =
       typeof (request.query as { hostelId?: string }).hostelId === 'string'
         ? (request.query as { hostelId?: string }).hostelId
@@ -112,6 +114,7 @@ export async function registerHostelOpsRoutes(
     if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
+    if (!requireValidHostelQuery(request, reply, { uuid: ['planId'] })) return;
     const planId = (request.query as { planId?: string }).planId;
     if (!planId) {
       return reply.status(400).send({
@@ -173,6 +176,7 @@ export async function registerHostelOpsRoutes(
     if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
+    if (!requireValidHostelQuery(request, reply, { uuid: ['planId'] })) return;
     const planId =
       typeof (request.query as { planId?: string }).planId === 'string'
         ? (request.query as { planId?: string }).planId
@@ -232,6 +236,7 @@ export async function registerHostelOpsRoutes(
     if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
+    if (!requireValidHostelQuery(request, reply, { uuid: ['hostelId'] })) return;
     const hostelId =
       typeof (request.query as { hostelId?: string }).hostelId === 'string'
         ? (request.query as { hostelId?: string }).hostelId
@@ -403,6 +408,7 @@ export async function registerHostelOpsRoutes(
     if (!requireHostelAction(request, reply, 'fee.manage')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
+    if (!requireValidHostelQuery(request, reply, { uuid: ['hostelId'] })) return;
     const hostelId =
       typeof (request.query as { hostelId?: string }).hostelId === 'string'
         ? (request.query as { hostelId?: string }).hostelId
@@ -431,6 +437,7 @@ export async function registerHostelOpsRoutes(
     if (!requireHostelAction(request, reply, 'fee.manage')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
+    if (!requireValidHostelQuery(request, reply, { uuid: ['hostelId'] })) return;
     const hostelId =
       typeof (request.query as { hostelId?: string }).hostelId === 'string'
         ? (request.query as { hostelId?: string }).hostelId
@@ -494,6 +501,7 @@ export async function registerHostelOpsRoutes(
     if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
+    if (!requireValidHostelQuery(request, reply, { uuid: ['blockId'], date: ['onDate'] })) return;
     const q = request.query as { blockId?: string; onDate?: string };
     if (!q.blockId || !q.onDate) {
       return reply.status(400).send({

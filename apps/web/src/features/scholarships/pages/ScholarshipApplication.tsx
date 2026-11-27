@@ -20,8 +20,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
+import { EDUCATION_LEVEL_OPTIONS, programGpaScaleMax } from '@/lib/scholarships/academic-record';
 import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
-
 import {
   DocumentUploadSlots,
   type UploadedScholarshipDocument,
@@ -43,6 +43,8 @@ interface ScholarshipProgramSummary {
   amountPerRecipient: number;
   currency: string;
   eligibility: {
+    /** PRC-M152: tenant-configured GPA scale (default 4.0). */
+    gpaScaleMax?: number | null;
     minGPA?: number;
     maxAge?: number;
     requiredDocuments?: string[];
@@ -150,6 +152,10 @@ export default function ScholarshipApplication({
   }, [fetchPrograms]);
 
   const currentStepIndex = STEPS.findIndex((s) => s.key === currentStep);
+  // PRC-M152: GPA is entered on the selected program's scale, not a fixed 4.0.
+  const gpaMax = programGpaScaleMax(
+    programs.find((item) => item.id === selectedProgramId)?.eligibility,
+  );
 
   // PRC-H031: one in-flight create at a time, so a double-click on Next cannot
   // create two drafts.
@@ -464,10 +470,9 @@ export default function ScholarshipApplication({
                     >
                       Education Level *
                     </label>
-                    <input
+                    <select
                       id={`${fieldId}-educationLevel-${idx}`}
                       aria-required="true"
-                      type="text"
                       value={record.educationLevel}
                       onChange={(e) => {
                         const updated = [...academicRecords];
@@ -476,7 +481,14 @@ export default function ScholarshipApplication({
                       }}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       required
-                    />
+                    >
+                      <option value="">Select education level</option>
+                      {EDUCATION_LEVEL_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label
@@ -487,10 +499,11 @@ export default function ScholarshipApplication({
                     </label>
                     <input
                       id={`${fieldId}-gpa-${idx}`}
+                      aria-describedby={`${fieldId}-gpa-hint-${idx}`}
                       type="number"
                       step="0.01"
                       min="0"
-                      max="4"
+                      max={gpaMax}
                       value={record.gpa ?? ''}
                       onChange={(e) => {
                         const updated = [...academicRecords];
@@ -502,6 +515,12 @@ export default function ScholarshipApplication({
                       }}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
+                    <p
+                      id={`${fieldId}-gpa-hint-${idx}`}
+                      className="mt-1 text-xs text-muted-foreground"
+                    >
+                      0–{gpaMax.toFixed(1)} scale for this program.
+                    </p>
                   </div>
                   <div>
                     <label

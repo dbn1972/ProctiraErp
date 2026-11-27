@@ -9,13 +9,26 @@ export interface AudiencePreviewResult {
   breakdown: Record<string, number>;
   honestyNote: string;
   source: 'estimator' | 'live';
+  /**
+   * PRC-L089: additive. Present when a live count was attempted for this scope
+   * and the query failed, so the estimate below is a fallback, not a live count.
+   */
+  liveCountError?: { code: 'LIVE_COUNT_FAILED'; message: string };
 }
+
+/** PRC-L089: fixed text (no driver error detail reaches the client). */
+export const LIVE_COUNT_FAILED_MESSAGE =
+  'The live recipient count failed; the figure is the v1 estimate, not a live count.';
 
 const BASE_TENANT = 500;
 
 export function estimateAudience(
   audienceJson: Record<string, unknown> = {},
-  live?: { hostelActiveAssignments?: number | null; routeActiveAssignments?: number | null },
+  live?: {
+    hostelActiveAssignments?: number | null;
+    routeActiveAssignments?: number | null;
+    liveError?: boolean;
+  },
 ): AudiencePreviewResult {
   const scope = String(audienceJson['scope'] ?? 'all').toLowerCase();
   const breakdown: Record<string, number> = { base: BASE_TENANT };
@@ -73,5 +86,13 @@ export function estimateAudience(
     honestyNote:
       'v1 estimator — not live enrollment counts. Wire student/hostel/route segment resolvers for production parity.',
     source: 'estimator',
+    ...(live?.liveError
+      ? {
+          liveCountError: {
+            code: 'LIVE_COUNT_FAILED' as const,
+            message: LIVE_COUNT_FAILED_MESSAGE,
+          },
+        }
+      : {}),
   };
 }

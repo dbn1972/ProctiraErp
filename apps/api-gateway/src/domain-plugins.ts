@@ -68,7 +68,12 @@ import {
   parseWebhookFanOutEvents,
   type RedisLikeForReplay,
 } from '@proctira/backend-developer-portal';
-import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
+import {
+  createPipelineRepository,
+  etlPlugin,
+  OutboxAdminNotifier,
+  OutboxPipelineEventPublisher,
+} from '@proctira/backend-etl';
 import {
   createDocumentRepository,
   createDocumentOutboxFromEnv,
@@ -111,6 +116,7 @@ import {
   createLmsRepository,
   LmsService,
   lmsPlugin,
+  type LmsClassRoster,
   type LmsLearnerMembership,
   type LmsRepository,
 } from '@proctira/backend-lms';
@@ -293,6 +299,8 @@ export function sharedLmsService(dependencies: DomainPluginDependencies): {
         // PRC-M299: learners submit, upload and post only where they are ENROLLED
         // (section_enrollments / enrollments). No pool: production refuses learner writes.
         learnerMembership: lmsLearnerMembership(),
+        // PRC-M302: class analytics reads the real section roster from the SIS.
+        classRoster: lmsClassRoster(),
       }),
     };
   }
@@ -409,6 +417,17 @@ function lmsLearnerMembership(): LmsLearnerMembership | null {
       }
     : null;
 }
+/** PRC-M302: LMS class-analytics roster port over the shared teaching-scope directory. */
+function lmsClassRoster(): LmsClassRoster | null {
+  const directory = sharedTeachingScopeDirectory();
+  return directory
+    ? {
+        sectionRoster: (tenantId, sectionId, allowedInstitutionIds) =>
+          directory.sectionRoster(tenantId, sectionId, allowedInstitutionIds),
+      }
+    : null;
+}
+
 function sharedAssignmentRepository(): ReturnType<typeof createAssignmentRepository> {
   assignmentRepositorySingleton ??= createAssignmentRepository();
   return assignmentRepositorySingleton;
@@ -1649,10 +1668,24 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Wave 10 Option C — unpark ETL. PG document store when DATABASE_URL (046).
       const repository = createPipelineRepository();
+      // PRC-L098: with a queue configured, pipeline events and retries-exhausted
+      // alerts go through the transactional outbox + relay instead of process memory.
+      const outboxHandle = await createDocumentOutboxFromEnv();
+      if (outboxHandle) {
+        scope.addHook('onClose', async () => {
+          await outboxHandle.disconnect();
+        });
+      }
       await scope.register(etlPlugin, {
         repository,
         config: {
           defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
+          ...(outboxHandle
+            ? {
+                eventPublisher: new OutboxPipelineEventPublisher(outboxHandle.outboxStore),
+                adminNotifier: new OutboxAdminNotifier(outboxHandle.outboxStore),
+              }
+            : {}),
         },
         prefix: '/pipelines',
       });

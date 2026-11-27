@@ -76,10 +76,11 @@ export interface StudentListFilters {
   pageSize?: number;
   search?: string;
   gender?: string;
-  /** Convenience filter (mapped to `search` if not natively supported). */
+  /** Only students ENROLLED (or `status`) at this institution. */
   institutionId?: string;
-  /** Convenience filter (mapped to `search`/`grade` if not natively supported). */
+  /** PRC-M148: only students ENROLLED (or `status`) in this grade. */
   gradeId?: string;
+  /** PRC-M148: only students with an enrollment in this status. */
   status?: 'ENROLLED' | 'TRANSFERRED' | 'WITHDRAWN' | 'GRADUATED' | 'ALL';
   sortBy?: 'firstName' | 'lastName' | 'dateOfBirth' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
@@ -220,8 +221,8 @@ function toQuery(filters: StudentListFilters): string {
   if (filters.gender) params.set('gender', filters.gender);
   if (filters.sortBy) params.set('sortBy', filters.sortBy);
   if (filters.sortOrder) params.set('sortOrder', filters.sortOrder);
-  // institutionId, gradeId, status are forwarded so the backend can ignore
-  // them gracefully if it doesn't support them yet.
+  // PRC-M148: GET /students filters on one enrollment row by institutionId,
+  // gradeId and status (400 on an unknown status or a non-UUID gradeId).
   if (filters.institutionId) params.set('institutionId', filters.institutionId);
   if (filters.gradeId) params.set('gradeId', filters.gradeId);
   if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);

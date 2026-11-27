@@ -17,6 +17,15 @@ import { Type, type Static } from '@sinclair/typebox';
 
 import { UUID_PATTERN } from './uuid-pattern.js';
 
+/** PRC-M148: enrollment statuses `GET /students?status=` accepts (enrollment_status enum). */
+export const STUDENT_ENROLLMENT_STATUSES = [
+  'ENROLLED',
+  'TRANSFERRED',
+  'WITHDRAWN',
+  'GRADUATED',
+] as const;
+export type StudentEnrollmentStatus = (typeof STUDENT_ENROLLMENT_STATUSES)[number];
+
 /**
  * Schema for a contact entry.
  */
@@ -168,6 +177,20 @@ export const StudentListQuerySchema = Type.Object({
   institutionId: Type.Optional(
     Type.String({ description: 'Scope to one institution (school) within the tenant' }),
   ),
+  // PRC-M148: enrollment filters. Every filter applies to the same enrollment row;
+  // without `status`, a placement filter matches ENROLLED rows only.
+  gradeId: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description: 'Only students with an enrollment in this grade',
+    }),
+  ),
+  status: Type.Optional(
+    Type.String({
+      enum: [...STUDENT_ENROLLMENT_STATUSES],
+      description: 'Only students with an enrollment in this status',
+    }),
+  ),
   // PRC-M097: batch label lookup — comma-separated UUIDs (max 100), so a roster
   // resolves every missing name in one request instead of one per enrollment.
   ids: Type.Optional(
@@ -248,6 +271,14 @@ export const StudentResponseSchema = Type.Object({
   customData: Type.Record(Type.String(), Type.Unknown(), { description: 'Custom fields' }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
+  // PRC-M031: additive placement from the current ENROLLED enrollment (null when none).
+  institutionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  gradeId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  grade: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Grade name' })),
+  classId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  className: Type.Optional(
+    Type.Union([Type.String(), Type.Null()], { description: 'Class / section name' }),
+  ),
 });
 
 export type StudentResponse = Static<typeof StudentResponseSchema>;

@@ -121,6 +121,15 @@ function assertOfferDocumentAuthentic(offer: OfferRecord): void {
 /** Upper bound on stale waitlist entries skipped in one promotion (PRC-M329). */
 const MAX_WAITLIST_SKIPS = 50;
 
+/** An issued or draft offer past its expiry instant. */
+function isOverdue(offer: OfferRecord): boolean {
+  return (
+    offer.expiresAt != null &&
+    offer.expiresAt.getTime() < Date.now() &&
+    (offer.status === 'draft' || offer.status === 'sent')
+  );
+}
+
 function num(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
@@ -808,15 +817,38 @@ export class AdmissionsPipelineService {
       return {
         ...formatOffer(offer),
         promotedOffer: null as ReturnType<typeof formatOffer> | null,
+        promotionError: null as string | null,
       };
     }
     const next: OfferRecord = { ...offer, status: 'declined', updatedAt: new Date() };
     const declined = formatOffer(await this.store.updateOffer(next));
     // PRC-M337: only an issued (sent) offer holds a seat claim; declining a
     // draft releases nothing, so the waitlist is left untouched.
-    const promotedOffer =
-      offer.status === 'sent' ? await this.promoteNextWaitlisted(tenantId, offer) : null;
-    return { ...declined, promotedOffer };
+    if (offer.status !== 'sent') return { ...declined, promotedOffer: null, promotionError: null };
+    // PRC-M537: the promotion (dequeue, status, placement, offer) is all-or-nothing.
+    // A failure rolls it back (the applicant stays waitlisted) and is reported, not
+    // swallowed; the decline itself is already committed.
+    try {
+      const promotedOffer = this.store.runAtomically
+        ? await this.store.runAtomically(tenantId, () =>
+            this.promoteNextWaitlisted(tenantId, offer),
+          )
+        : await this.promoteNextWaitlisted(tenantId, offer);
+      return { ...declined, promotedOffer, promotionError: null };
+    } catch (err) {
+      const promotionError = err instanceof Error ? err.message : 'Waitlist promotion failed';
+      // eslint-disable-next-line no-console
+      console.warn(
+        JSON.stringify({
+          msg: 'admissions.waitlist.promotion_failed',
+          tenantId,
+          declinedOfferId: offer.id,
+          institutionId: offer.institutionId,
+          error: promotionError,
+        }),
+      );
+      return { ...declined, promotedOffer: null, promotionError };
+    }
   }
 
   /**
@@ -862,27 +894,21 @@ export class AdmissionsPipelineService {
       });
     }
 
-    try {
-      if (this.applications.updateStatus) {
-        await this.applications.updateStatus(
-          head.applicationId,
-          'under_review',
-          'Promoted from waitlist after seat release',
-          tenantId,
-        );
-      }
-      return await this.createOffer(tenantId, {
-        applicationId: head.applicationId,
-        classId:
-          typeof released.offerDocument['classId'] === 'string'
-            ? released.offerDocument['classId']
-            : undefined,
-      });
-    } catch {
-      // If promotion fails (e.g. seat already refilled), leave the dequeue durable —
-      // staff can re-offer manually. Decline still succeeds.
-      return null;
+    if (this.applications.updateStatus) {
+      await this.applications.updateStatus(
+        head.applicationId,
+        'under_review',
+        'Promoted from waitlist after seat release',
+        tenantId,
+      );
     }
+    return await this.createOffer(tenantId, {
+      applicationId: head.applicationId,
+      classId:
+        typeof released.offerDocument['classId'] === 'string'
+          ? released.offerDocument['classId']
+          : undefined,
+    });
   }
 
   async getApplicationBundle(tenantId: string, applicationId: string) {
@@ -893,7 +919,7 @@ export class AdmissionsPipelineService {
       this.store.listOffers(tenantId, applicationId),
       this.store.findEnquiryByApplication(tenantId, applicationId),
     ]);
-    const resolvedOffers = await Promise.all(offers.map((row) => this.expireIfNeeded(row)));
+    const resolvedOffers = await Promise.all(offers.map((row) => this.expireOnRead(row)));
     return {
       application: this.formatApplication(application),
       placement,
@@ -910,7 +936,7 @@ export class AdmissionsPipelineService {
     const offers = await this.store.listOffers(tenantId, applicationId, page);
     const result = toPageResult(offers, page);
     const data = await Promise.all(
-      result.data.map(async (row) => formatOffer(await this.expireIfNeeded(row))),
+      result.data.map(async (row) => formatOffer(await this.expireOnRead(row))),
     );
     return { ...result, data };
   }
@@ -932,7 +958,7 @@ export class AdmissionsPipelineService {
       }
     > = [];
     for (const offer of offers) {
-      const effective = await this.expireIfNeeded(offer);
+      const effective = await this.expireOnRead(offer);
       if (effective.status !== 'sent' && effective.status !== 'accepted') continue;
       const application = await this.applications.findById(effective.applicationId, tenantId);
       if (!application || application.tenantId !== tenantId) continue;
@@ -1006,12 +1032,21 @@ export class AdmissionsPipelineService {
     }
   }
 
+  /**
+   * PRC-M537: a read that finds an overdue offer expires it under the offer lock
+   * from a fresh row, so it can never overwrite an accept/decline that committed
+   * after the list was read.
+   */
+  private async expireOnRead(offer: OfferRecord): Promise<OfferRecord> {
+    if (!isOverdue(offer)) return offer;
+    return this.store.withOfferLock(offer.tenantId, offer.id, async () => {
+      const fresh = await this.store.findOffer(offer.tenantId, offer.id);
+      return fresh ? this.expireIfNeeded(fresh) : offer;
+    });
+  }
+
   private async expireIfNeeded(offer: OfferRecord): Promise<OfferRecord> {
-    if (
-      offer.expiresAt &&
-      offer.expiresAt.getTime() < Date.now() &&
-      (offer.status === 'draft' || offer.status === 'sent')
-    ) {
+    if (isOverdue(offer)) {
       const expired: OfferRecord = { ...offer, status: 'expired', updatedAt: new Date() };
       await this.reconcileOfferResources?.({
         tenantId: offer.tenantId,

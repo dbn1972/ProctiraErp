@@ -8,6 +8,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireHostelAction } from './hostel-http-guard.js';
 import type { HostelService } from './hostel-service.js';
 import { registerHostelOpsRoutes } from './ops-routes.js';
+import { requireValidHostelQuery } from './query-guard.js';
 import {
   CreateAssignmentSchema,
   CreateBedSchema,
@@ -246,6 +247,7 @@ export async function registerHostelRoutes(
         });
       }
 
+      if (!requireValidHostelQuery(request, reply, { uuid: ['hostelId'] })) return;
       const hostelId = request.query.hostelId;
       const blocks = await hostelService.listBlocks(tenantId, hostelId);
       return reply.status(200).send({ data: blocks.map(formatBlock) });
@@ -306,6 +308,7 @@ export async function registerHostelRoutes(
         });
       }
 
+      if (!requireValidHostelQuery(request, reply, { uuid: ['blockId'] })) return;
       const blockId = request.query.blockId;
       const rooms = await hostelService.listRooms(tenantId, blockId);
       return reply.status(200).send({ data: rooms.map(formatRoom) });
@@ -366,6 +369,7 @@ export async function registerHostelRoutes(
         });
       }
 
+      if (!requireValidHostelQuery(request, reply, { uuid: ['roomId'] })) return;
       const roomId = request.query.roomId;
       const beds = await hostelService.listBeds(tenantId, roomId);
       return reply.status(200).send({ data: beds.map(formatBed) });

@@ -218,6 +218,27 @@ export async function listStudentAssignments(): Promise<StudentAssignment[]> {
   return (await listStudentAssignmentsWithTotal()).items;
 }
 
+/**
+ * PRC-M130: the riders of one route whose active assignment covers `tripDate`
+ * (`GET /transport/student-assignments?routeId&isActive=true&activeOn`).
+ */
+export async function listTripRiders(input: {
+  routeId: string;
+  tripDate: string;
+}): Promise<StudentAssignment[]> {
+  const qs = new URLSearchParams({
+    routeId: input.routeId,
+    isActive: 'true',
+    activeOn: input.tripDate,
+  }).toString();
+  return (
+    await gatewayFetchAllPagesWithTotal<StudentAssignment>(
+      `/transport/student-assignments?${qs}`,
+      LIST_INIT,
+    )
+  ).items;
+}
+
 export async function createDriverAssignment(input: {
   vehicleId: string;
   driverId: string;

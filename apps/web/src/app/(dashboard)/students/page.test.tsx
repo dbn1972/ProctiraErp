@@ -16,6 +16,7 @@ vi.mock('@/lib/auth/domain-route-access', () => ({
 
 const listStudents = vi.fn();
 const listInstitutions = vi.fn();
+const listGrades = vi.fn();
 const loadActiveEnrollments = vi.fn();
 const loadPlacementDirectories = vi.fn();
 
@@ -24,6 +25,9 @@ vi.mock('@/lib/api/students', () => ({
 }));
 vi.mock('@/lib/api/institutions', () => ({
   listInstitutions: (...a: unknown[]) => listInstitutions(...a),
+}));
+vi.mock('@/lib/institutions/api', () => ({
+  listGrades: (...a: unknown[]) => listGrades(...a),
 }));
 vi.mock('./_components/load-student-placement', () => ({
   loadActiveEnrollments: (...a: unknown[]) => loadActiveEnrollments(...a),
@@ -34,7 +38,16 @@ vi.mock('./_components/load-student-placement', () => ({
 }));
 // Client children need router context; their own tests cover them.
 vi.mock('./_components/student-list-filters', () => ({
-  StudentListFilters: () => <div data-testid="student-filters-stub" />,
+  StudentListFilters: ({
+    filterOptions,
+  }: {
+    filterOptions: { grades: Array<{ id: string; name: string }> };
+  }) => (
+    <div
+      data-testid="student-filters-stub"
+      data-grades={filterOptions.grades.map((g) => `${g.id}:${g.name}`).join(',')}
+    />
+  ),
 }));
 vi.mock('./_components/student-list-pagination', () => ({
   StudentListPagination: () => <div data-testid="student-pagination-stub" />,
@@ -98,6 +111,8 @@ beforeEach(() => {
   loadActiveEnrollments.mockReset();
   loadPlacementDirectories.mockReset();
   listInstitutions.mockResolvedValue([{ id: INST, name: 'Green Valley School' }]);
+  listGrades.mockReset();
+  listGrades.mockResolvedValue([]);
   loadPlacementDirectories.mockResolvedValue({
     institutions: new Map([[INST, 'Green Valley School']]),
     grades: new Map([[GRADE, 'Grade 5']]),
@@ -166,6 +181,26 @@ describe('StudentListPage (PRC-L228)', () => {
     expect(screen.getByTestId('student-tabs-stub')).toHaveAttribute('data-active', 'ENROLLED');
   });
 
+  it('PRC-M148: forwards gradeId and offers the tenant grades as filter options', async () => {
+    listStudents.mockResolvedValue(studentPage([]));
+    loadActiveEnrollments.mockResolvedValue(new Map());
+    listGrades.mockResolvedValue([{ id: GRADE, name: 'Grade 5', code: 'G5', order: 5 }]);
+    await renderPage({ gradeId: GRADE, status: 'WITHDRAWN' });
+    expect(listStudents).toHaveBeenCalledWith(
+      expect.objectContaining({ gradeId: GRADE, status: 'WITHDRAWN' }),
+    );
+    expect(screen.getByTestId('student-filters-stub')).toHaveAttribute(
+      'data-grades',
+      `${GRADE}:Grade 5`,
+    );
+  });
+  it('PRC-M148: a failed grade read leaves the grade filter empty', async () => {
+    listStudents.mockResolvedValue(studentPage([]));
+    loadActiveEnrollments.mockResolvedValue(new Map());
+    listGrades.mockRejectedValue(new Error('403'));
+    await renderPage();
+    expect(screen.getByTestId('student-filters-stub')).toHaveAttribute('data-grades', '');
+  });
   it('omits the status filter for the ALL tab and ignores a non-positive page', async () => {
     listStudents.mockResolvedValue(studentPage([]));
     loadActiveEnrollments.mockResolvedValue(new Map());

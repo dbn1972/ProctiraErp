@@ -963,6 +963,22 @@ export class TransportService {
 
   async upsertTripAttendance(tenantId: string, input: UpsertBusAttendanceInput, actorId: string) {
     await this.getRouteById(tenantId, input.routeId);
+    // PRC-M130: only a rider of this route on the trip date can be marked.
+    const riders = await this.repository.listStudentAssignments(
+      tenantId,
+      {
+        studentId: input.studentId,
+        routeId: input.routeId,
+        isActive: true,
+        activeOn: input.tripDate,
+      },
+      { page: 1, pageSize: 1 },
+    );
+    if (riders.data.length === 0) {
+      throw new BusinessRuleError(
+        'The student has no active assignment on this route for the trip date',
+      );
+    }
     if (input.stopId) {
       const stop = await this.repository.findStopById(input.stopId, tenantId);
       if (!stop) {
@@ -1172,10 +1188,36 @@ export class TransportService {
     input: CreateTransportFeeStructureInput,
     actorId: string,
   ) {
+    const minKm = input.minDistanceKm ?? 0;
+    const maxKm = input.maxDistanceKm ?? Number.POSITIVE_INFINITY;
+    // PRC-M452: an inverted band can never match a distance.
+    if (minKm > maxKm) {
+      throw new ValidationError('Validation failed', [
+        {
+          field: 'maxDistanceKm',
+          rule: 'minimum',
+          message: 'maxDistanceKm must be >= minDistanceKm',
+        },
+      ]);
+    }
     if (input.routeId) await this.getRouteById(tenantId, input.routeId);
     if (input.stopId) {
       const stop = await this.repository.findStopById(input.stopId, tenantId);
       if (!stop) throw new NotFoundError(`Route stop with id '${input.stopId}' not found`);
+    }
+    // PRC-M452: active bands of the same route/stop scope must not share a distance,
+    // or the matched fee would depend on list order.
+    const existing = await this.repository.listTransportFeeStructures(tenantId);
+    const overlap = existing.find(
+      (b) =>
+        b.isActive &&
+        b.routeId === (input.routeId ?? null) &&
+        b.stopId === (input.stopId ?? null) &&
+        (b.minDistanceKm ?? 0) <= maxKm &&
+        minKm <= (b.maxDistanceKm ?? Number.POSITIVE_INFINITY),
+    );
+    if (overlap) {
+      throw new ConflictError(`Distance band overlaps active transport fee band '${overlap.name}'`);
     }
     // PRC-M439: local band row first; a Fees failure then leaves no orphan Fees structure.
     const band = await this.repository.createTransportFeeStructure({

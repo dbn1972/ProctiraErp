@@ -1,6 +1,8 @@
 /**
  * Optional live audience counts from hostel / transport tables (raw pg).
- * Falls back to null when DATABASE_URL is unset or queries fail.
+ * Counts are null when DATABASE_URL is unset or the scope has no live source.
+ * PRC-L089: a failed live query also yields null counts, but sets `liveError`
+ * so the preview response tells the caller the live count failed.
  */
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import type pg from 'pg';
@@ -12,6 +14,8 @@ function getPool(): pg.Pool | null {
 export interface LiveAudienceCounts {
   hostelActiveAssignments: number | null;
   routeActiveAssignments: number | null;
+  /** PRC-L089: set when a live count query failed (the counts are then null). */
+  liveError?: boolean;
 }
 
 export async function fetchLiveAudienceCounts(
@@ -79,8 +83,8 @@ export async function fetchLiveAudienceCounts(
       }
     }
   } catch {
-    // Tables may be absent in unit tests without schema — keep nulls.
+    // PRC-L089: report the failure instead of silently using the estimator.
+    return { hostelActiveAssignments: null, routeActiveAssignments: null, liveError: true };
   }
-
   return { hostelActiveAssignments, routeActiveAssignments };
 }

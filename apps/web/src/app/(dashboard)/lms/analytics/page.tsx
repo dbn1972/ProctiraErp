@@ -149,6 +149,22 @@ export default async function LmsAnalyticsPage({
               </CardContent>
             </Card>
           </div>
+          {analytics?.rosterSource === 'sis' ? (
+            <p className="text-sm text-muted-foreground" data-testid="lms-analytics-roster">
+              {analytics.missingStudentIds?.length ?? 0} of {analytics.rosterSize ?? 0} enrolled
+              learners have not submitted.
+            </p>
+          ) : null}
+          {analytics?.truncated ? (
+            <p
+              role="status"
+              className="text-sm text-amber-700 dark:text-amber-400"
+              data-testid="lms-analytics-truncated"
+            >
+              Partial figures: this class has more coursework, submissions or learners than one
+              analytics read covers.
+            </p>
+          ) : null}
           {!analytics || analytics.assignmentCount === 0 ? (
             <EmptyState
               title="No coursework for this class"

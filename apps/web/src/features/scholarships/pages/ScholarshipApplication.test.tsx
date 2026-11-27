@@ -80,11 +80,12 @@ async function reachDocuments(container: HTMLElement) {
   fireEvent.click(screen.getByText('Merit grant'));
   chooseSubject();
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-  const [institution, level] = Array.from(
+  const [institution] = Array.from(
     container.querySelectorAll<HTMLInputElement>('fieldset input[type="text"]'),
   );
   fireEvent.change(institution!, { target: { value: 'Sunrise School' } });
-  fireEvent.change(level!, { target: { value: 'Grade 10' } });
+  // PRC-M152: education level is a controlled-vocabulary select.
+  fireEvent.change(screen.getByLabelText('Education Level *'), { target: { value: 'secondary' } });
   const gpa = container.querySelector<HTMLInputElement>('input[step="0.01"]')!;
   fireEvent.change(gpa, { target: { value: '3.2' } });
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
@@ -155,11 +156,13 @@ describe('ScholarshipApplication draft sync (PRC-H031)', () => {
     fireEvent.click(screen.getByText('Merit grant'));
     chooseSubject();
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    const [institution, level] = Array.from(
+    const [institution] = Array.from(
       container.querySelectorAll<HTMLInputElement>('fieldset input[type="text"]'),
     );
     fireEvent.change(institution!, { target: { value: 'Sunrise School' } });
-    fireEvent.change(level!, { target: { value: 'Grade 10' } });
+    fireEvent.change(screen.getByLabelText('Education Level *'), {
+      target: { value: 'secondary' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const next = screen.getByRole('button', { name: 'Next' });
     fireEvent.click(next);
