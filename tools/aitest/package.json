@@ -16,7 +16,13 @@
     "aitest": "tsx src/foundation/cli.ts"
   },
   "dependencies": {
-    "@proctira/auth": "workspace:*"
+    "@proctira/auth": "workspace:*",
+    "@proctira/backend-assessment": "workspace:*",
+    "@proctira/backend-fees": "workspace:*",
+    "@proctira/backend-gradebook": "workspace:*",
+    "@proctira/backend-institution": "workspace:*",
+    "@proctira/backend-staff": "workspace:*",
+    "@proctira/database": "workspace:*"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

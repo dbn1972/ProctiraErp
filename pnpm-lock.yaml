@@ -3832,6 +3832,24 @@ importers:
       '@proctira/auth':
         specifier: workspace:*
         version: link:../../packages/shared/auth
+      '@proctira/backend-assessment':
+        specifier: workspace:*
+        version: link:../../packages/backend/assessment
+      '@proctira/backend-fees':
+        specifier: workspace:*
+        version: link:../../packages/backend/fees
+      '@proctira/backend-gradebook':
+        specifier: workspace:*
+        version: link:../../packages/backend/gradebook
+      '@proctira/backend-institution':
+        specifier: workspace:*
+        version: link:../../packages/backend/institution
+      '@proctira/backend-staff':
+        specifier: workspace:*
+        version: link:../../packages/backend/staff
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../packages/shared/database
     devDependencies:
       '@axe-core/playwright':
         specifier: ^4.13.0

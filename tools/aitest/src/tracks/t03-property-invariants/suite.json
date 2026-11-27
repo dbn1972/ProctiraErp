@@ -1,0 +1,17 @@
+[
+  {
+    "id": "t03-property-invariants",
+    "title": "Property-based money and grade invariants (fees, payroll, grades, promotion) on a live Postgres",
+    "cadence": ["nightly"],
+    "reason": "300 random command sequences per domain (fees, payroll, grades, promotion) against a throwaway Postgres, about 10-20 minutes on the db profile including shrinking; catches money and grade regressions daily without using PR CI.",
+    "unit": "t03-property-invariants",
+    "profile": "db",
+    "runner": "vitest",
+    "include": ["src/tracks/t03-property-invariants/invariants.aitest.ts"],
+    "timeoutMinutes": 90,
+    "env": {
+      "AITEST_NUM_RUNS": "300",
+      "AITEST_SHRINK_MS": "120000"
+    }
+  }
+]
