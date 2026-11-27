@@ -6,6 +6,7 @@
  * deny-matrix behaviour without importing the api-gateway package.
  */
 import {
+  applyAdmissionsDomainRoleGrants,
   applyCampusDomainRoleGrants,
   applyFeesDomainRoleGrants,
   DEFAULT_ROLES,
@@ -100,6 +101,9 @@ export function createWebRbacRegistry(): RbacPermissionRegistry {
   applyCampusDomainRoleGrants(roles);
   // F-D3: the same finance-role fees matrix the gateway registry applies.
   applyFeesDomainRoleGrants(roles);
+  // UATENV-D19: the same registrar admissions matrix the gateway applies. The gateway-only
+  // institution lookup read is deliberately not mirrored: /institutions stays closed on the web.
+  applyAdmissionsDomainRoleGrants(roles);
   // PRC-L234: mirror the gateway's platform_admin role (platform + '*' manage)
   // so platform surfaces are only advertised to callers the gateway serves.
   if (!roles.some((role) => role.roleId === 'platform_admin')) {

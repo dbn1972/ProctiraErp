@@ -10,7 +10,7 @@ import { Button, Card, CardContent } from '@proctira/ui/components';
 import { SubstitutionCreateForm } from '@/components/timetable/substitution-create-form';
 import { listMeetings, listSubstitutions } from '@/lib/api/timetable';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStaffLabelMap } from '@/lib/load-entity-labels';
+import { loadStaffOptions } from '@/lib/load-entity-labels';
 import { RouteAccessDenied } from '@/components/auth/route-access-denied';
 import { hasDashboardDomainRouteAccess } from '@/lib/auth/domain-route-access';
 
@@ -23,11 +23,14 @@ export default async function StaffSubstitutionsPage() {
   if (!(await hasDashboardDomainRouteAccess('staff', '/staff'))) {
     return <RouteAccessDenied />;
   }
-  const [subsResult, meetingsResult, staffLabels] = await Promise.all([
+  const [subsResult, meetingsResult, staffDirectory] = await Promise.all([
     listSubstitutions(),
     listMeetings(),
-    loadStaffLabelMap(),
+    loadStaffOptions(),
   ]);
+  // S-D3: one directory read feeds both the table labels and the assign form.
+  const staffLabels = new Map(staffDirectory.map((o) => [o.id, o.label]));
+  const staffOptions = staffDirectory.map(({ id, label }) => ({ id, label }));
 
   const apiError = !subsResult.ok
     ? subsResult.error
@@ -89,7 +92,7 @@ export default async function StaffSubstitutionsPage() {
           <Card>
             <CardContent className="space-y-4 p-6">
               <h2 className="text-lg font-bold tracking-tight">Assign substitute</h2>
-              <SubstitutionCreateForm meetingOptions={meetingOptions} />
+              <SubstitutionCreateForm meetingOptions={meetingOptions} staffOptions={staffOptions} />
             </CardContent>
           </Card>
 

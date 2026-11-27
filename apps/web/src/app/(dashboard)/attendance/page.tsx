@@ -19,10 +19,10 @@ import {
 import { getClassRoster, type RosterEntry } from '@/lib/api/attendance';
 import type { ListResult } from '@/lib/api/list-result';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
-import { listAcademicPeriods, listInstitutions, type AcademicPeriod } from '@/lib/api/institutions';
+import { listInstitutions } from '@/lib/api/institutions';
 import { listAttendancePeriods } from '@/lib/api/timetable';
-import { listClassesByInstitution } from '@/lib/institutions/api';
-import type { ClassSection } from '@/lib/institutions/types';
+import { listAcademicPeriods, listClassesByInstitution } from '@/lib/institutions/api';
+import type { AcademicPeriod, ClassSection } from '@/lib/institutions/types';
 
 import { AttendanceMarkingForm } from './_components/attendance-marking-form';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
@@ -64,8 +64,10 @@ export default async function AttendancePage(props: PageProps) {
       institutionId
         ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
         : Promise.resolve<ClassSection[]>([]),
+      // UAT E3: academic periods are tenant-scoped and served at
+      // `/academic-periods`; there is no per-institution period route.
       institutionId
-        ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
+        ? listAcademicPeriods().catch(() => [] as AcademicPeriod[])
         : Promise.resolve<AcademicPeriod[]>([]),
       classId && academicPeriodId
         ? getClassRoster(classId, academicPeriodId, date)
@@ -170,7 +172,7 @@ export default async function AttendancePage(props: PageProps) {
             academicPeriods={academicPeriods.map((p) => ({
               id: p.id,
               name: p.name,
-              isActive: p.isActive,
+              isActive: p.status === 'active',
             }))}
             defaults={{
               institutionId,

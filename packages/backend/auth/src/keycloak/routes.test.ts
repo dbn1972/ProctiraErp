@@ -431,4 +431,153 @@ describe('Keycloak auth routes', () => {
       await app.close();
     });
   });
+
+  describe('UATENV-D09 tenant web origin', () => {
+    const SUNRISE = 'http://sunrise-public-school.proctira.localhost:29080';
+    const TENANT_B_ORIGIN = 'http://e2e-tenant-a.proctira.localhost:29080';
+    const jwt = (payload: Record<string, unknown>) =>
+      [
+        Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url'),
+        Buffer.from(JSON.stringify(payload)).toString('base64url'),
+        'sig',
+      ].join('.');
+    function mockToken(claims: Record<string, unknown> = { sub: 'kc-b', tenant_id: 'tenant-b' }) {
+      return vi.spyOn(globalThis, 'fetch').mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ access_token: jwt(claims), token_type: 'Bearer' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      );
+    }
+    function directory(
+      impl: (id: string) => Promise<{
+        id: string;
+        name: string;
+        slug: string;
+        status: string;
+      } | null>,
+    ) {
+      return { findTenantById: vi.fn(impl) };
+    }
+    const tenantB = directory(async (id) =>
+      id === 'tenant-b' ? { id, name: 'B', slug: 'e2e-tenant-a', status: 'active' } : null,
+    );
+    const base = {
+      issuer: 'http://localhost:8180/realms/proctira',
+      clientId: 'proctira-gateway',
+      realm: 'proctira',
+      jwksUri: 'http://localhost:8180/realms/proctira/protocol/openid-connect/certs',
+      redirectUri: 'http://localhost:3200/api/v1/auth/callback',
+      webOrigin: SUNRISE,
+      tenantWebBaseDomain: 'proctira.localhost',
+    };
+
+    async function callbackLocation(
+      config: Record<string, unknown>,
+      headers: Record<string, string> = {},
+      appState = 'web:/students',
+    ) {
+      const app = Fastify();
+      await registerKeycloakAuthRoutes(app, { ...base, ...config } as Parameters<
+        typeof registerKeycloakAuthRoutes
+      >[1]);
+      const { cookie, state } = await beginLogin(app, appState);
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/auth/callback?code=c&state=${state}`,
+        headers: { cookie, ...headers },
+      });
+      await app.close();
+      expect(res.statusCode).toBe(302);
+      return new URL(String(res.headers.location));
+    }
+
+    it("returns the browser to the user's own tenant host from the tenant record", async () => {
+      const fetchMock = mockToken();
+      const location = await callbackLocation({ tenantDirectory: tenantB });
+      expect(location.origin).toBe(TENANT_B_ORIGIN);
+      expect(location.pathname).toBe('/api/auth/callback');
+      expect(location.searchParams.get('returnTo')).toBe('/students');
+      expect(location.searchParams.get('ticket')).toBeTruthy();
+      expect(tenantB.findTenantById).toHaveBeenCalledWith('tenant-b');
+      fetchMock.mockRestore();
+    });
+
+    it('ignores a forged Host or X-Forwarded-Host on the callback', async () => {
+      const fetchMock = mockToken();
+      const location = await callbackLocation(
+        { tenantDirectory: tenantB },
+        { host: 'attacker.example', 'x-forwarded-host': 'attacker.example' },
+      );
+      expect(location.origin).toBe(TENANT_B_ORIGIN);
+      fetchMock.mockRestore();
+    });
+
+    it('falls back to the configured web origin when the tenant is unknown', async () => {
+      const fetchMock = mockToken();
+      const location = await callbackLocation({ tenantDirectory: directory(async () => null) });
+      expect(location.origin).toBe(SUNRISE);
+      fetchMock.mockRestore();
+    });
+
+    it('falls back to the configured web origin when the directory throws', async () => {
+      const fetchMock = mockToken();
+      const location = await callbackLocation({
+        tenantDirectory: directory(async () => {
+          throw new Error('db down');
+        }),
+      });
+      expect(location.origin).toBe(SUNRISE);
+      fetchMock.mockRestore();
+    });
+
+    it.each(['evil.com', 'a/b', 'A_B', '', 'x.evil.com:1', '-a', 'a-'])(
+      'falls back for a slug that is not one DNS label (%j)',
+      async (slug) => {
+        const fetchMock = mockToken();
+        const location = await callbackLocation({
+          tenantDirectory: directory(async (id) => ({ id, name: 'B', slug, status: 'active' })),
+        });
+        expect(location.origin).toBe(SUNRISE);
+        fetchMock.mockRestore();
+      },
+    );
+
+    it('leaves a shared web origin unchanged and does not read the directory', async () => {
+      const fetchMock = mockToken();
+      const shared = directory(async (id) => ({
+        id,
+        name: 'B',
+        slug: 'e2e-tenant-a',
+        status: 'active',
+      }));
+      const location = await callbackLocation({
+        webOrigin: 'http://localhost:3201',
+        tenantDirectory: shared,
+      });
+      expect(location.origin).toBe('http://localhost:3201');
+      expect(shared.findTenantById).not.toHaveBeenCalled();
+      fetchMock.mockRestore();
+    });
+
+    it('falls back when the token carries no tenant and no identity is linked', async () => {
+      const fetchMock = mockToken({ sub: 'kc-b' });
+      const none = directory(async () => null);
+      const location = await callbackLocation({ tenantDirectory: none });
+      expect(location.origin).toBe(SUNRISE);
+      expect(none.findTenantById).not.toHaveBeenCalled();
+      fetchMock.mockRestore();
+    });
+
+    it('keeps the configured origin when no tenant base domain is configured', async () => {
+      const fetchMock = mockToken();
+      const location = await callbackLocation({
+        tenantDirectory: tenantB,
+        tenantWebBaseDomain: undefined,
+      });
+      expect(location.origin).toBe(SUNRISE);
+      fetchMock.mockRestore();
+    });
+  });
 });

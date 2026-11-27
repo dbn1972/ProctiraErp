@@ -88,11 +88,11 @@ const A_BATCH_REGISTRY_DOMAINS: DomainCase[] = [
 const A_BATCH_SET_DOMAINS: DomainCase[] = [
   {
     domain: 'admissions',
-    allowed: ['admin', 'principal', 'super-admin'],
+    // UATENV-D19: the registrar reads and processes admissions.
+    allowed: ['admin', 'principal', 'super-admin', 'registrar'],
     denied: [
       'teacher',
       'staff',
-      'registrar',
       'admissions_officer',
       'platform_admin',
       'student',

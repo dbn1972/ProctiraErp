@@ -127,3 +127,39 @@ describe('POST /api/auth/login (UATENV-D08)', () => {
     expect((await POST(req())).status).toBe(503);
   });
 });
+
+describe('POST /api/auth/login platform operator accounts (UATENV-D23)', () => {
+  const token = (claims: Record<string, unknown>) =>
+    [
+      Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url'),
+      Buffer.from(JSON.stringify(claims)).toString('base64url'),
+      'sig',
+    ].join('.');
+
+  it('refuses a platform operator token on a school host and sets no cookie', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        json({ accessToken: token({ sub: 'op', tenant_id: 'platform' }), refreshToken: 'R' }, 200),
+      ) as unknown as typeof fetch;
+
+    const res = await POST(req({ email: 'ops@proctira-uat.test', password: 'pw' }));
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ code: 'PLATFORM_ACCOUNT_NOT_ALLOWED' });
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('still signs in a school account whose token names its tenant', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        json({ accessToken: token({ sub: 't', tenant_id: 'tenant-1' }), refreshToken: 'R' }, 200),
+      ) as unknown as typeof fetch;
+
+    const res = await POST(req());
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('set-cookie') ?? '').toContain(`${AUTH_COOKIES.ACCESS_TOKEN}=`);
+  });
+});
