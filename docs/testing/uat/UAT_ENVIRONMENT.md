@@ -1,6 +1,6 @@
 # UAT environment on the EC2 host
 
-Status: deployed and smoke-tested on commit `f7e06695` (27 Nov 2026; first deploy `219093a4`, 21 Nov 2026). Release-plan row E3 is **PARTIAL** (2 of 8 E3 items met); the unmet items are listed in "Smoke results (E3 evidence)" and in `docs/testing/uat/UAT_RELEASE_PLAN.md` row E3.
+Status: deployed and smoke-tested on commit `9bc1aef4` (27 Nov 2026; first deploy `219093a4`, 21 Nov 2026). Release-plan row E3 is **PARTIAL** (MET 5, UNMET 4, EXTERNALLY_BLOCKED 5); the unmet and owner-blocked items are listed in "Smoke results (E3 evidence)" and in `docs/testing/uat/UAT_RELEASE_PLAN.md` row E3.
 
 This page describes the ProctiraERP UAT stack that runs on the shared EC2 build host: what is deployed, how to reach it, the role users, and how to redeploy, reset, back up, restore and tear it down. It names secrets only. Every value lives in the host-only secrets folder.
 
@@ -36,12 +36,13 @@ The running stack depends only on the host folder `UATENV_HOME` (`/home/ec2-user
 
 ## Deployed commit
 
-| Item          | Value                                                                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Commit        | `f7e066958b8030d0bd4905f932a73c87df48c9c0` (newest `origin/main` commit with a green push CI when the deploy started, 27 Nov 2026) |
-| CI push run   | [CI 45931166161](https://github.com/dbn1972/ProctiraErp/actions/runs/45931166161)                                                  |
-| Image tag     | `uatenv-f7e066958b80`                                                                                                              |
-| Secondary set | deployed with `--with-secondary`: public-website, admin-console, developer-portal and install-wizard, all healthy                  |
+| Item          | Value                                                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Commit        | `9bc1aef43c0d85f86e8fc96db96bd87ab75e6505` (PR #799, `origin/main` with a green push CI when the deploy started, 27 Nov 2026 05:14 UTC) |
+| CI push run   | [CI 45940638033](https://github.com/dbn1972/ProctiraErp/actions/runs/45940638033)                                                       |
+| Image tag     | `uatenv-9bc1aef43c0d`                                                                                                                   |
+| Previous      | `f7e066958b8030d0bd4905f932a73c87df48c9c0`, kept for rollback                                                                           |
+| Secondary set | deployed with `--with-secondary`: public-website, admin-console, developer-portal and install-wizard, all healthy                       |
 
 ## Services, ports and health endpoints
 
@@ -127,7 +128,7 @@ One Keycloak user per role the role catalogue and gateway support. Passwords are
 | `uat-b-teacher@proctira-uat.test`         | `teacher`           | tenant B teacher              | `e2e-tenant-a`          |
 | `uat-platform-operator@proctira-uat.test` | `platform_admin`    | platform operator (console)   | `platform`              |
 
-`uat-platform-operator` carries `tenant_id` and `tenant_slug` `platform`, the tenant the admin console requires, and its `login_host` is the admin console host. The gateway's Keycloak identity link stores the tenant in a uuid column, so its console sign-in is refused (503) until that is changed (UATENV-D23).
+`uat-platform-operator` carries `tenant_id` and `tenant_slug` `platform`, the tenant the admin console requires, and its `login_host` is the admin console host. Since #799 its console sign-in succeeds (200), but the console reads the platform role only from a top-level `roles` claim, so every console page redirects to `/forbidden` (UATENV-D33), and the console refresh fails after the 5-minute token (UATENV-D34).
 
 Each user carries the `tenant_id` and `tenant_slug` attributes that the realm's token mappers emit. The realm user profile is set to `unmanagedAttributePolicy: ADMIN_EDIT`, so the attributes reach the tokens but users cannot edit them. `uatenv-keycloak.sh --verify` takes a direct-grant token for every user and checks `iss`, `tenant_id`, `tenant_slug` and the role (claim names only, no values).
 
@@ -296,7 +297,30 @@ Hardening that is already in place for the public listener:
 
 ## Smoke results (E3 evidence)
 
-### E3 items on `f7e06695` (27 Nov 2026)
+### E3 items on `9bc1aef4` (27 Nov 2026)
+
+Full E3 smoke on the deployed commit `9bc1aef4`, 27 Nov 2026 05:46-06:49 UTC, after the redeploy that installed the #798 tooling (D17 detail records, D23 platform-operator user, D26 health_admin user) and the #799 product fixes. Evidence is on the host in `.agents/tasks/ProctiraErp-uat-close-e3-2026-11-26/track3/evidence/` (summary `smoke-summary.md`, deploy `deploy.md`); defects D33-D37 are described in `track3/new-defects.md`. Items that need provider test keys or public exposure are EXTERNALLY_BLOCKED (owner) and do not count as unmet.
+
+| #   | E3 item                                                               | Result                 | Counts                                                                                                                                                                                      | Open cause                                                                       |
+| --- | --------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 1   | Health checks, and again after a restart                              | **MET**                | 42/42 probes; after `uatenv_compose --profile secondary restart` 16/16 healthy in 62 s, first probe 41/42 (Keycloak ready 503), 42/42 60 s later; logins 16/16 and console sign-in after it | D21 recurred once (Keycloak ready lag), owned by another task                    |
+| 2   | All role users: login, home screen, active and idle session refresh   | **UNMET**              | 16 web users: login, home, active refresh, idle refresh 16/16 each; uat-platform-operator: console sign-in 200, then `/forbidden`; signed out after 287 s; refusals 3/3                     | D33 console role claim, D34 console refresh                                      |
+| 3   | Render pass, 209 web routes                                           | **MET**                | 205 PASS / 4 FAIL / 0 SKIP / 0 BLOCKED; allow 191/195, deny 164/164, portal bounce 26/26, public 14/14; raw server text 0, error boundary 0                                                 | 3 FAIL are harness role choice (`uat-tenant-admin` renders them); 1 expected 404 |
+| 4   | Secondary-app pass                                                    | **UNMET**              | 34 routes: 19 PASS / 11 FAIL / 4 SKIP; public-website 12/12, developer-portal 4/4, install-wizard 1/1; admin-console anonymous gate 11/11, signed-in pages 0/11                             | D33                                                                              |
+| 5   | Cross-tenant checks at gateway and screen level, both ways            | **MET**                | 36/36 PASS, 0 INCONCLUSIVE; spoofed `X-Tenant-ID` lists own rows only, by-id 404                                                                                                            | none                                                                             |
+| 6   | Registration journey                                                  | **MET**                | 5 of 5 runnable tests pass (1 CI-only gate skipped)                                                                                                                                         | none                                                                             |
+| 7   | Attendance marking and substitution assignment, end to end            | **UNMET**              | attendance: roster loads for 3 of 37 Sunrise classes, submit refused (400) for every student, nothing saved; substitution: saved (201), shown after reload, double-book 409                 | D35 version-4-only UUID check; D37 (low)                                         |
+| 8   | Backup and restore drill                                              | **MET**                | 2 encrypted dumps, mode 600; restore in 6 s, 7/7 row counts match, scratch database dropped                                                                                                 | none                                                                             |
+| 9   | Playwright nightly subset against the stack                           | **UNMET**              | 76 specs: 7 pass / 69 incompatible / 0 fail; 0 `color-contrast`, 0 HTTP 5xx                                                                                                                 | D28 harness HS256 sessions                                                       |
+| X1  | Online fee payment (Razorpay test checkout and webhook)               | **EXTERNALLY_BLOCKED** | not exercised; no `RAZORPAY_*` key in the UAT secrets                                                                                                                                       | owner: Razorpay test keys                                                        |
+| X2  | SMS and OTP delivery                                                  | **EXTERNALLY_BLOCKED** | not exercised; no `MSG91_*` key                                                                                                                                                             | owner: MSG91 test keys                                                           |
+| X3  | Email delivery                                                        | **EXTERNALLY_BLOCKED** | not exercised; no SES or SMTP key                                                                                                                                                           | owner: SES test credentials                                                      |
+| X4  | Mobile push notifications                                             | **EXTERNALLY_BLOCKED** | not exercised; no `FCM_*` or Firebase key                                                                                                                                                   | owner: FCM test keys                                                             |
+| X5  | Public exposure (DNS, TLS, per-tenant public hosts, external testers) | **EXTERNALLY_BLOCKED** | loopback only: 15 listeners in 29000-29099, all on 127.0.0.1                                                                                                                                | owner: public exposure decision, DNS and TLS                                     |
+
+E3 is PARTIAL: items 2, 4, 7 and 9 are unmet and are not owner items. New open defects from this run: UATENV-D33 (admin console reads the platform role only from a top-level `roles` claim), D34 (admin-console refresh posts the Keycloak refresh token to the platform endpoint), D35 (attendance accepts only version-4 UUIDs; the Sunrise ids are version 5; fix needs an owner decision), D36 (gateway auth-audit writes fail for sign-in, ticket, refresh and callback) and D37 (substitution form offers inactive meetings and hides the gateway reason, low). The D32 fix (#803) merged after `9bc1aef4` and is not yet re-checked on UAT.
+
+### Earlier E3 run on `f7e06695` (27 Nov 2026)
 
 Results after the redeploys for fix batches b1-b8; each row gives the newest run of that item. Summary: `UATENV_HOME/redeploy-main/evidence/smoke-summary.md`. Items that wait for a post-merge re-check are counted unmet.
 
@@ -356,9 +380,8 @@ Statuses above are as of the first run. The merged fixes are in the deployed `f7
 
 ## Pending owner
 
-- After the D32 fix merges: redeploy to a green `main` and re-check the admin tab titles.
-- E3 Track 3: install the #798 UAT tooling (D17 detail records, D23 platform-operator user, D26 health_admin user) and re-run the render and secondary passes.
-- Owner: D19 (registrar admissions grant), D23 (platform-operator identity).
+- Fix D33 and D34 (admin-console platform role and refresh, security review) and D35 (owner decision: accept every UUID version or reseed with version-4 ids), then redeploy to a green `main`, re-run E3 items 2, 4 and 7 and re-check the D32 admin tab titles.
+- D36 (auth-audit writes, security review) and D37 (substitution meeting list, low) are open follow-ups.
 - Decisions: D09 (per-tenant OIDC return origin), D10 (bursar and librarian grants), D11 (Helm ingress routing), D17 (demo seed coverage).
 - Repo config fix PRs for D02 and D04 (Helm and compose).
 - External provider credentials: Razorpay test keys (payments cannot be exercised until then), MSG91, SES, FCM, AWS KMS keys, and a Keycloak service-account client if tenant onboarding is tested.
