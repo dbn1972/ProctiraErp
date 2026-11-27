@@ -228,7 +228,7 @@ export type UpdatePolicyInput = Static<typeof UpdatePolicySchema>;
  */
 export const PolicyParamsSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Policy UUID',
   }),
 });
@@ -294,7 +294,7 @@ export type PolicyEvaluationRequest = Static<typeof PolicyEvaluationRequestSchem
  */
 export const CreatePolicyAssignmentSchema = Type.Object({
   policyId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Policy UUID to assign',
   }),
   targetType: Type.Union(

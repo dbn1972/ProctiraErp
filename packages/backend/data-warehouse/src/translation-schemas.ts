@@ -7,9 +7,9 @@
  */
 import { Type, type Static } from '@sinclair/typebox';
 
-/** UUID v4 pattern for validation */
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
-const UuidString = () => Type.String({ pattern: UUID_PATTERN, description: 'UUID v4 identifier' });
+/** RFC 9562 UUID pattern (versions 1-8, RFC variant; UATENV-D35) */
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const UuidString = () => Type.String({ pattern: UUID_PATTERN, description: 'UUID identifier' });
 
 /** PRC-L554: BCP-47 subset — lowercase primary language, up to three subtags (e.g. hi-IN). */
 export const LANGUAGE_CODE_PATTERN = '^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$';

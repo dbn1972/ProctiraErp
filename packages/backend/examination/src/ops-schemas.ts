@@ -4,7 +4,7 @@
  */
 import { Type, type Static } from '@sinclair/typebox';
 
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 const DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
 const TIME_PATTERN = '^([01]\\d|2[0-3]):[0-5]\\d$';
 

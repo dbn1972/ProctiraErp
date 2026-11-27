@@ -12,7 +12,11 @@ vi.mock('@/lib/api/timetable', () => ({
   listSubstitutions: vi.fn(async () => ({ ok: true, data: [] })),
   listMeetings: vi.fn(async () => ({
     ok: true,
-    data: [{ id: 'meet-1', dayOfWeek: 1, sectionId: 'sec-1', staffId: 'staff-1' }],
+    data: [
+      { id: 'meet-1', dayOfWeek: 1, sectionId: 'sec-1', staffId: 'staff-1', status: 'active' },
+      { id: 'meet-2', dayOfWeek: 2, sectionId: 'sec-1', staffId: 'staff-1', status: 'inactive' },
+      { id: 'meet-3', dayOfWeek: 3, sectionId: 'sec-1', staffId: 'staff-2', status: 'cancelled' },
+    ],
   })),
 }));
 vi.mock('@/lib/load-entity-labels', () => {
@@ -45,5 +49,11 @@ describe('StaffSubstitutionsPage assign form (S-D3)', () => {
     expect(
       (screen.getByRole('button', { name: 'Assign substitute' }) as HTMLButtonElement).disabled,
     ).toBe(false);
+  });
+
+  it('offers only active meetings, since the gateway refuses the others (UATENV-D37)', async () => {
+    render(await StaffSubstitutionsPage());
+    const slot = screen.getByRole('combobox', { name: 'Meeting slot' }) as HTMLSelectElement;
+    expect(Array.from(slot.options).map((o) => o.value)).toEqual(['meet-1']);
   });
 });

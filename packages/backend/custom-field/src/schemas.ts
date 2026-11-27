@@ -106,11 +106,11 @@ export type UpdateCustomFieldDefinitionInput = Static<typeof UpdateCustomFieldDe
 export const SetCustomFieldValueSchema = Type.Object({
   entityType: CustomFieldEntityTypeSchema,
   entityId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Entity UUID',
   }),
   fieldDefinitionId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Custom field definition UUID',
   }),
   value: Type.Unknown({ description: 'The field value (validated against definition rules)' }),
@@ -124,7 +124,7 @@ export type SetCustomFieldValueInput = Static<typeof SetCustomFieldValueSchema>;
 export const BulkSetCustomFieldValuesSchema = Type.Object({
   entityType: CustomFieldEntityTypeSchema,
   entityId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Entity UUID',
   }),
   values: Type.Record(Type.String(), Type.Unknown(), {
@@ -154,7 +154,7 @@ export type CustomFieldDefinitionListQuery = Static<typeof CustomFieldDefinition
  */
 export const CustomFieldDefinitionParamsSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Custom field definition UUID',
   }),
 });
@@ -167,7 +167,7 @@ export type CustomFieldDefinitionParams = Static<typeof CustomFieldDefinitionPar
 export const EntityValuesParamsSchema = Type.Object({
   entityType: CustomFieldEntityTypeSchema,
   entityId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Entity UUID',
   }),
 });

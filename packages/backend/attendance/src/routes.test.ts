@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
+import { v5 as uuidv5 } from 'uuid';
 
 import { AttendanceService } from './attendance-service.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';
@@ -251,6 +252,86 @@ describe('Attendance Routes', () => {
       });
 
       expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe('UATENV-D35 seeded version-5 ids', () => {
+    // The Sunrise seed derives class/student ids with uuid_generate_v5, and the
+    // roster returns those ids to the client. A v4-only pattern refused them.
+    const SEED_NS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+    const V5_CLASS = uuidv5('sunrise-section-g9a-math', SEED_NS);
+    const V5_STUDENTS = [
+      uuidv5('sunrise-gb-student-SPS-2019-0388', SEED_NS),
+      uuidv5('sunrise-gb-student-SPS-2019-0550', SEED_NS),
+    ];
+
+    beforeEach(() => {
+      for (const id of V5_STUDENTS) {
+        repository.addRosterEntry({
+          studentId: id,
+          studentName: id,
+          enrollmentId: `enr-${id}`,
+          classId: V5_CLASS,
+          gradeId: 'grade-001',
+        });
+      }
+    });
+
+    it('loads the roster for a class with a version-5 id', async () => {
+      expect(V5_CLASS[14]).toBe('5');
+      const response = await app.inject({
+        method: 'GET',
+        url: `/attendance/roster?classId=${V5_CLASS}&academicPeriodId=${PERIOD_ID}&date=2024-06-15`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data.map((r: { studentId: string }) => r.studentId).sort()).toEqual(
+        [...V5_STUDENTS].sort(),
+      );
+    });
+
+    it('records bulk attendance for version-5 class and student ids', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/attendance/student/bulk',
+        payload: {
+          institutionId: INSTITUTION_ID,
+          classId: V5_CLASS,
+          academicPeriodId: PERIOD_ID,
+          date: '2024-06-15',
+          records: [
+            { studentId: V5_STUDENTS[0], status: 'PRESENT' },
+            { studentId: V5_STUDENTS[1], status: 'LATE', comment: 'bus' },
+          ],
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body.summary.totalRecorded).toBe(2);
+      expect(body.summary.totalErrors).toBe(0);
+    });
+
+    it.each([
+      ['version nibble 0', '33333333-3333-0333-8333-333333333333'],
+      ['non-RFC variant', '33333333-3333-4333-c333-333333333333'],
+      ['not a uuid', 'not-a-uuid'],
+    ])('still refuses a malformed student id (%s)', async (_label, studentId) => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/attendance/student/bulk',
+        payload: {
+          institutionId: INSTITUTION_ID,
+          classId: V5_CLASS,
+          academicPeriodId: PERIOD_ID,
+          date: '2024-06-15',
+          records: [{ studentId, status: 'PRESENT' }],
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).code).toBe('VALIDATION_ERROR');
     });
   });
 

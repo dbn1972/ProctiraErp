@@ -7,9 +7,9 @@
  */
 import { Type, type Static } from '@sinclair/typebox';
 
-/** UUID v4 pattern for validation */
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
-const UuidString = () => Type.String({ pattern: UUID_PATTERN, description: 'UUID v4 identifier' });
+/** RFC 9562 UUID pattern (versions 1-8, RFC variant; UATENV-D35) */
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const UuidString = () => Type.String({ pattern: UUID_PATTERN, description: 'UUID identifier' });
 /** ISO-8601 calendar date (YYYY-MM-DD) with optional time component. */
 const ISO_DATE_PATTERN =
   '^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,3})?)?(Z|[+-]\\d{2}:\\d{2})?)?$';
