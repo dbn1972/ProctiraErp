@@ -122,8 +122,12 @@ One Keycloak user per role the role catalogue and gateway support. Passwords are
 | `uat-librarian@proctira-uat.test`         | `librarian`         | librarian                     | `sunrise-public-school` |
 | `uat-parent@proctira-uat.test`            | `guardian`          | parent                        | `sunrise-public-school` |
 | `uat-student@proctira-uat.test`           | `student`           | student                       | `sunrise-public-school` |
+| `uat-health-admin@proctira-uat.test`      | `health_admin`      | health admin (tenant-wide)    | `sunrise-public-school` |
 | `uat-b-tenant-admin@proctira-uat.test`    | `admin`             | tenant B admin (cross-tenant) | `e2e-tenant-a`          |
 | `uat-b-teacher@proctira-uat.test`         | `teacher`           | tenant B teacher              | `e2e-tenant-a`          |
+| `uat-platform-operator@proctira-uat.test` | `platform_admin`    | platform operator (console)   | `platform`              |
+
+`uat-platform-operator` carries `tenant_id` and `tenant_slug` `platform`, the tenant the admin console requires, and its `login_host` is the admin console host. The gateway's Keycloak identity link stores the tenant in a uuid column, so its console sign-in is refused (503) until that is changed (UATENV-D23).
 
 Each user carries the `tenant_id` and `tenant_slug` attributes that the realm's token mappers emit. The realm user profile is set to `unmanagedAttributePolicy: ADMIN_EDIT`, so the attributes reach the tokens but users cannot edit them. `uatenv-keycloak.sh --verify` takes a direct-grant token for every user and checks `iss`, `tenant_id`, `tenant_slug` and the role (claim names only, no values).
 
@@ -134,6 +138,7 @@ Keycloak admin console: `http://auth.proctira-uat.localhost:29080/admin/` with `
 - Tenant A: Sunrise Public School demo, `db/seeds/006_sunrise_public_school_demo.sql`, applied with `PGOPTIONS='-c proctira.allow_demo_seed=on'` (5 institutions, 3,619 students, 249 staff).
 - Tenant B and the other E2E tenants: `tools/e2e/seed-e2e-tenants.sql` (`e2e-tenant-a` has 1 institution and 6 students).
 - Registration fixture: `tools/e2e/seed-e2e-registration.sql` (tenant `e2e-registration`, one institution with a published admission form).
+- UAT-only detail records (UATENV-D17): `tools/scripts/uatenv/uatenv-detail-records.sql`, applied by `uatenv-seed-detail-records.sh` (called by `uatenv-seed.sh`, runnable on its own) with `PGOPTIONS='-c proctira.allow_uat_seed=on'`. One Sunrise record each for the admission, grading scheme, circular, examination, library item, LMS assignment, parent message thread, transport route and workflow definition detail screens (ids `00000000-0000-4000-8000-00000d17NNNN`). It is not a production seed: it lives outside `db/`, and `uatenv-contract.test.mjs` fails if anything under `db/` or the production migration scripts refers to it.
 - Portal links: `uatenv-link-portal-users.sh` (run by the deploy `apps` stage and by `uatenv-reset-data.sh`) signs `uat-parent` and `uat-student` in once through the gateway password route so the gateway creates their local user ids, then links `uat-parent` to Sunrise student `00000000-0000-4000-8000-00000000a5b1` (`parent_child_links`, active) and binds `uat-student` to the same student (`students.custom_data.user_id`, the PRC-H075 self-binding). Without it both portals show "no linked children" / "not available for your account".
 
 ## Database roles

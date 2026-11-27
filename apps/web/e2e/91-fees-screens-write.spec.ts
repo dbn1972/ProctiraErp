@@ -9,6 +9,7 @@ import {
   newTag,
   openAs,
   pageOf,
+  pay,
   pick,
   ready,
   scheduledDisbursement,
@@ -455,6 +456,9 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
       amountCents: 99_999,
       studentId: student.id,
     });
+    // PRC-M251: a bank line reconciles a recorded payment of the same amount, so record
+    // the ₹999.99 payment the bank statement confirms.
+    const paid = await pay(request, admin, invoice.id, 99_999, `FE-RC-UTR-${tag}`);
     const filename = `fe-w-${tag}.csv`;
     const missing = `FE-NOPE-${tag}`;
     await openAs(page, admin);
@@ -508,6 +512,7 @@ test.describe('Fees screens — form saves (E2E_BACKEND_READY)', () => {
           amountCents: 99_999,
           matched: true,
           invoiceId: invoice.id,
+          paymentId: paid.receipt.paymentId,
         }),
         expect.objectContaining({
           invoiceNumber: missing,

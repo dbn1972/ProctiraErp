@@ -277,6 +277,100 @@ test('rendered realm drops committed users and the dev secret, adds the UAT role
   assert.throws(() => renderRealm(realm, hostOptions({}), ''));
 });
 
+/** ROLE_USERS rows of uatenv-keycloak.sh: [prefix, role, slug, tenantId, displayName]. */
+function roleUsers() {
+  const s = src('uatenv-keycloak.sh');
+  const block = s.slice(s.indexOf('ROLE_USERS=('), s.indexOf('\n)\n', s.indexOf('ROLE_USERS=(')));
+  return [...block.matchAll(/^\s*"([^"]+)"$/gm)].map((m) => m[1].split('|'));
+}
+test('every UAT role user holds a rendered realm role (UATENV-D23, UATENV-D26)', () => {
+  const users = roleUsers();
+  assert.ok(users.length >= 17, `expected the full UAT roster, got ${users.length}`);
+  for (const [prefix, role] of users) {
+    assert.ok(UAT_REALM_ROLES.includes(role), `${prefix} role ${role} is not in UAT_REALM_ROLES`);
+  }
+  const byPrefix = Object.fromEntries(users.map((u) => [u[0], u]));
+  // D26: a tenant-wide health administrator in the Sunrise tenant.
+  assert.deepEqual(byPrefix['uat-health-admin'].slice(1, 4), [
+    'health_admin',
+    'sunrise-public-school',
+    '$SUNRISE_ID',
+  ]);
+  // D23: a platform operator whose tenant claim is the console's platform tenant.
+  assert.deepEqual(byPrefix['uat-platform-operator'].slice(1, 4), [
+    'platform_admin',
+    '$PLATFORM_TENANT',
+    '$PLATFORM_TENANT',
+  ]);
+  const consoleTenant = /PLATFORM_TENANT_ID = '([^']+)'/.exec(
+    readFileSync(join(ROOT, 'apps/admin-console/src/lib/auth/verified-token.ts'), 'utf8'),
+  )?.[1];
+  assert.match(src('uatenv-keycloak.sh'), new RegExp(`^PLATFORM_TENANT=${consoleTenant}$`, 'm'));
+  // Only the platform operator is outside a school tenant.
+  assert.deepEqual(
+    users.filter((u) => u[2] === '$PLATFORM_TENANT').map((u) => u[0]),
+    ['uat-platform-operator'],
+  );
+});
+test('UAT detail records (UATENV-D17) are guarded and never a production seed', () => {
+  const sqlFile = 'uatenv-detail-records.sql';
+  const sql = src(sqlFile);
+  // The guard is the first statement of the transaction and raises without the GUC.
+  const afterBegin = sql.slice(sql.indexOf('\nBEGIN;\n') + '\nBEGIN;\n'.length);
+  assert.match(
+    afterBegin,
+    /^DO \$\$\nBEGIN\n {2}IF current_setting\('proctira\.allow_uat_seed', true\) IS DISTINCT FROM 'on' THEN\n {4}RAISE EXCEPTION/,
+  );
+  // Only the UAT wrapper sets the guard, for one psql call.
+  const code = (f) => src(f).replace(/^\s*#.*$/gm, '');
+  const setters = scripts.filter((f) => /allow_uat_seed=on/.test(code(f)));
+  assert.deepEqual(setters, ['uatenv-seed-detail-records.sh']);
+  assert.match(
+    src('uatenv-seed-detail-records.sh'),
+    /PGOPTIONS='-c proctira\.allow_uat_seed=on' \\\n {2}uatenv_psql "\$MIGRATOR_DATABASE_URL" -q -f "\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)\/uatenv-detail-records\.sql"/,
+  );
+  assert.match(
+    src('uatenv-seed.sh'),
+    /bash "\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)\/uatenv-seed-detail-records\.sh"/,
+  );
+  // Every fixed id carries the D17 marker and writes only the Sunrise tenant.
+  const ids = [...sql.matchAll(/'(00000000-0000-4000-8000-[0-9a-f]{12})'/g)].map((m) => m[1]);
+  const own = ids.filter((id) => id.includes('-00000d17'));
+  assert.ok(own.length >= 9, 'expected the D17 record ids');
+  assert.deepEqual(
+    [...new Set(ids.filter((id) => !id.includes('-00000d17')))].sort(),
+    [
+      '00000000-0000-4000-8000-00000000a501',
+      '00000000-0000-4000-8000-00000000a531',
+      '00000000-0000-4000-8000-00000000a541',
+      '00000000-0000-4000-8000-00000000a551',
+      '00000000-0000-4000-8000-00000000a572',
+      '00000000-0000-4000-8000-00000000a591',
+      '00000000-0000-4000-8000-00000000a5b1',
+    ],
+    'only Sunrise demo ids may be referenced',
+  );
+  assert.doesNotMatch(sql, /set_config\('app\.platform_admin'/, 'no platform-admin RLS escape');
+  // Nothing under the production seed and migration paths knows about it.
+  const walk = (dir) =>
+    readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)],
+    );
+  const prodFiles = [
+    ...walk('db'),
+    'tools/scripts/apply-sql.sh',
+    'tools/scripts/run-target-database-migrations.sh',
+    'tools/scripts/run-e2e-backend-ready.sh',
+  ];
+  for (const rel of prodFiles) {
+    const text = readFileSync(join(ROOT, rel), 'utf8');
+    assert.doesNotMatch(
+      text,
+      /uatenv-detail-records|allow_uat_seed|-00000d17/,
+      `${rel} references UAT data`,
+    );
+  }
+});
 test('ops scripts never enable xtrace', () => {
   for (const f of scripts) assert.doesNotMatch(src(f), /^\s*set -[a-z]*x/m, `${f} uses set -x`);
 });

@@ -179,13 +179,16 @@ export const DOMAIN_ROUTE_ROLE_IDS: Partial<Record<DashboardDomain, ReadonlySet<
 };
 
 /**
- * UATENV-D24/D25: nav entries (sidebar, command palette) for route-role domains
- * whose nav grant is wider than the route set. The nav shows them only to a
- * role in the domain's route set, so it does not offer a screen the route
- * guard refuses.
+ * UATENV-D24/D25/D29: nav entries (sidebar, command palette) for route-role
+ * domains whose nav grant is wider than the route set. The nav shows them only
+ * to a role in the domain's route set, so it does not offer a screen the route
+ * guard refuses (D29: `library.read` reaches teacher and staff, and the
+ * Admissions entry uses `student.read`).
  */
 export const ROUTE_ROLE_NAV_DOMAINS: Readonly<Record<string, DashboardDomain>> = {
+  '/admissions': 'admissions',
   '/communication': 'communication',
+  '/library': 'library',
   '/workflows': 'workflows',
 };
 
