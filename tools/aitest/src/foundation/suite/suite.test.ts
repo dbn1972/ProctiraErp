@@ -5,7 +5,8 @@ import { repoRootFromHere } from '../repo.js';
 import { listSuites } from '../../../bin/list-suites.mjs';
 
 import { discoverSuites, suitesForCadence } from './discover.js';
-import { suiteCommand } from './runner.js';
+import { suiteCommand, suiteEnv } from './runner.js';
+import type { StackState } from '../stack/types.js';
 import { validateSuiteSpec, type SuiteSpec } from './spec.js';
 
 const root = repoRootFromHere();
@@ -63,5 +64,20 @@ describe('suite discovery', () => {
     expect(
       suiteCommand({ ...spec, runner: 'node', entry: 'src/tracks/t06/run.ts' }, '/a').args,
     ).toEqual(['--import', 'tsx', 'src/tracks/t06/run.ts']);
+  });
+  it('treats spec env as defaults the caller can override', () => {
+    const spec = {
+      env: { AITEST_X_DEFAULT: 'spec', AITEST_X_OVERRIDE: 'spec' },
+    } as unknown as SuiteSpec;
+    const state = { stateFile: '/s.json', profile: 'none' } as unknown as StackState;
+    process.env['AITEST_X_OVERRIDE'] = 'caller';
+    try {
+      const env = suiteEnv(spec, state, '/out');
+      expect(env['AITEST_X_DEFAULT']).toBe('spec');
+      expect(env['AITEST_X_OVERRIDE']).toBe('caller');
+      expect(env['AITEST_OUT_DIR']).toBe('/out');
+    } finally {
+      delete process.env['AITEST_X_OVERRIDE'];
+    }
   });
 });

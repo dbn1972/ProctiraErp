@@ -44,9 +44,11 @@ export function suiteCommand(spec: SuiteSpec, aitestDir: string): { cmd: string;
 }
 
 export function suiteEnv(spec: SuiteSpec, s: StackState, outDir: string): NodeJS.ProcessEnv {
+  // Spec env holds defaults (e.g. AITEST_NUM_RUNS); a value exported by the
+  // caller wins, so a local or replay run can override it.
   const env: NodeJS.ProcessEnv = {
-    ...process.env,
     ...spec.env,
+    ...process.env,
     AITEST_STACK_STATE: s.stateFile,
     AITEST_OUT_DIR: outDir,
     AITEST_SUITE: spec.id,
