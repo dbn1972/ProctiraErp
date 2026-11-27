@@ -18,6 +18,7 @@ import {
   fetchApiInventory,
   keycloakPasswordGrant,
   keycloakUsernames,
+  listTenantTablesWithId,
   listWebRoutes,
   loadStackContext,
   PLATFORM_TENANT,
@@ -25,6 +26,7 @@ import {
   snapshotTenant,
   TENANTS,
   UAT_ROLE_USERS,
+  withPg,
 } from './index.js';
 
 const ctx = loadStackContext();
@@ -41,7 +43,7 @@ afterAll(() => {
 });
 
 describe('foundation-smoke', () => {
-  it('seeded S and A with students and institutions; manifest built', () => {
+  it('seeded S and A with students and institutions; manifest built', async () => {
     const f = ctx.fixtures;
     for (const k of ['S', 'A'] as const) {
       const students = f.ids['students']?.[k]?.length ?? 0;
@@ -57,7 +59,8 @@ describe('foundation-smoke', () => {
       detail: f.tenants.EMPTY.status,
     });
     const withData = Object.keys(f.ids).length;
-    recorder.coverage('tenant tables with sampled ids', withData, withData);
+    const allTables = await withPg(ctx.db.bootstrapUrl(), (c) => listTenantTablesWithId(c));
+    recorder.coverage('tenant tables (with id) holding seeded rows', withData, allTables.length);
     recorder.record(
       'seed:portal-principals',
       (f.principals.guardians.S?.length ?? 0) > 0 && (f.principals.students.S?.length ?? 0) > 0,
