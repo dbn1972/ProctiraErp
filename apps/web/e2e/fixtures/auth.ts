@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { setupGatewayTenantSession } from './fake-session';
+import { isKeycloakSessionMode } from './keycloak-session';
 
 export interface LoginCredentials {
   /**
@@ -64,7 +65,11 @@ export async function loginAsTenantAdmin(
   // Hosts without seeded password users (the backend-ready harness, cloud
   // agents) can opt into the HS256 gateway cookie the axe matrix already uses.
   // Tenant A only: tenant-B / isolation specs keep the real login.
-  if (process.env.E2E_HS256_SESSION === '1' && !overrides.tenantSubdomain) {
+  // UATENV-D28: E2E_SESSION_MODE=keycloak takes the same path with a real Keycloak session.
+  if (
+    (process.env.E2E_HS256_SESSION === '1' || isKeycloakSessionMode()) &&
+    !overrides.tenantSubdomain
+  ) {
     await setupGatewayTenantSession(page, {
       email: overrides.email ?? TENANT_A_ADMIN.email,
       tenantId: process.env.E2E_TENANT_A_ID ?? '00000000-0000-4000-8000-000000000001',

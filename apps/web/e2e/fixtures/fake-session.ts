@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 
 import type { Page } from '@playwright/test';
+import { isKeycloakSessionMode, keycloakSessionFor, type HarnessRole } from './keycloak-session';
 
 /**
  * Mint an unsigned JWT the App Router middleware accepts (exp/tenant only).
@@ -16,6 +17,10 @@ export function createFakeJwt(payload: Record<string, unknown>): string {
 /**
  * HS256 JWT accepted by api-gateway `@fastify/jwt` when `JWT_SECRET` / issuer / audience match.
  * E2E-only helper — does not change production verification.
+ *
+ * UATENV-D28: with `E2E_SESSION_MODE=keycloak` (and no explicit signing options) this returns a
+ * real Keycloak access token for the users-file account matching `payload.tenantId` and
+ * `payload.roles` instead (see `keycloak-session.ts`). Other payload claims are not applied.
  */
 export function createSignedJwt(
   payload: Record<string, unknown>,
@@ -25,6 +30,9 @@ export function createSignedJwt(
     audience?: string;
   } = {},
 ): string {
+  if (isKeycloakSessionMode() && Object.keys(options).length === 0) {
+    return keycloakSessionFor(harnessSessionRequest(payload)).accessToken;
+  }
   const secret =
     options.secret ?? process.env.JWT_SECRET?.trim() ?? 'dev-secret-change-in-production';
   const now = Math.floor(Date.now() / 1000);
@@ -41,6 +49,16 @@ export function createSignedJwt(
     .update(`${header}.${encodedBody}`)
     .digest('base64url');
   return `${header}.${encodedBody}.${signature}`;
+}
+
+function harnessSessionRequest(payload: Record<string, unknown>): {
+  tenantId?: string;
+  roles?: HarnessRole[];
+} {
+  return {
+    tenantId: typeof payload.tenantId === 'string' ? payload.tenantId : undefined,
+    roles: Array.isArray(payload.roles) ? (payload.roles as HarnessRole[]) : undefined,
+  };
 }
 
 export async function setupFakeTenantSession(
@@ -75,6 +93,9 @@ export async function setupFakeTenantSession(
 /**
  * Session cookies signed for both Next middleware and api-gateway writes.
  * Requires `JWT_SECRET` aligned with the running gateway.
+ *
+ * UATENV-D28: with `E2E_SESSION_MODE=keycloak` the cookies hold a real Keycloak access and
+ * refresh token for the matching users-file account, so the web app's own refresh path runs.
  */
 export async function setupGatewayTenantSession(
   page: Page,
@@ -88,6 +109,25 @@ export async function setupGatewayTenantSession(
     roles: Array<{ roleId: string; roleName: string; areaId: string | null }>;
   }> = {},
 ): Promise<void> {
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3001';
+  if (isKeycloakSessionMode()) {
+    const session = keycloakSessionFor({
+      tenantId: overrides.tenantId ?? '00000000-0000-4000-8000-000000000001',
+      roles: overrides.roles ?? [
+        { roleId: 'admin', roleName: 'SUPER_ADMIN' },
+        { roleId: 'health', roleName: 'HEALTH_OFFICER' },
+      ],
+    });
+    await page
+      .context()
+      .addCookies([
+        { name: 'access_token', value: session.accessToken, url: baseUrl },
+        ...(session.refreshToken
+          ? [{ name: 'refresh_token', value: session.refreshToken, url: baseUrl }]
+          : []),
+      ]);
+    return;
+  }
   const token = createSignedJwt({
     sub: overrides.sub ?? 'e2e-user',
     email: overrides.email ?? 'admin@tenant-a.test',
@@ -99,8 +139,6 @@ export async function setupGatewayTenantSession(
       { roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null },
     ],
   });
-
-  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3001';
 
   await page.context().addCookies([
     { name: 'access_token', value: token, url: baseUrl },
