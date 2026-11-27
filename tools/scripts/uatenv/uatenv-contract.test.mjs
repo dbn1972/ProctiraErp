@@ -432,3 +432,31 @@ test('secrets are generated, never echoed, and gateway.env holds no operator cre
     assert.ok(!gatewayKeys.includes(k), `gateway.env must not carry ${k}`);
   }
 });
+test('UAT_ENVIRONMENT.md and the release plan E3 row agree on commit, status and counts', () => {
+  const env = readFileSync(join(ROOT, 'docs/testing/uat/UAT_ENVIRONMENT.md'), 'utf8');
+  const plan = readFileSync(join(ROOT, 'docs/testing/uat/UAT_RELEASE_PLAN.md'), 'utf8');
+  const status =
+    /^Status: deployed and smoke-tested on commit `([0-9a-f]{8})`.*Release-plan row E3 is \*\*([A-Z_]+)\*\* \((MET \d+, UNMET \d+, EXTERNALLY_BLOCKED \d+)\)/m.exec(
+      env,
+    );
+  assert.ok(status, 'status line names the commit, the E3 status and the item counts');
+  const [, sha, e3, counts] = status;
+  const commit = /^\| Commit +\| `([0-9a-f]{40})`/m.exec(env)?.[1] ?? '';
+  assert.ok(commit.startsWith(sha), `"Deployed commit" table names ${sha}`);
+  assert.match(env, new RegExp(`^\\| Image tag +\\| \`uatenv-${commit.slice(0, 12)}\``, 'm'));
+  const row = /^\| E3 +\| [^|]+\| ([A-Z_]+) on ([0-9a-f]{8})\b([^|]*)\|/m.exec(plan);
+  assert.ok(row, 'release plan has an E3 row');
+  assert.deepEqual([row[1], row[2]], [e3, sha], 'E3 row status and commit');
+  assert.ok(row[3].includes(counts), `E3 row carries "${counts}"`);
+  // The E3 items table of this commit must add up to the counts above.
+  const section = env.split(`### E3 items on \`${sha}\``)[1]?.split('\n### ')[0];
+  assert.ok(section, `"### E3 items on \`${sha}\`" section exists`);
+  const results = [...section.matchAll(/^\| [0-9X]+ +\|[^|]+\| \*\*([A-Z_]+)/gm)].map((m) => m[1]);
+  const n = (r) => results.filter((x) => x === r).length;
+  assert.equal(
+    `MET ${n('MET')}, UNMET ${n('UNMET')}, EXTERNALLY_BLOCKED ${n('EXTERNALLY_BLOCKED')}`,
+    counts,
+  );
+  // E3 is PASSED only when every non-owner item is met.
+  if (e3 === 'PASSED') assert.equal(n('UNMET'), 0, 'PASSED with unmet items');
+});
