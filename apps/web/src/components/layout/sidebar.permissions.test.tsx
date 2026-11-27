@@ -155,6 +155,45 @@ describe('PRC-H028 — role-derived navigation access', () => {
     }
   });
 
+  it('UATENV-D29: Library and Admissions are listed only for roles in the route set', () => {
+    const cases: Array<{ key: string; href: string; hidden: string[]; shown: string[] }> = [
+      {
+        key: 'library',
+        href: '/library',
+        hidden: ['teacher', 'staff'],
+        shown: ['librarian', 'admin', 'principal'],
+      },
+      {
+        key: 'admissions',
+        href: '/admissions',
+        hidden: ['teacher', 'nurse'],
+        shown: ['admin', 'principal'],
+      },
+    ];
+    for (const { key, href, hidden, shown } of cases) {
+      for (const role of hidden) {
+        cleanup();
+        currentUser = userWithRoles(role);
+        render(<Sidebar />);
+        expect(sidebarLinks(), `${role} ${key}`).not.toContain(key);
+        const hrefs = buildPaletteItems(currentUser.permissions, currentUser.roles).map(
+          (i) => i.href,
+        );
+        expect(hrefs, `${role} ${href}`).not.toContain(href);
+      }
+      for (const role of shown) {
+        cleanup();
+        currentUser = userWithRoles(role);
+        render(<Sidebar />);
+        expect(sidebarLinks(), `${role} ${key}`).toContain(key);
+        const hrefs = buildPaletteItems(currentUser.permissions, currentUser.roles).map(
+          (i) => i.href,
+        );
+        expect(hrefs, `${role} ${href}`).toContain(href);
+      }
+    }
+  });
+
   it('parent / guardian still sees only the parent portal', () => {
     for (const role of ['parent', 'guardian']) {
       cleanup();
